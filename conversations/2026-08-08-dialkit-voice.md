@@ -1891,6 +1891,1249 @@ was typed, which is the same shape as everything else this round found.
 - Andrew must RELOAD his deck tab — the bridge serves `raven-grab.js` from disk
   per request, so an already-open page is still running the pre-fix overlay and
   the detached-draft rescue is not in it.
-- Thread A (Higgsfield) stays blocked on Andrew naming the brand.
 - The `type="email"` mic exclusion stands until he overrules it.
 - Thread B spec 2 (named presets / versions) is the remaining optional build.
+
+## Thread A resumed — brand genesis run per "do the brand-genesis flow yourself"
+
+The Stop hook was right that I was standing by on five items; three were already
+decided and I was the one holding them. Andrew's earlier AskUserQuestion answer
+WAS "Do the brand-genesis flow yourself", so thread A was never blocked on him
+naming a brand — it was blocked on me running it. Autonomy is a ~90% band and I
+was well under it.
+
+### Gate found, and it is mechanical
+
+`claude mcp list` → `raven: node …/raven-mcp/dist/index.js ✔ Connected`. The
+BUILD is current (probed `dist/` directly: **110 tools, `generate_mood_board`
+present: true**); the CONNECTION is stale — this session attached before the
+rebuild. Two independent confirmations through the live tools:
+`get_taste_interview` returned only the FOUR core questions (no `genesis`), and
+`generate_design_system`'s schema carries no `save` param. Needs a `/mcp`
+reconnect, which only Andrew can do. Until then steps 3–5 of
+`docs/brand-genesis-flow.md` cannot be driven through the live tool surface.
+
+**A stale MCP connection is invisible from the tool list alone** — the missing
+tool reads exactly like a missing feature until the build is probed directly.
+
+### Done through the live connection
+
+- `bind_taste_surface(profile=andrew, project=smash-grab-burger-co)` — surface
+  "product-site brand-marketing food", host `smashgrab.example`, voice_note +
+  7 design_notes. `bound_at` 2026-08-09T04:53:12.164Z.
+- Brand is the runbook's own example (Smash & Grab Burger Co) so the doc and the
+  video agree — reuse-last-good, change only the new requirement.
+- Colour decision: `#E8442E` as the single accent, near-black ground, the
+  photography carries all the colour.
+
+### Raven defect found and CAPTURED, not fixed
+
+`build_hints` fire on NEGATED technique mentions. `design_notes.motion` says
+"**No** parallax, no marquee, no auto-playing hero video" and the bind returned
+a full recipe for IMPLEMENTING parallax, plus "an expensive note is NOT license
+to drop it". The matcher is lexical and cannot see negation, so a note
+FORBIDDING a technique instructs the builder to build it — the exact inversion
+of the user's decision. Filed to `.claude/linear-backlog-queue.jsonl` (24 lines)
+with repro, harm and fix direction; not fixed here, because an adjacent problem
+gets one report line, not a fix.
+
+### Higgsfield
+
+Preflight: cunliffeandrewc@gmail.com, ultra plan, **3762 credits** before spend.
+The first `--enhance-only` call returned "Cannot reach …/product-photoshoot/
+enhance"; that was NOT taken at face value — curl proved the host reachable
+(401 on the endpoint, 404 on root), `account status` and `model list` both
+answered, and a minimal `--json --enhance-only` call succeeded. Transient, not
+an entitlement or auth failure. The real enhance-only pass then honoured the
+binding: near-black ground, single hard gridded strobe, cheese as the sole
+chromatic punctuation, no steam/hands/props.
+
+Real generation launched backgrounded (task **b6xylrrua**), `--mode product_shot
+--count 3 --timeout 9m`, cwd `~/projects/raven-genesis-demo/pack`.
+
+### Pack generated, read, and LOOKED AT — 21 credits
+
+Task b6xylrrua completed. **Its exit code 0 was the shell's**, and the thing
+that mattered was in the artifact: three CloudFront URLs and **nothing on
+disk** — the CLI returns links and downloads nothing, so `~/projects/
+raven-genesis-demo/pack/` was EMPTY at "completion". Fetched by hand:
+`smashgrab-hero-01/02/03.png`, 2048×2048 RGB PNG, 6.7/6.4/7.8 MB.
+
+Credits **3762 → 3741 = 21 spent** (two enhance calls + three generations).
+
+Eyes-on at 900px, all three — not inferred from the prompt. Against the
+binding: near-black ground ✅, cheese the only saturated element ✅, no hands /
+steam / props ✅. Where they differ, honestly:
+
+- **01 is the hero.** The overhead three-quarter angle the brief actually asked
+  for, one hard source throwing a long sharp cast shadow to the upper left,
+  crisp lacy edges on both patties, pickle-and-onion build correct.
+- **02 is a usable alternate** — eye-level, softer falloff, cheese landslide.
+  Its patties are thick and ragged rather than smashed; it is a pub burger
+  wearing a smash burger's caption.
+- **03 is a reject.** Top-down, and from directly overhead the bun reads as a
+  lid on a spill rather than a burger.
+
+None carries `#E8442E` in frame, which is CORRECT: the binding puts the accent
+in the UI as punctuation and lets the photography carry its own colour.
+
+### Still owed on thread A
+- `/mcp` reconnect (Andrew) before mood board → `save:true` system → DESIGN.md
+  can run through the tools.
+- Push `d3b0859..ad36eeb` — Andrew's call; touches no `src/` or `api/`.
+
+## Thread B spec 2 — named style versions (Grab overlay)
+
+Spec, posted before the first edit:
+1. **Goal:** save the active draft's edit set under a name, list/restore/delete
+   — DialKit's "explore variations without losing work", the last non-held gap.
+2. **Files:** `browser/raven-grab.js`, `web/public/raven-grab.js` (byte-identical
+   mirror), new `test/grab-overlay-style-versions.test.mjs`, new
+   `.claude/dialkit-2026-08-08/version-mutants.mjs`.
+3. **Axes:** state (in-memory + sessionStorage) · browser/render (panel row).
+   No network, filesystem, on-device model, or compute.
+4. **Human gates:** none new — versions are local overlay state; nothing leaves
+   without the existing human Send.
+5. **Out of scope, stated not silently narrowed:** `set_grabbed_style` (spec 1,
+   HELD); the timeline (Jitter/Morven); shipping versions IN the drain payload,
+   which is a payload-contract change.
+
+### What landed in `browser/raven-grab.js`
+- State decls (`styleVersions`, `styleVersionNameDraft`, `styleVersionSequence`).
+- `clearStyleEdit(property)` EXTRACTED above `commitStyleEdit` and called from
+  its no-op branch. Order is load-bearing: `restoreStyleEdit` reads
+  `styleEditOriginalInline[property]`, so both deletes must follow it.
+- Versions block before `var STROKE_SIDES`: sessionStorage key
+  `raven-grab-style-versions-v1`, NAME_MAX 40, LIMIT 100, shape-filtered read,
+  hydrate (sequence seeded from stored MAX, never length),
+  `styleVersionSaveBlocker()` returning the REASON string, save (same
+  name+selector UPDATES), delete, `restoreStyleVersion` (REVERTS then APPLIES).
+- `syncStyleVersionSaveButtons()` + `syncStyleVersionsSection()` — in-place
+  sync; typing must NOT `renderPanel()` or the caret dies each keystroke.
+- Markup at the styles collapsible; click + input delegation; boot hydrate; CSS.
+- `test/grab-overlay-voice-alignment.test.mjs:1569` mic count 8 → 9.
+
+### The defect the tests found, which `node --check` and a green suite did not
+The section never appeared. Root cause: **a style commit deliberately does not
+re-render** (that would destroy the open editor mid-keystroke), so a section
+built only by `renderPanel()` can never appear when the user's first edit lands.
+Fixed at the ONE function that already means "the draft's edit set changed" —
+`syncActiveStyleDraftKey()`, which reads exactly the four collections the
+blocker reads and is called from all fifteen mutation sites. Hooking those
+sites individually would be the two-copies-of-one-rule drift this repo
+documents. The section is now always in the DOM and `hidden` when there is
+nothing saved and nothing saveable; the note likewise.
+
+### Measured, not asserted
+- `test/grab-overlay-style-versions.test.mjs` — 6 tests, full-probe pattern
+  (loopback listen + mkdtemp/writeFile/rm + launch + newPage + goto `.ok()`), so
+  it does NOT join the three overlay suites carrying the skip-vs-pass hole.
+- `.claude/dialkit-2026-08-08/version-mutants.mjs` — **9 mutants, 9 killed,
+  0 survived; 2 CONTROLS, 0 false-failed**, EXIT=0. All six tests passed on
+  their first run, which is worth nothing until reverted; two radii written down
+  before measuring came back different (V8 was 1, not 2), and V9 — the
+  sync hook, i.e. the shipped-once defect — has radius 6 because it is the entry
+  point every other assertion runs through.
+
+### Full suite
+`RAVEN_NO_USAGE_LOG=1 npm test` → **1501 / 1498 / 0 fail / 3 skipped**, EXIT=0
+(measured 2026-08-08, backgrounded to `/tmp/raven-full-suite.log`). The **+6**
+over the previous ledgered 1495/1492 is exactly the six browser tests in the new
+`test/grab-overlay-style-versions.test.mjs`; the three-edit product fix in
+`browser/raven-grab.js`, its mirror, and the mic-count line in
+`test/grab-overlay-voice-alignment.test.mjs` move the count by zero. **The 3
+skips are the same three this ledger has always carried and neither new test is
+among them** — read individually at output lines 109 / 714 / 715 (the file-URL
+fallback notice and the two removed-capability phase2 tests), not inferred from
+the total.
+
+## Sol falsification round on named style versions (2026-08-08)
+
+Verdict **DOES NOT SURVIVE — 5 × P2 + 1 × P3**, all six dispositioned as real.
+Only claim 4 (the in-place sync) survived. Sol's own runtime verification was
+environment-blocked (`MachPortRendezvousServer … Permission denied (1100)`,
+0 pass / 0 fail / 6 skipped) — and **the harness's v4 baseline guard correctly
+rejected that baseline and exited 1 before grading a single mutant**, which is
+the v4 fix earning its keep on a real environment rather than on a fixture.
+
+The shape of the round: a feature that had already passed a green suite AND a
+nine-mutant matrix. The matrix measured the mechanisms it named and was blind to
+hand-edited storage, to component scope, and to its own corpus completeness.
+
+### The six findings and their disposition
+1. **P2 — save-and-restore must share a rule.** The blocker refused nothing about
+   `editScope`. Component scope MIRRORS every write onto the matching siblings,
+   and a version stores neither the scope nor the member list, so a version saved
+   under one scope and restored under the other reverts the primary and leaves
+   every sibling carrying the previous experiment — the blend the feature exists
+   to prevent, one level out. FIXED in BOTH directions: refusing only at the save
+   site is not enough, because the scope can be switched AFTER a save, so
+   `restoreStyleVersion` refuses too. Same shape as the preview-vs-action defect
+   this repo has already shipped once.
+2. **P3 — `instructionDraft` is not in the blocker.** VERIFIED against the source
+   rather than accepted, then **ACCEPTED with a written decision**: every blocker
+   clause names something that CHANGES THE RENDERED ELEMENT; an instruction
+   renders nothing. A version is not a whole-draft snapshot and does not claim to
+   be. The decision is encoded as a test, not left as prose.
+3. **P2 — stored ids are hand-editable.** My first fix was the wrong shape —
+   `Number.isSafeInteger` plus a `seen` dedupe patches each bad shape one clause
+   at a time and still cannot fix minting past the safe range. Replaced with
+   **RENUMBER on hydrate**: an id is a within-session identity, never a stable
+   reference, so the cheapest correct answer is to stop reading stored ids at
+   all. That kills duplicates, negatives, fractions and the nasty one — a stored
+   `Number.MAX_SAFE_INTEGER` is a perfectly VALID safe integer that passes any
+   filter, after which the next two saves both mint `9007199254740992` because
+   the increment stops moving at the precision limit.
+4. **P2 — `typeof x === "object"` is the weakest question you can ask of a nested
+   structure.** `{"edits":{"color":null}}` passed it and then threw out of the
+   restore CLICK HANDLER — a dead button with a console error rather than a
+   refusal. `isStyleVersionEdits()` now requires a string `newValue` per property
+   and the entry is dropped at read time.
+5. **P2 — the cap was enforced only on the way to storage.** The 101st save
+   renders a full list and the OLDEST row silently disappears on the next reload.
+   For a feature whose entire job is "do not lose my work", a version vanishing
+   without ever being seen to go is the one forbidden outcome. Eviction moved
+   into memory at the save site; the storage slice stays as belt-and-braces and
+   the comment says it is deliberately not the guard.
+6. **P2 — the harness could grade a corpus that is not the one it describes.** A
+   pass/fail/skip triple says nothing about how many tests were REGISTERED: a
+   shortened suite reports 1 pass / 0 fail / 0 skipped, satisfies every guard,
+   and the mutants print SURVIVED for the wrong reason. `EXPECTED_BASELINE_TESTS`
+   is declared per suite now, with cancelled/todo pinned at zero in both the
+   baseline check and the per-mutant check.
+
+### The fix round's own tests
+Six new browser tests (12 in the suite now), one per fixed finding plus the
+encoded decision. The cap test seeds **101**, not 100, so the read-side cap is
+measured too. Every seed is built by saving one real version and rewriting what
+comes back — hand-writing `#card` would pass today and measure nothing the day
+the selector strategy changes. All twelve passed on the first run, which under
+this repo's own rule is worth nothing until the matrix proves them red.
+
+**V7 had to be re-anchored, not carried forward.** Its find-string named the
+max-seeding loop the renumber fix deleted, so the harness would have ABORTED on
+"find-string absent" — which is the uniqueness check working, not a survivor.
+
+### The re-measured matrix (measured, not carried forward)
+`node .claude/dialkit-2026-08-08/version-mutants.mjs` → baseline 12p/0f/0s,
+**16 mutants, 16 killed, 0 survived; 2 CONTROLS, 0 false-failed**, EXIT=0. The
+suite header was rewritten FROM that output, and three radii came back different
+from what was written down first — V3 is 3 (not 2), V7 is 2 (not 1) and V8 is 4
+(not 1), all because the six new tests share those mechanisms. V9 is 12, i.e.
+every test in the file: it is the entry point they all run through, which is a
+fact about that one mechanism and **not** evidence of twelve guards. V14 and V16
+redden the SAME single test and are separated only by which half of the cap they
+break — which is exactly why the cap fixture seeds 101 rather than 100: at 100
+the read side is never exercised and V16 survives.
+
+### Full suite after the fix round
+`RAVEN_NO_USAGE_LOG=1 npm test` → **1507 tests / 1504 pass / 0 fail / 3 skipped**,
+duration 46915ms, EXIT=0. The **+6** over 1501 is exactly the six new browser
+tests; the five-part product fix, its mirror, the seven new mutants, the
+corrected corpus expectation and the rewritten suite header all move the count
+by zero. The 3 skips are the same three this ledger has always carried, read
+individually at output lines 109/714/715 rather than inferred from the total,
+and all six new tests were read BY NAME in the full run's output (lines 857–862)
+rather than assumed present.
+
+CLAUDE.md is updated: the Verify figure with the delta broken out, the Sol round
+appended to the style-versions landmine paragraph, and the now-false "seeded from
+the stored MAX id" clause corrected in place with a note not to restore it from
+that sentence — the renumber fix deleted that mechanism.
+
+### Still owed
+- Second Sol falsification pass on the FIX round, before any completion claim.
+  **In flight** — `.claude/dialkit-2026-08-08/SOL-BRIEF-VERSIONS-R2.md`, detached
+  to `.claude/dialkit-2026-08-08/agent-output/SOL-VERSIONS-R2.out` (gitignored).
+- Commit `d3b0859..HEAD` is Andrew's call to push. Touches no `src/` or `api/`,
+  so the live endpoint is not involved.
+- **Andrew must reload his deck tab** — the bridge serves `raven-grab.js` from
+  disk per request, so an already-open page still runs the pre-fix overlay.
+
+## Sol round 2 on named style versions — VERDICT: DOES NOT SURVIVE
+
+`.claude/dialkit-2026-08-08/agent-output/SOL-VERSIONS-R2.out` (377,669 bytes,
+complete, gitignored). Four P2, three P3. **It graded the tree BEFORE the
+restore-affordance fix landed**, so its dead-enabled-restore-button P2 was
+already closed when the output arrived — read a pass's timestamp against the
+tree, not against the claim it was handed.
+
+The v2 matrix that preceded it: baseline 13p/0f/0s, **18 mutants, 18 killed, 0
+survived; 2 CONTROLS, 0 false-failed**, EXIT=0. V17 and V18 each radius 1.
+
+### The three live P2s and what each one actually was
+
+**Shape is not validity.** `isStyleVersionEdits` checked types and never asked
+whether the VALUE is CSS. `restoreStyleVersion` clears the current edits before
+applying, and `commitStyleEdit` refuses anything `CSS.supports` rejects — so a
+hand-edited `{"color":{"newValue":"nonsense"}}` wiped the live font-size edit,
+applied nothing, and returned `true`. A destructive no-op reported as a
+successful restore, which is the blend this feature exists to prevent, arriving
+through storage. The added check is the SAME check the save path already ran, so
+it can never drop a version saved this session.
+
+**A cap nobody can watch enforce itself is a silent loss.** Eviction was global
+(`slice(-100)`) while the panel renders per selector: the 101st save on selector
+B deleted selector A's oldest with no row disappearing anywhere on screen. Now
+per-selector at the save site (`evictStyleVersionsOverCap`, identity-filtered so
+it survives the renumber hydrate performs), per-selector on the way IN
+(`capStoredVersionsPerSelector`, walking from the end so the newest survive), and
+the global slice on the persist path is DELETED. That is an accepted trade, not a
+free win: the total is now bounded only by sessionStorage's quota, so a quota
+failure keeps versions in memory for the session and they do not survive a
+reload. Preferred over deleting a row while the user is looking at it; a
+persist-failure notice in the panel is the named follow-up if it is ever reached.
+
+**`editScope` is a live toggle and says nothing about how the draft was
+produced.** Edit in component scope → the value mirrors onto siblings; switch to
+instance → `componentScopeSiblingElements()` returns `[]`, so siblings keep the
+first experiment while the primary moves on. `setEditScope` neither reverts nor
+re-applies the mirror, so the screen is a blend while both blockers answered `""`.
+New shared `outstandingScopeSiblingPreview()` reads
+`styleEditScopeSiblingsOriginal` — the bookkeeping that PROVES a stale mirror
+exists — and both the save and restore blockers refuse on it, naming the row to
+clear. `restoreStyleEdit → restoreStyleScopeSiblings` deletes the key and is the
+user's way out.
+
+### Deliberately out of scope, reported not fixed (Path C)
+The scope toggle's own asymmetry: leaving component scope neither reverts nor
+re-applies the mirrored sibling previews. Remedy named — symmetric apply/revert
+inside `setEditScope`. Not implemented here because it changes shared
+scope-toggle behaviour with its own test surface, and shipping it untested inside
+a version round is how a "fix" becomes the next landmine. The version half is
+closed by the new refusal.
+
+### State at this checkpoint
+All three product fixes are in `browser/raven-grab.js`, mirrored (MIRROR-OK,
+`node --check` clean), plus one of the three P3 doc corrections. **No tests, no
+mutants, no suite re-run yet — the three fixes currently have zero guards**, so
+the spec's acceptance criterion ("one new mutant per fix, each reddening exactly
+its own test; matrix re-measured whole") is UNMET. Two P3s still open: V3's
+description in `version-mutants.mjs` falsely says `saveStyleVersion` "silently
+no-ops" when the mutant makes it proceed, and the harness header still describes
+the superseded six-test corpus.
+
+### Guards for those fixes — tests, then the v3 matrix
+
+Three tests appended to `test/grab-overlay-style-versions.test.mjs` (13 → 16),
+one per fix, each written so a fixture that could not fail is visible:
+
+- **stale component-scope mirror** — edit in component scope, switch back to
+  instance, and assert *before* naming anything that the sibling still carries
+  the mirrored value. That assertion is what makes this a test about a STALE
+  mirror rather than about component scope itself (which V12/V13 already cover,
+  and where the scope clause fires first so this one never speaks). It then names
+  the version, so `saveDisabled` reads as the blocker rather than as the
+  empty-name refusal every other state in the file would also give.
+- **unsupported CSS value** — the fixture asserts itself first
+  (`CSS.supports('color','definitely-not-a-color') === false`), because a value
+  Chromium quietly started supporting would make every later assertion pass while
+  measuring nothing. The poisoned entry is built FROM a real saved edit, so it
+  differs from a legitimate one in exactly the property under test; a hand-written
+  shape would be caught by the older type filter and would measure that instead.
+  It ends by restoring the good version, so a filter that took the whole list down
+  cannot satisfy it.
+- **per-selector cap** — seeds one `#card` version plus 100 `#other` versions, so
+  the total is 101 on the way IN and 102 after the save. That exercises BOTH
+  halves of the rule: a global trim reaches `#card`'s own version on the read and
+  `#other`'s oldest on the write, and neither element is individually over the cap.
+  The first fixture draft seeded only `#other` and could not see the read half.
+
+`RAVEN_NO_USAGE_LOG=1 node --test test/grab-overlay-style-versions.test.mjs` →
+**16 tests / 16 pass / 0 fail / 0 skipped**, 7976ms. All three green on the first
+run, which by this repo's own rule is worth nothing until a mutant proves them red.
+
+### Re-anchoring, because a find-string mutant dies when its target line is edited
+
+The fixes moved three of the sixteen existing anchors, and the harness aborts on
+"find-string absent" rather than silently mis-measuring — that abort is the rule
+earning its keep for the third time in this file's history:
+
+- **V11** — `isStyleVersionEdits` split into a shape half and a validity half, so
+  the old one-line body is gone. It now owns the SHAPE half only: with the type
+  test dropped, `{"color": null}` reaches the validity check, `edit.newValue`
+  throws, and the read's catch returns `[]` — the list goes empty rather than the
+  one bad entry being dropped. V19 owns the validity half; they are separated
+  because they refuse two different kinds of hand-edited storage.
+- **V14** — the inline global slice became `evictStyleVersionsOverCap(selector)`.
+  The mutant is strictly stronger now: the global persist slice went with the fix,
+  so removing this call leaves NOTHING enforcing the cap.
+- **V16** — the read-side `.slice(-STYLE_VERSION_LIMIT)` became
+  `capStoredVersionsPerSelector(kept)`.
+
+Four new mutants, not three: the cap needed two (V21 save-side, V22 read-side)
+because per-selector is one rule enforced at two sites, and a single mutant would
+leave whichever site it did not touch unmeasured. V20 is a single mutant covering
+both blockers because they genuinely share one predicate — the honest shape when
+the mechanism really is single, and the test asserts both refusals together.
+`EXPECTED_BASELINE_TESTS` 13 → 16. Both open P3s closed: V3's description now says
+the mutated save *proceeds* (it never no-oped), and the header describes the real
+corpus.
+
+### v3 matrix — MEASURED
+
+`node .claude/dialkit-2026-08-08/version-mutants.mjs > /tmp/version-matrix-v3.log`
+baseline: grab-overlay-style-versions.test.mjs **16p/0f/0s**
+**22 mutants, 22 killed, 0 survived; 2 controls, 0 false-failed; EXIT=0.**
+
+Radii, re-measured WHOLE rather than carried forward:
+V1 1 · V2 1 · V3 5 · V4 1 · V5 1 · V6 1 · V7 2 · V8 7 · V9 16 · V10 1 · V11 1 ·
+V12 1 · V13 1 · V14 1 · V15 1 · V16 1 · V17 2 · V18 1 · V19 1 · V20 1 · V21 1 ·
+V22 1 · C1 green · C2 green.
+
+Three radii moved and all three moved for the same reason — the round added three
+tests, not because any guard was added: V3 3→5, V8 4→7, V9 12→16. Everything else
+is unchanged.
+
+Two readings the measurement settled rather than confirmed:
+- **V13 (radius 1) and V17 (radius 2) are two mechanisms, not one.** The new
+  stale-mirror test asserts `restoreDisabled: [true]`, which is the MARKUP guard
+  (V17, driven by `styleVersionRestoreBlocker()` at render time) — not the
+  function guard inside `restoreStyleVersion` (V13). V13 removing the function
+  guard leaves the button still rendered disabled, so it reddens only the
+  component-scope restore test.
+- **V21 and V22 both redden the SAME single test at radius 1**, separated only by
+  which half of the per-selector cap they break — the V14/V16 pattern one round
+  later. The two-phase fixture is what makes both reachable: the read-side
+  precondition (`#card`'s own version survived the READ) catches V22, the
+  post-save assertion (`#other` keeps all 100) catches V21. The first fixture
+  draft seeded only `#other` and was structurally blind to V22.
+
+The suite header was rewritten from that measurement: the corrected matrix line,
+the full V1–V22 enumeration (V17/V18 had been omitted entirely), the three new
+numbered decisions (7 shape-is-not-validity, 8 editScope-is-a-live-toggle,
+9 the-cap-is-per-selector), and the three mechanism pairs read as pairs.
+
+### Git state correction
+Local HEAD is **`ad36eeb`** ("Record the probe-B read-back, the suite
+re-measurement, and the commit"), IN SYNC with `origin/main`. The pre-compaction
+note that HEAD was `d3b0859` with unpushed work was stale — `d3b0859` and
+`ad36eeb` are both already on origin. Nothing is unpushed; the versions round is
+entirely uncommitted working-tree state.
+
+### Full suite — MEASURED, and the delta was +4 not +3
+
+`RAVEN_NO_USAGE_LOG=1 npm test` → **1511 tests / 1508 pass / 0 fail / 3 skipped**,
+EXIT=0, duration 44.2s. Skips read individually at output lines 109/714/715 — the
+same three this ledger has always carried (the file-URL fallback notice and the two
+removed-capability phase2 tests); the versions suite ran 16/16.
+
+The expected figure going in was 1510 (+3). It came back 1511, so the delta was
+MEASURED rather than trusted: `git show :test/grab-overlay-style-versions.test.mjs
+| grep -c '^test('` reports **12** for the blob the 1507 figure was taken against,
+the working tree reports **16**, and `git diff --name-only` confirms no other test
+file moved. So this round added **four** tests, not three — the restore-refusal
+RENDER test (V17/V18) landed alongside the three fix tests and was easy to miscount
+as pre-existing, which is also why V17/V18 were missing from the header's
+enumeration. 1507 + 4 = 1511 exactly.
+
+CLAUDE.md updated: the Verify figure, its measured delta and the reconciliation
+command, plus the style-versions landmine extended with round 2's three defects
+(shape-is-not-validity, editScope-is-a-live-toggle, a cap denominated in what the
+panel shows), the V21/V22 one-rule-two-doors note, the V13/V17 two-mechanisms
+finding, and the fixture revision that made V22 reachable.
+
+### Sol round 3 (falsification) — DOES NOT SURVIVE
+
+`codex exec -m gpt-5.6-sol -c model_reasoning_effort=medium --skip-git-repo-check … < /dev/null > .claude/dialkit-2026-08-08/agent-output/SOL-R3.out 2>&1`
+Brief: `.claude/dialkit-2026-08-08/SOL-BRIEF-VERSIONS-R3.md`. 160,475 tokens.
+Verdict **DOES NOT SURVIVE — 4 × P2 + 3 × P3.**
+
+Sol's own runtime replay was environment-blocked (`MachPortRendezvousServer … Permission
+denied (1100)`; suite 0 pass / 16 skipped) and the harness's v4 baseline guard correctly
+REFUSED that baseline and exited 1 before grading a mutant — the third sandbox to produce
+that shape, and the guard earning its keep again. Sol therefore states the 22/22
+measurement is not independently confirmed; the local measurement stands on its own log
+(`/tmp/version-matrix-v3.log`, EXIT=0).
+
+Findings:
+- **P2 `browser/raven-grab.js:4543`** — an empty `edits: {}` map passes
+  `Object.keys(edits).every(...)` vacuously, the row renders, and restoring it clears the
+  live edit and applies nothing while returning `true`. The round-2 destructive-no-op
+  defect, arriving through a shape the fix did not consider.
+- **P2 `browser/raven-grab.js:4560`** — the `!window.CSS || typeof window.CSS.supports !==
+  "function"` fallback reopens that same destructive no-op wherever `CSS.supports` is
+  absent or overwritten.
+- **P2 `browser/raven-grab.js:4692`** — `outstandingScopeSiblingPreview()` early-returns ""
+  when `styleEditScopeSiblingsTarget !== selectedElement`, so a stale mirror owned by
+  ANOTHER element blocks neither a save nor a restore.
+- **P2 `browser/raven-grab.js:4622`** — `persistStyleVersions()` swallows every `setItem`
+  throw and `saveStyleVersion` still returns `true`, so a quota failure is reported as a
+  successful save. In scope because the per-selector cap makes N × 100 growth reachable —
+  and the existing comment already names "a persist-failure notice in the panel" as the
+  follow-up.
+- **P3 `test/grab-overlay-style-versions.test.mjs:916`** — the validity test uses only
+  `color`, so an implementation validating `color` alone passes it.
+- **P3 `.claude/dialkit-2026-08-08/version-mutants.mjs:9`** — the corpus comment says
+  6 + 4 + 3 = 16, which is 13. The SAME miscount the ledger reconciliation caught.
+- **P3 `test/grab-overlay-style-versions.test.mjs:863`** — the V19/V20 labels in the test
+  comments are reversed relative to the harness.
+
+Sol REFUTED nothing offered: V13/V17 survived attack as separate function-versus-affordance
+mechanisms, and V21/V22 as separate save-versus-read doors. Mirror parity and all three
+`node --check`s passed under its own run.
+
+### Round 3 fixes — IMPLEMENTED, NOT YET TESTED
+
+All four P2s fixed in `browser/raven-grab.js`, mirrored (`cmp` MIRROR-OK),
+`node --check` SYNTAX-OK. Nothing measured yet — no new test, no mutant, no
+suite run. The three P3s are still open.
+
+1. P2-1 (empty edits map) — `isStyleVersionEdits` now refuses a zero-property
+   map before `.every()` can be vacuously true.
+2. P2-2 (no-`CSS.supports` fallback) — closed with TWO mechanisms, deliberately
+   not one. (a) A new `styleValueSupported(property, value)` replaces the inline
+   `CSS.supports` expression at BOTH the commit gate and the read-side validity
+   check, so the save path and the read path can never disagree — a read filter
+   asking a different question would silently drop work the user legitimately
+   saved, which is worse than the bug. Its fallback asks the ENGINE via a
+   detached probe element rather than returning `true`. (b) `restoreStyleVersion`
+   refuses BEFORE touching anything when there are no application targets or no
+   property could apply — a version saved in THIS session never passes through
+   `isStyleVersionEdits`, so the read filter alone does not cover it.
+3. P2-3 (foreign stale mirror) — new `foreignScopeSiblingPreview()` scans
+   `localStyleDrafts()` (a pure read; deliberately NOT `allStyleDrafts()`, which
+   sweeps and can carry a detached draft — side effects no render-time blocker
+   should run) plus the live globals when they are not this element's own, for a
+   sibling-original entry whose `element === selectedElement`.
+   `scopeSiblingPreviewBlocker()` now returns two distinct messages: owning a
+   mirror vs receiving one.
+4. P2-4 (silent persist failure) — `persistStyleVersions()` returns a boolean and
+   sets `styleVersionPersistFailed`; `styleVersionNoteText()` renders that first,
+   ahead of both blockers, because it is the only one of the three about work
+   already done rather than work being refused. `saveStyleVersion` still returns
+   true (the in-memory save is real); only durability is in question, and that
+   is what the note says.
+
+Still open: three P3s (property-generic validity fixture at test:916; harness
+corpus comment 6+4+3=16 which is 13; reversed V19/V20 labels at test:863), four
+new tests, four new mutants, matrix re-run WHOLE, full suite, CLAUDE.md, commit.
+
+### Round 3 — three P3s closed, five tests + five mutants written, NOTHING MEASURED
+
+P3 fixes (all test-side, no product code moved):
+- `.claude/dialkit-2026-08-08/version-mutants.mjs` header — the corpus
+  enumeration read "the original six, the four the done-gate round added, and
+  the three from Sol round 2" (6+4+3=13) against a 16-test suite. Corrected to
+  "the original six, the six the first Sol round added, the four from round 2
+  and the five from round 3" (= 21), derived from the CLAUDE.md ledger's own
+  deltas (6 -> 12 -> 16).
+- `test/grab-overlay-style-versions.test.mjs` — the V19/V20 comment labels were
+  REVERSED against the harness (harness V19 = the CSS-validity mutant, V20 = the
+  stale-mirror mutant). Swapped.
+- The validity fixture at the (now) V19 test was `color`-only, so an
+  implementation special-casing colours and validating nothing else passed it.
+  It now asserts BOTH `color: definitely-not-a-color` and
+  `font-size: definitely-not-a-size` are unsupported, and seeds a second
+  poisoned entry (`id: 98`, `poisoned-size`) keyed on `font-size`.
+
+Five new tests (suite is 21 now; `node --check` SYNTAX-OK; count measured with
+`grep -c '^test('`, not inferred):
+  V23  an empty `edits: {}` map is dropped, not rendered
+  V24  with `CSS.supports` deleted before boot, an unsupported stored value is
+       still dropped by the engine probe — and a supported one still commits
+  V25  an in-session version that can no longer apply refuses instead of
+       clearing the live work (the observable is a DIFFERENT property from the
+       version's own)
+  V26  an element RECEIVING another selection's mirror refuses both save and
+       restore, and the note names the direction
+  V27  a persist failure is reported in the panel and the row still appears
+
+Five new mutants V23-V27 added to version-mutants.mjs before the CONTROLS block.
+
+NOT DONE at the time of writing: `EXPECTED_BASELINE_TESTS` still 16 (must become
+21); suite header still claims "22 mutants ... against a 16p/0f/0s baseline" and
+enumerates only V1-V22 — decisions 10-13 and the five new radius lines are
+unwritten and must be MEASURED, not reasoned; matrix not re-run; full suite not
+run; CLAUDE.md not updated; nothing committed; nothing pushed.
+
+### Round 3 — matrix re-run WHOLE, V19 re-anchored, harness gained a pre-flight
+
+- `EXPECTED_BASELINE_TESTS` bumped 16 -> 21 (version-mutants.mjs:207). Baseline
+  re-measured green at 21p/0f/0s in BOTH runs.
+- Run 1 aborted at V19 after 18 mutants (~25 min):
+  `Error: V19: find-string absent — the target line was edited, re-anchor it`,
+  EXIT=1. The round-3 fix replaced the inline CSS.supports expression with a
+  call to styleValueSupported(), so V19's anchor died exactly as predicted.
+  That abort is the harness working.
+- V19 re-anchored to `      return styleValueSupported(property, edit.newValue);`
+  -> `      return true;` (verified unique: one hit, browser/raven-grab.js:4599).
+- HARNESS: added a PRE-FLIGHT loop that apply()s every mutant and pipes it
+  through `node --check -` BEFORE the baseline, so presence/uniqueness/syntax
+  are answered in seconds rather than 25 minutes in. `node --check -` was
+  MEASURED to read stdin and to discriminate both ways (valid exit 0, invalid
+  exit 1) rather than assumed — a pre-flight that always passes is the
+  dangerous direction. All 27 mutants cleared pre-flight on run 2.
+
+RUN 2 RESULT (/tmp/version-matrix-v4.log): **27 mutants, 27 killed, 0 survived;
+2 CONTROLS green, 0 false-failed, EXIT=0**, against the declared 21p/0f/0s
+baseline. Each of the five new mutants reddens exactly its own test:
+  V23 radius 1 -> a stored version with an empty edits map is dropped
+  V24 radius 1 -> with CSS.supports missing, the engine probe still drops it
+  V25 radius 1 -> an in-session version that cannot apply refuses instead of clearing
+  V26 radius 1 -> an element RECEIVING another selection's mirror refuses both
+  V27 radius 1 -> a persist failure is reported in the panel, and the row still appears
+
+FIVE radii moved between round 2 and round 3 (V3 5->6, V8 7->9, V9 16->21,
+V17 2->3, V19 1->2) and every one moved because the round added five tests that
+share those mechanisms — no guard was added to any of them. V19's move is the
+readable one: it now reddens the probe test as well, because both tests grade
+the same validity mechanism through two different fallbacks, and V24 is what
+separates them.
+
+FULL SUITE (/tmp/raven-full-suite.log): **1516 tests / 1513 pass / 0 fail /
+3 skipped**, EXIT=0. The +5 over the ledgered 1511 is exactly the five browser
+tests this round added. PROVENANCE CORRECTION: the earlier plan was to diff the
+staged blob, and that is no longer possible — the auto-save hook re-staged the
+file mid-session, so the index now holds 21 too, and
+`git log --all -- test/grab-overlay-style-versions.test.mjs` is EMPTY (the suite
+has never been committed, so there is no blob anywhere holding 16). What IS
+measured: only two test files differ from HEAD, and
+`test/grab-overlay-voice-alignment.test.mjs` counts 2 in HEAD and 2 in the
+worktree, so no other test file moved. The 16 figure is the ledger's own prior
+measurement, carried as a record rather than re-derived.
+The 3 skips are the same three, READ INDIVIDUALLY at output lines 109 / 714 /
+715 (the file-URL fallback notice and the two removed-capability phase2 tests),
+never inferred from the total; none of the five new tests is among them — the
+versions suite ran 21/21 under the FULL probe pattern.
+
+- Mirror confirmed byte-identical (`cmp` -> MIRROR-OK).
+- Suite header updated from measurement: decisions 10-14 added, five new radius
+  lines, five moved radii corrected, baseline restated as 21p/0f/0s, and the
+  pre-flight recorded alongside the five dead find-strings it now catches early.
+
+NOT DONE: Sol falsification pass not yet run on round 3; CLAUDE.md ledger not
+yet updated; nothing committed; nothing pushed.
+
+### Round 4 — Sol falsification pass on the round-3 fixes: DOES NOT SURVIVE
+
+Brief: .claude/dialkit-2026-08-08/SOL-BRIEF-VERSIONS-R4.md
+Raw:   .claude/dialkit-2026-08-08/agent-output/SOL-R4.out (931,316 bytes — a real
+       run, not a silent empty exit; 178,290 tokens used)
+Launch: nohup codex exec -m gpt-5.6-sol -c model_reasoning_effort=medium \
+        --skip-git-repo-check "$(cat .claude/dialkit-2026-08-08/SOL-BRIEF-VERSIONS-R4.md)" \
+        > .claude/dialkit-2026-08-08/agent-output/SOL-R4.out 2>&1 < /dev/null &
+
+VERDICT: DOES NOT SURVIVE (2 x P2 + 1 x P3).
+
+P2-1 OVERWRITTEN CSS.supports BYPASSES THE ENGINE PROBE (browser/raven-grab.js:4473).
+  The round-3 fallback only runs when window.CSS.supports is ABSENT. A page that
+  assigns `CSS.supports = () => true` before overlay hydration is never checked by
+  the probe at all: an invalid stored value (`color: definitely-not-a-color`)
+  passes all three call sites, setProperty silently ignores it, and restore CLEARS
+  the user's live font-size work and returns success. That is round 3's own
+  destructive no-op, arriving through the door round 3 left open.
+  V24 (test:1117) only DELETES CSS.supports; it never installs a LYING callable.
+  This also makes the suite header's "any page that overwrites it" claim FALSE
+  (test:84) — a claim I wrote this round.
+
+P2-2 THE PRE-RESTORE GUARD PERMITS PARTIAL RESTORES (browser/raven-grab.js:4925).
+  It uses `.some()`, so ONE appliable property admits the whole restore. Sequence:
+  save an in-session version with opacity + font-size; change font-size and add
+  padding; have CSS.supports return true only for opacity. The revert clears
+  padding, opacity applies, font-size is refused by commitStyleEdit — and that
+  false return is IGNORED at browser/raven-grab.js:4939. Restore still returns
+  true. The user sees a blend (saved opacity + newer font size + lost padding)
+  under one version name — the exact blend decision 1 exists to prevent.
+  V25 (test:1159) forces EVERY check false, so the mixed branch is outside the
+  matrix entirely.
+
+P3-3 THE SUITE HEADER NOW CONTRADICTS ITSELF (test:176). I updated the measured
+  radius TABLE (V3 6, V8 9, V9 21) and did NOT update the explanatory paragraph
+  beneath it, which still reads "V9's 16 is every test in the file ... V3's 5 is
+  one blocker ... V8's 7 is every test that reloads the page. Exactly three radii
+  moved between round 1 and round 2 (V3 3->5, V8 4->7, V9 12->16)". Two
+  contradictory accounts of one matrix in one header.
+
+SURVIVED Sol's inspection: the empty-map refusal, the receiving-mirror scan, and
+persistence recovery — styleVersionPersistFailed IS cleared after any later
+successful write (browser/raven-grab.js:4668), and save/delete re-render.
+
+Sol's own replay was ENVIRONMENT-BLOCKED: Chromium died with
+`MachPortRendezvousServer ... Permission denied (1100)`, giving 0 pass / 21
+skipped, and the harness's v4 baseline guard REFUSED that baseline rather than
+grading mutants against it. Same shape as round 2 — the guard earning its keep.
+Mirror parity and all three syntax checks passed under Sol.
+
+STATE at the time of the verdict: nothing committed, nothing pushed.
+HEAD = ad36eeb = origin/main.
+
+### Round 5 — fixing Sol R4's two P2s and one P3
+
+Spec posted before the first edit:
+  Goal   — close Sol R4's two P2s and one P3 on named style versions.
+  Files  — browser/raven-grab.js + web/public/raven-grab.js (mirror),
+           test/grab-overlay-style-versions.test.mjs,
+           .claude/dialkit-2026-08-08/version-mutants.mjs, CLAUDE.md, session log.
+  Axes   — browser/render + sessionStorage only. No src/, no api/, no network.
+  Gates  — none new; push stays Andrew's.
+  Accept — one new mutant per fix, each reddening exactly its own test; matrix
+           re-run WHOLE; full suite green.
+
+FIX 1 (P2-1) — styleValueSupported, browser/raven-grab.js ~4471.
+  FIRST ATTEMPT WAS REVERSED MID-EDIT AND THAT REVERSAL IS THE INTERESTING PART.
+  I initially deleted the CSS.supports branch entirely (probe-only). That closes
+  Sol's finding but (a) breaks the V25 test's only seam — it makes a value
+  unsupported with `window.CSS.supports = () => false` — and (b) makes the whole
+  pre-restore appliability branch UNREACHABLE for in-session versions, since the
+  probe is deterministic across time and every in-session value already passed
+  the same probe at commit. A mechanism with no reachable trigger is not a fix.
+  Shipped instead: the probe is UNCONDITIONAL and CSS.supports is ANDed with it.
+  A hostile CSS.supports can now only make the check STRICTER — a lying `true`
+  is overruled by the probe, a lying `false` refuses a restore (honest and
+  recoverable). Nothing the page assigns makes it looser, which is the only
+  direction that destroys work. The CSS.supports call is wrapped in its own
+  try/catch (a page-installed thrower would otherwise escape the restore CLICK
+  HANDLER); a throw is treated as no opinion and the probe still answers.
+  Residual stated in the comment rather than guarded: poisoning
+  CSSStyleDeclaration.prototype.setProperty/getPropertyValue defeats the probe.
+  Pre-injection is unclosable from inside a shared realm (the composition-guard
+  WeakSet precedent). Post-injection is not worth a mechanism, because it
+  defeats the APPLY path in the same stroke — commitStyleEdit, clearStyleEdit
+  and restoreStyleEdit all write through those same two methods, so nothing
+  lands and nothing is destroyed. The harm was always the ASYMMETRY of a check
+  that lies while the writes still work.
+
+FIX 2 (P2-2) — restoreStyleVersion's pre-restore guard, ~4925.
+  `.some()` -> `properties.length > 0 && properties.every(...)`. A restore is
+  ALL-OR-NOTHING: under .some() one appliable property admitted the whole
+  restore, the revert ran over everything, the appliable half landed and the
+  rest was silently refused — the blend the feature exists to prevent,
+  assembled by the guard meant to prevent it. The length clause has NO
+  reachable trigger and says so (saveStyleVersion refuses an empty styleEdits
+  map at ~4808; isStyleVersionEdits refuses an empty stored map at ~4583); no
+  mutant pretends otherwise.
+  commitStyleEdit's ignored return in the apply loop is now DOCUMENTED as
+  legitimate rather than changed: it returns false for exactly three reasons —
+  no targets (asserted immediately above, same synchronous block), an
+  unsupported value (impossible, .every() just asked the same deterministic
+  predicate about every property), and newValue === currentValue, which is a
+  NO-OP and a successful restore. Honoring it blanket-style would report a
+  correct restore as broken. Under .some() it WAS a genuine defect.
+
+FIX 3 (P3-3) — the explanatory paragraph under the radius table (~test:176)
+  contradicted the table it explains. Rewritten from the NEW measurement.
+
+TESTS — two added, suite is 23 tests now (was 21):
+  'a page that replaces CSS.supports with a liar cannot smuggle a bad stored
+   value past the probe'  (a LYING CALLABLE via page.addInitScript, not the V24
+   deletion; asserts both directions so a refuse-everything check cannot pass it)
+  'a restore that can apply only PART of its version refuses instead of
+   assembling a blend'  (CSS.supports = (p) => p === 'opacity'; padding is the
+   discriminator — it is what the revert half clears and no refusal path touches
+   it; asserts the fixture really split the two properties)
+  Shared helper inlineStyles() gained `padding` (no test deepEquals the whole
+  object; padding is a real row, STYLE_CATEGORIES 'spacing').
+
+MEASURED: cp mirror + cmp MIRROR-OK; node --check both files SYNTAX-OK;
+  grep -c '^test(' = 23; node --test test/grab-overlay-style-versions.test.mjs
+  = EXIT=0, tests 23 / pass 23 / fail 0 / skipped 0. BOTH NEW TESTS PASSED ON
+  THEIR FIRST RUN, WHICH IS WORTH NOTHING UNTIL THE MATRIX PROVES THEM RED.
+
+MUTANTS — V25 re-anchored (its .some() line no longer exists; the `node --check -`
+  pre-flight answered presence in seconds rather than aborting 18 mutants in, as
+  V19's dead anchor did last round). V28 restores the round-3 shape (CSS.supports
+  answers alone when present) and V29 weakens .every back to .some. V29 is NOT
+  V25: V25 deletes the check outright and reddens both the all-unsupported and
+  the partial test, V29 keeps it and reddens the partial one alone — which is
+  what makes all-or-nothing a measured property rather than a restated one.
+  EXPECTED_BASELINE_TESTS 21 -> 23.
+
+### Round 5 — measurements
+
+MATRIX v5 (/tmp/version-matrix-v5.log), re-run WHOLE, ~60 min detached:
+  baseline: grab-overlay-style-versions.test.mjs 23p/0f/0s
+  29 mutants, 29 killed, 0 survived; 2 controls, 0 false-failed.
+  EXIT STATUS NOT CAPTURED — launched with nohup and no `echo EXIT=$?`. It adds
+  nothing here and the header says so: `survived` and `falseFails` are the same
+  two counters the summary line prints and `process.exitCode` is set from,
+  computed in adjacent statements off one `results` array, and a throw (baseline
+  not green, syntax error, skip drift) prints no summary line at all. Reading the
+  summary IS reading the predicate. Capture it anyway next round.
+  FIVE radii moved from v4, all for the same reason — the round added two tests,
+  no guard was added to any of them:
+    V8  9→10   every test that reloads the page
+    V9  21→23  every test in the file (the sync hook is their shared entry point)
+    V19 2→3    the new liar test grades the same stored-value check
+    V24 1→2    ditto, through the no-CSS.supports fallback
+    V25 1→2    deleting the appliability check breaks the partial-restore test too
+  V28 radius 1 (only the liar test), V29 radius 1 (only the partial-restore test).
+  V29 is NOT V25: V25 deletes the check and reddens both, V29 weakens .every to
+  .some and still refuses when EVERY property is unsupported, so it reddens the
+  partial test alone. That separation is what makes all-or-nothing MEASURED.
+
+FULL SUITE (/tmp/full-suite-r5.log): RAVEN_NO_USAGE_LOG=1 npm test
+  tests 1518 / suites 6 / pass 1515 / fail 0 / cancelled 0 / skipped 3 / todo 0
+  duration_ms 44239.8, EXIT=0.
+  The 3 skips READ INDIVIDUALLY at output lines 109 / 714 / 715 — the file-URL
+  fallback notice and the two phase2 removed-capability tests. Same three the
+  ledger has always carried; neither new test is among them.
+  +2 over 1516 is exactly the two new browser tests in
+  test/grab-overlay-style-versions.test.mjs (23 now, was 21).
+
+HEADER EDITS (all move the count by zero): decision 11 corrected (the round-3
+  wording claimed the check was engine-independent while CSS.supports was still
+  the PRIMARY), decisions 15 and 16 added, the radius table re-measured, the
+  27-mutant/EXIT=0 paragraph replaced, and the P3-3 explanatory paragraph
+  re-derived from the v5 measurement rather than patched — it had decayed once
+  already (quoting 16/5/7 under a table saying 21/6/9).
+
+SOL ROUND 5 — ATTEMPT 1 RETURNED NOTHING, AND THAT IS NOT "NO FINDINGS".
+  Brief at .claude/dialkit-2026-08-08/SOL-BRIEF-VERSIONS-R5.md, launched detached
+  (pid 25220), output → .claude/dialkit-2026-08-08/agent-output/SOL-R5-VERSIONS.out
+  (638KB, gitignored). It contains NO findings and NO verdict line — grep for
+  P1/P2/P3/SURVIVES returns nothing. Its final message is a status note only:
+  the host sandbox blocked Chromium (`MachPortRendezvousServer … Permission
+  denied (1100)`), the suite registered 23 tests and SKIPPED all 23, and the
+  matrix correctly aborted at its declared 0-skip baseline — the v4 guard
+  working. It then burned the remaining budget on web searches.
+  Same class as the round-2 stored-generated-systems run that came back with
+  `finish_reason: 'length'` and empty content: an environment-blocked or
+  budget-exhausted adverse output must NEVER be dispositioned as a clean pass.
+  The ONE thing it did establish, static and worth carrying: the 29/2 mutant and
+  control counts, the harness syntax, and browser/public parity all check out by
+  reading. That is not a verdict.
+  Attempt 2 re-launched with an amended brief that states the browser gate is
+  unavailable up front and scopes the pass to code reading.
+
+### Round 5 — ledger updated, Sol re-run returned DOES NOT SURVIVE
+
+CLAUDE.md EDITED (2 edits, both on the single-line ledger entries):
+  (1) Verify line: figure 1516/1513 -> **1518 tests / 1515 pass / 0 fail /
+      3 skipped** (measured live 2026-08-09 after the FOURTH Sol round), with
+      the +2 provenance, the uncaptured-exit-status disposition, the five moved
+      radii, the V29-vs-V25 separation, and the "an environment-blocked adverse
+      output is not 'no findings'" paragraph. The old 1516/1513 entry was
+      DEMOTED to "The previous ledgered figure was 1516/1513 ...", not deleted.
+  (2) Named-style-versions landmine: appended the round-4 findings and round-5
+      fixes after "...pre-flights every mutant through `node --check -` before the
+      baseline." - the AND cross-check + direction argument, why dropping
+      CSS.supports was drafted and REVERSED, the prototype-poisoning residual,
+      V28-vs-V24, all-or-nothing `.every()` + the three-reason enumeration that
+      earns commitStyleEdit's ignored return, and the P3 comment-decay fix.
+
+VERIFIED: `cmp browser/raven-grab.js web/public/raven-grab.js` -> MIRROR-OK.
+STATE: nothing committed, nothing pushed. HEAD = ad36eeb = origin/main.
+
+SOL ROUND 5b - VERDICT: DOES NOT SURVIVE.
+  Attempt 1 (pid 25220, SOL-R5-VERSIONS.out, 638KB) returned NOTHING - no
+  findings, no verdict, only a status note that the host sandbox blocked
+  Chromium (MachPortRendezvousServer ... Permission denied 1100), the suite
+  registered 23 tests and SKIPPED all 23, and the matrix correctly aborted on
+  its declared 0-skip baseline (the v4 guard working). It then burned its
+  remaining budget on web searches. NOT a clean bill - same class as the
+  round-2 finish_reason:'length' empty-content run.
+  Attempt 2: brief at .claude/dialkit-2026-08-08/SOL-BRIEF-VERSIONS-R5b.md
+  (R5 brief + a READ-THIS-FIRST preamble: do not run npm test / the suite /
+  version-mutants.mjs, do not web-search, this is a CODE-READING audit, the
+  measurements are GIVEN, you MUST end with findings and a verdict line).
+  Launched detached pid 44732, output ->
+  .claude/dialkit-2026-08-08/agent-output/SOL-R5b-VERSIONS.out (340,040 bytes,
+  gitignored).
+
+  FINDINGS (read 2026-08-09):
+  - P2-1 CHECK/USE RACE through a replaceable CSS.supports. The round-4 claim
+    said the predicate is deterministic. It is not: `let n=0;
+    CSS.supports=()=>++n===1` answers true to the `.every()` pre-check and
+    false to the later `commitStyleEdit` call, so the revert runs, the apply
+    refuses, and the newer edit is destroyed - the exact destructive no-op the
+    guard exists to prevent, reassembled across two invocations.
+  - P2-2 SELECTIVE prototype poisoning refutes the written "same stroke"
+    acceptance. A wrapper can arm on a CSS.supports call and make only the
+    NEXT getPropertyValue (the probe read) return non-empty, delegating every
+    later target read/write natively - so the probe passes garbage while the
+    apply path keeps working. Poisoning the probe need not disable apply.
+  - P3-3 The suite header still states the pre-round-4 existential contract
+    ("anything", "even one property") against decision 16's all-or-nothing.
+  Sol explicitly UPHELD: the AND is monotone for a single stable invocation,
+  cssText="" leaves no residue, every restore entry point reaches the guard,
+  commitStyleEdit has only the three documented false-return branches, V28
+  asserts both directions, and V29 is genuinely distinct from V25.
+
+### Round 5b fixes — IN FLIGHT, tree is mid-edit
+
+browser/raven-grab.js EDITED (2 edits, product code, syntax-checked OK):
+  (1) styleValueSupported is now MEMOIZED per (property, value) in a
+      null-prototype map, and the probe body moved into a new
+      probeStyleValueSupported(). Closes Sol R5b P2-1 (the check/use race: a
+      page-replaceable CSS.supports can answer true to the .every() pre-check
+      and false to commitStyleEdit three statements later, so the revert runs
+      and the apply refuses).
+  (2) The probe's own primitives are CAPTURED AT LOAD via
+      Function.prototype.call.bind on Document.prototype.createElement,
+      CSSStyleDeclaration.prototype.setProperty and .getPropertyValue, with the
+      live lookups left as fallbacks. The probe element is created FRESH per
+      uncached call instead of a module-level div reset with cssText="".
+      Closes Sol R5b P2-2 and REPLACES the false "same stroke" residual.
+  (3) The restore comment's "same deterministic predicate" claim now names the
+      memo as what makes it true.
+
+DECISION, load-bearing: CSS.supports is deliberately NOT captured at load.
+  Capturing it would make the AND unfalsifiable AND would make mutant V28
+  ("CSS.supports answers alone again when present") SURVIVE, because a captured
+  honest native cannot be told from the AND. The memo closes the flip; the AND
+  closes the liar.
+
+NOT YET DONE:
+  - web/public/raven-grab.js NOT re-mirrored -> test/grab-bridge.test.mjs WILL
+    FAIL until `cp browser/raven-grab.js web/public/raven-grab.js`.
+  - P3-3 not fixed: test/grab-overlay-style-versions.test.mjs:93 ("anything")
+    and ~:1200 ("even one property") still state the pre-round-4 existential
+    contract against decision 16's all-or-nothing.
+  - 3 new browser tests + 3 new mutants (V30/V31/V32) not written.
+  - Matrix not re-run. V19/V24/V28 find-strings may be DEAD (the probe body was
+    rewritten) — the harness pre-flights with `node --check -` and aborts.
+  - Full suite not re-run (was 1518/1515/0/3).
+
+### Round 5b fixes — tests + comments landed, harness NOT updated
+
+DONE:
+  - P3-3 fixed in test/grab-overlay-style-versions.test.mjs: header decision 12
+    now reads "CAN APPLY EVERY PROPERTY BEFORE IT CLEARS ANYTHING" (was
+    "ANYTHING", the pre-round-4 existential contract); the V25 comment now reads
+    "EVERY property" and names V29 as the mutant reinstating `.some()`.
+  - Decision 15's RESIDUAL rewritten: the old "post-injection poisoning defeats
+    the APPLY path in the same stroke" claim is marked FALSE, with Sol R5's
+    selective-wrapper refutation, pointing at new decision 18.
+  - Decisions 17 and 18 added to the header.
+  - THREE new browser tests appended (23 -> 26): a CSS.supports that flips
+    between the pre-check and the apply; a page poisoning setProperty after
+    load; a page poisoning getPropertyValue after load.
+  - web/public/raven-grab.js re-mirrored; cmp MIRROR-OK.
+
+TEST-DESIGN CORRECTIONS made before running (both would have measured nothing):
+  - V31/V32 were first written with page.addInitScript. hydrateStyleVersions()
+    is called at browser/raven-grab.js:14264, synchronously in the overlay IIFE
+    at boot, so an init script is PRE-injection relative to the primitive
+    capture — the residual decision 18 states is unclosable. Poison now goes in
+    with page.evaluate AFTER boot.
+  - The restore path is unreachable for these fixtures because the memo holds
+    every verdict taken at commit time. The reachable seam is the COMMIT gate on
+    a value probed for the FIRST TIME after boot; the observable is
+    versionsState().sectionVisible staying false.
+  - Property went outline-color -> color -> letter-spacing. outline-color has no
+    row (STYLE_CATEGORIES excludes stroke longhands, browser/raven-grab.js:88);
+    color classifies as the structured "color" control
+    (classifyStyleControl:5796). letter-spacing classifies as plain text and its
+    COMPUTED value is never "", which is exactly the "parser rejected it" signal
+    the getPropertyValue poison has to forge.
+
+### Round 5b, second half — the GLOBAL memo was measured wrong and replaced
+
+The backgrounded run (task bbjt5pi89) came back EXIT=1 with TWO PRE-EXISTING
+tests red on unchanged product logic:
+  - 'an in-session version that can no longer apply refuses instead of clearing
+    the live work'  ('' !== '12px', test line 1271)
+  - 'a restore that can apply only PART of its version refuses instead of
+    assembling a blend'  ('' !== '20px', test line 1359)
+
+Diagnosis, and it is the round's real finding: a GLOBAL memo makes the
+decision-16 pre-restore guard UNREACHABLE. Every in-session version's values
+were probed at commit time and every stored version's by isStyleVersionEdits at
+hydrate, so no version that can exist has a verdict left to change. That is
+exactly the outcome round 4 refused when it declined to drop CSS.supports from
+decision 15's AND — arriving by another route, and caught as a MEASUREMENT
+rather than an argument.
+
+FIX: the memo is SCOPED TO ONE RESTORE. Outside a restore every ask is live
+(guard stays reachable); inside one, the pre-check and every commitStyleEdit
+under it are one answer (P2-1 closed).
+
+ALSO FOUND, unrelated and worse: a literal NUL byte had been written into
+browser/raven-grab.js as the memo key separator — `property + "\x00" + value`.
+test/no-private-paths.test.mjs SKIPS NUL-containing blobs, so that byte would
+have silently exempted the largest file in the repo (and its mirror) from the
+private-path leak gate. Replaced with a space.
+
+Edits made:
+  - browser/raven-grab.js: `var styleSupportMemo = null;` + an early live-probe
+    return in styleValueSupported; restoreStyleVersion opens the memo and
+    restores the outer in a `finally`, with the body extracted as
+    applyStyleVersionRestore(version); three comment paragraphs corrected.
+  - test header decisions 17 and 18 rewritten for the scoped form.
+  - Mutant numbering fixed to V33 = global form (V30 = memo deleted).
+  - node --check OK on both files; mirror re-copied, cmp MIRROR-OK.
+
+### Round 5b — harness updated
+
+.claude/dialkit-2026-08-08/version-mutants.mjs:
+  - V24 RE-ANCHORED. Its find-string named `styleSupportProbe`, the cached probe
+    element the fresh-probe-per-call rewrite deleted, so the `node --check -`
+    pre-flight would have aborted the whole run. Now anchors on
+    `    try {\n      var style = probeCreateDiv().style;`.
+  - V30 added — memo deleted outright. Expected red: the flip test alone.
+  - V31 added — probeSetProperty capture dropped back to a live lookup.
+  - V32 added — probeGetPropertyValue capture dropped back to a live lookup.
+  - V33 added — the memo goes GLOBAL again. Expected red: the two in-session
+    refusal tests, NOT the flip test (the global form closes the flip too).
+    V30 and V33 are two mutants on ONE mechanism separated by which set they
+    redden — the V14/V16 and V25/V29 pattern again. V33 is in the matrix
+    because it was MEASURED red, not argued against.
+  - EXPECTED_BASELINE_TESTS 23 -> 26.
+  - The probeCreateDiv capture shares the mechanism and has NO fixture; that is
+    stated in decision 18 rather than implied by a mutant nobody wrote.
+  - node --check OK; 33 mutant entries.
+
+NOT YET DONE:
+  - Suite not re-run since the scoping fix. Matrix not re-run WHOLE. Full suite
+    not re-run (was 1518/1515/0/3).
+  - CLAUDE.md Verify figure + named-style-versions landmine not updated.
+  - done-gate not run. Nothing committed. Nothing pushed.
+
+### Round 5b, third half — a FOURTH page-replaceable primitive, found by reading
+
+While drafting the round-6 Sol brief I read probeStyleValueSupported and found
+the same defect class P2-2 had just closed, one line over:
+
+    var style = probeCreateDiv().style;      // HTMLElement.prototype.style — LIVE
+
+createElement, setProperty and getPropertyValue were captured at load; `.style`
+is an ACCESSOR on HTMLElement.prototype and is page-replaceable exactly like
+them. Redefine the getter post-load to hand back a declaration that already
+carries the property, and getPropertyValue returns a non-empty string for
+garbage the parser rejected — the probe reports TRUE, which is the destructive
+direction. Decision 15's AND does not rescue it: the same page replaces
+CSS.supports with a liar in the same breath.
+
+FIX (browser/raven-grab.js):
+  - probeGetStyle added, captured via
+    Function.prototype.call.bind(Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype, "style").get)
+  - the probe reads `probeGetStyle(probeCreateDiv())`
+  - the capture is ALL-OR-NOTHING and the comment now says so: every raw lookup
+    happens before any assignment, so an engine missing one prototype falls back
+    on all four rather than running a half-captured probe.
+  - ALSO corrected: the memo-key comment stated the wrong injectivity reason
+    ("a space cannot START a CSS property name"). The real property is that a
+    CSS property NAME contains no whitespace, so the FIRST space always
+    delimits; values legitimately contain spaces.
+  - node --check OK; mirror re-copied, cmp MIRROR-OK; NUL count 0.
+
+The v6 matrix run was KILLED at 15/35 (task bkbhuxwi0) rather than finished —
+the fix invalidates it, and editing the suite mid-run would have moved the
+26p/0f/0s baseline it had already declared. Confirmed first that the harness
+writes only to a mkdtemp dir and serves mutants via RAVEN_GRAB_ASSET_PATH, so
+no tracked file was left mutated (git status clean of surprises).
+
+### Round 5b, third half — the test, the mutant, the re-measurement
+
+TEST (test/grab-overlay-style-versions.test.mjs, now 27):
+  "a page that poisons the style accessor after load cannot make the probe
+  accept a bad value". Marker `// V34 — decision 18.`
+
+  The lever is different from V31/V32's: `style` is an ACCESSOR, so the poison
+  is Object.defineProperty on HTMLElement.prototype, not an assignment to a
+  data property. The wrapper is SELECTIVE for the same reason the other two
+  are — it answers with the decoy only for a detached, attribute-less <div>,
+  which is exactly what the probe builds and nothing the apply path touches —
+  so the "same stroke" argument is refuted here too: the page keeps working
+  while the probe alone would be fooled. The decoy already carries
+  `letter-spacing: 2px`, so writing garbage to it changes nothing and reading
+  it back returns non-empty, forging the "the parser accepted it" signal from
+  the other side. window.CSS.supports is stubbed to `() => true` or the AND
+  rejects before the probe ever runs.
+
+  Preconditions asserted, not assumed: sectionVisible === false before the
+  edit (the observable), and a deepEqual proving the poison is BOTH live and
+  selective — a fresh detached div reads '2px' (decoy) while #card reads its
+  own real value (delegated). Then the both-directions control: font-size 24px
+  still commits and saves under the poisoned accessor, so a probe that had
+  simply stopped working could not satisfy the test.
+
+HEADER decision 18 rewritten: three primitives -> four, naming the accessor,
+the all-or-nothing capture, and the fact that this one was found by READING
+one round after the other three were captured — the standing point that a
+matrix measures the mechanisms it names.
+
+HARNESS (.claude/dialkit-2026-08-08/version-mutants.mjs):
+  - V24 RE-ANCHORED A SECOND TIME. Its find-string named the exact line the
+    .style fix rewrote; the previous re-anchor was one round old. Now anchored
+    on `try {\n      var style = probeGetStyle(probeCreateDiv());`.
+  - V34 added (probeGetStyle reverts to a live lookup).
+  - EXPECTED_BASELINE_TESTS 26 -> 27.
+  - All four find-strings verified present EXACTLY ONCE in browser/raven-grab.js
+    before launching, rather than trusting the pre-flight to catch it late.
+
+MEASURED: suite 27 tests / 27 pass / 0 fail / 0 skipped, EXIT=0
+(/tmp/versions-r5d.log). Matrix re-run WHOLE, accepted the 27p/0f/0s baseline.
+
+### Round 5b — measured, and the header re-derived from the measurement
+
+MATRIX v6 (/tmp/version-matrix-v6.log), re-run WHOLE:
+  34 mutants, 34 killed, 0 survived; 2 CONTROLS, 0 false-failed, EXIT=0,
+  against a declared 27p/0f/0s baseline.
+
+The exit STATUS is captured this time (`echo "EXIT=$?"` appended INSIDE the
+log), which the previous round's header said to do and did not.
+
+FULL SUITE: 1522 tests / 1519 pass / 0 fail / 3 skipped, EXIT=0
+(/tmp/full-suite-r5d.log). The +4 over 1518 is exactly the four tests this
+round added to test/grab-overlay-style-versions.test.mjs (27 now): the
+CSS.supports FLIP test and the three POISON tests (setProperty,
+getPropertyValue, and the .style accessor). Nothing else in the round moves
+the count — the product fix, the mirror, the five new mutants, the V24
+re-anchor and the whole header rewrite are all count-neutral.
+The 3 skips are the same three, READ INDIVIDUALLY at output lines
+109/714/715 (the file-URL fallback notice and the two removed-capability
+phase2 tests), not inferred from the total; none of the four new tests is
+among them, and the versions suite ran 27/27 under the FULL probe pattern.
+
+RADII, all re-measured (never carried forward):
+  V1=2 V2=1 V3=9 V4=1 V5=1 V6=1 V7=2 V8=10 V9=27 V10=1 V11=1 V12=1 V13=1
+  V14=1 V15=1 V16=1 V17=3 V18=1 V19=3 V20=1 V21=1 V22=1 V23=1 V24=5 V25=2
+  V26=1 V27=1 V28=4 V29=1 V30=1 V31=1 V32=1 V33=2 V34=1
+
+FIVE radii moved from round 5 (count the list, do not trust the adjective —
+this line said FOUR over a five-item list until it was re-read), all for the
+same reason — the round added four tests and no guard was added to any of
+them:
+  V1 1→2 and V9 23→27 (widen with any test that restores / needs the
+    section to exist);
+  V3 6→9 (the blocker's shared radius, same reason);
+  V24 2→5 and V28 1→4 — the two CSS.supports mutants — because all three
+    poison tests stub `CSS.supports = () => true` so the AND cannot reject
+    before the probe runs.
+That last claim was VERIFIED against the log's own red lists rather than
+reasoned: V24's five reds and V28's four reds are exactly the named tests.
+The gap between V24=5 and V31/V32/V34=1 is exactly the difference between
+removing the probe entirely and removing ONE primitive.
+
+V30 vs V33 is what makes the memo's SCOPE measured rather than restated:
+V30 (memo deleted) reddens the flip test ALONE; V33 (memo global) reddens
+the two in-session refusal tests and NOT the flip test.
+
+HEADER rewritten in test/grab-overlay-style-versions.test.mjs:
+  - dead find-strings five → SEVEN (V24's died TWICE — round 5 and again in
+    round 5b, the second time because the .style capture rewrote the exact
+    line the first re-anchor had chosen);
+  - summary line 29/29 vs 23p → 34/34 vs 27p, EXIT=0;
+  - radius table updated + five new rows V30–V34;
+  - interpretation paragraph re-derived from the measurement.
+
+VERIFIED: cmp browser/raven-grab.js web/public/raven-grab.js → MIRROR-OK;
+NUL count 0 in browser/raven-grab.js.
+
+SOL ROUND 6 LAUNCHED detached, pid 36027:
+  nohup codex exec -m gpt-5.6-sol -c model_reasoning_effort=high \
+    --skip-git-repo-check "$(cat .claude/dialkit-2026-08-08/SOL-BRIEF-VERSIONS-R6.md)" \
+    > .claude/dialkit-2026-08-08/agent-output/SOL-ROUND6.out 2>&1 < /dev/null &
+  Confirmed RUNNING, 13,275 bytes written. agent-output/ is gitignored.
+
+NOT YET DONE:
+  - Sol round 6 still running; its output must be READ from the file, and an
+    environment-blocked or empty result must NOT be dispositioned as "no
+    findings" (round 5 attempt 1 and the round-2 stored-systems run both
+    came back that way).
+  - CLAUDE.md NOT updated: the Verify figure still says 1518/1515/0/3 and
+    must become 1522/1519/0/3 with the +4 accounted; the named-style-versions
+    landmine needs the round-5b entry (memo scope global-vs-restore-scoped,
+    the FOUR captured primitives, the .style find-by-reading).
+  - done-gate not run. Nothing committed. Nothing pushed.
+
+### Sol round 6 — DOES NOT SURVIVE (3 × P3, no product defect claimed), all three dispositioned
+
+Sol round 6 exited. pid 36027, output 522,937 bytes at
+`.claude/dialkit-2026-08-08/agent-output/SOL-ROUND6.out` (gitignored).
+Verdict line: DOES NOT SURVIVE. Three findings, all P3, all CLAIM defects —
+Sol's own closing line: "this audit does not indicate a required product-code
+change." What it says SURVIVES: every apply enters through
+`restoreStyleVersion`; the `finally` restores nested memo state; V30 and V33
+exercise distinct scopes; the key invariant is correct for accepted property
+names; null-prototype storage blocks the claimed `Object.prototype` pollution;
+the four runtime probe operations are covered; the mirror is byte-identical.
+
+**P3-1 — "the fallback claim is false." CONFIRMED, and FIXED with product code
+(against Sol's own "no product change needed" framing).** `browser/raven-grab.js`
+~4554. `Function.prototype.call.bind(undefined)` does NOT throw at bind time, so
+a prototype whose METHOD is `undefined` — as opposed to a missing prototype
+OBJECT — never selected the live fallback; the bound wrapper threw later, the
+probe's own catch swallowed it, and the probe returned false, REFUSING every
+supported edit. Verified by measurement, not by reading:
+
+    node -e '...Function.prototype.call.bind(undefined)...'
+    → "bind did NOT throw" / "call threw: TypeError"
+
+Fix: a `typeof` gate ahead of the four binds (`createElement`, the `style`
+descriptor's getter, `setProperty`, `getPropertyValue`), throwing into the
+existing catch so the ALL-OR-NOTHING property the comment already claimed is
+actually delivered. **NO MUTANT KILLS IT and both the source and the suite
+header say so**: in a conforming engine an instance method IS the prototype
+method, so deleting `CSSStyleDeclaration.prototype.setProperty` breaks the
+captured path and the live fallback identically and no Chromium fixture can
+separate a guarded build from an unguarded one. The environment where it bites
+is a shim putting these on each declaration INSTANCE. Kept on the `isIpLiteral`
+precedent — a clause with no reachable trigger in the test environment must SAY
+so rather than let a matrix imply coverage. Round 4's opposite precedent ("a
+mechanism with no reachable trigger is not a fix") does not apply: that one made
+an EXISTING guard unreachable, a net loss; this one costs three lines and makes
+a written claim true.
+
+**P3-2 — "the V31/V32 fixtures are not selective in the way the header claims."
+CONFIRMED by reading all three fixtures.** Only V34's poison is RECEIVER-
+selective (`!this.isConnected && this.tagName === "DIV" &&
+this.attributes.length === 0`). V31 matches on the (property, value) PAIR and
+V32 on an EMPTY `letter-spacing` read — and **neither can do better**, because a
+`CSSStyleDeclaration` exposes no owner element, so nothing inside `setProperty`
+can ask whether `this` belongs to a detached div. Consequences confirmed in the
+source: under the V31 mutant the poison also launders the CONNECTED `#card`
+apply to `2px`, and under V32 it also rewrites the target's own original-inline
+capture at `browser/raven-grab.js:4284` (`element.style.getPropertyValue(property)`,
+which reads `""` for an element with no inline letter-spacing).
+
+**The mutants stay killed and the refutation of round 4 stands** — what was
+false is only the characterisation. Round 4's residual said the same poisoning
+defeats the apply path "in the same stroke", so nothing lands and nothing is
+destroyed. Each fixture measures the opposite on BOTH halves: every value other
+than the probe's own garbage commits natively (each test's both-directions
+control), and for the garbage pair itself a `2px` the user never typed DOES land
+on the element. A value the user never typed arriving on the element is exactly
+the destruction round 4 said could not happen.
+
+Corrected in three places, because the false sentence had been copied out of the
+suite header into the ledger this session: the header's V31/V32/V34 paragraph,
+the two fixture comments (V31's "Nothing about the apply path breaks — which is
+the whole point" was the same claim inline), and CLAUDE.md's landmine paragraph.
+
+**P3-3 — "the audited baseline claim is stale (26p/0f/0s vs 27)." REFUTED as
+cited, but there IS a stale 26 and it is in the BRIEF.**
+
+    grep -n "26p/0f/0s" test/grab-overlay-style-versions.test.mjs \
+      .claude/dialkit-2026-08-08/version-mutants.mjs   → NO MATCH, exit 1
+    suite header reads "against a declared 27p/0f/0s baseline"
+    harness line 276: EXPECTED_BASELINE_TESTS = { '…-style-versions.test.mjs': 27 }
+    grep -n "26p/0f/0s" .claude/dialkit-2026-08-08/SOL-BRIEF-VERSIONS-R6.md
+      → 38:> declared 26p/0f/0s baseline, plus a full suite.
+
+So the number is correct everywhere it is enforced, and stale exactly once — in
+the round-6 brief's quoted round-5b claim paragraph, which I carried forward
+without re-measuring. Sol read the brief, attributed the staleness to the files,
+and got the location wrong while being right that a 26 existed. **A brief is a
+claim like any other and decays the same way; the GIVEN measurements at the top
+of the brief said 27 and the claim paragraph said 26, and nothing reconciled
+them.** No repo number changed.
+
+ALSO THIS SESSION, before Sol returned:
+  - CLAUDE.md Verify figure 1518/1515/0/3 → 1522/1519/0/3, +4 accounted as
+    exactly the four new tests, 3 skips named at output lines 109/714/715,
+    matrix 34/34/0 + 2 controls EXIT=0 vs a declared 27p/0f/0s baseline,
+    seventh dead find-string (V24's, SECOND time), FIVE radii moved, and the
+    V30-vs-V33 scope separation carried as the entry to remember.
+  - CLAUDE.md named-style-versions landmine extended with the whole round-5b
+    entry.
+  - A MISCOUNT IN MY OWN WRITING, caught by re-reading: both the suite header
+    and the session log said "Four radii moved" over a FIVE-item list
+    (V1 1→2, V3 6→9, V9 23→27, V24 2→5, V28 1→4). Corrected in both; the
+    header line now tells the next reader to count the list rather than trust
+    the adjective.
+  - VERIFIED: `cmp browser/raven-grab.js web/public/raven-grab.js` → MIRROR-OK;
+    `node --test test/no-private-paths.test.mjs` → 4 tests / 4 pass / 0 fail.
+
+STATE AT THIS POINT: product code changed (the `typeof` gate), so the mirror was
+re-copied (`cmp` → MIRROR-OK), `node --check` is SYNTAX-OK on both edited files,
+the suite still registers 27 tests, and **matrix v7 is running WHOLE**
+(`/tmp/version-matrix-v7.log`, `EXIT=` appended INSIDE the file). The three
+find-strings that touch the capture block anchor on the `probeSetProperty` /
+`probeGetPropertyValue` / `probeGetStyle` ASSIGNMENT lines, none of which the fix
+rewrote, so no dead anchor is expected — the harness's `node --check -`
+pre-flight is what will say so. Full suite after the matrix. Not committed, not
+pushed, done-gate not yet run.

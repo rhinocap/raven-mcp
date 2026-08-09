@@ -1566,7 +1566,12 @@ test('every mic in the overlay source sits in a container the shared rule aligns
 
   // A count assertion is what makes the coverage claim hold going forward: a
   // ninth mic added to a fourth kind of row cannot pass by being new.
-  assert.equal(sites.length, 8, 'the number of mics in the overlay changed — check the new one sits in a covered row');
+  // 9 as of the named-style-versions round: the Versions section heading gained
+  // a `data-version-name` mic. Four of the nine are never RENDERED by the
+  // fixture (the two template-mode rows, the maintainer-only Component notes
+  // heading, and the Versions heading — which needs a selection carrying style
+  // edits), so for those this scan is the only guard there is.
+  assert.equal(sites.length, 9, 'the number of mics in the overlay changed — check the new one sits in a covered row');
 
   const uncovered = sites.filter((site) => !site.covered).map((site) => `browser/raven-grab.js:${site.line}`);
   assert.deepEqual(uncovered, [], `mics in a container the shared alignment rule does not cover:\n  ${uncovered.join('\n  ')}\n`

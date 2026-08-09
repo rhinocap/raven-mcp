@@ -157,6 +157,9 @@
   var styleDrafts = Object.create(null);
   var activeStyleDraftKey = null;
   var styleDraftClientSequence = 0;
+  var styleVersions = [];
+  var styleVersionNameDraft = "";
+  var styleVersionSequence = 0;
   var editScope = "instance";
   var styleEditOriginalInline = Object.create(null);
   var styleEditTarget = null;
@@ -1000,6 +1003,41 @@
     .raven-grab-token-name { min-width: 0; flex: 1; color: var(--raven-grab-tertiary); font: 500 calc(11px * var(--raven-grab-font-scale))/1.3 var(--raven-grab-mono); overflow-wrap: anywhere; }
     .raven-grab-token-value { display: none; }
     .raven-grab-state-group { margin-top: 12px; }
+    /* Borders here are the same literal rgba(255,255,255,.12) every other
+       overlay control uses — this file has no border token, and minting one
+       that only this block reads would be a second vocabulary, not a scale. */
+    .raven-grab-versions { margin-top: 16px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, .06); }
+    .raven-grab-version-list { margin: 0 0 8px; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+    .raven-grab-version-row { display: flex; align-items: center; gap: 8px; }
+    .raven-grab-version-restore {
+      flex: 1; min-width: 0; text-align: left; padding: 7px 10px;
+      background: var(--raven-grab-raised); border: 1px solid rgba(255, 255, 255, .12); border-radius: 8px;
+      color: var(--raven-grab-text); font: 600 calc(12px * var(--raven-grab-font-scale))/1.3 var(--raven-grab-ui);
+      cursor: pointer; overflow-wrap: anywhere; transition: border-color 150ms ease;
+    }
+    .raven-grab-version-restore:hover { border-color: rgba(0, 191, 255, .3); }
+    .raven-grab-version-count { flex-shrink: 0; color: var(--raven-grab-tertiary); font: 400 calc(11px * var(--raven-grab-font-scale))/1.3 var(--raven-grab-mono); }
+    .raven-grab-version-delete {
+      flex-shrink: 0; padding: 4px 6px; background: none; border: none;
+      color: var(--raven-grab-muted); font: 500 calc(11px * var(--raven-grab-font-scale))/1.3 var(--raven-grab-ui); cursor: pointer;
+    }
+    .raven-grab-version-delete:hover { color: var(--raven-grab-text); }
+    .raven-grab-version-save { display: flex; align-items: center; gap: 6px; }
+    .raven-grab-version-save input {
+      flex: 1; min-width: 0; padding: 7px 10px;
+      background: var(--raven-grab-bg); border: 1px solid rgba(255, 255, 255, .12); border-radius: 8px;
+      color: var(--raven-grab-text); outline: none;
+      font: 400 calc(12px * var(--raven-grab-font-scale))/1.4 var(--raven-grab-ui);
+      transition: border-color 150ms ease, box-shadow 150ms ease;
+    }
+    .raven-grab-version-save input:focus { border-color: var(--raven-grab-accent); box-shadow: 0 0 0 3px rgba(0, 191, 255, .15); }
+    .raven-grab-version-save button {
+      flex-shrink: 0; padding: 7px 12px;
+      background: var(--raven-grab-raised); border: 1px solid rgba(255, 255, 255, .12); border-radius: 8px;
+      color: var(--raven-grab-text); font: 600 calc(12px * var(--raven-grab-font-scale))/1.3 var(--raven-grab-ui); cursor: pointer;
+    }
+    .raven-grab-version-save button[disabled] { opacity: .45; cursor: default; }
+    .raven-grab-version-note { margin: 6px 0 0; color: var(--raven-grab-muted); font: 400 calc(11px * var(--raven-grab-font-scale))/1.4 var(--raven-grab-ui); }
     /* Match Size / Spacing / Typography category titles (white, bold UI). */
     .raven-grab-state-label {
       margin: 0 0 6px;
@@ -3992,6 +4030,14 @@
   function syncActiveStyleDraftKey() {
     if (Object.keys(styleEdits).length || Object.keys(stateStyleEdits).length || Object.keys(tokenIntents).length || textEdit) ensureActiveStyleDraftKey();
     else activeStyleDraftKey = null;
+    // The Versions section's visibility and its refusal note are derived from
+    // exactly these four collections, so this is the one function that already
+    // means "the draft's edit set changed" — hooking the fifteen mutation sites
+    // individually is the two-copies-of-one-rule drift this file documents.
+    // It has to be a SYNC and not a renderPanel(): a commit deliberately does
+    // not re-render (that would destroy the open editor mid-keystroke), which
+    // is why the section never appeared at all before this line existed.
+    syncStyleVersionsSection();
   }
 
   function clearActiveStyleDraftState() {
@@ -4396,10 +4442,206 @@
     previewOriginals = Object.create(null);
   }
 
+  // Reverting one property to its pre-edit state is ONE rule with TWO callers:
+  // commitStyleEdit's no-op branch (the user typed the original value back) and
+  // restoreStyleVersion (a property the named version does not carry). Two copies
+  // of one rule is the drift this file has already shipped twice — preview vs
+  // action in the takedown, listing vs lookup in the stored systems.
+  // ORDER: restoreStyleEdit READS styleEditOriginalInline[property], so both
+  // deletes must follow it or the inline value is never put back.
+  function clearStyleEdit(property) {
+    restoreStyleEdit(property);
+    delete styleEdits[property];
+    delete styleEditOriginalInline[property];
+  }
+
+  // ONE rule, three call sites: this commit gate, the stored-version validity
+  // check, and the pre-restore guard. They MUST share it — the save path writes
+  // whatever this gate accepted, so a read-side filter asking a different
+  // question would silently drop work the user legitimately saved, which is
+  // worse than the bug it was added for.
+  //
+  // The engine probe is UNCONDITIONAL and `CSS.supports` is ANDed with it, never
+  // consulted alone. Round 2 answered a missing `CSS.supports` with `return
+  // true`, which handed the destructive no-op straight back; round 3 replaced
+  // that fallback with the probe but left `CSS.supports` as the PRIMARY path,
+  // returning its answer verbatim whenever it existed — so a page assigning
+  // `CSS.supports = function () { return true; }` before the overlay loads was
+  // never probed at all, and every stored garbage value sailed through all
+  // three call sites (Sol round 4). A guard whose primary path the page can
+  // replace is not a guard: that is round 3's own finding one door over, and
+  // the third round running in which a fix closed one of two doors.
+  //
+  // ANDing rather than dropping `CSS.supports` is deliberate and the direction
+  // is the whole point. A hostile or broken `CSS.supports` can now only make
+  // this check STRICTER — a lying `true` is overruled by the probe, and a lying
+  // `false` refuses a restore, which is honest and recoverable. Nothing the page
+  // can assign makes it looser, which is the only direction that destroys work.
+  // The probe asks the ENGINE what `CSS.supports` reports on (a declaration the
+  // CSS parser rejects leaves the property unset), so the two agree on standard
+  // properties, shorthands, custom properties and `!important` alike, and the
+  // AND costs nothing on a sane engine.
+  //
+  // The verdict is MEMOIZED per (property, value) FOR THE DURATION OF ONE
+  // RESTORE, and that is a CORRECTNESS mechanism rather than a speed one (Sol
+  // round 5). `window.CSS.supports` is page-replaceable, so it is not merely a
+  // liar — it can be INCONSISTENT. `var n = 0; CSS.supports = function () {
+  // return ++n === 1; }` answers TRUE to restoreStyleVersion's `.every()`
+  // pre-check and FALSE to the commitStyleEdit call a few statements later, so
+  // the revert half runs over everything, the apply half is silently refused,
+  // and the user's newer edit is destroyed under a row that reported success.
+  // That is the destructive no-op this whole guard exists to prevent,
+  // reassembled across two invocations rather than smuggled through one. The
+  // pre-check earns commitStyleEdit's ignored return only if the predicate
+  // cannot change UNDER IT, and the scoped memo is what makes that true. Round
+  // 4's comment claimed the predicate was deterministic; nothing enforced it.
+  // See the memo's own comment below for why the scope is one restore and not
+  // the whole session — a global memo closes the same hole and takes the guard's
+  // reachability with it.
+  //
+  // `CSS.supports` is deliberately NOT captured at load the way the composition
+  // guard captures its WeakSet methods. Capturing it would make the AND
+  // unfalsifiable — a hostile `CSS.supports` would never be consulted at all, so
+  // no test could separate the AND from a probe-only check — and it is not
+  // needed: the AND already covers the liar direction and the memo covers the
+  // flip.
+  //
+  // The PROBE's own primitives ARE captured at load, because the residual this
+  // comment used to wave away was not the residual it claimed (Sol round 5). The
+  // old argument was that poisoning `CSSStyleDeclaration.prototype.setProperty`
+  // or `getPropertyValue` defeats the APPLY path in the same stroke, so nothing
+  // lands and nothing is destroyed. That is false. A SELECTIVE wrapper —
+  // `setProperty` substituting a valid value for exactly the garbage the probe
+  // writes, and delegating every other read and write natively — leaves the
+  // apply path fully working while the probe reports true, so invalid values
+  // enter styleEdits and a later restore clears a property and applies nothing
+  // visible. Capturing is the same move made for WeakSet.add/has/delete and
+  // performance.now, and it closes every POST-injection variant.
+  //
+  // What it does NOT buy, stated rather than implied: a `<head>` script poisoning
+  // those prototypes BEFORE the overlay is injected still wins. That is
+  // unclosable from inside a shared realm, and Raven's shadow root is open in any
+  // case — a page that hostile can remove the host, read every keystroke and
+  // synthesise the send. This is a correctness mechanism against garbage in
+  // hand-editable storage, not a security boundary against the page.
+  //
+  // FOUR primitives, not three. `style` is an ACCESSOR on
+  // `HTMLElement.prototype` and is page-replaceable exactly like the two
+  // methods, so leaving it live left the identical hole one line over: redefine
+  // the getter to hand back a declaration that already carries the property, and
+  // `getPropertyValue` returns a non-empty string for garbage the parser
+  // rejected, so the probe reports TRUE. That is the destructive direction, and
+  // the AND does not rescue it — the same page replaces `CSS.supports` with a
+  // liar in the same breath. Found by reading, one round after the other three
+  // were captured; fixing one of several call sites that share a rule is a
+  // failure mode this codebase has recorded more than once.
+  //
+  // The four fallbacks below are the live lookups, i.e. the pre-fix behaviour,
+  // and the capture is ALL-OR-NOTHING on purpose: every raw lookup happens
+  // before any assignment, so an engine missing one of these primitives falls
+  // back on all four rather than running a half-captured probe whose covered
+  // half is impossible to reason about.
+  //
+  // The `typeof` gate below is what MAKES that true, and the try/catch alone did
+  // not. `Function.prototype.call.bind(undefined)` does NOT throw at bind time —
+  // measured, not reasoned: the bind succeeds and the bound wrapper throws only
+  // when it is CALLED. So a prototype OBJECT that exists while one of its
+  // METHODS is `undefined` sailed straight past the catch, installed a wrapper
+  // that throws on first use, and the probe's own catch then returned false,
+  // REFUSING every supported edit rather than falling back to the live lookup.
+  // A missing prototype object or a missing `style` descriptor does throw at
+  // lookup time, which is why the catch covered those and only those.
+  //
+  // NO MUTANT KILLS THE `typeof` GATE, and that is stated rather than papered
+  // over: in a conforming engine an instance method IS the prototype method, so
+  // deleting `CSSStyleDeclaration.prototype.setProperty` breaks the captured
+  // path and the live fallback identically, and no Chromium fixture can separate
+  // a guarded build from an unguarded one. The environment where it bites is a
+  // shim putting these on each declaration INSTANCE rather than on a prototype.
+  // Kept as belt-and-braces for the same reason as `isIpLiteral` in
+  // src/reference-forget.ts — a clause with no reachable trigger in the test
+  // environment must SAY so rather than let a matrix imply it is covered.
+  //
+  // The probe element is created FRESH per uncached call rather than reset with
+  // `cssText = ""`: a fresh declaration cannot carry residue from the previous
+  // probe and cannot depend on a page-replaceable `cssText` setter, and the memo
+  // makes the allocation rare.
+  var probeCreateDiv = function () { return document.createElement("div"); };
+  var probeGetStyle = function (el) { return el.style; };
+  var probeSetProperty = function (style, property, value) { style.setProperty(property, value); };
+  var probeGetPropertyValue = function (style, property) { return style.getPropertyValue(property); };
+  try {
+    var styleDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "style");
+    if (typeof Document.prototype.createElement !== "function" ||
+        typeof (styleDescriptor && styleDescriptor.get) !== "function" ||
+        typeof CSSStyleDeclaration.prototype.setProperty !== "function" ||
+        typeof CSSStyleDeclaration.prototype.getPropertyValue !== "function") {
+      throw new TypeError("probe primitive missing");
+    }
+    var rawCreateElement = Function.prototype.call.bind(Document.prototype.createElement);
+    var rawStyle = Function.prototype.call.bind(styleDescriptor.get);
+    var rawSetProperty = Function.prototype.call.bind(CSSStyleDeclaration.prototype.setProperty);
+    var rawGetPropertyValue = Function.prototype.call.bind(CSSStyleDeclaration.prototype.getPropertyValue);
+    probeCreateDiv = function () { return rawCreateElement(document, "div"); };
+    probeGetStyle = function (el) { return rawStyle(el); };
+    probeSetProperty = function (style, property, value) { rawSetProperty(style, property, value); };
+    probeGetPropertyValue = function (style, property) { return rawGetPropertyValue(style, property); };
+  } catch (err) { /* live lookups above — a missing prototype, descriptor OR method */ }
+
+  // SCOPED TO ONE RESTORE, and null everywhere else — deliberately NOT a global
+  // memo. The invariant the ignored `commitStyleEdit` return needs is only that
+  // the pre-check and the applies INSIDE THE SAME RESTORE cannot disagree.
+  // Freezing the answer BETWEEN operations sounds strictly stronger and is
+  // strictly worse: every in-session version's values were probed at commit
+  // time, and every stored version's were probed by isStyleVersionEdits at
+  // hydrate, so a global memo leaves no version anywhere whose verdict could
+  // still change — which makes the pre-restore guard UNREACHABLE, exactly the
+  // outcome round 4 refused when it declined to drop `CSS.supports` from the
+  // AND. That was MEASURED, not argued: the global draft turned the two tests
+  // that own V25 and V29 red, and a mechanism with no reachable trigger is not
+  // a fix. V33 is the mutant that reinstates the global form.
+  var styleSupportMemo = null;
+  function styleValueSupported(property, value) {
+    // Outside a restore every ask is LIVE, which is what keeps the pre-restore
+    // guard reachable at all: a page may legitimately change what it answers
+    // between the commit that saved a version and the restore that replays it.
+    if (!styleSupportMemo) return probeStyleValueSupported(property, value);
+    // A null-prototype map, so a page polluting Object.prototype cannot plant a
+    // key that answers `in` for a pair nothing has probed. The key is injective
+    // because a CSS PROPERTY NAME contains no whitespace, so the FIRST space is
+    // always the separator and the pair decomposes uniquely — values do contain
+    // spaces (`0 auto`, `1px solid red`) and that is fine. It is the property
+    // half that carries the property.
+    var key = property + " " + value;
+    if (key in styleSupportMemo) return styleSupportMemo[key];
+    var verdict = probeStyleValueSupported(property, value);
+    styleSupportMemo[key] = verdict;
+    return verdict;
+  }
+
+  function probeStyleValueSupported(property, value) {
+    try {
+      // A replaced `CSS.supports` that THROWS must not take the caller down
+      // with it — this runs inside the restore CLICK HANDLER. A throw is no
+      // opinion; the probe still answers.
+      if (window.CSS && typeof window.CSS.supports === "function" &&
+          !window.CSS.supports(property, value)) {
+        return false;
+      }
+    } catch (err) { /* no opinion — fall through to the probe */ }
+    try {
+      var style = probeGetStyle(probeCreateDiv());
+      probeSetProperty(style, property, value);
+      return probeGetPropertyValue(style, property) !== "";
+    } catch (err) {
+      return false;
+    }
+  }
+
   function commitStyleEdit(property, newValue, currentValue, tokenMeta) {
     var targets = styleApplicationTargets();
     if (!targets.length || newValue === currentValue) return false;
-    if (window.CSS && typeof window.CSS.supports === "function" && !window.CSS.supports(property, newValue)) return false;
+    if (!styleValueSupported(property, newValue)) return false;
     styleEditTarget = selectedElement;
     // Baseline = the caller's pre-edit value. On a preview→commit (arrow-step,
     // scrub, color-picker), the preview already wrote the new value inline, so
@@ -4425,9 +4667,7 @@
     }
     captureStyleOriginals(property, targets);
     if (newValue === originalValue && resolved !== MIXED_STYLE_VALUE && currentValue !== MIXED_STYLE_VALUE) {
-      restoreStyleEdit(property);
-      delete styleEdits[property];
-      delete styleEditOriginalInline[property];
+      clearStyleEdit(property);
     } else {
       setStyleOnTargets(property, newValue, targets);
       applyStyleToScopeSiblings(property, newValue);
@@ -4451,6 +4691,563 @@
     setStyleOnTargets(property, newValue, targets);
     applyStyleToScopeSiblings(property, newValue);
     return true;
+  }
+
+  // --- Named style versions -----------------------------------------------
+  // Save the active draft's style edits under a name, then restore or delete
+  // them — try a direction, name it, try another, come back.
+  //
+  // Scoped to the SELECTOR it was saved from: a padding set lifted off one
+  // element and dropped on another means nothing, and the selector is the only
+  // identity that survives a reload (draft keys are per-page sequence numbers,
+  // so they are reassigned on the next load and would point at the wrong node).
+  //
+  // ROUND 1 BOUNDARY, refused rather than silently partial: only `styleEdits`
+  // is versioned — ONE of a draft's four edit kinds, the other three being
+  // state (hover/focus) edits, token intents and a text edit. A draft carrying
+  // any of those REFUSES to save, because a version restoring one kind and
+  // leaving the rest is a blend of the named version and whatever survived, and
+  // the name would be a lie about what is on screen. (The count said "two" for
+  // a round — corrected from measurement, Sol round 2.)
+  //
+  // Storage is sessionStorage, matching PENDING_STORE_KEY: it survives a reload
+  // (which is the point) and dies with the tab (versions are scratch work, not
+  // a document).
+  var STYLE_VERSION_STORE_KEY = "raven-grab-style-versions-v1";
+  var STYLE_VERSION_NAME_MAX = 40;
+  var STYLE_VERSION_LIMIT = 100;
+  // Set when a persist throws (quota, storage disabled) and cleared on the next
+  // one that lands. Read by the note, so a save that will not survive a reload
+  // says so instead of looking identical to one that will.
+  var styleVersionPersistFailed = false;
+
+  // A stored entry is HAND-EDITABLE, and `typeof x === "object"` is the weakest
+  // question you can ask of a nested structure. Every property here has to carry
+  // a string newValue, because restoreStyleVersion dereferences `saved.newValue`
+  // — `{"edits":{"color":null}}` passes a bare typeof check and then throws out
+  // of the restore CLICK HANDLER, which is a dead button with a console error
+  // rather than a refusal. Dropping the entry keeps the rest of the panel alive.
+  function isStyleVersionEdits(edits) {
+    if (!edits || typeof edits !== "object") return false;
+    // `.every()` IS VACUOUSLY TRUE ON AN EMPTY MAP (Sol round 3), so
+    // {"edits":{}} passed every check below by having nothing to check. The row
+    // then rendered, and restoring it cleared the live work and applied nothing
+    // — the round-2 destructive no-op arriving through the one shape the round-2
+    // fix did not consider. A version naming no properties is not a version.
+    var properties = Object.keys(edits);
+    if (!properties.length) return false;
+    return properties.every(function (property) {
+      var edit = edits[property];
+      if (!(edit && typeof edit === "object" && typeof edit.newValue === "string")) return false;
+      // SHAPE IS NOT VALIDITY (Sol round 2). commitStyleEdit refuses any pair
+      // CSS.supports rejects, and restoreStyleVersion clears the current edits
+      // BEFORE applying — so a hand-edited {"color":{"newValue":"nonsense"}}
+      // wipes the live font-size edit, applies nothing, and still returns true:
+      // a destructive no-op reported as a successful restore, which is the
+      // blend this feature exists to prevent arriving through storage.
+      //
+      // This is the SAME check the save path already ran, so it can never drop
+      // a version saved in this session — only hand-edited storage can fail it,
+      // and dropping the whole entry (not the property) matches the null-edit
+      // treatment above: a version missing half its properties would be a name
+      // over a partial restore, which is the thing being refused.
+      return styleValueSupported(property, edit.newValue);
+    });
+  }
+
+  function readStoredStyleVersions() {
+    try {
+      var raw = window.sessionStorage.getItem(STYLE_VERSION_STORE_KEY);
+      if (!raw) return [];
+      var parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      // Shape-filter rather than trust: this is hand-editable storage, and one
+      // malformed entry must not take the whole panel down.
+      //
+      // The STORED id is not read at all — hydrateStyleVersions renumbers, so
+      // there is nothing here to validate. See the comment there for why that
+      // beats filtering each bad shape. The cap applies on the way IN as well as
+      // on the way out, or hand-edited storage renders an unbounded list.
+      var kept = parsed.filter(function (entry) {
+        if (!(entry && typeof entry === "object")) return false;
+        if (!(typeof entry.name === "string" && entry.name)) return false;
+        if (!(typeof entry.selector === "string" && entry.selector)) return false;
+        return isStyleVersionEdits(entry.edits);
+      });
+      return capStoredVersionsPerSelector(kept);
+    } catch (err) {
+      return [];
+    }
+  }
+
+  // The way IN gets the same PER-SELECTOR cap as the save site, or hand-edited
+  // storage renders an unbounded list for one element. Walks from the end so the
+  // NEWEST survive, matching eviction order.
+  function capStoredVersionsPerSelector(entries) {
+    var counts = Object.create(null);
+    var kept = [];
+    for (var i = entries.length - 1; i >= 0; i -= 1) {
+      var seen = counts[entries[i].selector] || 0;
+      if (seen >= STYLE_VERSION_LIMIT) continue;
+      counts[entries[i].selector] = seen + 1;
+      kept.push(entries[i]);
+    }
+    return kept.reverse();
+  }
+
+  // The cap is enforced in MEMORY at the save site, not here, so what the panel
+  // shows is what survives a reload. Trimming only on the way to storage means
+  // the 101st save renders a full list and then the OLDEST row silently
+  // disappears on the next reload — for a feature whose entire job is "do not
+  // lose my work", a version vanishing without ever being seen to go is the one
+  // forbidden outcome.
+  //
+  // There is NO global slice here any more (Sol round 2). The cap is per
+  // selector, so a global trim on the way to storage would delete a version
+  // belonging to an element the panel is not showing — the silent loss above,
+  // moved to the write path. The total is therefore bounded only by
+  // sessionStorage's own quota, and the catch below is what that costs: a quota
+  // failure keeps every version in memory for the session and they do not
+  // survive the next reload. Neither bound is free; a failure the user meets on
+  // reload is preferred over one that deletes a row while they are looking at
+  // it. That notice now EXISTS (Sol round 3) rather than being a named
+  // follow-up: the failure is reported in the panel at the moment it happens,
+  // not discovered on the next reload.
+  function persistStyleVersions() {
+    try {
+      if (styleVersions.length) {
+        window.sessionStorage.setItem(STYLE_VERSION_STORE_KEY, JSON.stringify(styleVersions));
+      } else {
+        window.sessionStorage.removeItem(STYLE_VERSION_STORE_KEY);
+      }
+      styleVersionPersistFailed = false;
+      return true;
+    } catch (err) {
+      // The named follow-up above, now that the per-selector cap makes total
+      // growth (N selectors × 100) reach a quota at all. Swallowing this and
+      // still returning true reported a save that will NOT survive a reload as
+      // a successful one — the same output-disagrees-with-state shape the rest
+      // of this feature refuses. The version really is saved in memory, so the
+      // row is not a lie; only its durability is, and that is what the note
+      // says.
+      styleVersionPersistFailed = true;
+      return false;
+    }
+  }
+
+  function hydrateStyleVersions() {
+    styleVersions = readStoredStyleVersions();
+    // RENUMBER rather than validate. An id is a within-session identity, never a
+    // stable reference — nothing outside this tab cites one — so the cheapest
+    // correct answer to "what if storage carries a bad id" is to stop reading
+    // stored ids at all. That kills the whole class in one move instead of one
+    // clause per shape: duplicates (findStyleVersion returns the last, delete
+    // removes BOTH), negatives, fractions, and the nasty one — a stored
+    // Number.MAX_SAFE_INTEGER, which is a perfectly VALID safe integer and
+    // passes any filter, after which the next two saves both mint
+    // 9007199254740992 because the increment stops moving at the precision
+    // limit. No filter on the stored value catches that; not reading it does.
+    //
+    // The sequence is then the renumbered COUNT, which is also the max. Within a
+    // session the two diverge the moment anything is deleted — ids [1,3] have
+    // length 2, so a length-derived next id is 3 and collides — which is why
+    // saveStyleVersion increments the sequence and never recomputes it.
+    styleVersions.forEach(function (version, index) { version.id = index + 1; });
+    styleVersionSequence = styleVersions.length;
+  }
+
+  function styleVersionsForSelector(selector) {
+    if (!selector) return [];
+    return styleVersions.filter(function (version) { return version.selector === selector; });
+  }
+
+  function findStyleVersionByName(selector, name) {
+    var wanted = String(name || "").trim().toLowerCase();
+    if (!wanted) return null;
+    var match = null;
+    styleVersionsForSelector(selector).forEach(function (version) {
+      if (version.name.trim().toLowerCase() === wanted) match = version;
+    });
+    return match;
+  }
+
+  function findStyleVersion(id) {
+    var match = null;
+    styleVersions.forEach(function (version) { if (version.id === id) match = version; });
+    return match;
+  }
+
+  // Both blockers below read editScope, which is a LIVE toggle and says nothing
+  // about how the draft on screen was PRODUCED (Sol round 2). Edit in component
+  // scope, switch to instance, edit again: componentScopeSiblingElements now
+  // returns [], so the siblings keep the first experiment's value while the
+  // primary moves on. Nothing reverts them — setEditScope neither rolls the
+  // mirrored previews back nor re-applies them — so the screen is a blend while
+  // both blockers answer "" and the version names only the primary.
+  //
+  // styleEditScopeSiblingsOriginal is the bookkeeping that proves it: a property
+  // key exists exactly while some sibling carries a preview of that property for
+  // the current primary, and it is deleted when the row is cleared
+  // (restoreStyleEdit → restoreStyleScopeSiblings), which is also the user's way
+  // out of the refusal. In component scope the scope clause fires first, so this
+  // one only ever speaks in INSTANCE scope with a leftover mirror — precisely
+  // the blend both blockers exist to refuse.
+  //
+  // Returns the property, so the refusal can name the row to clear; "" when
+  // there is nothing outstanding.
+  function outstandingScopeSiblingPreview() {
+    if (styleEditScopeSiblingsTarget !== selectedElement) return "";
+    var properties = Object.keys(styleEditScopeSiblingsOriginal);
+    return properties.length ? properties[0] : "";
+  }
+
+  // The other direction, and it is a different question (Sol round 3).
+  // outstandingScopeSiblingPreview asks "does the element I am looking at OWN a
+  // mirror"; this asks "is the element I am looking at RECEIVING one". A mirror
+  // belongs to the draft that authored it, and drafts are stashed per selection
+  // — so edit A under component scope, return to instance scope, then select B
+  // (a sibling A mirrored onto) and A's bookkeeping is in styleDrafts, invisible
+  // to a check that only reads the globals. B is showing a value A authored,
+  // which is the blend both blockers refuse; and clearing A's row later writes
+  // A's captured original back over whatever B was restored to, so a version
+  // named here does not describe the screen for long either.
+  //
+  // The scan is over the entry arrays because they are what names the RECEIVING
+  // element: styleEditScopeSiblingsOriginal maps property -> [{element,…}].
+  // localStyleDrafts() is a plain read of the stash map — deliberately not
+  // allStyleDrafts(), which sweeps and can carry a detached draft, side effects
+  // no render-time blocker should be running.
+  function foreignScopeSiblingPreview() {
+    if (!selectedElement) return "";
+    var stores = localStyleDrafts().map(function (draft) {
+      return draft.styleEditScopeSiblingsOriginal;
+    });
+    // The live globals count too whenever they are NOT this element's own — that
+    // case is outstandingScopeSiblingPreview's, and reporting it here would name
+    // the wrong refusal.
+    if (styleEditScopeSiblingsTarget && styleEditScopeSiblingsTarget !== selectedElement) {
+      stores.push(styleEditScopeSiblingsOriginal);
+    }
+    for (var i = 0; i < stores.length; i += 1) {
+      var store = stores[i];
+      if (!store) continue;
+      var properties = Object.keys(store);
+      for (var j = 0; j < properties.length; j += 1) {
+        var entries = store[properties[j]];
+        if (!Array.isArray(entries)) continue;
+        for (var k = 0; k < entries.length; k += 1) {
+          if (entries[k] && entries[k].element === selectedElement) return properties[j];
+        }
+      }
+    }
+    return "";
+  }
+
+  function scopeSiblingPreviewBlocker() {
+    var property = outstandingScopeSiblingPreview();
+    if (property) {
+      return "Matching elements still show an “All like this” edit of " + property
+        + ". Clear that row and set it again.";
+    }
+    var received = foreignScopeSiblingPreview();
+    if (!received) return "";
+    return "This element still shows an “All like this” edit of " + received
+      + " from another selection. Clear that pending row first.";
+  }
+
+  // Returns the REASON a save is refused, "" when it is allowed. Not a boolean:
+  // the panel prints this, and a disabled Save that cannot say why is not
+  // shippable — the user would read it as the feature being broken.
+  function styleVersionSaveBlocker() {
+    if (!currentSelection || !currentSelection.selector) return "Select an element first.";
+    if (!Object.keys(styleEdits).length) return "Change a style first — there is nothing to name yet.";
+    // Component scope MIRRORS every write onto the matching siblings
+    // (applyStyleToScopeSiblings), and a version stores neither the scope nor
+    // the member list — so a version saved under one scope and restored under
+    // the other reverts the primary and leaves every sibling carrying the
+    // previous experiment. That is the blend this feature exists to prevent,
+    // one level out from the property loop that prevents it. Versions are
+    // instance-scope only, in BOTH directions: this clause refuses the save and
+    // restoreStyleVersion refuses the restore.
+    if (editScope === "component") return "Versions cover instance styles only. Switch to “This one” first.";
+    if (scopeSiblingPreviewBlocker()) return scopeSiblingPreviewBlocker();
+    if (Object.keys(stateStyleEdits).length) return "Versions cover base styles only. Clear the hover/focus edits first.";
+    if (Object.keys(tokenIntents).length) return "Versions cover base styles only. Clear the token changes first.";
+    if (textEdit) return "Versions cover base styles only. Clear the text edit first.";
+    // instructionDraft is deliberately NOT a blocker, and the omission is a
+    // decision rather than an oversight. Every clause above names something that
+    // CHANGES THE RENDERED ELEMENT — a state style, a token intent, replacement
+    // text, a mirrored sibling write — so a version omitting it would be a name
+    // over a blend of what is on screen. An instruction renders nothing; it is a
+    // note to the agent that travels with the send, unchanged by a restore. A
+    // version is not a snapshot of the whole draft and does not claim to be.
+    return "";
+  }
+
+  function saveStyleVersion(name) {
+    if (styleVersionSaveBlocker()) return false;
+    var trimmed = String(name || "").trim().slice(0, STYLE_VERSION_NAME_MAX);
+    if (!trimmed) return false;
+    var selector = currentSelection.selector;
+    var edits = Object.create(null);
+    Object.keys(styleEdits).forEach(function (property) {
+      var edit = styleEdits[property];
+      edits[property] = {
+        newValue: edit.newValue,
+        token: edit.token,
+        tokenPath: edit.tokenPath,
+        cssVar: edit.cssVar
+      };
+    });
+    // Same name on the same selector UPDATES in place. The button already reads
+    // "Update" in that case (styleVersionsMarkup), so the user is told before
+    // they press it — overwriting silently under a "Save" label is the
+    // preview-disagrees-with-action shape this repo has shipped once already.
+    var existing = findStyleVersionByName(selector, trimmed);
+    if (existing) {
+      existing.name = trimmed;
+      existing.edits = edits;
+    } else {
+      styleVersionSequence += 1;
+      styleVersions.push({ id: styleVersionSequence, name: trimmed, selector: selector, edits: edits });
+      // Evict HERE, in memory, so the list on screen is the list that reloads —
+      // and PER SELECTOR (Sol round 2). A global slice deleted the oldest
+      // version of whatever element happened to own it, which is an element the
+      // panel is not showing: the 101st save on B removes A's oldest with no row
+      // disappearing anywhere on screen, and the loss is discovered only when A
+      // is selected again, long after. A cap nobody can watch enforce itself is
+      // the silent-loss shape this feature calls its one forbidden outcome.
+      evictStyleVersionsOverCap(selector);
+    }
+    persistStyleVersions();
+    return true;
+  }
+
+  // Oldest first, for ONE selector. Array order is save order (push), and the
+  // filter matches on IDENTITY rather than id so it stays correct across the
+  // renumbering hydrate performs.
+  function evictStyleVersionsOverCap(selector) {
+    var mine = styleVersionsForSelector(selector);
+    if (mine.length <= STYLE_VERSION_LIMIT) return;
+    var evict = mine.slice(0, mine.length - STYLE_VERSION_LIMIT);
+    styleVersions = styleVersions.filter(function (version) { return evict.indexOf(version) === -1; });
+  }
+
+  function deleteStyleVersion(id) {
+    var before = styleVersions.length;
+    styleVersions = styleVersions.filter(function (version) { return version.id !== id; });
+    if (styleVersions.length === before) return false;
+    persistStyleVersions();
+    return true;
+  }
+
+  // The other half of the instance-scope rule (see styleVersionSaveBlocker).
+  // Refusing only at the SAVE site is not enough: the scope can be switched to
+  // component after a version was saved, and the restore would then mirror every
+  // commitStyleEdit onto the siblings while reverting only the primary — the
+  // blend, arriving through the door the save guard does not watch. Same shape
+  // as the preview-and-action-must-share-a-rule defect.
+  //
+  // It returns the REASON rather than a boolean, and it is deliberately narrower
+  // than styleVersionSaveBlocker: a state edit, a token intent or a text edit
+  // blocks a SAVE (a version would be a name over part of what is on screen) but
+  // not a RESTORE (the version's own properties still land correctly). One
+  // predicate, three consumers — the refusal itself, the markup that renders the
+  // rows, and the in-place sync — because a refusal nobody can SEE is the dead
+  // button this feature already fixed once at the Save site.
+  function styleVersionRestoreBlocker() {
+    if (editScope !== "instance") return "Versions cover instance styles only. Switch to “This one” first.";
+    // The stale-mirror half is shared with the save blocker rather than narrower:
+    // restoring the primary while siblings still carry an earlier component-scope
+    // preview leaves exactly the blend this refuses at the save site, and the
+    // version's name would be over a screen it does not describe either way.
+    return scopeSiblingPreviewBlocker();
+  }
+
+  function restoreStyleVersion(id) {
+    var version = findStyleVersion(id);
+    if (!version || !currentSelection || currentSelection.selector !== version.selector) return false;
+    if (styleVersionRestoreBlocker()) return false;
+    // A restore that CLEARS the live work and then applies nothing is the one
+    // forbidden outcome, and the read-side validity check does not cover it: a
+    // version saved in THIS session never passes through isStyleVersionEdits,
+    // and a detached or reselected element can leave commitStyleEdit with no
+    // targets at all. So ask, before touching anything, whether this restore can
+    // apply EVERY property — using the same predicate the commit gate uses, so
+    // the answer cannot disagree with what the loop below will do. Refusing is
+    // honest; clearing and returning true is not.
+    //
+    // `.every()`, NOT `.some()` (Sol round 4). A restore is all-or-nothing: with
+    // `.some()`, one appliable property admitted the whole restore, the revert
+    // ran over everything, the appliable half landed, and the rest was silently
+    // refused by commitStyleEdit — leaving the page showing the saved opacity,
+    // the newer font-size and no padding at all, under one version's name. That
+    // is the blend this feature exists to prevent, assembled by the guard that
+    // was supposed to prevent it. A partial restore is worse than no restore,
+    // for the same reason a version is refused while the draft also holds a
+    // state edit or a token intent.
+    //
+    // The length check has no reachable trigger and says so: `.every()` is
+    // vacuously true on `{}`, but both doors that produce a version are already
+    // shut — saveStyleVersion refuses an empty styleEdits map (~4808) and
+    // isStyleVersionEdits refuses an empty stored map (~4583). It is
+    // belt-and-braces, and no mutant pretends otherwise.
+    if (!styleApplicationTargets().length) return false;
+    // The support memo opens HERE and closes in the finally below, so every ask
+    // from the pre-check down to the last commitStyleEdit is one answer. A
+    // page-replaceable `CSS.supports` can otherwise answer true here and false
+    // three statements later, which reassembles round 3's destructive no-op out
+    // of two honest-looking invocations (Sol round 5). Saved and restored rather
+    // than assigned and nulled, so a nested restore could never clear an outer
+    // one's scope — there is no such path today, and this costs one binding.
+    var outerSupportMemo = styleSupportMemo;
+    styleSupportMemo = Object.create(null);
+    try {
+      return applyStyleVersionRestore(version);
+    } finally {
+      styleSupportMemo = outerSupportMemo;
+    }
+  }
+
+  function applyStyleVersionRestore(version) {
+    var properties = Object.keys(version.edits);
+    var appliable = properties.length > 0 && properties.every(function (property) {
+      return styleValueSupported(property, version.edits[property].newValue);
+    });
+    if (!appliable) return false;
+    // REVERT FIRST, then apply. A restore that only applies leaves every
+    // property the PREVIOUS experiment touched still on the element, so the page
+    // shows a blend of two versions while the row's name claims one of them.
+    // This half is the whole feature.
+    Object.keys(styleEdits).forEach(function (property) {
+      if (!version.edits[property]) clearStyleEdit(property);
+    });
+    // commitStyleEdit's return is deliberately IGNORED here, and the pre-check
+    // above is what earns that. It returns false for exactly three reasons: no
+    // targets (asserted immediately above, same synchronous block), an
+    // unsupported value (impossible — `.every()` just asked the same predicate
+    // about every one of these properties, and that predicate is MEMOIZED for
+    // the length of this restore, which is the only reason "the same" is true: a
+    // page-replaceable `CSS.supports` can answer true there and false three
+    // statements later, and round 4's version of this comment simply asserted it
+    // would not — Sol round 5), and
+    // newValue === currentValue, which is a NO-OP rather than a failure: the
+    // property is already at the value the version names, which is a successful
+    // restore. Treating that third case as a failure would report a correct
+    // restore as broken. Under `.some()` this line was a genuine defect, since
+    // an unsupported property could reach it and its refusal went unreported.
+    Object.keys(version.edits).forEach(function (property) {
+      var saved = version.edits[property];
+      var current = resolvedStyleValue(property);
+      commitStyleEdit(property, saved.newValue, current,
+        saved.token ? { name: saved.token, path: saved.tokenPath, cssVar: saved.cssVar } : null);
+    });
+    syncActiveStyleDraftKey();
+    schedulePersistPending();
+    return true;
+  }
+
+  function styleVersionsMarkup() {
+    var selector = currentSelection && currentSelection.selector;
+    var saved = styleVersionsForSelector(selector);
+    var blocker = styleVersionSaveBlocker();
+    // The section is always in the DOM and HIDDEN when there is neither a saved
+    // version nor anything saveable — an untouched panel shows no Versions
+    // chrome. Emitting nothing instead would be equivalent at render time and
+    // wrong a moment later: a commit does not re-render, so a section that has
+    // to be built by renderPanel() can never appear when the user's first style
+    // edit lands. Same reason the note is always present and hidden.
+    var draft = styleVersionNameDraft;
+    var duplicate = draft.trim() ? findStyleVersionByName(selector, draft) : null;
+    var restoreBlocker = styleVersionRestoreBlocker();
+    var noteText = styleVersionNoteText(saved.length, blocker, restoreBlocker);
+    var rows = saved.map(function (version) {
+      var count = Object.keys(version.edits).length;
+      return '<li class="raven-grab-version-row">'
+        + '<button type="button" class="raven-grab-version-restore" data-restore-version="' + version.id + '"'
+        + (restoreBlocker ? " disabled" : "") + '>'
+        + escapeHtml(version.name) + '</button>'
+        + '<span class="raven-grab-version-count">' + count + (count === 1 ? " change" : " changes") + '</span>'
+        + '<button type="button" class="raven-grab-version-delete" data-delete-version="' + version.id + '" '
+        + 'aria-label="Delete version ' + escapeHtml(version.name) + '">Delete</button>'
+        + '</li>';
+    }).join("");
+    return '<div class="raven-grab-versions"' + (!saved.length && blocker ? " hidden" : "") + '>'
+      + '<div class="raven-grab-section-heading"><h2>Versions</h2>'
+      + voiceButtonMarkup("data-version-name", "version name") + '</div>'
+      + (rows ? '<ul class="raven-grab-version-list">' + rows + '</ul>' : "")
+      + '<div class="raven-grab-version-save">'
+      + '<input type="text" data-version-name placeholder="Name this version" '
+      + 'maxlength="' + STYLE_VERSION_NAME_MAX + '" value="' + escapeHtml(draft) + '" />'
+      + '<button type="button" data-save-version' + (blocker || !draft.trim() ? " disabled" : "") + '>'
+      + (duplicate ? "Update" : "Save") + '</button>'
+      + '</div>'
+      + '<p class="raven-grab-version-note"' + (noteText ? "" : " hidden") + '>' + escapeHtml(noteText) + '</p>'
+      + '</div>';
+  }
+
+  // Which refusal the note explains. The save blocker is checked in order, so
+  // with rows on screen and no live style edit it answers "Change a style first"
+  // — true about the Save button and silent about the rows the scope just
+  // disabled. When there is something to restore and the scope refuses it, the
+  // scope reason wins: it is the cause of BOTH disabled controls.
+  function styleVersionNoteText(savedCount, saveBlocker, restoreBlocker) {
+    // First, because it is the only one of the three that is about work already
+    // done rather than work being refused: a blocker says "you cannot do that
+    // yet", this says "what you already did will be gone after a reload".
+    if (styleVersionPersistFailed) {
+      return "Saved for this tab only — storage is full, so versions will not survive a reload.";
+    }
+    if (savedCount && restoreBlocker) return restoreBlocker;
+    return saveBlocker;
+  }
+
+  // The section's own in-place sync, called from syncActiveStyleDraftKey — the
+  // one place that already knows the draft's edit set moved. It toggles only
+  // what a commit can change (is there anything to name, and why not); the row
+  // LIST changes solely through save/delete/restore, which re-render anyway.
+  function syncStyleVersionsSection() {
+    var blocker = styleVersionSaveBlocker();
+    var restoreBlocker = styleVersionRestoreBlocker();
+    var saved = styleVersionsForSelector(currentSelection && currentSelection.selector);
+    var noteText = styleVersionNoteText(saved.length, blocker, restoreBlocker);
+    panelQueryAll(".raven-grab-versions").forEach(function (section) {
+      section.hidden = !saved.length && Boolean(blocker);
+      var note = section.querySelector(".raven-grab-version-note");
+      if (!note) return;
+      note.textContent = noteText;
+      note.hidden = !noteText;
+    });
+    // The third consumer of styleVersionRestoreBlocker, and BELT-AND-BRACES: no
+    // test kills this line, and saying so is the point. editScope has nine
+    // writers, but every one that can set "component" (setEditScope, and the
+    // draft restore at ~4086) re-renders, and every version mutation re-renders
+    // too — so today the markup owns the disabling and this is unreachable. It
+    // stays because the reverse direction is the dangerous one: a writer that
+    // drops back to "instance" without a render would otherwise leave the rows
+    // dead permanently, and four of the nine writers do exactly that assignment.
+    // A clause with no reachable trigger must say so rather than pretend a
+    // mutant kills it.
+    panelQueryAll("[data-restore-version]").forEach(function (button) {
+      button.disabled = Boolean(restoreBlocker);
+    });
+    syncStyleVersionSaveButtons();
+  }
+
+  // Typing a name must NOT re-render: renderPanel() rebuilds the input and the
+  // caret goes with it, so the user loses focus on every keystroke. Only the
+  // two things that depend on the draft are synced, in place, across both
+  // panels — dictation reaches this the same way, by dispatching an "input"
+  // event on the field.
+  function syncStyleVersionSaveButtons() {
+    var blocker = styleVersionSaveBlocker();
+    var draft = styleVersionNameDraft.trim();
+    var selector = currentSelection && currentSelection.selector;
+    var duplicate = draft ? findStyleVersionByName(selector, draft) : null;
+    panelQueryAll("[data-save-version]").forEach(function (button) {
+      button.disabled = Boolean(blocker) || !draft;
+      button.textContent = duplicate ? "Update" : "Save";
+    });
   }
 
   var STROKE_SIDES = ["top", "right", "bottom", "left"];
@@ -10886,7 +11683,7 @@
       ${scopeMarkup}
       <section class="raven-grab-section">
         <button class="raven-grab-section-toggle" type="button" data-section-toggle="styles" aria-expanded="${expandedSections.styles ? "true" : "false"}" aria-controls="raven-grab-styles"><span>Styles</span><span class="raven-grab-caret" aria-hidden="true">▾</span></button>
-        <div class="raven-grab-collapsible" id="raven-grab-styles" data-section-body="styles" data-open="${expandedSections.styles ? "true" : "false"}" aria-hidden="${expandedSections.styles ? "false" : "true"}"><div class="raven-grab-collapsible-inner">${tokensEmptyMarkup}<ul class="raven-grab-styles">${stylesMarkup}</ul>${stateStylesMarkup}</div></div>
+        <div class="raven-grab-collapsible" id="raven-grab-styles" data-section-body="styles" data-open="${expandedSections.styles ? "true" : "false"}" aria-hidden="${expandedSections.styles ? "false" : "true"}"><div class="raven-grab-collapsible-inner">${tokensEmptyMarkup}<ul class="raven-grab-styles">${stylesMarkup}</ul>${stateStylesMarkup}${styleVersionsMarkup()}</div></div>
       </section>`;
     var instructionsMarkup = `
       <section class="raven-grab-section raven-grab-composer">
@@ -11844,6 +12641,23 @@
       toggleDictation(voiceToggle.getAttribute("data-voice-dictate"));
       return;
     }
+    var restoreVersion = event.target.closest("[data-restore-version]");
+    if (restoreVersion) {
+      restoreStyleVersion(Number(restoreVersion.getAttribute("data-restore-version")));
+      renderPanel();
+      return;
+    }
+    var deleteVersion = event.target.closest("[data-delete-version]");
+    if (deleteVersion) {
+      deleteStyleVersion(Number(deleteVersion.getAttribute("data-delete-version")));
+      renderPanel();
+      return;
+    }
+    if (event.target.closest("[data-save-version]")) {
+      if (saveStyleVersion(styleVersionNameDraft)) styleVersionNameDraft = "";
+      renderPanel();
+      return;
+    }
     if (event.target.closest("[data-maintainer-send]")) sendSelection();
     if (event.target.closest("[data-send-batch]")) dispatchPendingBatch();
     if (event.target.closest("[data-request-next]")) advanceComponentRequest();
@@ -11996,6 +12810,10 @@
     if (event.target.getAttribute("data-instruction") !== null) {
       instructionDraft = event.target.value;
       syncSendButtonDisabled();
+    }
+    if (event.target.getAttribute("data-version-name") !== null) {
+      styleVersionNameDraft = event.target.value;
+      syncStyleVersionSaveButtons();
     }
     if (event.target.getAttribute("data-use-case") !== null) {
       componentRequest.useCase = event.target.value;
@@ -13527,6 +14345,7 @@
   // Restore un-sent changes from a prior page load before the first render so
   // they show in the tray immediately (see the persistence block).
   carriedPending = readCarriedPending();
+  hydrateStyleVersions();
 
   renderPanel();
 
