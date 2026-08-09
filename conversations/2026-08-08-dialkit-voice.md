@@ -1219,3 +1219,73 @@ widest real site 114, REACH 200 -> 86 characters of margin (1.75x)
 The source figures recorded above this section (max 111) were the right
 measurement of the wrong quantity — correct for the round-6 code, which bounded
 source, and superseded the moment fix #6 changed the unit.
+
+## Round 8 — Sol falsification (13:14) — `DOES NOT SURVIVE`, 5 × P1 + 1 × P3
+
+Sol's chromium was blocked in its sandbox again (`listen EPERM` on the suite's
+own probe, `mkdtemp EPERM` on a direct launch; the pristine target reported
+1 pass / 0 fail / 1 skipped), so every counterexample is a SOURCE claim. Each
+was replayed here and confirmed. All six dispositioned, all six fixed, all
+test-side. **No product code has changed in rounds 3–8.**
+
+| # | Sev | Finding | Fix |
+|---|-----|---------|-----|
+| 1 | P1 | `\b` is not an attribute-name boundary: `data-class="raven-grab-field"` satisfies `\bclass="…"`, so an uncovered row wearing that attribute read as covered. `\b` is not a CLASS-token boundary either — `class="raven-grab-field-x"` matched. | The three literal regexes became a `coveredBy(cls, tail)` factory asserting a real `class` attribute (`\sclass="`) and lookaround `(?<![\w-])cls(?![\w-])` inside the value — the question CSS asks. |
+| 2 | P1 | `hit[3].trim().endsWith('/')` reads an UNQUOTED attribute value ending in `/` as a self-closing solidus: `<em style=display:block;width:100px data-x=y/>` was treated as void, so the container never opened and the walk balanced. | `selfClosing(attrs)` requires the `/` to be preceded by whitespace or a quote, i.e. a real solidus and not part of a value. The run is deliberately NOT trimmed — `<br / >` is a parse error a browser does not treat as self-closing. Raw-text elements (`script`/`style`/`textarea`/`title`) now skip to their own close tag rather than parsing their contents as markup. |
+| 3 | P1 | `emittedWindow`'s `inTag` flipped on any bare `<`/`>`: `1 < 2 <!-- <label class="raven-grab-field"><span> -->` put the scanner "inside a tag", so the HTML comment was NOT dropped and its commented-out opener counted as a container. | A browser opens a tag only when `<` is followed by `[a-zA-Z!/?]`, and a `>` inside a quoted attribute value does not close one. `inTag` now tracks the quote state and the open condition. |
+| 4 | P1 | A grouping paren around the callee — `(voiceButtonMarkup)("data-template-note", …)` — emits byte-identical markup and was not a call site at all, so the mic count stayed at 8 and the row went unexamined. | The call-site walk strips balanced grouping parens around the identifier, refusing when the `(` is itself a call/index (preceded by an identifier, `)` or `]`). The window and the `CONCATENATION_ONLY` check anchor at `identStart` (the OUTERMOST paren), not the identifier — anchoring at the identifier would put the stripped `(` inside the glue region and report a correct row RED. |
+| 5 | P1+P3 | `REACH_SOURCE_CAP = 20000` was documented as "a cost bound only". It is not: 20,001 characters of dead source between the opener and the mic stopped the backwards walk short of `REACH` emitted characters, and the row was reported UNCOVERED — a red on correct code, and the comment claiming otherwise is false. | `windowStartFor` returns `capped`, and a new assertion fails the test naming every site that hit the cap, with a message saying explicitly that this is NOT a coverage verdict. The comment now says a bound that can change a verdict is a correctness bound whatever its comment says. |
+| 6 | P3 | The header said only TWO mics are unrendered by the fixture. Three are: the two template-mode rows (`:8518`, `:8552`) AND the maintainer-only Component notes heading (`:10601`) — the fixture asks for role `consumer`. | Header corrected: eight mics exist, five render (feedback message, Instructions, use case, template name, component name), and the source-enumeration test is the only guard on all three others. |
+
+### Pre-fix vs post-fix — MEASURED, not asserted
+
+A mutation claim is falsifiable exactly like an assertion (round 6's lesson), so
+`.claude/dialkit-2026-08-08/r8-prefix-measure.mjs` reverts each round-8 fix
+individually in a COPY of the suite (written into `test/` so its relative
+`dist/` import still resolves) and runs the mutants that fix owns. It refuses to
+grade a run with no summary line or with `skipped !== 0`.
+
+```
+pristine suite, pristine overlay: 2 pass / 0 fail
+A28 data-class   PRE 2p/0f                        -> POST 1p/1f [mics in a container the shared alignment rule does not cover:]
+A29 class list   PRE 1p/1f [mics in a container…] -> POST 2p/0f
+A30 unq. slash   PRE 2p/0f                        -> POST 1p/1f [mics in a container…]
+A31 bare <       PRE 2p/0f                        -> POST 1p/1f [mics in a container…]
+A32 (f)(x)       PRE 1p/1f [the number of mics…]  -> POST 2p/0f
+A33 9th (f)(x)   PRE 2p/0f                        -> POST 1p/1f [the number of mics in the overlay changed…]
+A34 dead source  PRE 1p/1f [mics in a container…] -> POST 1p/1f [the scan hit REACH_SOURCE_CAP before reading 200 emitted characters at:]
+```
+
+A28/A30/A31/A33 each measured **2 pass / 0 fail pre-fix** — the whole suite
+green on a real misalignment, which is the P1 direction. A29/A32 measured
+**1 pass / 1 fail pre-fix** — red on correct code, which is why they are
+CONTROLS rather than kills. **A34 is red both ways and is separated only by its
+MESSAGE**, which is the entire finding: the author used to be told the row was
+uncovered and is now told the scan ran out of source. Its comment says so, since
+its radius cannot separate it.
+
+All seven mutants anchor on the `:8552` template-mode row — a counterexample
+against the SOURCE rule must live where no browser test can render it, or its
+radius grades the wrong guard (the round-4 A13 trap).
+
+### Measured after the round-8 fixes
+
+```
+baseline    2 tests / 2 pass / 0 fail / 0 skipped, EXIT=0
+matrix v10  27 mutants, 27 killed, 0 survived; 7 controls, 0 false-failed, EXIT=0
+            A28/A30/A31/A33/A34 radius 1 each; A29/A32 controls green
+            re-run WHOLE — round 8 rewrote the openers, the void/self-closing
+            rule, the tag-state tracking, the call-site walk and the window bound
+npm test    1481 tests / 1478 pass / 0 fail / 3 skipped, EXIT=0  (unchanged —
+            every fix lives inside the two existing tests or the scanner they
+            share, and the new mutants are outside npm test)
+mirror      cmp browser/raven-grab.js web/public/raven-grab.js -> MIRROR OK
+no browser  2 tests / 1 pass / 0 fail / 1 skipped
+product     git diff --stat browser/ web/public/ -> empty
+```
+
+### Where this stands
+
+Changed in the working tree only (the auto-save hook commits locally; nothing
+pushed). No release, no endpoint change. Round 9 brief is the next step; the
+cadence continues until a round returns `SURVIVES`.

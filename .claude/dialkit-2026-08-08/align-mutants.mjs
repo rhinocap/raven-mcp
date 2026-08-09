@@ -257,7 +257,67 @@ const MUTANTS = [
   [`A27 CONTROL  escapes inflate SOURCE length inside a covered label`,
     '<label class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note=',
     `<label class="raven-grab-field"><span>Add note${'\\x61'.repeat(40)}…' + voiceButtonMarkup("data-template-note=`,
-    'green']
+    'green'],
+  // A28-A34 are Sol round 8. Every one of them anchors on the TEMPLATE-NOTE row
+  // (:8552), which no browser test renders — the A7-vs-A8 rule: a counterexample
+  // against the SOURCE rule measured on a rendered row grades the geometry test
+  // instead and understates what the hole costs.
+  //
+  // A28/A29 are one finding in both directions, and they are why the opener now
+  // asks the question CSS asks rather than a question that merely resembles it:
+  //   A28  `\b` sits between the `-` and the `c` of `data-class`, so an element
+  //        carrying NO class at all satisfied the old opener. PRE-FIX: 2 pass /
+  //        0 fail — the whole suite green on a mic the stylesheet never aligns.
+  //   A29  the old opener demanded the closing quote right after the class name,
+  //        while CSS matches one token of a list. PRE-FIX: 1 pass / 1 fail on
+  //        correct, correctly-styled markup. A control, for that reason.
+  ['A28 a longer attribute NAME ending in "class" is not the class attribute',
+    '<label class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note=',
+    '<label data-class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note='],
+  ['A29 CONTROL  the covered class as one token of a longer class list',
+    '<label class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note=',
+    '<label class="raven-grab-field extra"><span>Add note…\' + voiceButtonMarkup("data-template-note=',
+    'green'],
+  // A30 is the self-closing test. A `/` that ends an UNQUOTED attribute value is
+  // part of the value — `data-x="y/"` — so the `<em>` stays OPEN and the mic
+  // renders inside a 100px wrapper. The old rule read the trailing slash as a
+  // solidus and skipped the element entirely. PRE-FIX: 2 pass / 0 fail.
+  ['A30 a trailing slash inside an unquoted attribute value is not self-closing',
+    '<label class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note=',
+    '<label class="raven-grab-field"><span>Add note…<em style=display:block;width:100px data-x=y/>\' + voiceButtonMarkup("data-template-note='],
+  // A31 is the tag-state half of the same class. A browser opens a tag only when
+  // `<` is followed by a letter, `/`, `!` or `?`; `1 < 2` is text. The old scan
+  // set `inTag` on the bare `<`, which suppressed comment removal, which handed
+  // the walk a covered opener that never renders. PRE-FIX: 2 pass / 0 fail.
+  ['A31 a bare < is text, and must not suppress comment removal',
+    '<label class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note=',
+    '<div class="raven-grab-loose">Add note… 1 < 2 <!-- <label class="raven-grab-field"><span> -->\' + voiceButtonMarkup("data-template-note='],
+  // A32/A33 are the parenthesized-call finding in both directions, and A33 is
+  // the one that shows the cost. A grouping paren around the callee emits
+  // byte-identical markup:
+  //   A32  one of today's sites written that way. PRE-FIX: 1 pass / 1 fail —
+  //        red on correct code, reporting a count change that did not happen.
+  //   A33  a NINTH mic written that way, in an uncovered wrapper. PRE-FIX: 2
+  //        pass / 0 fail — the count still reads 8, the new mic is never
+  //        examined, and the only guard on that row reports nothing. That is
+  //        round 6's A18 finding reached through a different token.
+  ['A32 CONTROL  a grouping paren around the callee is still the same call',
+    '<label class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note=',
+    '<label class="raven-grab-field"><span>Add note…\' + (voiceButtonMarkup)("data-template-note=',
+    'green'],
+  ['A33 a ninth mic written as a parenthesized call, in an uncovered wrapper',
+    '<label class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note=',
+    '<div class="raven-grab-loose">\' + (voiceButtonMarkup)("data-extra-note", "extra") + \'</div><label class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note='],
+  // A34 is the ONLY mutant in this matrix not separated by its radius: it is red
+  // before the fix and red after it, and what changed is WHICH assertion fires
+  // and what it tells the author. Before, a window that ran out of source was
+  // reported as a mic in the wrong container — an instruction to go move code
+  // that is already correct. After, it says the scan could not look far enough.
+  // Read the DETAIL line, not the count: the kill is `REACH_SOURCE_CAP`
+  // appearing in the message. Same shape as E14/E15 in the easing suite.
+  [`A34 a source region emitting nothing pushes the opener past the cost cap`,
+    '<label class="raven-grab-field"><span>Add note…\' + voiceButtonMarkup("data-template-note=',
+    `<label class="raven-grab-field"><span>Add note…' + /*${'x'.repeat(20001)}*/ voiceButtonMarkup("data-template-note=`]
 ];
 
 function apply(source, find, replace) {
