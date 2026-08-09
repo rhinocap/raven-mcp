@@ -3443,3 +3443,74 @@ handing it to Sol, and both came back clean:
   - `browser/raven-grab.js:3323` does numeric index access (`style[i]`) on a rule
     declaration; the shim adds own methods and touches neither `length` nor the
     indexed properties.
+
+#### Matrix v7 clean re-run: 35 mutants, 35 killed, 0 survived; 2 CONTROLS, 0 false-failed, EXIT=0
+
+Declared baseline 28p/0f/0s. The exit code was written INSIDE the log by the
+launcher (`; echo "EXIT=$?"`), so it is a fact about the harness's own verdict
+and not about whether the shell reached its last line.
+
+V35 — "the typeof gate is deleted (an instance-shim engine binds undefined and
+refuses every supported edit)" — KILLED at radius 1, reddening exactly:
+  "an engine that carries setProperty on each declaration INSTANCE still
+   commits supported edits"
+
+That is the whole point of round 7's P2 disposition. Round 6 shipped the gate
+asserting NO MUTANT KILLS IT, on the reasoning that in a conforming engine an
+instance method IS the prototype method. The reasoning was sound and the
+conclusion did not follow: the environment the gate exists FOR is one where they
+are NOT the same method, and `page.addInitScript` constructs exactly that. A
+claim that something cannot be tested is itself a claim, and it is falsifiable
+by writing the test.
+
+RADIUS DIFF vs v6 — EXACTLY ONE MOVED: V9 27 -> 28. Everything else is
+byte-identical to the v6 table in the suite header (V1 2, V2 1, V3 9, V4 1,
+V5 1, V6 1, V7 2, V8 10, V10 1, V11 1, V12 1, V13 1, V14 1, V15 1, V16 1,
+V17 3, V18 1, V19 3, V20 1, V21 1, V22 1, V23 1, V24 5, V25 2, V26 1, V27 1,
+V28 4, V29 1, V30 1, V31 1, V32 1, V33 2, V34 1), plus V35 entering at 1.
+
+CORRECTION TO MY OWN EARLIER READ: mid-run I said V7 moved 1->2 and V8 1->10.
+Both were ALREADY 2 and 10 in v6 — I read them off the partial log without
+diffing the header table. The true statement is that ONE radius moved. Do not
+carry the wrong version into the ledger.
+
+That single move is the readable signal rather than noise: the new test can only
+reach the save path through the draft-changed sync hook, so V9 (radius 28, the
+entry point every other assertion runs through — a fact about that MECHANISM,
+never evidence of 28 independent guards) picks it up and nothing else does.
+V35's radius of 1 says the same thing from the other side: the gate is covered
+by exactly one test and not incidentally by any other mechanism.
+
+#### Full suite: 1523 / 1520 pass / 0 fail / 3 skipped, EXIT=0 (duration 44.2s, 6 suites)
+
++1 over the previously ledgered 1522/1519, and the +1 is exactly the one new
+browser test in test/grab-overlay-style-versions.test.mjs (28 now, was 27).
+The comment rewrites in browser/raven-grab.js and its mirror, V35 and the
+baseline bump 27->28 in version-mutants.mjs, and the header/decision-18 edits
+all move the count by ZERO.
+
+THE 3 SKIPS WERE READ INDIVIDUALLY AT THEIR OWN OUTPUT LINES (109 / 714 / 715),
+not inferred from the total, and none is from the versions suite:
+  109  file URL fallback marks reveal and settle checks as unavailable
+       # browser available — fallback path not used
+  714  [phase2D fix B] a later committed batch applies on the first poll while
+       the head is pending  # removed capability
+  715  [phase2C tray] overlapping committed batches both finish and Apply counts
+       only batch B  # removed capability
+Same three this ledger has always carried. The versions suite ran 28/28 under
+the FULL probe pattern.
+
+Note for the next reader: `grep -E "^# (tests|pass|fail|skipped)"` returns
+NOTHING on this log — npm test uses the SPEC reporter, whose summary lines are
+prefixed with the info glyph, not TAP's `#`. Grep for the glyph or read the
+tail; a silent grep here is a grep failure, not a clean run.
+
+NEXT (exact order):
+  1. CLAUDE.md ledger: 1523/1520/0/3, matrix v7 = 35/35/0 + 2 controls, V35
+     entry, one-radius-moved note, the three-declaration-source lesson.
+  2. Sol round-8, DETACHED to a file, using
+     .claude/dialkit-2026-08-08/SOL-BRIEF-VERSIONS-R8.md.
+     NEVER foreground (10-min Bash cap kills it at exit 143). An empty,
+     length-truncated or environment-blocked output is NOT "no findings".
+  3. git commit --only <explicit paths>.
+  4. Push is Andrew's call. Touches no src/ or api/.

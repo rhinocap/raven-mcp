@@ -15,8 +15,14 @@ verdict. Do not repeat that.
   or that a passing test proves less than it is claimed to prove — that is a
   legitimate and valuable finding — but you cannot re-run them, so do not try:
     - style-versions suite: 28 tests / 28 pass / 0 fail / 0 skipped, EXIT=0
-    - matrix v7: see the numbers written into the claim below
-    - full suite: see the numbers written into the claim below
+    - matrix v7: 35 mutants, 35 killed, 0 survived; 2 controls, 0 false-failed,
+      EXIT=0, against a declared 28p/0f/0s baseline, re-run WHOLE after the
+      round-7 edits. Exactly ONE radius moved vs v6: V9 27 -> 28. V35 enters
+      at radius 1, reddening only "an engine that carries setProperty on each
+      declaration INSTANCE still commits supported edits".
+    - full suite: 1523 tests / 1520 pass / 0 fail / 3 skipped, EXIT=0. The 3
+      skips were read individually at output lines 109 / 714 / 715 and are the
+      same three this repo has always carried; none is from the versions suite.
 - **You must end with findings and a verdict line.** If you run low on budget,
   write the findings you have rather than a status note.
 
