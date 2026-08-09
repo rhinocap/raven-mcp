@@ -3830,3 +3830,342 @@ needs.
 Originals untouched at `~/projects/raven-genesis-demo/pack/*.png`; the board
 copies are a sibling `board/` directory, so the takedown/regenerate path is
 unaffected.
+
+---
+
+## Push, endpoint verification, and the full tool census (2026-08-08 → 09)
+
+### The push
+
+Andrew authorised it explicitly. Four steps, each measured rather than inferred.
+
+1. **`git fetch` + scope check.** `git diff --name-only origin/main..HEAD | grep -E '^(src|api)/'` returned
+   **nothing** — so the push moves no file that decides what `mcp.ravenmcp.ai` serves. That check
+   matters because since the 2026-07-27 unpin every push to `main` deploys the `site` project, which
+   IS the live OAuth-bearing endpoint.
+2. **Full suite green before the push**, not after:
+   `ℹ tests 1523 / suites 6 / pass 1520 / fail 0 / cancelled 0 / skipped 3 / todo 0` · `EXIT=0` ·
+   44.6s. Matches the CLAUDE.md ledger figure exactly.
+3. **Pushed** `ad36eeb..b46dac5  main -> main` — 17 files, 6868 insertions(+), 13 deletions(-).
+   Contents: `browser/raven-grab.js` (+833) and its `web/public/` mirror (+833),
+   `test/grab-overlay-style-versions.test.mjs` (+1973, new), `.claude/dialkit-2026-08-08/version-mutants.mjs`
+   (+377), nine SOL-BRIEF-VERSIONS files, three CLAUDE.md lines, and the session log (+1819).
+4. **Live endpoint re-verified after the deploy landed.** POST `tools/list` to
+   `https://mcp.ravenmcp.ai/api/mcp` → `http=200`, **45 tools**,
+   `sha256 f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6` — an **exact** match
+   against the frozen golden hash. The anonymous surface did not move.
+
+### The tool census — and why the obvious method was wrong twice
+
+The functionality doc needed a number it could stand behind, so all three surfaces were measured
+independently rather than reading one and inferring the others.
+
+**Attempt 1 — grep — was wrong in two separate ways and both are worth recording.**
+`grep -oE '\btool\(\s*"[a-z0-9_]+"'` over `dist/` reported **106**, against a real 105 published /
+110 in repo. Worse, the compound command's leading `cd` **persisted across `&&`**, so the half
+labelled "and now the same two counts on the local repo dist" re-read the *published* dist. It was a
+duplicate presented as a comparison, and it agreed with itself, which is exactly how it survives a
+glance. Discarded entirely.
+
+**Attempt 2 — run the real server against the packed tarball — threw `ERR_MODULE_NOT_FOUND`.**
+A bare `npm pack` extract has no `node_modules`, so `@modelcontextprotocol/sdk` cannot resolve.
+Fixed by running `npm install --omit=dev --ignore-scripts --no-audit --no-fund` inside the unpacked
+package before invoking the counter.
+
+**Method of record:** `buildServer({ remote: false, tasteStore: new FsTasteStore() })` and
+`buildServer({ remote: true, ... })`, reading `_registeredTools` off each. The explicit
+`remote: false` is load-bearing — bare `buildServer()` falls back to `process.env.RAVEN_REMOTE`, so
+a census script without it silently measures the remote server. Script at
+`scratchpad/enum-tools.mjs`, output at `scratchpad/tools.tsv`.
+
+| Surface | Count | How |
+| --- | --- | --- |
+| Repo `main` (b46dac5) stdio | **110** | real `buildServer({remote:false})` on local `dist/` |
+| npm `raven-mcp@2.3.0` (published 2026-07-28T22:17:27Z) stdio | **105** | `npm pack` + `npm install --omit=dev` + real `buildServer` |
+| Live `mcp.ravenmcp.ai` anonymous | **45** | live POST, hash-verified |
+| Remote-registered (repo and npm alike) | **56** | real `buildServer({remote:true})` |
+| Gated (stdio-only), repo | **55** | 110 − 55 shared |
+| Gated (stdio-only), npm | **50** | 105 − 55 shared |
+
+**The reconciliation did not close on the first pass and was chased rather than rounded.**
+110 stdio + 55 gated implies 55 shared, but the remote build registers **56**. The extra is
+`delete_taste_data`, which is registered ONLY in remote mode and has no stdio counterpart — it is
+the GDPR-shaped delete for per-user Redis data, which local stdio has no equivalent of.
+
+So: **45 anonymous + 10 OAuth-gated Taste Engine tools = 55 shared with stdio, + `delete_taste_data`
+= 56 remote total.** The ten that unlock on sign-in are `audit_taste`, `bind_taste_surface`,
+`create_taste_profile`, `generate_taste_portrait`, `get_taste_interview`, `get_taste_profile`,
+`label_finding`, `list_taste_decisions`, `list_taste_profiles`, `record_taste_decision`.
+
+**The 105 → 110 drift is exactly the pattern-library work**, and all five are in
+`REMOTE_GATED_TOOLS`, which is why the anon hash has never moved across any of it:
+`capture_reference`, `search_references`, `map_reference_to_tokens`, `forget_references`,
+`generate_mood_board`. npm has not moved since 2026-07-28.
+
+### Font tooling on this host
+
+`pyftsubset`, `woff2_compress` and `fonttools` are all absent, and `python3 -m pip install --user`
+is refused under PEP 668. **Do not reach for `--break-system-packages`** — a throwaway venv is the
+same result with none of the risk:
+
+    python3 -m venv scratchpad/fontenv && ./fontenv/bin/pip install fonttools brotli
+
+Subsetting Untitled Sans Regular/Medium/Bold plus Geist Mono to a latin-and-punctuation woff2 gives
+**61 KB raw / 82 KB base64 across four faces** — cheap enough to inline in an Artifact, where the CSP
+blocks font CDNs outright and a linked webfont fails silently to a system fallback.
+
+---
+
+## The Raven functionality map — build, judge, fix, verify (2026-08-08 → 08-09)
+
+Andrew's ask after the push: *"create a quick doc or deck on all of the funcitonality in
+Raven now, it's to hel pme keep track, think about hwo to change the marketing site, and
+how to explain all oif it's funcitonality to people"*. Three audiences in one artifact —
+his own inventory, a marketing-site rethink, and an explanation for other people.
+
+### Building it from a measurement, not from memory
+
+The tool list is not written by hand anywhere. `scratchpad/build-artifact.mjs` reads
+`scratchpad/tools-short.txt` (110 lines, `name|ANON-or-GATED|description`), which was
+itself produced by standing up the real server — `buildServer({ remote: false,
+tasteStore: new FsTasteStore() })` against local `dist/`, never bare `buildServer()`,
+which falls back to `process.env.RAVEN_REMOTE` and silently measures the remote build.
+
+Four surface numbers, each measured rather than quoted:
+
+| Surface | Count | How |
+|---|---|---|
+| repo `main` (b46dac5) stdio | **110** | real `buildServer({remote:false})` on local `dist/` |
+| npm `raven-mcp@2.3.0` | **105** | `npm pack` + `npm install --omit=dev` + real `buildServer` |
+| live `mcp.ravenmcp.ai` anonymous | **45** | live POST, golden hash verified |
+| remote-registered | **56** | real `buildServer({remote:true})` |
+
+45 anon + 10 OAuth Taste Engine + `delete_taste_data` (remote-only Redis delete) = 56.
+The 105→110 gap is exactly the five pattern-library tools, all in `REMOTE_GATED_TOOLS`.
+
+Two census attempts by grep came back **106** against a real 105/110, and one "comparison"
+re-read the same `dist/` twice because a leading `cd` persisted across `&&` — so it agreed
+with itself. Both are why the counts above are taken off a booted server.
+
+### The 17 truncated descriptions — found by looking, not by a check
+
+Seventeen tool descriptions ended mid-clause in the rendered page. Nothing caught them:
+not the build, not a test, not a lint. I found them by reading the artifact I had just
+published. They were re-read off the real server and replaced, and a **sentence-completeness
+assertion** now sits in the build script so the class cannot come back silently.
+
+That assertion, and the audit-count pair beside it, both sit **before** font-inlining and
+`writeFileSync` — a throwing assertion must never leave a bad artifact on disk. The
+audit-count pair exists because the first version of that sentence said "twenty-two
+`audit_*` tools" inside a group of 26 that holds 21: true server-wide, false about the
+group it sat in. Both halves are graded now:
+
+```js
+if (auditAll  !== 22) throw new Error(`audit_* server-wide is ${auditAll}, copy says 21 + 1 = 22`);
+if (auditHere !== 21) throw new Error(`audit_* in the Audit group is ${auditHere}, copy says 21`);
+```
+
+### The design-judge pass — verdict BLOCK, 5 block + 1 warn
+
+Run against `raven-map.src.html`, global layer only (raven-mcp has no project overlay),
+surface bound **product-site (ravenmcp.ai)** so the monochrome-scoped rules stayed inactive.
+
+1. `CONTENT-ACCURACY-read-before-asserting` · block — `<h2>Five things…</h2>` headed **six**
+   `.claim` rows. → "Six things".
+2. `TYPE-no-faux-anything` · block — `<em>this project's</em>`. Only Regular/Medium/Bold/Mono
+   are inlined, so the browser synthesizes an oblique. → `.em{font-weight:500}` on the real
+   Medium face.
+3. `LAYOUT-no-card-soup` · block — `.dcard`×3 + `.group`×10 + `.claim`×6 = **19** shadowed
+   rounded cards, and `.dcard` carried the `border-top:3px solid var(--tier)` accent rail
+   named in `artifact-design` as an AI tell. → **19 → 10**.
+4. `SPACING-tap-targets-44px` · block · **`source: raven`** — delegated to `audit_tap_targets`,
+   not eyeballed. I had estimated `.filt` at "roughly 34–36px"; Raven measured **30**.
+5. `CONTENT-ACCURACY-open-references-before-scoring` · block — three sentences asserted what
+   the live marketing site currently does, while the section's own note conceded the pages
+   weren't re-read. All three rewritten as proposals.
+6. `VOICE-editorial-restraint` · warn — pull-quote made an unverifiable absolute about every
+   competitor. → *"Raven hands an agent a measurement, not an opinion — the same number every
+   run, and the rule it came from."*
+
+All nine items (six findings + three self-found observations) applied.
+
+### The de-carding, measured at both viewports
+
+`.claim` went from a card to hairline-ruled editorial rows via **grid auto-placement with
+zero HTML edits** — `.claim h3{grid-column:1;grid-row:1}` plus `.claim > :not(h3){grid-column:2}`.
+The carried plan omitted the mobile override, which is mandatory: without
+`@media (max-width:820px){.claim > :not(h3){grid-column:1}}` every paragraph is stranded in
+a column that no longer exists.
+
+`.scratch/pitch.mjs` screenshots `.pitch` at 1280px and 780px **and asserts the geometry**, so
+the picture is not the only evidence:
+
+```
+pitch-desktop {"headX":102,"proseX":351,"headY":-141,"proseY":-141,"claimW":1080,"proseW":668}
+pitch-narrow  {"headX":34,"proseX":34,"headY":-250,"proseY":-213,"claimW":716,"proseW":668}
+PITCH OK
+```
+
+Then looked at both PNGs. Desktop: two columns on a shared baseline, mono proof lines under a
+soft rule, no card. Narrow: headings full width, prose stacked beneath, rules intact.
+
+### THE STALE SERVER — the significant error of the round
+
+After the tap-target fix landed and the build reran, `audit_tap_targets` returned a reading
+**identical to the pre-fix one**: 4 elements, 0 passing, all `h 30`, `deficit_h 14`. Rather
+than theorise about CSS specificity I compared disk against wire:
+
+```
+grep -c "min-height:44px" scratchpad/raven-map.html        → 2
+curl -s http://127.0.0.1:8791/ | grep -c "min-height:44px" → 0
+```
+
+`.scratch/serve.mjs` called `readFileSync` at **module scope**. Every request since process
+start had returned the build that happened to be on disk when the process booted. This is
+this repo's own rule — *a check whose failure mode is indistinguishable from its success mode
+is not a check* — landing on the **fixture** rather than the product. A stale response is
+byte-for-byte indistinguishable from a fresh one at the socket.
+
+Fixed by moving the read inside the handler, adding `cache-control: no-store`, and writing the
+failure mode into a comment above it. Freshness is now asserted mechanically, not glanced at:
+
+```
+disk=  128933 wire=  128933 min44_over_http=2
+SERVER FRESH OK
+```
+
+Re-measured against the fresh server: **total 4, passing 4, failing 0, `fix_table: []`**.
+Judge finding 4 closed by Raven's own ruler.
+
+### Lessons
+
+1. **A compaction summary's "verbatim" code is a faithful reconstruction, not byte-exact.**
+   An `Edit` against an unread region failed on a string carried through a summary. Read the
+   region first, always.
+2. **A byte count read without comparison to disk is not a freshness check.** I had recorded
+   `bytes=128000` from `curl` as evidence the server was serving the new build. Disk was
+   **128,933**. The discrepancy sat in plain sight and read as confirmation. The fix is
+   `[ "$DISK" -eq "$WIRE" ]`, not a glance.
+3. **`grep -o "pattern[^}]*}"` is line-scoped and silently misses multi-line CSS blocks.** It
+   reported `.filt{` as absent from the built artifact when it was present, producing a false
+   "the fix never landed" signal that briefly pointed the investigation at the build instead of
+   the server.
+4. **Scope an invalidation precisely before discarding results.** On finding the stale server my
+   first instinct was that every green measurement was void. `.scratch/shoot.mjs` navigates via
+   `pathToFileURL(SRC).href` — `file://`, straight from disk — so it was never affected. Reading
+   the probe's own target URL is what separated the two.
+5. **A count-assertion mutant that exits 1 while printing only the Node banner proves the exit
+   code, not the message.** `... 2>&1 | tail -1` on a throwing Node process shows
+   `Node.js v26.5.0`. Use `tail -5`, or grep the message substring.
+6. **`node x.mjs | tail -20; echo EXIT=$?` reports `tail`'s status**, not node's — this repo's
+   own "a pipe eats the exit code" trap, hit again.
+7. **`page.click()` scrolls its target into view**, so a screenshot named "top" taken after an
+   interaction is not the top. Reorder the probe.
+8. **A 46,016px-tall mobile capture is not a readable artifact.** `.scratch/crop.mjs` exists for
+   that reason.
+
+### Font tooling note (unresolved, not blocking)
+
+`pyftsubset` / `woff2_compress` / `fonttools` are absent on this host and `pip install --user`
+is refused under PEP 668. **Do not use `--break-system-packages`.** The route is
+`python3 -m venv scratchpad/fontenv && ./fontenv/bin/pip install fonttools brotli`. Subsetting
+the four faces to latin-and-punctuation gives 61 KB raw / 82 KB base64 — cheap enough to inline,
+which matters because the Artifact CSP blocks font CDNs and a linked webfont fails silently to a
+system fallback. The only honest check is `document.fonts.check('400 16px "Untitled Sans"')`.
+
+### State
+
+Artifact live at `https://claude.ai/code/artifact/777aa17f-7042-4293-90e3-19ab248798a3`
+(republished to the same file path, so the URL is preserved). Loopback server killed. Sol
+falsification pass launched detached. Nothing pushed from this round — the artifact and its
+build scripts live in the session scratchpad and `.scratch/`, neither of which is tracked.
+
+### The Sol adverse round — verdict DOES NOT SURVIVE, 1 × P1 + 3 × P2, all four real
+
+Brief at `.scratch/sol-brief.md`, report-only, six named claims to attack, visual design
+explicitly out of scope (a separate judge gate already covered it). Launched detached to a
+file — a real audit outruns the 10-minute Bash cap.
+
+**Every one of Sol's four line citations was opened and re-read before any edit.** All four
+checked out, which is worth recording precisely because a line number in an adverse report is
+a claim that decays, and the habit only pays when it occasionally catches a stale one.
+
+**(A) P1 — CONFIRMED, both halves.** The page called the 105→110 gap "the whole pattern-library
+feature". The Pattern library group holds **four** tools; the fifth, `generate_mood_board`,
+belongs to the Taste Engine. Nothing anywhere graded that split — the count, the group
+attribution and the name list were three separate statements of one fact and only the first
+had ever been checked.
+
+**(B) P2 — CONFIRMED, and worse than reported.** The page said "Nothing public is stale."
+Opening the live apex found it stating **three different tool counts on one page**: `99` in the
+footer, "one hundred" in a section heading, `104` in the FAQ — against 105 on npm and 110 on
+`main`. All three come from `web/lib/counts.ts`, one hand-maintained constant whose own comment
+admits nothing asserts it. That file is **reported to Andrew, not edited** — the ask was a doc,
+not a site fix.
+
+**(C) P2 — CONFIRMED but narrower than stated.** Sol claimed the grouping loop could silently
+drop or duplicate a tool. It cannot: the loop already throws on an unknown name and on a
+duplicate within `GROUPS`. The real residue was one layer earlier — the `byName` Map silently
+collapses a **duplicate LINE in `tools-short.txt`**, and the total check then passes because the
+census file and the map agree with each other about the wrong number. A direct assertion now
+names that fault.
+
+**(D) P2 — CONFIRMED.** Three descriptions were noun fragments, and the assertion's own comment
+claimed it enforced "complete sentences" when it only catches truncation. Both fixed.
+
+### Three new assertion families, each mutant-proven
+
+The gap is now graded three ways, because the page states it three ways:
+
+- data side — Pattern library holds exactly 4, and each of the four is in it
+- data side — `generate_mood_board` is in Taste Engine
+- **HTML side** — the drift section's rendered `.names` list equals the five, in order
+
+That third one grades the page rather than the data, and it is the one that matters: a name
+silently dropped from the list would leave the prose saying "five" over a list of four with
+every data-side assertion still green. It sits between the source read and `writeFileSync`,
+like every other assertion in that script.
+
+Matrix: **3 mutants, 3 killed, 0 survived; 1 CONTROL, 0 false-failed.** The control reorders two
+tool names inside one group — behaviour-neutral by construction, because a red-only matrix is
+structurally blind to a false fail. Every restore verified with `cmp -s`.
+
+### Lessons
+
+9. **Default-locale `grep` returns zero matches on a file containing invalid UTF-8** — rc=1, no
+   error, indistinguishable from "not present". `LC_ALL=C grep -a` is the fix. This is the
+   "a check whose failure mode is indistinguishable from its success mode is not a check" rule
+   arriving in the instrument rather than the product, for the second time this round.
+10. **On a 602 KB file that embeds CLAUDE.md, a broad `grep` matches the embedded prose**,
+    produces 226 KB of output, and gets persisted to a side file rather than shown — so the
+    search silently returns nothing usable. `sed -n 'A,Bp' | cut -c1-N` over a known line range
+    is the correct instrument.
+11. **A mechanical guard proposed in response to an adverse finding must be measured against the
+    real corpus before it is shipped.** Sol's finding D suggested enforcing complete sentences.
+    A closed verb list was written and measured: it flagged **75 of 110** descriptions, nearly
+    all sound imperatives ("Audit HTML/CSS against Raven's standards."). The measurement reversed
+    the plan — the guard was not shipped, the overclaiming comment was corrected instead, and the
+    three real fragments were fixed by hand. A guard that fires on correct copy is worse than a
+    narrow one that does not. This lesson is written into `build-artifact.mjs` as a code comment
+    as well, so it survives the loss of this log.
+12. **A mutant intercepted by a pre-existing guard is not a kill.** Two of five mutants never
+    reached the assertion under test — one hit `duplicate tool`, the other hit
+    `grouped 109, expected 110`. Counting them would have overstated the matrix by two. Re-shape
+    the mutant until it reaches the guard (a genuine group MOVE; a length-preserving SWAP), or
+    record it as intercepted.
+13. **A CSS block that has only ever held one child has no stacking rule, and adding a second
+    child exposes that silently.** `.drift p{margin:0}` rendered the two new paragraphs as one
+    wall of text. Nothing in the build, the data assertions or the count checks could see it —
+    only the new geometry probe and the eyes-on capture. And the probe was believed only after
+    the captured PNG was read: `gap 0` was a derived expected-value, exactly as falsifiable as
+    the measurement it graded. It was real. Fixed with `.drift p + p{margin-top:10px}`,
+    re-measured at `gap: 10` on both viewports, re-inspected.
+
+### State
+
+Artifact republished to the same file path, so
+`https://claude.ai/code/artifact/777aa17f-7042-4293-90e3-19ab248798a3` is preserved and now
+carries every fix. `node build-artifact.mjs` → `OK 110 tools open=45 auth=10 local=55`.
+`node .scratch/drift.mjs` → `DRIFT OK` at 1280 and 780. `node .scratch/pitch.mjs` → `PITCH OK`.
+Nothing pushed from this round — the artifact and its build scripts live in the session
+scratchpad and `.scratch/`, neither of which is tracked.
