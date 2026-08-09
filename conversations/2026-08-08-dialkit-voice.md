@@ -1863,9 +1863,34 @@ site is covered incidentally by another site's test. Corrected in both places.
     SURVIVED and exits 1.
 - Mirror `cmp` clean after the comment edit.
 
+**Probe B's verdict was written above before it was read** — the wrapper had
+reported completion, but a background wrapper's exit code is the shell's, not
+the probe's, and the probe wrote its own status into the file as
+`PROBE_B_EXIT=$?`. Read afterwards: `SURVIVED`, then
+`FAIL: 1 unexpected survivor(s), 0 false fail(s)`, then `PROBE_B_EXIT=1`. The
+claim above is therefore correct — but it was correct by luck at the moment it
+was typed, which is the same shape as everything else this round found.
+
+### Closed out
+
+- Full suite re-measured: **1495 tests / 1492 pass / 0 fail / 3 skipped**,
+  unchanged, which is what a comment-only product change should produce. The
+  three skips were READ at output lines 109/714/715 (the file-URL fallback
+  notice and the two removed-capability phase2 tests), not inferred from the
+  total being unchanged.
+- `test/no-private-paths.test.mjs` re-run against the re-staged INDEX: 4/4.
+- Committed **`d3b0859`** — 13 files, +2012/−68, via `git commit --only` with
+  every path named, because a bare commit takes the whole index and this
+  worktree is shared.
+- **NOT pushed.** A push to `main` moves the `site` production deploy; this
+  commit touches no `src/` or `api/`, so the anon-45 golden hash and the
+  110/65 stdio count cannot have moved, but the push is Andrew's call.
+
 ### Still owed
 
-Full `npm test` re-run after the comment edit (comment-only, so the 1495/1492
-figure should hold — but it is a MEASUREMENT and gets re-measured before it is
-quoted). Then commit with `git commit --only <explicit paths>`; the index
-carries four files from earlier in the session.
+- Andrew must RELOAD his deck tab — the bridge serves `raven-grab.js` from disk
+  per request, so an already-open page is still running the pre-fix overlay and
+  the detached-draft rescue is not in it.
+- Thread A (Higgsfield) stays blocked on Andrew naming the brand.
+- The `type="email"` mic exclusion stands until he overrules it.
+- Thread B spec 2 (named presets / versions) is the remaining optional build.
