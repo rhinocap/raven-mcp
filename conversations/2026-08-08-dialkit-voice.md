@@ -4248,3 +4248,77 @@ started.
 - Deck tab must be **reloaded** to pick up the detached-draft overlay fix (the
   bridge serves `raven-grab.js` from disk per request).
 - Nothing pushed. Push to `main` deploys the live OAuth endpoint — Andrew-gated.
+
+---
+
+## Turn 12 — the DialKit visual half, the CSS spec, and the command center (2026-08-09)
+
+Andrew: *"Tell em more about this, and spec out the CSS, do i still have my
+command center app? I want to start adding prioritized to dos in there, or use
+my linear account"* — three separable parts. "this" = the DialKit VISUAL half,
+which my previous reply had just called *"a discrete piece of work, not started."*
+
+### What was MEASURED this turn (all KNOWN, cited)
+
+**DialKit publishes no visual numbers.** `https://joshpuckett.me/dialkit` states
+`theme: 'light'|'dark'|'system'`, `popover` (draggable, snaps to nearest edge)
+vs `inline` mode, and four corner positions. It documents **no** spacing scale,
+row height, panel width, type scale, radius or hairline treatment. So there is
+nothing to transcribe: any "adopt DialKit's spacing" work is a scale DERIVED
+from Raven's own values, informed by DialKit's structure. Recording this so a
+future round does not go looking for a table that isn't there.
+
+**The overlay CSS is one template literal, `browser/raven-grab.js:774–1564`**
+(`:host {` opens at 774; the literal closes at the `` `; `` on 1564) inside a
+14,377-line file. Three gaps:
+
+1. **No spacing token exists.** Not one `--raven-grab-space-*`. Every padding,
+   gap and margin is a hardcoded literal: `5px 8px`, `3px 8px`, `12px 6px`,
+   `7px 9px`, `1px 5px`, `gap: 5px`, `gap: 12px`, `margin: 0 0 12px`,
+   `margin: 0 0 8px`, `padding: 9px 2px` (:1075), `padding: 16px 2px 6px`
+   (:1078). Radii run 2/4/5/6/7/8/9/10/16px and 50%. Tap floor `min-height: 44px`.
+   Panel widths `min(320px, calc(100vw - 32px))` (:838) and
+   `min(300px, calc(50vw - 20px))` (:842); mobile sheet
+   `height: var(--raven-grab-sheet-height, 50vh)` (:853).
+2. **`--raven-grab-ui` and `--raven-grab-mono` are byte-identical** (:788–789) —
+   both `"Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`.
+   There is no mono face, yet tabs (:940), element chips (:986), placeholders,
+   tooltips, the caret (:979), keycaps (:932), style values (:1101) and style
+   inputs (:1112) all claim mono. A type-scale spec must either make mono real
+   or drop the distinction — it cannot leave it as a lie.
+3. **The type scale exists but only inline.** Every rule reads
+   `font: <w> calc(Npx * var(--raven-grab-font-scale))/<lh> var(--raven-grab-ui|mono)`
+   with N ∈ {8, 10, 11, 12, 13, 14}, weights {400, 500, 600, 700}, line-heights
+   {1, 1.25, 1.3, 1.4, 1.45, 1.5}. Never tokenized; repeated at every call site.
+
+The DialKit-adjacent surface is the style row:
+```
+:1074  .raven-grab-styles li { display: grid; grid-template-columns: minmax(92px,.8fr) minmax(0,1.2fr); align-items: center; gap: 12px; min-height: 36px; padding: 9px 2px; }
+:1087  .raven-grab-styles [data-style-label] { cursor: ew-resize; user-select: none; }
+:1088  .raven-grab-style-label-wrap { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
+```
+markup emitted at :11630–11632, scrub handler reads `closest("[data-style-label]")`
+at :13301.
+
+**The command center app EXISTS.** `~/projects/mission-control` — Next.js, last
+commit `c6232fb` **2026-07-18** ("Agents are the main attraction: fleet card grid
+replaces hero tile"), stock create-next-app README, `CLAUDE.md` is one line
+(`@AGENTS.md`). **Exactly three routes**: `app/page.tsx` (677 lines),
+`app/login/page.tsx`, `app/api/login/route.ts`. `lib/` = `readers.ts`,
+`session-token.ts`. Plus `middleware.ts`, `app/agent-pulse.tsx`,
+`app/auto-refresh.tsx`. **It is a password-gated, auto-refreshing, READ-ONLY
+agent-fleet dashboard: no task model, no write route, no persistence.** Adding
+prioritized todos there is new construction, not configuration.
+
+**`.claude/linear-backlog-queue.jsonl`: 24 entries, `synced_to_linear:true` = 0,
+`false` = 24.** Every captured idea is unsynced.
+
+GUESSED / unmeasured: Linear auth state (never probed); the CONTENT of the 24
+entries; whether `mission-control` still boots (`npm run dev` not attempted).
+
+### State
+- `dc1b232` (site tool-count fix, 105 single-sourced + build-time assertion) is
+  **local only**. Not pushed, not deployed. `ravenmcp.ai` still serves the old
+  counts until `cd web && vercel deploy --prod` — the `web` project has no git
+  integration, so a push to `main` will never move it.
+- Deck tab still needs a **reload** for the detached-draft overlay fix.
