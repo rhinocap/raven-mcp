@@ -218,6 +218,18 @@ const MUTANTS = [
   ['V33', 'the memo goes GLOBAL again (the pre-restore guard loses its reachability)',
     '    if (!styleSupportMemo) return probeStyleValueSupported(property, value);',
     '    if (!styleValueSupported.memo) styleValueSupported.memo = Object.create(null);\n    styleSupportMemo = styleValueSupported.memo;', 'red'],
+
+  // V35 — the `typeof` gate round 6 shipped and round 7 proved testable. Round 6
+  // claimed no Chromium fixture could separate a guarded build from an unguarded
+  // one, on the reasoning that in a conforming engine an instance method IS the
+  // prototype method. True, and the conclusion did not follow: the environment
+  // the gate is FOR is one where they are different methods, and a page can
+  // construct it. Deleting the gate makes `call.bind(undefined)` succeed at bind
+  // time and throw on first use, which `probeStyleValueSupported`'s own catch
+  // turns into "unsupported" — every supported edit refused, section never shown.
+  ['V35', 'the typeof gate is deleted (an instance-shim engine binds undefined and refuses every supported edit)',
+    '    if (typeof Document.prototype.createElement !== "function" ||\n        typeof (styleDescriptor && styleDescriptor.get) !== "function" ||\n        typeof CSSStyleDeclaration.prototype.setProperty !== "function" ||\n        typeof CSSStyleDeclaration.prototype.getPropertyValue !== "function") {\n      throw new TypeError("probe primitive missing");\n    }\n',
+    '', 'red'],
   // CONTROLS. Renaming a local binding changes the shipped bytes and cannot
   // change behaviour, so a matrix reporting either red is over-reporting. Both
   // move EVERY reference — precision-mutants.mjs shipped a control that left one
@@ -273,7 +285,7 @@ const EXPECTED_BASELINE_SKIPS = { 'test/grab-overlay-style-versions.test.mjs': 0
 // register, reports 1 pass / 0 fail / 0 skipped and satisfies every guard below
 // while measuring a sixth of the corpus — the mutants would then be graded
 // against tests that do not exist and print SURVIVED for the wrong reason.
-const EXPECTED_BASELINE_TESTS = { 'test/grab-overlay-style-versions.test.mjs': 27 };
+const EXPECTED_BASELINE_TESTS = { 'test/grab-overlay-style-versions.test.mjs': 28 };
 
 function assertBaselineMeasured(suite, baseline) {
   const expected = EXPECTED_BASELINE_SKIPS[suite];

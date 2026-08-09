@@ -3137,3 +3137,309 @@ find-strings that touch the capture block anchor on the `probeSetProperty` /
 rewrote, so no dead anchor is expected — the harness's `node --check -`
 pre-flight is what will say so. Full suite after the matrix. Not committed, not
 pushed, done-gate not yet run.
+
+#### Round-6 measurements (both re-run, not carried forward)
+
+Matrix v7 — `/tmp/version-matrix-v7.log`, EXIT written INSIDE the file:
+
+    baseline: grab-overlay-style-versions.test.mjs 27p/0f/0s
+    34 mutants, 34 killed, 0 survived; 2 controls, 0 false-failed
+    EXIT=0
+
+Re-run WHOLE because product code changed. No dead find-string this time — the
+three capture-block mutants anchor on the `probeSetProperty` /
+`probeGetPropertyValue` / `probeGetStyle` ASSIGNMENT lines and the `typeof` gate
+sits above them, so nothing they pin was rewritten; the harness's `node --check -`
+pre-flight confirmed it rather than my reading of it.
+
+**Radii diffed v6 → v7 and are IDENTICAL** (`diff` over the mutant+radius lines →
+RADII-IDENTICAL-v6-v7). That is the expected answer and is worth stating rather
+than assuming: the round added no tests and no guards, so a moved radius would
+have meant something changed that nobody accounted for. Every previous round in
+this cadence moved several, because every previous round added tests.
+
+Full suite — `/tmp/full-suite-r6.log`, EXIT written INSIDE the file:
+
+    ℹ tests 1522   (line 1580)
+    ℹ pass 1519
+    ℹ fail 0
+    ℹ cancelled 0
+    ℹ skipped 3
+    ℹ todo 0
+    EXIT=0
+
+**Count UNCHANGED from the round-5b figure, and that is also expected rather than
+a non-event**: round 6's product fix added no test (deliberately — no Chromium
+fixture can separate a guarded build from an unguarded one) and its other two
+findings were comment-only. The 3 skips were read INDIVIDUALLY at output lines
+109 / 714 / 715 rather than inferred from the unchanged total:
+
+    109: ﹣ file URL fallback marks reveal and settle checks as unavailable
+           # browser available — fallback path not used
+    714: ﹣ [phase2D fix B] a later committed batch applies on the first poll …
+           # removed capability: overlapping committed batches …
+    715: ﹣ [phase2C tray] overlapping committed batches both finish …
+           # removed capability: overlapping committed batches …
+
+The same three this ledger has always carried. None is in the style-versions
+suite, which ran 27/27 under the FULL probe pattern.
+
+#### Round 7 launched
+
+`.claude/dialkit-2026-08-08/SOL-BRIEF-VERSIONS-R7.md`, run as
+`codex exec -m gpt-5.6-sol -c model_reasoning_effort=medium --sandbox read-only
+… < /dev/null`, output to the gitignored `agent-output/SOL-ROUND7.out` with
+`EXIT=` appended inside. The brief states the browser gate is unavailable UP
+FRONT and scopes the pass to code reading — rounds 5 and 6 each lost an attempt
+to the sandbox (`MachPortRendezvousServer … Permission denied (1100)`) and came
+back with a status note and no verdict, which must never be dispositioned as
+"no findings".
+
+Two attacks in it are aimed at claims I made rather than at the code:
+  - **Does the `typeof` gate change behaviour in the CONFORMING case?** It must
+    not. A fix that starts refusing edits a healthy Chromium used to accept is
+    the exact harm it was written to remove, arriving from the other direction —
+    that would be a P1, not a P3.
+  - **Is "no mutant can kill it" TRUE?** Sol is asked to construct the Chromium
+    fixture that separates a guarded build from an unguarded one, or to state
+    plainly that none exists. If one exists, the guard is untested by CHOICE
+    rather than by necessity, and the `isIpLiteral` precedent does not cover it.
+
+DOC FIXES LANDED THIS ROUND
+  .claude/dialkit-2026-08-08/SOL-BRIEF-VERSIONS-R6.md:38 — 26p/0f/0s → 27p/0f/0s
+    (verified: grep now reports 27 at lines 20, 38 and 120, and nothing at 26)
+  CLAUDE.md — the false "each of the three poison fixtures is SELECTIVE" sentence
+    replaced with what the fixtures actually do, why neither V31 nor V32 can be
+    receiver-selective, the two consequences (the laundered #card apply, the
+    rewritten original-inline capture at browser/raven-grab.js:4284), and why the
+    refutation of round 4 survives anyway. Plus a full round-6 entry: the
+    measured bind-of-undefined fact, the typeof gate, its deliberate
+    uncoveredness on the isIpLiteral precedent, why round 4's opposite precedent
+    does not apply, and the P3-3 split verdict.
+
+### Sol round 7 — DOES NOT SURVIVE (1 × P2 + 2 × P3) — verification in progress
+
+Sol round 7 exited. 385,612 bytes at
+.claude/dialkit-2026-08-08/agent-output/SOL-ROUND7.out (gitignored), EXIT=0,
+159,960 tokens. Verdict line: DOES NOT SURVIVE.
+
+P2-1 — "the typeof gate IS testable in Chromium; the 'no fixture can separate a
+guarded build from an unguarded one' claim is FALSE."
+  browser/raven-grab.js:4555, test/grab-overlay-style-versions.test.mjs:204,
+  .claude/dialkit-2026-08-08/version-mutants.mjs:199
+  Sol CONSTRUCTED the fixture I said could not exist:
+    - before overlay load, retain the native `style` getter and the native
+      declaration methods
+    - redefine HTMLElement.prototype.style so every returned declaration
+      receives WORKING OWN setProperty / getPropertyValue
+    - DELETE those two methods from CSSStyleDeclaration.prototype
+    - load the overlay and commit a SUPPORTED value
+  Guarded build: the typeof gate sees the missing prototype methods, throws into
+  the catch, takes the live fallbacks, which reach the working INSTANCE methods —
+  the edit commits. Unguarded build (mutant deletes the gate): binds `undefined`,
+  the probe throws on first use, its own catch returns false, and the user sees
+  EVERY SUPPORTED EDIT REFUSED with the Versions section never appearing.
+  This is exactly the instance-shim environment the comment names, and Chromium
+  CAN host it. Sol also refuted my use of the precedent: isIpLiteral is reachable
+  but OUTCOME-NEUTRAL (canonicalization forces the same result,
+  src/reference-store.ts:529), whereas this gate CHANGES OBSERVABLE BEHAVIOUR in
+  its claimed environment. So "unfalsifiable by necessity" was wrong — it is
+  untested BY CHOICE, and the round-6 disposition rested on that.
+  → OWED: a browser test + mutant V35, and a rewrite of the claim in three places
+    (browser/raven-grab.js comment, suite header, decision 18) plus CLAUDE.md.
+
+P3-2 — "the header falsely says BOTH V31 and V32 prove that 2px LANDS."
+  test/grab-overlay-style-versions.test.mjs:371 (header), :1678 (V34 fixture),
+  browser/raven-grab.js:4284
+  Under V32 the poisoned READER makes the probe admit the invalid edit and
+  records `2px` as the supposed original inline value — but the captured NATIVE
+  SETTER rejects the garbage and the fixture never clears or restores that
+  property, so 2px is NEVER WRITTEN during that test. It turns red because the
+  invalid edit makes the Versions section visible at line 1713, not because it
+  measures landing. V31 DOES prove landing (its setter substitutes 2px on the
+  CONNECTED #card; the assertion at :1663–1666 observes that write).
+  So the round-4 refutation survives THROUGH V31, and the claim that EACH
+  fixture measures landing does not. This is the round-6 correction being
+  corrected again — I widened the claim from V34-only to all-three in the same
+  breath as fixing it.
+  → OWED: correct the header paragraph, the V32 fixture comment, and the
+    identical sentence I just wrote into CLAUDE.md this segment.
+
+P3-3 — "the cited precedent file does not exist." CONFIRMED BY MEASUREMENT:
+    ls src/reference-forget.ts            → No such file or directory
+    grep -rn isIpLiteral src/             → src/taste.ts:1038 (a local const,
+                                            a DIFFERENT thing), and the real
+                                            function at src/reference-store.ts:479
+                                            (+ call sites :508, :545)
+    grep -rc "reference-forget\.ts"       → test/grab-overlay-style-versions.test.mjs:1
+                                            CLAUDE.md:1
+                                            browser/raven-grab.js:1
+  NOTE THE TRAP: grep -c counts LINES, not occurrences, and CLAUDE.md's line 5
+  is one enormous line — re-count with `grep -o … | wc -l` before assuming one
+  fix closes it.
+  test/reference-forget.test.mjs DOES exist, which is how the wrong src name
+  became plausible; deleteReference is at src/reference-store.ts:335.
+  → OWED: three citation fixes (overlay comment, suite header/decision 18,
+    CLAUDE.md), all `src/reference-forget.ts` → `src/reference-store.ts:479`.
+
+CLAIMS SOL SAYS SURVIVE (do not re-litigate without new evidence)
+  - a healthy Chromium takes the captured path; all four checked members are functions
+  - `throw new TypeError` into the shared catch is sound for selecting the
+    conservative live fallback
+  - typeof === "function" cannot GUARANTEE behaviour (a callable proxy can throw
+    or lie), and the capture setup also reaches unchecked
+    Object.getOwnPropertyDescriptor and Function.prototype.call.bind — but all of
+    that needs PRE-INJECTION poisoning, which the source already excludes
+  - V34 is genuinely receiver-selective; orderedSelection() removes disconnected
+    targets before style application
+  - V31 still refutes round 4's "the apply path fails in the same stroke"
+  - the mirror is byte-identical; the source declares 27 tests, 34 mutants,
+    2 controls and the 27-test baseline
+
+MEASUREMENTS THIS ROUND (both re-run WHOLE, not carried forward)
+  matrix v7  /tmp/version-matrix-v7.log
+    line 1: baseline: grab-overlay-style-versions.test.mjs 27p/0f/0s
+    34 mutants, 34 killed, 0 survived; 2 controls, 0 false-failed
+    EXIT=0
+    radii diffed v6 → v7 = RADII-IDENTICAL-v6-v7 (expected: the round added no
+    tests and no guards, so a MOVED radius would have meant something
+    unaccounted for — every prior round in this cadence moved several)
+  full suite  /tmp/full-suite-r6.log
+    line 1580: ℹ tests 1522 / pass 1519 / fail 0 / cancelled 0 / skipped 3 / todo 0
+    EXIT=0 (written INSIDE the log)
+    the 3 skips read INDIVIDUALLY, marker is `﹣` (U+FE63) not `-`:
+      109: file URL fallback marks reveal and settle checks as unavailable
+           # browser available — fallback path not used
+      714: [phase2D fix B] a later committed batch applies on the first poll …
+      715: [phase2C tray] overlapping committed batches both finish …
+    count UNCHANGED, which is expected: round 6's product fix deliberately added
+    no test and its other two findings were comment-only
+
+STATE: nothing committed, nothing pushed, done-gate NOT run on any round-7 claim.
+HEAD = ad36eeb = origin/main.
+
+#### Round-7 verification — P3-2 and P3-3 CONFIRMED, P2-1 confirmed but Sol's RECIPE is under-specified
+
+P3-2 CONFIRMED by reading the fixtures. V32 poisons ONLY getPropertyValue; the
+NATIVE setter still rejects `definitely-not-a-length`, so no `2px` is ever
+written to #card during that test. Its red comes from the `sectionVisible ===
+false` assertion — the invalid edit being RECORDED makes the Versions section
+appear. V31 DOES measure landing: its poisoned setter substitutes 2px on the
+connected #card and its assertion reads #card's letter-spacing and asserts ''.
+Latent consequence stated rather than hidden: the V32 poisoned reader corrupts
+the original-inline capture at browser/raven-grab.js:4284, so a later
+clear/revert would WRITE a value the user never typed. Real, unasserted — a
+documented consequence, not the thing the test measures.
+
+P2-1 CONFIRMED that a fixture exists — but SOL'S RECIPE AS WRITTEN WOULD BREAK
+THE GUARDED BUILD TOO. Measured: getComputedStyle(...).getPropertyValue at
+browser/raven-grab.js lines 1858, 3228, 3474, 4245, 5277, 5492, 6459. Deleting
+getPropertyValue from CSSStyleDeclaration.prototype while shimming only
+`element.style` leaves every COMPUTED declaration without the method, so the
+overlay dies wholesale in both builds. An adverse report's construction is a
+claim like any other.
+
+Hazards checked before designing the shim:
+  grep -n "\.style = " browser/raven-grab.js  -> NOTHING (getter-only redefinition
+                                                is safe; a setter is included anyway)
+
+#### Round-7 fixes LANDED, then the matrix baseline went RED — a THIRD declaration source
+
+Landed this segment:
+  - test/grab-overlay-style-versions.test.mjs: NEW 28th test, the instance-shim
+    fixture Sol said could not exist. Suite header decision 18 rewritten (the
+    "no mutant kills it" claim is now false and says so; citation corrected to
+    src/reference-store.ts:479). Selectivity paragraph rewritten (V31 measures
+    landing, V32 does not). V32 fixture comment narrowed.
+  - .claude/dialkit-2026-08-08/version-mutants.mjs: mutant V35 added (deletes the
+    typeof gate); EXPECTED_BASELINE_TESTS 27 -> 28. Harness syntax OK; V35
+    find-string verified present AND unique in browser/raven-grab.js.
+  - browser/raven-grab.js: the "NO MUTANT KILLS THE typeof GATE" comment replaced
+    with the corrected one. Mirrored to web/public/raven-grab.js, cmp clean.
+  - CLAUDE.md: both false claims corrected; the single remaining
+    "src/reference-forget.ts" string is inside the new text that names it as
+    nonexistent.
+
+BLOCKER — the matrix ABORTED at baseline (the v4 guard working):
+  baseline: grab-overlay-style-versions.test.mjs 27p/1f/0s
+  Error: baseline not green — nothing below is measurable        EXIT=1
+The NEW test is the 1 fail. Direct run: 28 tests / 27 pass / 1 fail, failing at
+selectElement's waitForFunction (5000ms timeout), reached via reloadAndSelect.
+
+ROOT CAUSE, measured with a pageerror probe (.claude/dialkit-2026-08-08/agent-output/
+probe.test.mjs, gitignored):
+  PAGEERROR: style.getPropertyValue is not a function
+      at declarationsFor (raven-grab.js:3325:21)
+      at winningDeclarationsFromMatches (:3389/:3390)
+      at winningDeclarations (:3404)
+      at tokenMapFor (:3490:44)
+There is a THIRD source of CSSStyleDeclaration objects the shim does not cover:
+CSS RULE declarations (`rule.style` off CSSStyleRule.prototype), which
+declarationsFor walks. Sol's recipe missed getComputedStyle; my correction to it
+missed CSSStyleRule.style. The overlay boots fine under the shim (host: true,
+shadow: true) — the throw only fires on SELECTION.
+
+NEXT: add CSSStyleRule.prototype.style to the shim's pass-through, re-run the
+suite, then re-run the matrix WHOLE, then the full suite, then done-gate.
+
+STATE: nothing committed, nothing pushed. HEAD = ad36eeb = origin/main.
+
+#### The shim now covers all three sources — suite GREEN at 28p/0f/0s
+
+A SHIM HAS TO COVER EVERY SOURCE OF A DECLARATION, and there were three, not
+one. The `addInitScript` no longer names a prototype; it loops
+`[HTMLElement, SVGElement, CSSStyleRule]`, redefining each one's `style` accessor
+to pass its declaration through the same `shim()`, plus `window.getComputedStyle`.
+`SVGElement` rides along because it carries its own `style` accessor and the
+overlay renders SVG — unexercised on this path today, and cheaper than the next
+debugging round.
+
+Two further self-inflicted failures before green, both in the NEW assertions and
+neither in the product:
+  1. `document.styleSheets[0].cssRules[0].style` — sheet 0 rule 0 is not
+     guaranteed to be a CSSStyleRule on this fixture. The precondition now SCANS
+     for the first rule carrying both `style` and a string `selectorText`.
+  2. The closing negative-direction assertion read `.letterSpacing` off the
+     shared `inlineStyles()` helper, which returns only fontSize / opacity /
+     padding — so it compared `undefined !== ''` and failed on correct code.
+     It reads letter-spacing directly now, the way V31/V32 already do; the
+     shared helper was deliberately NOT widened.
+
+Measured: node --test test/grab-overlay-style-versions.test.mjs
+  28 tests / 28 pass / 0 fail / 0 skipped   EXIT=0
+
+The green is worth nothing until V35 turns it red — matrix launched detached to
+.claude/dialkit-2026-08-08/agent-output/matrix-v7.log with the exit code written
+INSIDE the file.
+
+#### The first v7 matrix run was DISCARDED — I edited the test file while it ran
+
+Nine mutants in, I made a behaviour-neutral edit to the new test's precondition
+(a null rule-scan reported itself instead of throwing "Cannot read properties of
+null"). That is still a tree change mid-measurement, so the run stopped being a
+measurement of one tree. Killed it, confirmed the process EXITED (`pgrep`), and
+confirmed the kill left no mutant applied — `cmp browser/raven-grab.js
+web/public/raven-grab.js` clean and the only diff in the overlay is last
+segment's intended comment rewrite. Re-ran the suite on the final tree
+(28p/0f/0s, EXIT=0) and relaunched the matrix WHOLE. The aborted log is kept as
+matrix-v7-ABORTED-mid-edit.log rather than deleted.
+
+Worth carrying: it recorded V9 at **radius 28** — the draft-changed sync hook is
+the entry point every other assertion runs through, which is a fact about that
+mechanism and NOT evidence of 28 independent guards. Its red list already
+included the new instance-shim test.
+
+Two attack points from the round-8 brief were checked against the source before
+handing it to Sol, and both came back clean:
+  - No `for…in` / `Object.keys` / `Object.entries` over a declaration, no
+    `'setProperty' in …`, no identity comparison between two `.style` reads. The
+    three `.style ===` hits (5314/5378/5387) are border-style STRING compares on
+    parsed objects, not declaration identity. `Object.defineProperty` defaults to
+    non-enumerable, so the shim cannot pollute an enumeration either way.
+  - `grep -nE "SVGElement|ownerSVGElement" browser/raven-grab.js` -> NOTHING, so
+    the shim's `SVGElement` entry is genuinely unexercised and its comment
+    ("unexercised on this path today, and cheaper than the next debugging round")
+    is true rather than generous.
+  - `browser/raven-grab.js:3323` does numeric index access (`style[i]`) on a rule
+    declaration; the shim adds own methods and touches neither `length` nor the
+    indexed properties.

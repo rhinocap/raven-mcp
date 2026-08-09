@@ -4552,15 +4552,19 @@
   // A missing prototype object or a missing `style` descriptor does throw at
   // lookup time, which is why the catch covered those and only those.
   //
-  // NO MUTANT KILLS THE `typeof` GATE, and that is stated rather than papered
-  // over: in a conforming engine an instance method IS the prototype method, so
-  // deleting `CSSStyleDeclaration.prototype.setProperty` breaks the captured
-  // path and the live fallback identically, and no Chromium fixture can separate
-  // a guarded build from an unguarded one. The environment where it bites is a
-  // shim putting these on each declaration INSTANCE rather than on a prototype.
-  // Kept as belt-and-braces for the same reason as `isIpLiteral` in
-  // src/reference-forget.ts — a clause with no reachable trigger in the test
-  // environment must SAY so rather than let a matrix imply it is covered.
+  // The gate IS covered — by mutant V35 and the instance-shim test. Round 6
+  // shipped it claiming no Chromium fixture could separate a guarded build from
+  // an unguarded one, reasoning that in a conforming engine an instance method
+  // IS the prototype method, so deleting `CSSStyleDeclaration.prototype.setProperty`
+  // breaks the captured path and the live fallback identically. The reasoning is
+  // sound and the conclusion did not follow: the environment this gate exists FOR
+  // is one where the two are NOT the same method — a shim carrying these on each
+  // declaration INSTANCE — and a fixture can construct exactly that. `isIpLiteral`
+  // (src/reference-store.ts:479) is genuinely different and the precedent does not
+  // transfer: it is reached but canonicalization forces the same outcome either
+  // way, so no test CAN separate it. This gate changes what the user sees in its
+  // claimed environment, so a test exists. A claim that something cannot be
+  // tested is itself a claim, and it is falsifiable by writing the test.
   //
   // The probe element is created FRESH per uncached call rather than reset with
   // `cssText = ""`: a fresh declaration cannot carry residue from the previous

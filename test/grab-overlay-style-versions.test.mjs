@@ -207,13 +207,19 @@
 //      measured, not reasoned — so a prototype OBJECT that exists while one of
 //      its METHODS is `undefined` sailed past the catch, installed a wrapper
 //      that throws on first use, and the probe's own catch returned false,
-//      REFUSING every supported edit instead of falling back. NO MUTANT KILLS
-//      THAT GATE and the source says so: in a conforming engine an instance
-//      method IS the prototype method, so deleting it breaks the captured path
-//      and the live fallback identically and no Chromium fixture can separate
-//      them. Same treatment as `probeCreateDiv`'s own capture below and as
-//      `isIpLiteral` in src/reference-forget.ts — belt-and-braces whose comment
-//      states its own uncoveredness rather than letting the matrix imply it.
+//      REFUSING every supported edit instead of falling back. ROUND 6 SHIPPED
+//      THAT GATE CLAIMING NO MUTANT COULD KILL IT, and round 7 refuted the
+//      claim by constructing the fixture. The reasoning was sound — in a
+//      conforming engine an instance method IS the prototype method, so
+//      deleting it breaks the captured path and the live fallback identically —
+//      and the conclusion did not follow, because the environment the gate
+//      exists FOR is one where they are not the same method. The instance-shim
+//      test builds it and V35 kills the gate's deletion. `isIpLiteral`
+//      (src/reference-store.ts:479) is NOT the same case and the precedent does
+//      not transfer: it is reached but canonicalization forces the same outcome
+//      either way, so no test CAN separate it, whereas this gate changes what
+//      the user sees in its claimed environment. `probeCreateDiv`'s own capture
+//      below is still genuinely unmutated and still says so.
 //      The probe element is built
 //      FRESH per uncached call rather than reset with a page-replaceable
 //      `cssText` setter; decision 17's memo keeps that cheap inside a restore,
@@ -368,16 +374,25 @@
 // the poison also launders the CONNECTED #card apply to `2px`, and under V32 it
 // also rewrites the target's own original-inline capture at
 // browser/raven-grab.js:4284.
-// THAT DOES NOT WEAKEN THE REFUTATION OF ROUND 4, and the reason is worth
-// stating rather than assuming. Round 4's residual said the same poisoning
-// defeats the apply path "in the same stroke", so nothing lands and nothing is
-// destroyed. What each fixture measures is the opposite on both halves: every
-// value OTHER than the probe's own garbage commits natively — that is each
-// test's both-directions control, where a supported value still commits and
-// saves with the poison installed — and for the garbage pair itself something
-// DOES land, a `2px` the user never typed. A value the user never typed
-// arriving on the element is precisely the destruction round 4 said could not
-// happen.
+// THAT DOES NOT WEAKEN THE REFUTATION OF ROUND 4 — but only ONE fixture carries
+// it, and saying both did was a round-7 P3. Round 4's residual said the same
+// poisoning defeats the apply path "in the same stroke", so nothing lands and
+// nothing is destroyed. V31 refutes it directly: its poisoned SETTER substitutes
+// `2px` for the garbage on the CONNECTED #card, the assertion below reads that
+// element's own letter-spacing and demands '', and every value other than the
+// garbage pair still commits and saves natively — that is its both-directions
+// control. A value the user never typed arriving on the element is precisely the
+// destruction round 4 said could not happen, and one counterexample is all a
+// refutation needs. V32 does NOT measure landing: its poison is READ-ONLY, so the
+// native setter still rejects `definitely-not-a-length` and nothing is written to
+// #card. Its red comes from the invalid edit being RECORDED, which makes the
+// Versions section appear where the assertion demands it stay hidden. Its own
+// destructive consequence is one layer over and is stated rather than hidden: the
+// poisoned reader corrupts the original-inline capture at
+// browser/raven-grab.js:4284, so an element with no inline letter-spacing has its
+// "original" recorded as `2px` and a later clear or revert would WRITE a value the
+// user never typed. Real, and no assertion in this file observes it — a documented
+// consequence, not the thing the test measures.
 //
 // Three pairs are worth reading as pairs, because each looks like one
 // mechanism and is measurably two:
@@ -1685,11 +1700,20 @@ test('a page that poisons getPropertyValue after load cannot make the probe acce
     // "the parser rejected it" signal the probe depends on, and never something
     // a computed style produces (computed letter-spacing is `normal` or a
     // length, never the empty string). Selective on the READ, not on the
-    // receiver, for the same reason V31 is: under the V31/V32 mutants this also
-    // rewrites the target's own original-inline capture at
-    // browser/raven-grab.js:4284, where an element with no inline
-    // letter-spacing reads "". See the header — that is the destruction round 4
-    // said the poison could not cause, not a defect in the fixture.
+    // receiver, for the same reason V31 is: a CSSStyleDeclaration exposes no
+    // owner element.
+    //
+    // WHAT THIS FIXTURE DOES AND DOES NOT MEASURE — saying it matched V31 was a
+    // round-7 P3. This poison is READ-ONLY, so the native setter still rejects
+    // the garbage and NO `2px` is ever written to #card; the assertion below
+    // reads the Versions section, and its red under the V32 mutant means the
+    // invalid edit was RECORDED, not that anything landed. V31 is the fixture
+    // that refutes round 4's "nothing lands" residual. What this poison does
+    // damage is one layer over and is named rather than hidden: it corrupts the
+    // target's own original-inline capture at browser/raven-grab.js:4284, where
+    // an element with no inline letter-spacing reads "" and would be recorded as
+    // `2px`, so a later clear or revert writes a value the user never typed.
+    // Real, and unasserted here — a documented consequence, not the measurement.
     await page.evaluate(() => {
       const proto = CSSStyleDeclaration.prototype;
       const original = proto.getPropertyValue;
@@ -1767,5 +1791,141 @@ test('a page that poisons the style accessor after load cannot make the probe ac
     await editStyle(page, 'font-size', '24px');
     await nameAndSave(page, 'good');
     assert.deepEqual((await versionsState(page)).names, ['good'], 'and a supported value still commits and saves with the poisoned accessor installed');
+  });
+});
+
+// V35 — decision 18, and the ONE fixture round 6 said could not be built. Round
+// 6 shipped the `typeof` gate with a comment claiming NO Chromium fixture can
+// separate a guarded build from an unguarded one, on the reasoning that in a
+// conforming engine an instance method IS the prototype method, so deleting
+// `CSSStyleDeclaration.prototype.setProperty` breaks the captured path and the
+// live fallback identically. That reasoning is sound and the conclusion did not
+// follow: the environment the gate is FOR is one where the two are not the same
+// method, and a page can construct exactly that environment.
+//
+// The shim puts WORKING OWN `setProperty` / `getPropertyValue` on each
+// declaration and DELETES them from the prototype. Guarded: the gate sees the
+// missing prototype methods, throws into the shared catch, and the four live
+// fallbacks reach the own methods — every supported edit commits. Unguarded:
+// `Function.prototype.call.bind(undefined)` binds without throwing, the bound
+// wrapper throws on first use, `probeStyleValueSupported`'s own catch returns
+// false, and the user watches EVERY SUPPORTED EDIT get refused with the
+// Versions section never appearing. That is the fix's whole point, and until
+// this test existed nothing measured it.
+//
+// PRE-injection is correct here and is not a violation of decision 18's
+// post-load rule. That rule exists because a HOSTILE page installed before boot
+// is an unclosable residual, so a fixture using addInitScript would be
+// measuring what the code does not claim. This fixture is not hostile — it is a
+// benign non-conforming ENGINE, which by definition is in place before anything
+// loads. The two fixtures ask different questions of the same seam.
+//
+// A SHIM HAS TO COVER EVERY SOURCE OF A DECLARATION, not just the one the probe
+// happens to use, and Sol's construction covered ONE of three. It shimmed
+// `element.style` alone; the overlay also reads `getComputedStyle(...)` (seven
+// sites) and walks `CSSStyleRule.style` out of the page's own stylesheets
+// (`declarationsFor`). Measured rather than reasoned: with only the first two
+// shimmed, the guarded build dies at `declarationsFor` with
+// `style.getPropertyValue is not a function` and never renders a style row, so
+// BOTH arms go red for the same wrong reason and the test separates nothing.
+// The loop below enumerates the sources instead of naming one, and
+// `SVGElement.prototype` rides along because it carries its own `style`
+// accessor and the overlay renders SVG — unexercised on this path today, and
+// cheaper than the next debugging round. An adverse report's CONSTRUCTION is a
+// claim like any other.
+test('an engine that carries setProperty on each declaration INSTANCE still commits supported edits', async (t) => {
+  if (skipUnlessBrowser(t)) return;
+  await withLocalOverlay(async (page) => {
+    await selectElement(page, '#card');
+
+    await page.addInitScript(() => {
+      const proto = CSSStyleDeclaration.prototype;
+      const nativeSet = proto.setProperty;
+      const nativeGet = proto.getPropertyValue;
+      const nativeComputed = window.getComputedStyle;
+      // Idempotent because Chromium hands back the SAME declaration object for
+      // repeated reads of one element's `style`.
+      const shim = (declaration) => {
+        if (declaration && !Object.prototype.hasOwnProperty.call(declaration, 'setProperty')) {
+          Object.defineProperty(declaration, 'setProperty', {
+            configurable: true,
+            value: function (property, value, priority) { return nativeSet.call(this, property, value, priority); },
+          });
+          Object.defineProperty(declaration, 'getPropertyValue', {
+            configurable: true,
+            value: function (property) { return nativeGet.call(this, property); },
+          });
+        }
+        return declaration;
+      };
+      // Every prototype that carries a `style` accessor, not just the one the
+      // probe reads: inline styles, SVG inline styles, and the stylesheet rules
+      // `declarationsFor` walks.
+      for (const ctor of [HTMLElement, SVGElement, CSSStyleRule]) {
+        const descriptor = ctor && Object.getOwnPropertyDescriptor(ctor.prototype, 'style');
+        if (!descriptor || typeof descriptor.get !== 'function') continue;
+        Object.defineProperty(ctor.prototype, 'style', {
+          configurable: true,
+          get: function () { return shim(descriptor.get.call(this)); },
+          set: descriptor.set ? function (value) { return descriptor.set.call(this, value); } : undefined,
+        });
+      }
+      window.getComputedStyle = function (element, pseudo) { return shim(nativeComputed.call(window, element, pseudo)); };
+      delete proto.setProperty;
+      delete proto.getPropertyValue;
+    });
+    await reloadAndSelect(page, '#card');
+
+    // Asserted, not assumed: a Chromium that stopped honouring `delete` on a
+    // WebIDL operation, or an overlay that booted before the init script, would
+    // turn this into a silent pass measuring a conforming engine.
+    assert.deepEqual(
+      await page.evaluate(() => {
+        const card = document.querySelector('#card');
+        // The stylesheet rule source, found by scanning rather than indexed
+        // blindly: sheet 0 rule 0 is not guaranteed to be a CSSStyleRule.
+        const firstRuleDeclaration = () => {
+          for (const sheet of Array.from(document.styleSheets)) {
+            let rules;
+            try { rules = Array.from(sheet.cssRules); } catch { continue; }
+            for (const rule of rules) {
+              if (rule && rule.style && typeof rule.selectorText === 'string') return rule.style;
+            }
+          }
+          return null;
+        };
+        return [
+          typeof CSSStyleDeclaration.prototype.setProperty,
+          typeof CSSStyleDeclaration.prototype.getPropertyValue,
+          Object.prototype.hasOwnProperty.call(card.style, 'setProperty'),
+          typeof getComputedStyle(card).getPropertyValue,
+          // A missing rule reports itself rather than throwing "Cannot read
+          // properties of null" out of the precondition that exists to be read.
+          (() => { const d = firstRuleDeclaration(); return d ? typeof d.getPropertyValue : 'NO-RULE-DECLARATION'; })(),
+        ];
+      }),
+      ['undefined', 'undefined', true, 'function', 'function'],
+      'precondition: the prototype methods are gone and all three declaration sources carry their own'
+    );
+
+    await editStyle(page, 'font-size', '24px');
+    assert.equal(
+      (await versionsState(page)).sectionVisible,
+      true,
+      'the supported edit COMMITTED — the gate took the live fallbacks instead of binding undefined and refusing everything'
+    );
+    assert.equal((await inlineStyles(page, '#card')).fontSize, '24px', 'and it reached the element');
+
+    await nameAndSave(page, 'good');
+    assert.deepEqual((await versionsState(page)).names, ['good'], 'and the version saves, so the feature is reachable at all on this engine');
+
+    // The other direction, or a probe that had simply stopped refusing would
+    // satisfy every assertion above while admitting garbage.
+    await editStyle(page, 'letter-spacing', 'definitely-not-a-length');
+    assert.equal(
+      await page.evaluate(() => document.querySelector('#card').style.getPropertyValue('letter-spacing')),
+      '',
+      'and an unsupported value is still refused, so the fallback probe is answering rather than accepting everything'
+    );
   });
 });
