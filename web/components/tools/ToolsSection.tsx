@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { TOOL_COUNT } from "@/lib/counts";
 
 type Tool = { name: string; desc: string };
 
@@ -177,6 +178,20 @@ const ACTS: Act[] = [
   },
 ];
 
+// Derived from the list itself, so the heading can never disagree with what is
+// rendered below it. The two headings here used to read "One hundred" while the
+// list held 105 entries; a hand-maintained number in prose is the drift.
+const LISTED_TOOL_COUNT = ACTS.reduce((n, act) => n + act.tools.length, 0);
+
+if (LISTED_TOOL_COUNT !== TOOL_COUNT) {
+  // TOOL_COUNT is the site-wide constant (web/lib/counts.ts); this list is the
+  // enumeration. If they disagree, one of them is stale — fail the build rather
+  // than ship a page that states two different totals.
+  throw new Error(
+    `ToolsSection lists ${LISTED_TOOL_COUNT} tools but TOOL_COUNT is ${TOOL_COUNT}`,
+  );
+}
+
 export default function ToolsSection() {
   const [openIdx, setOpenIdx] = useState<number | null>(null);
 
@@ -184,9 +199,9 @@ export default function ToolsSection() {
     <section id="tools" className="tools-section">
       <div className="container">
         <div className="section-header">
-          <h2 className="reveal reveal-delay-1">One hundred tools, organized by job</h2>
+          <h2 className="reveal reveal-delay-1">{LISTED_TOOL_COUNT} tools, organized by job</h2>
           <p className="subtitle reveal reveal-delay-2">
-            One hundred focused calls, grouped by what they do&mdash;<strong>know</strong>, <strong>create</strong>,{" "}
+            {LISTED_TOOL_COUNT} focused calls, grouped by what they do&mdash;<strong>know</strong>, <strong>create</strong>,{" "}
             <strong>design</strong>, <strong>audit</strong>, <strong>judge</strong>, <strong>decide</strong>. Claude calls them automatically, with no special syntax.
           </p>
         </div>

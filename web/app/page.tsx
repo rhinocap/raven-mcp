@@ -1,5 +1,5 @@
 import HomeScripts from '@/components/HomeScripts'
-import { TOOL_COUNT } from '@/lib/counts'
+import { TOOL_COUNT, LAYER_COUNT } from '@/lib/counts'
 import ToolsSection from "@/components/tools/ToolsSection";
 import HeroGrid from '@/components/HeroGrid'
 import BeforeAfter from '@/components/BeforeAfter'
@@ -727,7 +727,7 @@ export default function Home() {
               <div className="glow-card pricing-open-card">
                 <div className="pricing-open-stats">
                   <div className="pricing-open-stat">
-                    <span className="pricing-open-num">99</span>
+                    <span className="pricing-open-num">{TOOL_COUNT}</span>
                     <span className="pricing-open-label">Tools</span>
                   </div>
                   <div className="pricing-open-stat">
@@ -735,7 +735,7 @@ export default function Home() {
                     <span className="pricing-open-label">Principles</span>
                   </div>
                   <div className="pricing-open-stat">
-                    <span className="pricing-open-num">9</span>
+                    <span className="pricing-open-num">{LAYER_COUNT}</span>
                     <span className="pricing-open-label">Knowledge Layers</span>
                   </div>
                   <div className="pricing-open-stat">

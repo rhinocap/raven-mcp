@@ -4169,3 +4169,82 @@ carries every fix. `node build-artifact.mjs` → `OK 110 tools open=45 auth=10 l
 `node .scratch/drift.mjs` → `DRIFT OK` at 1280 and 780. `node .scratch/pitch.mjs` → `PITCH OK`.
 Nothing pushed from this round — the artifact and its build scripts live in the session
 scratchpad and `.scratch/`, neither of which is tracked.
+
+## Site tool-count fix + the DialKit status answer (2026-08-09)
+
+Andrew: "Can you fix the tool count real quick on the site, also, whatever
+happened to functional parity with DialKit? And using its visual design spacing,
+layout, and controls, for our design panels?"
+
+### The count fix (5 surfaces, one guard)
+
+The site was stating **three different totals on one page** — `TOOL_COUNT = 104`
+in `web/lib/counts.ts`, a hardcoded `99` in the pricing stat, and the literal
+string "One hundred" in two `ToolsSection` headings — while the enumeration
+below those headings held **105** entries. `counts.ts` even carried a comment
+admitting "Nothing asserts this constant," which is the recurrence mechanism
+written down next to the defect.
+
+**105 is the number chosen deliberately.** Repo `main` holds 110, npm `2.3.0`
+ships 105, and the anon endpoint serves 45. A marketing page states what a
+visitor **can install**, so it tracks npm, and the header comment now says that
+in place of the admission.
+
+Changed:
+- `web/lib/counts.ts` — `TOOL_COUNT` 104 → 105, comment rewritten to record the
+  npm-vs-repo distinction and the new build-time assertion.
+- `web/components/tools/ToolsSection.tsx` — derives `LISTED_TOOL_COUNT` from the
+  `ACTS` array and **throws at build time** if it disagrees with `TOOL_COUNT`;
+  both "One hundred" headings now interpolate the derived number.
+- `web/app/page.tsx` — pricing stat `99` → `{TOOL_COUNT}`, and a **second defect
+  found while measuring**: the stat read "9 Knowledge Layers" against
+  `LAYER_COUNT = 19` and 19 rendered layer heads. Now `{LAYER_COUNT}`.
+- `web/app/docs/page.tsx` — the `decision_contest` card was missing entirely
+  (copy taken verbatim from `src/index.ts:7377`); Decision Graph head 13 → 14.
+
+**The guard was proven falsifiable rather than asserted**: set `TOOL_COUNT = 104`,
+rebuilt, `Error: ToolsSection lists 105 tools but TOOL_COUNT is 104`, build
+failed. Restored, rebuilt green. Two instrument bugs found on the way and worth
+carrying: `grep -oE 'rd-layer-count">[0-9]+ tools'` returns **102**, not 105,
+because three layers declare the singular `1 tool`; and a line-based Node parser
+found only 13 of 19 layer heads because some carry a nested
+`<span className="rd-layer-ver">`, producing a phantom 40-vs-4 mismatch. Both
+were the measurement, not the page. Final: docs enumeration == ToolsSection
+enumeration == 105, sets IDENTICAL; 19 layer heads, all declared counts match,
+sum 105; `npm run build` ✓ 14 static pages.
+
+**Not deployed.** `web` has no git integration — `ravenmcp.ai` only moves on a
+manual `cd web && vercel deploy --prod`, which is Andrew's gate.
+
+### DialKit — the two-part answer, measured
+
+**(a) Functional parity: done, with two deliberate exclusions.** The fan-out
+mapped all 50 DialKit capabilities against the Grab overlay. The overlay already
+had drag-to-scrub, arrow nudge with Shift ×10, colour pickers, enum selects,
+categories, live DOM preview, export-to-agent and sessionStorage persistence. A
+large block is **structurally N/A** — framework adapters, dynamic config
+reconciliation, stable IDs, inline mode, production gate, TS types, package
+exports — because Raven operates on the DOM, not a React tree. The real gap was
+wider than "no easing branch": `transition-*`/`animation-*` were in neither
+`STYLE_CATEGORIES` nor the capture set, so an agent reading a Grab payload could
+not see motion **at all**. Closed, plus springs, precision tiers, named style
+versions and the mic alignment sweep.
+
+Two things reported rather than silently narrowed:
+- `set_grabbed_style` (ranked #1 by the synthesis) is **HELD** — a new inbound
+  actuation channel into a live browser tab, where Raven's authoring is
+  human-gated by construction. Unhold condition: Andrew's word AND
+  `proxyCaptureOnly()` gating wired through it first.
+- The timeline (#27–40, 12 of 50) is **out of scope** — Jitter/Morven territory.
+
+**(b) Visual design: never done, and the measurement says so.** The fan-out was
+scoped to **capabilities**, not visual design. Nothing in the synthesis, the
+seven edits or the nine Sol rounds adopts DialKit's spacing scale, layout or
+control chrome panel-wide — the only CSS shipped was for the easing widget
+itself. Andrew's suspicion is correct. It is a discrete next piece of work, not
+started.
+
+### Carried forward
+- Deck tab must be **reloaded** to pick up the detached-draft overlay fix (the
+  bridge serves `raven-grab.js` from disk per request).
+- Nothing pushed. Push to `main` deploys the live OAuth endpoint — Andrew-gated.

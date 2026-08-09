@@ -839,7 +839,7 @@ cd raven-mcp && npm install && npm run build`}</code></pre></div>
               </article>
             </div>
 
-            <div className="rd-layer-head"><h3>Decision Graph</h3><span className="rd-layer-count">13 tools</span></div>
+            <div className="rd-layer-head"><h3>Decision Graph</h3><span className="rd-layer-count">14 tools</span></div>
             <div className="rd-tool-list">
               <article className="rd-tool" id="tool-decision_add">
                 <h3 className="rd-tool-name"><a className="rd-tool-anchor" href="#tool-decision_add" aria-label="Link to decision_add">#</a><code>decision_add</code></h3>
@@ -921,6 +921,16 @@ cd raven-mcp && npm install && npm run build`}</code></pre></div>
                 <dl className="rd-params">
                   <div className="rd-param"><dt><code>old_id</code><span className="rd-required">required</span></dt><dd>Existing decision id that is being superseded.</dd></div>
                   <div className="rd-param"><dt><code>new_id</code><span className="rd-required">required</span></dt><dd>Existing replacement decision id.</dd></div>
+                </dl>
+              </article>
+              <article className="rd-tool" id="tool-decision_contest">
+                <h3 className="rd-tool-name"><a className="rd-tool-anchor" href="#tool-decision_contest" aria-label="Link to decision_contest">#</a><code>decision_contest</code></h3>
+                <p className="rd-tool-desc">Contest an active decision: it stops governing immediately, without deleting it or requiring a replacement.</p>
+                <p className="rd-param-heading">Parameters</p>
+                <dl className="rd-params">
+                  <div className="rd-param"><dt><code>id</code><span className="rd-required">required</span></dt><dd>Existing active decision id to contest.</dd></div>
+                  <div className="rd-param"><dt><code>reason</code><span className="rd-required">required</span></dt><dd>Why the decision is being contested. This is what an adjudicator reads.</dd></div>
+                  <div className="rd-param"><dt><code>evidence_ref</code></dt><dd>Source ref for evidence that contradicts the decision. Attaches an evidence node and a contradicts edge, which raises the gap_scan finding from <code>contested</code> to <code>contested_with_evidence</code>.</dd></div>
                 </dl>
               </article>
               <article className="rd-tool" id="tool-decision_scope">
