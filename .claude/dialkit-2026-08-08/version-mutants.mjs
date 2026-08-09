@@ -6,12 +6,16 @@
 // find-strings present AND unique, deduped failing test NAMES rather than
 // counts, and the exit status must agree with the summary.
 //
-// The question this matrix answers: every test in this suite has passed on its
-// FIRST run — the original six, the six the first Sol round added, the four from
-// round 2 and the five from round 3 — which under this repo's own rule is worth
-// nothing,
-// since five prior rounds here have recorded a test found detecting rather than
-// encoding. V1 is still the one that matters most: it turns restore into
+// The question this matrix answers: nearly every test in this suite passed on
+// its FIRST run — the original six, the six the first Sol round added, four from
+// round 2, five from round 3, two from round 4, four from round 5b — which under
+// this repo's own rule is worth nothing, since five prior rounds here have
+// recorded a test found detecting rather than encoding. The 28th is the ONE
+// exception and it argues the same way from the other side: it took three
+// attempts and TWO of its two failures were defects in its own fixture, not in
+// the product (a shim covering one declaration source, then two). Round 8
+// corrected this sentence, which had said "every" over a count of 21 against a
+// suite of 28. V1 is still the one that matters most: it turns restore into
 // apply-without-revert, which is the exact defect the feature exists to avoid
 // and the half a reader would most plausibly "simplify" away.
 import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';

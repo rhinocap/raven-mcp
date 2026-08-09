@@ -3514,3 +3514,200 @@ NEXT (exact order):
      length-truncated or environment-blocked output is NOT "no findings".
   3. git commit --only <explicit paths>.
   4. Push is Andrew's call. Touches no src/ or api/.
+
+#### Sol round 8 LAUNCHED and RETURNED
+
+Launched detached (never foreground — the 10-min Bash cap kills a real audit at
+exit 143):
+
+  nohup bash -c 'codex exec -m gpt-5.6-sol -c model_reasoning_effort=medium \
+    "$(cat .claude/dialkit-2026-08-08/SOL-BRIEF-VERSIONS-R8.md)" \
+    > .claude/dialkit-2026-08-08/agent-output/SOL-ROUND8-VERSIONS.out 2>&1 \
+    < /dev/null; echo "SOL-R8-EXIT=$?" >> \
+    .claude/dialkit-2026-08-08/agent-output/SOL-ROUND8-VERSIONS.out' &
+
+Monitor bcsjw6886 fired: SOL-R8-DONE SOL-R8-EXIT=0 bytes=845317, 6002 lines.
+The monitor carried an explicit "process gone with no EXIT= line -> FAILED RUN,
+not no-findings" branch, so the clean return is a real return.
+
+READING THE FILE: two attempts overflowed the tool-output cap. The shape that
+WORKED is a bounded slice from the END, never a grep over the whole file:
+  awk 'NR>5850' <file> | head -160
+A compound grep re-prints Sol's echo of my own CLAUDE.md ledger paragraph
+(~line 839) and blows the size. TWO overflow incidents now, same cause.
+
+DEGRADATION CHECK: grep for finish_reason / MachPortRendezvousServer /
+"Permission denied (1100)" hits ONLY at lines 17-18 (the brief's own preamble
+quoting the round-5/6 sandbox failure) and line 839 (Sol quoting my ledger).
+Both are INPUT ECHO. The run was NOT degraded and NOT budget-truncated.
+
+#### Sol round 8 VERDICT: DOES NOT SURVIVE — 4 x P3, NO product defect claimed
+
+All four verified against the files this session before dispositioning.
+
+P3-1 CONFIRMED (test/grab-overlay-style-versions.test.mjs:1922) — the closing
+  negative assertion in test 28 reads #card's inline letter-spacing and demands
+  ''. It is NOT falsifiable. Under V24 (which injects `return true;` at the top
+  of probeStyleValueSupported, i.e. the accept-all probe) native
+  CSS.supports('letter-spacing','definitely-not-a-length') returns false FIRST —
+  decision 15's AND short-circuits — so nothing commits and the assertion stays
+  green. WORSE THAN SOL SAID: even with the probe accepting, the NATIVE setter
+  rejects the garbage, so the inline value is '' regardless. This is exactly the
+  ledger's own V31-vs-V32 lesson (V31 measures LANDING, V32 does not) arriving
+  in a fixture written after that lesson was recorded. The assertion measures
+  "nothing landed", which is true and worth keeping, but its message claims
+  "the fallback probe is answering", which it cannot show.
+
+P3-2 CONFIRMED (same file:1882) — the precondition deepEqual proves OWN-ness for
+  only ONE of the three declaration sources:
+    Object.prototype.hasOwnProperty.call(card.style, 'setProperty')   -> true
+    typeof getComputedStyle(card).getPropertyValue                    -> 'function'
+    (rule declaration) typeof d.getPropertyValue                      -> 'function'
+  The last two are typeof only, so a method inherited from some other prototype
+  satisfies them. The assertion MESSAGE says "all three declaration sources
+  carry their own", which is an overclaim.
+
+P3-3 CONFIRMED (same file:252/275/327) — the header's measured ledger is still
+  ROUND-6 DATA: "34 mutants, 34 killed ... against a declared 27p/0f/0s
+  baseline", V9 at "radius 27", the table ends at V34 + C1/C2 with NO V35 row,
+  and the trailing paragraph says "V9's 27 is every test in the file". Given
+  round-7 measurement is 35 mutants / 28p baseline / V9 radius 28 / V35 radius 1.
+  Same decay class this file has recorded twice already (the radius paragraph
+  quoting 16/5/7 under a 21/6/9 table).
+
+P3-4 CONFIRMED (.claude/dialkit-2026-08-08/version-mutants.mjs:9-15) — "every
+  test in this suite has passed on its FIRST run — the original six, the six the
+  first Sol round added, the four from round 2 and the five from round 3" = 21,
+  and the suite is 28. The claim is also FALSE for the 28th: it took three
+  attempts and two of the failures were defects in its own assertions. The same
+  false sentence exists in the SUITE header too ("Every test here passed on its
+  FIRST run", ~line 259) — Sol named only the harness copy; fix BOTH.
+
+WHAT SOL SAID SURVIVES (recorded so it is not re-litigated):
+  - The gate itself survives. Guarded -> live instance methods commit 24px and
+    sectionVisible === true; gate deleted -> call.bind(undefined) throws on
+    first probe use and that assertion flips to false. V35's kill is GENUINE,
+    not a shim artefact.
+  - The three-source enumeration is SUFFICIENT for this path. Keyframe,
+    font-face and page declarations, attributeStyleMap, and adopted or merely
+    constructed stylesheets do NOT reach declarationsFor. The rule scan's null
+    case fails cleanly (returns 'NO-RULE-DECLARATION').
+  - The round-7 V31/V32 corrections are now TRUE as written: V31 genuinely lands
+    a 2px the user never typed on the CONNECTED element; V32 records without
+    landing.
+  - browser/raven-grab.js and web/public/raven-grab.js are byte-identical.
+
+#### Round 8 fixes APPLIED
+
+P3-1 + P3-2 — test/grab-overlay-style-versions.test.mjs, test 28 restructured
+  onto the ESTABLISHED V31/V32/V34 pattern:
+   * `window.CSS.supports = () => true` added INSIDE the addInitScript, so
+     decision 15's AND falls entirely to the probe. Without this the negative
+     direction is green under V24 for a reason unrelated to the probe.
+   * the precondition deepEqual now asks hasOwnProperty for ALL THREE
+     declaration sources (was: typeof for two of them). Expectation goes
+     ['undefined','undefined',true,'function','function'] ->
+     ['undefined','undefined',true,true,true]. Strictly stronger and cannot
+     fail on correct code — the shim installs own properties on all three.
+   * the negative direction moved BEFORE the positive so the
+     `sectionVisible === false` precondition is available, and now asserts the
+     RECORDED observable (sectionVisible) instead of the LANDED one (the inline
+     value). The landed read could not fail: the native setter rejects the
+     garbage whatever the probe says.
+
+P3-3 — suite header matrix table rewritten from the round-8 measurement.
+P3-4 — provenance claim corrected in BOTH version-mutants.mjs and the suite
+  header: 21 of 28 was written as "every"; and the 28th is the one exception,
+  which took three attempts with both failures in its own fixture.
+
+CONSEQUENCE: P3-1 and P3-2 are TEST changes, so the suite AND the WHOLE matrix
+re-run (35 mutants) plus the full suite. No product code changed, so NO mirror
+cp is needed and the mirror stays cmp-clean.
+
+STATE at the start of the fixes: HEAD c9d838f, local main 3 AHEAD of
+origin/main (ad36eeb). Touches no src/ or api/, so it does not move the live
+MCP endpoint. Push is Andrew's call and has NOT been given.
+
+#### Round 8 measurement
+
+versions suite after the fixes: 28 tests / 28 pass / 0 fail / 0 skipped, EXIT=0,
+0 ✖ lines. The declared 28p/0f/0s baseline in version-mutants.mjs still holds
+unchanged, so EXPECTED_BASELINE_TESTS=28 / EXPECTED_BASELINE_SKIPS=0 needed no
+edit this round.
+
+Matrix launched WHOLE (never extended), backgrounded, EXIT captured INSIDE the
+log. Monitor bl9lijow2 armed on it with a filter covering MATRIX-DONE, EXIT=,
+SURVIVED, false-fail, abort, assert and "not green" — silence is not success, so
+the filter had to cover every terminal state.
+
+The `node --check -` PRE-FLIGHT PASSED: it runs before the baseline, and the log
+reached `baseline: grab-overlay-style-versions.test.mjs 28p/0f/0s`, so all 35
+find-strings are present, unique and syntactically valid. Expected — no product
+code changed this round, so no anchor could have died.
+
+Mirror re-verified: `cmp browser/raven-grab.js web/public/raven-grab.js` →
+MIRROR-IDENTICAL. No `cp` needed; no product code changed.
+
+MATRIX v8 RESULT (read from the harness's own summary AND the EXIT= line):
+
+  35 mutants, 35 killed, 0 survived; 2 controls, 0 false-failed
+  EXIT=0
+
+against the declared 28p/0f/0s baseline.
+
+THREE radii moved, read against the HEADER TABLE and not against a memory of the
+previous run (this file's own rule, and the exact thing that went wrong when V7
+and V8 were mis-read as having moved in an earlier round):
+
+  V3   9 → 10   the save blocker's shared radius. The restructured test 28 now
+                asserts `sectionVisible === false` as a precondition, so a
+                blocker returning "" — which admits every state it should refuse
+                — turns test 28 red alongside the nine it already reddened. One
+                blocker, one more observable. NOT a new guard.
+  V24  5 → 6    the no-CSS.supports fallback returning true again.
+  V28  4 → 5    CSS.supports answering alone again when present.
+
+V24 and V28 moved for ONE reason and it is the round-8 P3-1 fix stated as a
+measurement: the restructure stubs `window.CSS.supports = () => true` inside the
+init script, exactly as the three POISON tests do. Before that, decision 15's AND
+short-circuited on a NATIVE CSS.supports, so the negative direction of test 28
+was green under V24 for a reason that had nothing to do with the probe. The two
+radii ARE the evidence that the fixture now reaches the mechanism it names —
+that is what a non-falsifiable assertion looks like once it becomes falsifiable.
+
+Everything else is byte-identical to the v7 table. V9 stays at 28 (it moved
+27→28 in round 7, and the header had never been updated — that WAS P3-3). V35
+stays at radius 1, reddening only "an engine that carries setProperty on each
+declaration INSTANCE still commits supported edits".
+
+Round 8 added NO test and NO guard. It restructured one. The count is still 28.
+
+#### Round 8 P3-3 APPLIED (the header rewrite)
+
+Written from the measurement above, never predicted ahead of it — the header
+paragraph carries its own "THIS PARAGRAPH IS A CLAIM AND IT DECAYED ONCE"
+warning, and writing a table from expectation and correcting it later is exactly
+that decay. Changes:
+
+  * 34 mutants / 27p baseline  →  35 mutants / 28p baseline
+  * V3 radius 9 → 10, V9 27 → 28, V24 5 → 6, V28 4 → 5
+  * a V35 row ADDED (it did not exist; the table ended at V34 + C1/C2)
+  * "V9's 27 is every test in the file" → 28; "V3's 9" → 10
+  * the four probe mutants read "radius 1, 1, 1 and 5" → "1, 1, 1 and 6"
+  * the radius-moved paragraph REPLACED: it described the round-5→5b moves and
+    is now derived from the round-7 and round-8 measurements, and it records the
+    SECOND decay explicitly — the whole table sat at round-6 data through the
+    entirety of round 7.
+  * "Every test here passed on its FIRST run" → corrected. That was the second
+    copy of P3-4: it covered 21 of 28 tests, and it is FALSE for the 28th, which
+    took three attempts with both failures in its own fixture.
+
+`node --check test/grab-overlay-style-versions.test.mjs` → SYNTAX-OK.
+Comments only; no assertion changed, so the matrix does not re-run for this.
+
+STATE: three files modified, uncommitted:
+  .claude/dialkit-2026-08-08/version-mutants.mjs
+  conversations/2026-08-08-dialkit-voice.md
+  test/grab-overlay-style-versions.test.mjs
+Local main is AHEAD of origin/main. Touches no src/ or api/, so it does not move
+the live MCP endpoint. Push is Andrew's call and has NOT been given.

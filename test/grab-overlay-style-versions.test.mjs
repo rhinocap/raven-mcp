@@ -249,31 +249,34 @@
 // `node --check -` was itself measured to discriminate in both directions
 // before being trusted — a pre-flight that always passes is the dangerous
 // direction.
-// 34 mutants, 34 killed, 0 survived; 2 CONTROLS, 0 false-failed, EXIT=0,
-// against a declared 27p/0f/0s baseline. The exit status IS captured now
-// (`echo "EXIT=$?"` appended inside the log file), which the previous round
-// said to do and did not: reading the summary is reading the predicate, since
-// `survived` and `falseFails` are the same two counters the summary prints and
-// the exit code is set from, but a run that dies before printing anything at
-// all is only distinguishable by the status.
-// Every test here passed on its FIRST run, which
-// under this repo's own rule is worth nothing — five earlier rounds in this
-// file's ledger record a test found detecting rather than encoding. So each
-// radius below is a measurement, not a reading, and several came back
-// different from what was written first.
+// 35 mutants, 35 killed, 0 survived; 2 CONTROLS, 0 false-failed, EXIT=0,
+// against a declared 28p/0f/0s baseline. The exit status IS captured
+// (`echo "EXIT=$?"` appended inside the log file): reading the summary is
+// reading the predicate, since `survived` and `falseFails` are the same two
+// counters the summary prints and the exit code is set from, but a run that
+// dies before printing anything at all is only distinguishable by the status.
+// NEARLY every test here passed on its FIRST run — which under this repo's own
+// rule is worth nothing, since five earlier rounds in this file's ledger record
+// a test found detecting rather than encoding. That sentence said "every" for a
+// full round while covering 21 of 28 tests, and was a round-8 P3 in BOTH this
+// header and the harness. The 28th is the ONE exception, and it argues the same
+// way from the other side: it took three attempts, and BOTH failures were
+// defects in its own fixture rather than in the product (a shim covering one
+// declaration source, then two). So each radius below is a measurement, not a
+// reading, and several came back different from what was written first.
 //
 //   V1  restore APPLIES without reverting (the defect the feature exists to
 //       avoid: a blend of two versions under one name)              radius 2
 //   V2  the state-edit clause is dropped from the save blocker      radius 1
 //   V3  the blocker returns "" instead of a reason — the save then
-//       PROCEEDS, admitting every state the blocker refuses         radius 9
+//       PROCEEDS, admitting every state the blocker refuses        radius 10
 //   V4  restore ignores the selector scope and applies anywhere     radius 1
 //   V5  a duplicate name pushes a second entry instead of updating  radius 1
 //   V6  the button label ignores the duplicate and always says Save radius 1
 //   V7  the id sequence restarts at 0 after hydrate                 radius 2
 //   V8  hydrate does not run at boot (versions die on reload)      radius 10
 //   V9  syncActiveStyleDraftKey stops syncing the section, so it
-//       never appears after a commit — the shipped-once defect      radius 27
+//       never appears after a commit — the shipped-once defect      radius 28
 //   V10 hydrate keeps the STORED ids (the pre-Sol behaviour)        radius 1
 //   V11 the edits SHAPE check is dropped (a null edit throws, and
 //       the read's catch then discards the whole list)              radius 1
@@ -296,7 +299,7 @@
 //   V23 the empty-edits refusal is dropped (`.every()` is vacuously
 //       true on {})                                                 radius 1
 //   V24 the no-CSS.supports fallback returns true again — the
-//       destructive no-op, handed straight back                     radius 5
+//       destructive no-op, handed straight back                     radius 6
 //   V25 restore stops asking whether it can apply anything, so an
 //       in-session version clears the live work and applies none    radius 2
 //   V26 the RECEIVING direction of the stale mirror stops being
@@ -304,7 +307,7 @@
 //   V27 a persist throw is swallowed again, so a save that will not
 //       survive a reload looks identical to one that will           radius 1
 //   V28 `CSS.supports` answers alone again whenever it is present,
-//       so a lying `true` smuggles garbage past the probe        radius 4
+//       so a lying `true` smuggles garbage past the probe        radius 5
 //   V29 the appliability check goes back to `.some`, so a partial
 //       restore assembles a blend                                radius 1
 //   V30 the support verdict is never memoized, so a FLIPPING
@@ -320,31 +323,45 @@
 //   V34 the probe looks up the `style` ACCESSOR live again (a decoy
 //       declaration already carrying the property forges a
 //       non-empty read)                                             radius 1
+//   V35 the round-6 `typeof` gate is deleted, so an engine carrying
+//       these methods on each declaration INSTANCE binds undefined,
+//       throws on first probe use, and REFUSES every supported edit  radius 1
 //   C1  CONTROL: findStyleVersion renames its callback binding       green
 //   C2  CONTROL: deleteStyleVersion renames its length snapshot      green
 //
 // A radius is a fact about a MECHANISM, never evidence of independent guards.
-// V9's 27 is every test in the file, because it is the entry point they all
+// V9's 28 is every test in the file, because it is the entry point they all
 // run through — the section is simply never there — and that is one mechanism,
-// not twenty-seven. V3's 9 is one blocker feeding the note, the section's
+// not twenty-eight. V3's 10 is one blocker feeding the note, the section's
 // visibility and both refusals. V8's 10 is every test that reloads the page.
 // THIS PARAGRAPH IS A CLAIM AND IT DECAYED ONCE: for a full round it still
 // quoted 16/5/7 while the table above it said 21/6/9, which is why it is now
-// re-derived from the measurement rather than patched. FIVE radii moved from
-// round 5 to round 5b — count them in the list below rather than trusting this
-// sentence, which said "four" over a five-item list until it was re-read — and
-// every one of them moved because the round added four tests, with no guard
-// added to any of them:
-//   V1  1→2 and V9 23→27, which widen with any test that restores (V1) or that
-//       needs the section to exist at all (V9);
-//   V3  6→9, the blocker's own shared radius, for the same reason;
-//   V24 2→5 and V28 1→4 — the two `CSS.supports` mutants — because the three
-//       new POISON tests all stub `CSS.supports` to `() => true` so the AND
-//       cannot reject before the probe runs. That is the single most readable
-//       thing in this table: the four probe mutants (V31/V32/V34, plus V24
-//       which removes the probe entirely) sit at radius 1, 1, 1 and 5, and the
-//       gap is exactly the difference between removing one PRIMITIVE and
-//       removing the probe.
+// re-derived from the measurement rather than patched. It decayed a SECOND time
+// in a different way — the whole table sat at round-6 data (34 mutants, a 27p
+// baseline, V9 at 27, no V35 row) through the entirety of round 7, and that was
+// a round-8 P3. A radius diff is a DIFF: read it against this table, never
+// against a memory of the previous run.
+//
+// Round 7 moved exactly ONE radius against round 6 — V9 27→28 — and added V35
+// at 1, because it added exactly one test and no guard.
+//
+// Round 8 added NO test and NO guard: it RESTRUCTURED the 28th onto the
+// established V31/V32/V34 pattern, and three radii moved because of what that
+// restructure gave the fixture:
+//   V3  9→10, because the negative direction now reads `sectionVisible` and
+//       asserts it false as a precondition — so a blocker that admits every
+//       state it should refuse turns test 28 red along with the nine it
+//       already reddened. One blocker, one more observable.
+//   V24 5→6 and V28 4→5 — the two `CSS.supports` mutants — because the
+//       restructure stubs `CSS.supports = () => true` inside the init script,
+//       exactly as the three POISON tests do. Before it, decision 15's AND
+//       short-circuited on a NATIVE `CSS.supports` and the negative direction
+//       was green under V24 for a reason that had nothing to do with the
+//       probe. That is the round-8 P3 in one line: those two radii are the
+//       measurement that the fixture now reaches the mechanism it names.
+// The four probe mutants (V31/V32/V34, plus V24 which removes the probe
+// entirely) sit at radius 1, 1, 1 and 6, and the gap is exactly the difference
+// between removing one PRIMITIVE and removing the probe.
 //
 // V30 vs V33 is what makes the memo's SCOPE measured rather than restated.
 // V30 deletes the memo and reddens the flip test alone; V33 makes it GLOBAL —
@@ -1873,6 +1890,14 @@ test('an engine that carries setProperty on each declaration INSTANCE still comm
       window.getComputedStyle = function (element, pseudo) { return shim(nativeComputed.call(window, element, pseudo)); };
       delete proto.setProperty;
       delete proto.getPropertyValue;
+      // Decision 15's AND lets `CSS.supports` return false EARLY, so a native
+      // one answers before the probe is ever consulted. Round 8 (P3) measured
+      // what that costs: with it native, the negative direction below is green
+      // under V24 (the probe accepting everything) for a reason that has
+      // nothing to do with the probe. Stubbing it true is what hands the whole
+      // verdict to the probe — the same lever V31/V32/V34 pull, and for the
+      // same reason.
+      window.CSS.supports = () => true;
     });
     await reloadAndSelect(page, '#card');
 
@@ -1894,18 +1919,44 @@ test('an engine that carries setProperty on each declaration INSTANCE still comm
           }
           return null;
         };
+        // OWN-ness for all three, never `typeof`: a method inherited from some
+        // other prototype satisfies a `typeof` check, so the round-7 version of
+        // this array proved own-ness for `card.style` alone while its message
+        // claimed all three (round 8, P3).
+        const own = (object, name) => Object.prototype.hasOwnProperty.call(object, name);
         return [
           typeof CSSStyleDeclaration.prototype.setProperty,
           typeof CSSStyleDeclaration.prototype.getPropertyValue,
-          Object.prototype.hasOwnProperty.call(card.style, 'setProperty'),
-          typeof getComputedStyle(card).getPropertyValue,
+          own(card.style, 'setProperty'),
+          own(getComputedStyle(card), 'getPropertyValue'),
           // A missing rule reports itself rather than throwing "Cannot read
           // properties of null" out of the precondition that exists to be read.
-          (() => { const d = firstRuleDeclaration(); return d ? typeof d.getPropertyValue : 'NO-RULE-DECLARATION'; })(),
+          (() => { const d = firstRuleDeclaration(); return d ? own(d, 'getPropertyValue') : 'NO-RULE-DECLARATION'; })(),
         ];
       }),
-      ['undefined', 'undefined', true, 'function', 'function'],
-      'precondition: the prototype methods are gone and all three declaration sources carry their own'
+      ['undefined', 'undefined', true, true, true],
+      'precondition: the prototype methods are gone and all three declaration sources carry their OWN'
+    );
+
+    assert.equal(
+      (await versionsState(page)).sectionVisible,
+      false,
+      'precondition: nothing to name yet, so the section is the observable for the refusal below'
+    );
+
+    // The negative direction FIRST, and read off the RECORDED observable rather
+    // than the LANDED one. Round 8 (P3) measured why the round-7 shape — an
+    // inline `letter-spacing` read demanding '' after the save — could not fail:
+    // the NATIVE setter rejects the garbage whatever the probe answers, so the
+    // inline value is '' under every mutant. This is the suite's own V31-vs-V32
+    // lesson (V31 measures landing, V32 does not) arriving in a fixture written
+    // after that lesson was recorded. `sectionVisible` reads whether the edit
+    // was RECORDED, which is the thing the probe's verdict actually decides.
+    await editStyle(page, 'letter-spacing', 'definitely-not-a-length');
+    assert.equal(
+      (await versionsState(page)).sectionVisible,
+      false,
+      'an unsupported value is still refused, so the fallback probe is answering rather than accepting everything'
     );
 
     await editStyle(page, 'font-size', '24px');
@@ -1918,14 +1969,5 @@ test('an engine that carries setProperty on each declaration INSTANCE still comm
 
     await nameAndSave(page, 'good');
     assert.deepEqual((await versionsState(page)).names, ['good'], 'and the version saves, so the feature is reachable at all on this engine');
-
-    // The other direction, or a probe that had simply stopped refusing would
-    // satisfy every assertion above while admitting garbage.
-    await editStyle(page, 'letter-spacing', 'definitely-not-a-length');
-    assert.equal(
-      await page.evaluate(() => document.querySelector('#card').style.getPropertyValue('letter-spacing')),
-      '',
-      'and an unsupported value is still refused, so the fallback probe is answering rather than accepting everything'
-    );
   });
 });
