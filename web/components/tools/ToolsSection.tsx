@@ -92,7 +92,13 @@ const ACTS: Act[] = [
       // with no browser — costs a picture and never the pattern. These two lines
       // said "plus a thumbnail" and "each result carrying its picture", which is a
       // guarantee the tool does not make.
-      { name: "capture_reference", desc: "Keep a pattern you grabbed from any page—stored locally as a record credited to its source, with a thumbnail rebuilt offline where the markup allows" },
+      //
+      // "where the markup allows" was the SECOND overclaim, narrower than this very
+      // comment: markup is one of four ways to lose the picture. Chromium can be
+      // absent, the launch or render can time out (src/index.ts, src/reference-
+      // thumbnail.ts), and the attach can fail (src/reference-store.ts). Say
+      // best-effort, which is the whole claim, rather than naming one cause.
+      { name: "capture_reference", desc: "Keep a pattern you grabbed from any page—stored locally as a record credited to its source, with a best-effort thumbnail rebuilt offline" },
       { name: "search_references", desc: "Recall a kept pattern—“that hero from Linear”—by intent, host, owner, or tag, each result carrying its credit and its thumbnail where one exists" },
       { name: "map_reference_to_tokens", desc: "Translate a kept pattern's raw literals onto your own tokens—deterministic, family-bound, and honest about what it can't match" },
       // Pinning is OPTIONAL (`expected_ref_ids`), and the tool says so in its own

@@ -1131,3 +1131,195 @@ never a preview, and was never handed over as one.
 - `mcp.ravenmcp.ai` hero still states "104 tools".
 - Vercel CLI 58.7.1 vs 58.9.0.
 - Docs per-layer counts still have no build-time guard.
+
+## Sol round-1 disposition — two fixed, two reported (2026-08-09)
+
+Sol round 1 returned **DOES NOT SURVIVE** with 3 x P2 + 1 x P3. The verdict was
+read out of the file at `.claude/count-bump-2026-08-09/agent-output/SOL-R1.out`
+(623,049 bytes; report at ~8945-9058), not off the exit code, and it carried a
+real verdict line rather than an environment-blocked stub.
+
+Its `## Claims that held` half is worth keeping, because it is the independent
+confirmation of the count bump: npm 2.4.0 returns **110 tools, 110 unique names,
+no duplicates**; the apparent "111th" source literal is `delete_taste_data`,
+registered only under `if (remote && hasUserStore)` and therefore not an npm
+stdio tool; both site enumerations contain the same 110 unique names; the docs
+parser found 19 paired layers, 110 declared, 110 cards, no duplicate ids, no
+orphans; and the endpoint did not move — `api/mcp` function digest identical
+across the current and preceding production deployments, anonymous 45 names
+frozen at `f64bb185...a0a6`.
+
+### Split: fix what this change authored, report what it merely sits beside
+
+**P2-3 — three overclaiming tool summaries. FIXED.** Copy authored by this very
+change, so it is in scope. `capture_reference` said "plus a thumbnail" and
+`search_references` "each result carrying its picture"; the thumbnail is BEST
+EFFORT and the credit is not — the record commits *before* the render is
+attempted and every failure path returns null, so a capture with no markup, or a
+machine with no browser, costs a picture and never the pattern. They now read
+"where the markup allows" and "where one exists". `forget_references` said
+"confirmed and pinned"; pinning is the optional `expected_ref_ids` argument and
+the tool reports in its own output when an unpinned sweep may have taken
+something captured mid-run (verified at `src/index.ts:3612-3622`), so it reads
+"pinnable". Each rewrite carries a comment saying what the old sentence promised.
+
+**P2-2 — Mailchimp. FIXED, and broader than Sol found.** Sol named one call
+site; there were **four** live ones, which is this repo's most-documented failure
+class arriving in marketing copy: `web/app/page.tsx` (the Content Systems
+paragraph **and** its tag chip list), `web/app/docs/page.tsx:300`, and the
+file-tree diagram at `:1429`. Mailchimp left the registry in `3dafabb`. The
+shipped four were read off `src/data/content/systems/` rather than off any copy:
+`gov-uk`, `shopify-polaris`, `atlassian`, `conversational-product-voice`.
+
+The counts were already correct everywhere — the homepage stat says 4, the
+diagram comment says 4 — and **that is exactly why nothing caught the drift**: a
+guard that counts cannot see a wrong name. Removing the Mailchimp chip also left
+three chips under a stat reading 4, so a "Product voice" chip was added; a fix
+that leaves the card self-contradicting is not a fix.
+
+Two Mailchimp mentions were left deliberately. `docs/page.tsx:1520` is a
+*provenance* claim about where 132 UX-writing principles were curated from — a
+different claim from the systems registry, and not falsified by the removal.
+`web/data/changelog.json:403` is history and is correct as history.
+
+**P2-1 — corpus counts. REPORTED, not fixed.** The site says 129 principles / 22
+pattern sets in six places (`web/app/page.tsx:734,742`, `web/layout.tsx:67,123,
+130-131,190`, `web/public/llms.txt:15-16`) while `docs/page.tsx:1520` says 132
+and 23 — and `peak-end-rule` is duplicated in the data, so the true figure is 132
+total / **131 unique**. Pre-existing, not made wrong by this change, and choosing
+132-vs-131 belongs with fixing the duplicate id in the data, not with a copy edit.
+
+**P3-1 — "layers" means two things. REPORTED, not fixed.** The homepage says
+"Nine layers" (9 cards) while `LAYER_COUNT` is 19 and the docs page renders 19
+groups. Both taxonomies are real; neither page distinguishes them.
+
+### Verification
+
+Build re-run clean; the `LISTED_TOOL_COUNT !== TOOL_COUNT` guard still passes at
+110 (it is a module-level throw, so a green `/` route is the evidence it ran).
+Private-path gate 4/4.
+
+Pushed `024e81c..fdd912e` (the session-log commit `2f46812` rode with it).
+Production `site` deployment `dpl_BtukpjoCwtWrCchDbq7qvfdPBCkd`
+(`site-pswgfxxgb-...`), target production, **Ready** in 46s.
+
+**The alias check has an instrument limitation worth recording.** Immediately
+after the build the CLI listed only the two auto aliases on the new deployment
+while the *previous* deployment still showed `mcp.ravenmcp.ai`; four minutes
+later **both** deployments listed it. So `vercel inspect` at CLI 58.7.1 cannot
+discriminate which build a hostname serves during the propagation window — do not
+read either snapshot as a per-deployment binding. The claim that actually matters
+was established two other ways instead: `git show --name-only fdd912e` touches
+nothing under `src/` or `api/`, and the anonymous endpoint was re-measured
+**after** the deploy reached Ready — 45 tools,
+`f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6`, GOLDEN MATCH.
+
+### Still Andrew's, unchanged
+
+`ravenmcp.ai` is served by the **`web`** project, which has no git integration, so
+none of this reaches the public marketing site until
+`cd /Users/accunliffe/projects/raven-mcp/web && vercel deploy --prod --yes`. That
+is the same pending deploy the 110-tool bump needs, so one run covers both.
+
+Sol round 2 (auditing this disposition rather than the feature) launched detached
+to `.claude/count-bump-2026-08-09/agent-output/SOL-R2.out`; brief alongside it.
+
+## Sol round 2 — DOES NOT SURVIVE (3 P2, 1 P3), all four dispositioned
+
+Round 2 audited the round-1 *disposition* rather than the feature. Verdict at
+`SOL-R2.out:3993`. Every finding was verified against the shipped data before
+being acted on; none was taken on the report's authority.
+
+**The fifth Mailchimp call site was found and fixed BEFORE round 2 was read.**
+While waiting on the detached run I pre-checked its own attack point #1 — "is the
+four-call-site count actually complete?" — and it was not. `fdd912e` claimed four
+and asserted completeness; there were five. The miss is
+`web/app/docs/page.tsx:312`, the documented example for `get_content_system`'s
+**required** `id` parameter, which still offered `'mailchimp'` — so a reader
+following the docs got a tool error rather than stale prose. The other four were
+descriptive; that one was an instruction. Fixed in `4f3e5ba`, pushed, deploy
+`dpl_FHtA9YqbLjPaspEp9bX1vnoH1ZTr` Ready.
+
+**This is the one-of-N-call-sites drift this repo documents more than any other
+class, committed inside a fix that asserted it had closed exactly that class.**
+The count in the commit message was the claim, and nothing measured it.
+
+### P2 — `capture_reference` traded one overclaim for another. FIXED.
+
+Round 1 rewrote "plus a thumbnail" to "where the markup allows". Markup is one of
+**four** ways to lose the picture: Chromium absent, launch or render timeout
+(`src/index.ts`, `src/reference-thumbnail.ts`), attach failure
+(`src/reference-store.ts`), or no markup. **The comment two lines above the copy
+already said "a machine with no browser" — it was broader than the sentence it
+was defending, and that mismatch is the whole finding.** Now reads "a best-effort
+thumbnail rebuilt offline"; naming one cause was the error, so no cause is named.
+`search_references` and `forget_references` were independently confirmed accurate
+and are untouched.
+
+### P2 — the provenance sentence was NOT defensible. FIXED, reversing round 1.
+
+Round 1 kept `web/app/docs/page.tsx:1520` on the reasoning that provenance is a
+different claim from the systems registry and is not falsified by a registry
+removal. **The reasoning was sound and the conclusion was still false**, because
+it was never checked against the data: `grep -ril mailchimp src/data/` returns
+**nothing**. The 11 UX-writing principles in
+`src/data/content/principles/ux-writing.json` cite plainlanguage.gov, Shopify
+Polaris, NN/g, GOV.UK, Atlassian and Microsoft — no Mailchimp at any of them. The
+parenthetical now names the sources actually cited in that file, read off the
+JSON rather than off any copy. `web/data/changelog.json:403` stays: it is history
+and is correct as history.
+
+### P2 — the `site/` half. REPORTED, human-gated, NOT touched.
+
+Live stale claims remain at `site/index.html:2531-2533,2709` and
+`site/docs.html:765,774,778,1045-1046` — including the *same* stale id list at
+`:774`, which is the identical "instruction that errors" shape as the `:312` fix.
+Not touched because **`site/` is what `mcp.ravenmcp.ai` serves, and any change to
+what that host serves is human-gated to Andrew.** `site` is git-integrated, so
+the edit and the deploy are one action. Andrew's call, put to him with the
+count-reconciliation fork.
+
+### P3 — `site/about.html:511,538` says five brand-voice guides. REPORTED.
+
+The registry holds four. Same gated surface; same question.
+
+### Corpus counts — round 1's P2-1, now measured rather than asserted
+
+Sol independently confirmed **132 loaded / 131 unique** principles (`peak-end-rule`
+duplicated at `src/data/principles/laws-of-ux.json:388` and
+`src/data/service-design/principles/service-design-principles.json:149`) and **23**
+pattern sets. So `docs/page.tsx:1520`'s 132/23 is the CORRECT pair and the
+homepage's 129/22 (plus `site/about.html`'s) are the stale ones — the opposite of
+what the numbers' relative age suggests. Still not fixed: choosing 132-vs-131
+belongs with de-duplicating the id in the data, not with a copy edit.
+
+### Instrument fault worth carrying
+
+The first post-deploy golden-hash watcher reported **43 tools / HASH MOVED** on a
+hash that is frozen. It was an ad-hoc `grep -oE '"name":"[a-z_]+"'` pipeline, and
+that character class **cannot match a tool name containing a digit** — the two it
+silently dropped are `audit_ios_a11y` and `get_d4d_framework`. 45 − 2 = 43,
+exactly. Replaced with a real JSON parse (`scratchpad/anon-hash.mjs`), which
+re-measured **45 tools, `f64bb18…2bb0a6`, GOLDEN MATCH**, and which *prints the
+names the bad regex drops* so the diagnosis is a measurement rather than a theory.
+**A new unvalidated instrument disagreeing with a known-good frozen value is an
+instrument fault until proven otherwise** — the wrong move was available and
+cheap, and it was reporting the frozen hash as broken.
+
+Second, smaller: `pgrep -f "gpt-5.6-sol"` reported the Sol process still RUNNING
+after it had exited, because the pattern matched `pgrep`'s own command line.
+`ps -eo pid,etime,command | grep -i <pat> | grep -v grep` is the check that works.
+
+### Verification
+
+Build re-run clean, `/` at 54.4 kB — the `LISTED_TOOL_COUNT !== TOOL_COUNT`
+module-level throw executed and passed at 110. Private-path gate 4/4.
+`git ls-remote` confirms remote `main` = local HEAD.
+
+### Still Andrew's
+
+1. `cd web && vercel deploy --prod --yes` — `ravenmcp.ai` is the `web` project and
+   has NO git integration, so neither the 110-tool bump nor any of these copy
+   fixes are public until he runs it. One run covers all of it.
+2. Whether to fix the `site/` Mailchimp + count claims, which is an edit to what
+   `mcp.ravenmcp.ai` serves and therefore his gate, not mine.
