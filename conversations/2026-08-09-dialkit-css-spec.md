@@ -1064,3 +1064,70 @@ files). `web/public/llms.txt` already said 110.
    Guarding it means turning hand-written JSX into data — noted, not done.
 3. Residual Inter sweep, six files, awaiting Andrew's word — NOT the demos.
 4. DialKit CSS spec round-4 findings still undispositioned.
+
+## Checkpoint — push, production verification, eyes-on (2026-08-09)
+
+Written after three segments of compaction pressure; everything below is
+measured, not inferred.
+
+**Push.** `655417f..024e81c  main -> main`. Branch `main`, worktree clean.
+
+**Production.** `main` deploys the live MCP endpoint, so the anon hash is the
+gate, not a formality. Site prod deployment `dpl_HDKdDiDpze2QHvNz5APoiqRyv1gF`
+— commit `024e81c`, branch `main`, READY, and its alias list carries
+`https://mcp.ravenmcp.ai`. The alias list is the only thing that says which
+build a hostname serves; `vercel inspect --json` on CLI 58.7.1 is trimmed and
+carries no git meta, so the REST `v13/deployments/<id>` was read instead. Anon
+`tools/list` re-verified against that alias: **45 tools, sha256
+`f64bb18…2bb0a6`, GOLDEN MATCH** — unmoved, which is what a `web/`-only change
+should do and is not evidence until it is checked.
+
+**Both enumerations measured at the DOM, not read off the source.** The
+homepage heading renders `LISTED_TOOL_COUNT` (derived from the array), not the
+raw constant, so the two are separate claims:
+
+- Home, per act: Know 18 · Create 15 · Design 24 · Audit 26 · Judge 11 ·
+  Decide 14 · Meta 2 = **110**.
+- Home, Design act: **24 unique tool names in the DOM** against a declared
+  "24 TOOLS" label. Judge: **11 against "11 TOOLS"**. So the labels are
+  consistent with what actually renders beneath them, not merely with
+  `counts.ts`.
+- Docs page: **110 cards, 110 unique ids, 0 duplicates**, 19 layers, declared
+  per-layer `[4,1,1,4,4,5,2,3,3,9,14,2,1,11,14,16,12,2,2]` summing to 110.
+  110 stated in three places (footer, right-rail register, step 02).
+- Stray count literals in `web/`: none. `llms.txt` already 110;
+  `data/changelog.json` historical and correct.
+
+All five new tools confirmed rendering **three independent ways** — docs DOM id
+sweep, docs element screenshots, and homepage act-list DOM name enumeration.
+
+**design-judge.** Global-only (37 rules; no project overlay, no `DESIGN.md`).
+Surface stated **product-site**, so `COLOR-one-warm-orange-accent` (scope
+`portfolio-monochrome`) is inactive and the cyan is brand, not a second hue.
+Judged the CHANGED regions — the five docs cards and the two expanded acts —
+not the page tops, which show none of the new content. **Verdict: PASS.** The
+sticky nav crossing `home-design.png` mid-frame is an `elementHandle.
+screenshot()` scroll artifact, not a page defect. One report line, not a
+finding: the docs page renders literal values with typographic apostrophes
+(`mode:’example’`) — 63 page-wide, 12 in the new cards, pre-existing prose
+convention; correcting it is a page-wide unrequested edit.
+
+Capture rig (`npx next start -p 4187`, pid 8049) killed. It was a capture rig,
+never a preview, and was never handed over as one.
+
+### Next commands
+
+1. Sol falsification pass — brief at `.claude/count-bump-2026-08-09/BRIEF.md`,
+   output at `.claude/count-bump-2026-08-09/agent-output/SOL-R1.out`. Read the
+   file, never the exit code. **An environment-blocked or budget-exhausted
+   adverse output is not "no findings"** — check for a verdict line before
+   dispositioning.
+2. Andrew, and only Andrew, publishes the apex:
+   `cd /Users/accunliffe/projects/raven-mcp/web && vercel deploy --prod --yes`,
+   then confirm 110 renders on ravenmcp.ai.
+
+### Adjacent, one line each, not fixed
+
+- `mcp.ravenmcp.ai` hero still states "104 tools".
+- Vercel CLI 58.7.1 vs 58.9.0.
+- Docs per-layer counts still have no build-time guard.
