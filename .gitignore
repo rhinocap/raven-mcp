@@ -114,3 +114,13 @@ sol-*.log
 
 # local scratch probes (never committed)
 .scratch/
+
+# Desktop-format source for the Untitled Sans Black weight. Andrew holds the
+# license for every weight (confirmed 2026-08-09), so this is not a rights
+# question — it is a distribution one: `vercel.json` sets outputDirectory to
+# `site/`, so anything under site/assets/ is publicly downloadable, and the
+# 206KB unsubsetted desktop OTF is the higher-value artifact while serving no
+# purpose. The web format is what ships: untitled-sans-black.woff2 (47KB) is
+# committed and is what every @font-face points at. Keep the .otf locally as
+# the conversion source.
+site/assets/fonts/*.otf

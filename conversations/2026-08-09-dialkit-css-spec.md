@@ -485,3 +485,84 @@ the permission classifier**, so it is Andrew's to run. Not worked around.
   round audits the current text clean.
 - The `.otf` decision.
 - The npm 2.4.0 release.
+
+## Checkpoint — the Black weight settled, and how
+
+Andrew, mid-turn: *"Yes, i have all wights, save that to the knowledge graph so oyu
+guys quit asking me"*. That closes the licensing question the previous checkpoint left
+open, and it closes it in the direction that makes the withheld file shippable.
+
+**Written to memory, not just to this log.** The fact went to the CANONICAL
+cross-project pool by absolute path —
+`~/.claude/projects/-Users-accunliffe-projects/memory/reference_untitled_sans_fully_licensed.md`
+— with a pointer line in that pool's `MEMORY.md`, because "which weights may I use"
+is a fact about working with Andrew and has to apply in every repo, not only this one.
+It states plainly that it **supersedes** the narrower "use only the licensed regular,
+medium and bold files" line in the global CLAUDE.md coding rules: that line described
+which files were on hand, never what is licensed.
+
+### The conversion was decided by measurement, not by preference
+
+`AskUserQuestion` came back **"Convert to subset woff2, then commit"**, and the first
+half of that turned out to be the wrong instruction for this family — which is why the
+coverage was measured before anything was converted rather than after. All four files
+read **identical**: 502 glyphs, 397 codepoints, U+0020–U+2212. So the three woff2 that
+already ship are **not subset** — they are the same coverage, woff2-compressed. A
+subsetting pass would have made Black the odd one out, silently missing glyphs its
+siblings have. It got a straight `flavor = "woff2"` re-wrap instead.
+
+The converter (`tow2.py`, scratchpad) **reads the output back** rather than trusting
+the save, on the standing rule that a tool's success message is GUESSED until the
+artifact is read: `flavor=woff2 glyphs=502 codepoints=397 usWeightClass=800
+family='Untitled Sans Black'`, **47,516 bytes** — in line with the siblings at 46,456 /
+47,512 / 48,152, and down from the .otf's 206,216.
+
+### Nine files repointed — and the first attempt landed ZERO edits silently
+
+```
+site/{index,about,ballet,changelog,design-system,docs,og-card}.html
+scripts/gen-changelog-html.mjs:101
+scripts/build-changelog.mjs:183
+```
+
+`url(".../untitled-sans-black.otf") format("opentype")` →
+`url(".../untitled-sans-black.woff2") format("woff2")`, on the fourth `@font-face`
+block (`font-weight: 800 900`).
+
+**The near-miss is the entry worth carrying: zsh does not word-split an unquoted
+parameter expansion.** `for f in $FILES` handed perl all nine newline-joined paths as
+ONE filename, and the run "succeeded" with no edits — it only surfaced because perl
+named a path that does not exist (`Can't open site/changelog.html\nsite/index.html…`).
+A loop that silently iterates once over garbage is this repo's own "a check whose
+failure mode is indistinguishable from its success mode" in a shell. The working form
+is `grep -rl … | while IFS= read -r f; do … done`, and it was verified in BOTH
+directions afterwards: remaining `.otf` references across `site scripts web` — none;
+woff2 references — exactly 1 per file, all nine.
+
+### The .otf is gitignored, and that is a distribution call rather than a rights one
+
+`site/assets/fonts/*.otf` added to `.gitignore` with the reasoning in the file. The
+licence no longer blocks it, but `vercel.json` sets `outputDirectory: "site"`, so
+anything under `site/assets/` is publicly downloadable — and a 206KB unsubsetted
+**desktop** binary is the higher-value artifact while serving no purpose now that every
+`@font-face` points at the web format. It stays on disk locally as the conversion
+source. Side benefit that matters for the release: `release.sh` refuses a dirty tree,
+and an untracked-but-ignored source file cannot make it dirty.
+
+### What this fixes on the live pages
+
+The previous checkpoint recorded the measured cost of withholding Black: the
+`site/*.html` pages declare a fourth `@font-face` at `font-weight: 800 900` and
+**use** 800/900 on headlines, so those were resolving to the fallback stack. Once this
+push deploys they resolve to the real weight. The apex site is unaffected either way —
+`web/app/layout.tsx` registers only 400 / 500-600 / 700 and never referenced Black.
+
+### Still open, unchanged
+
+- **The apex deploy.** `cd web && vercel deploy --prod` remains the only route to
+  `ravenmcp.ai`; `web` has no git integration. The call was blocked by the permission
+  classifier and was not worked around — Andrew's to run.
+- **Eyes-on.** A 200 on a `.woff2` URL proves the file is served, not that the browser
+  chose it. Neither surface has been visually confirmed rendering Untitled Sans.
+- Sol round 4's **nine findings**, all still open.
+- The npm 2.4.0 release — Andrew's call and Andrew's hands (passkey 2FA).
