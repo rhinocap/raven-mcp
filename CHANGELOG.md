@@ -11,17 +11,18 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 Five new tools take the stdio surface from 105 to 110. They are one lane: a local pattern library. Capture a piece of design you like from a page you are looking at, keep it with its source, search it later by what it does rather than what it is called, translate it into your own tokens, and remove it when the person who made it asks. All five are gated out of the anonymous remote surface, which still serves the same 45 tools.
 
 ### Added
-- `capture_reference` — store a pattern from a Grab session with its markup, computed styles, and provenance, and render an offline thumbnail of it. A style map is the right thing to store and the wrong thing to show a human, so every reference carries a picture of itself that never calls back to the site it came from.
+- `capture_reference` — store a pattern from a Grab session with its markup, computed styles, and provenance, and render a thumbnail of it. A style map is the right thing to store and the wrong thing to show a human, so a reference carries a picture of itself, rendered with every outbound request blocked so it never calls back to the site it came from. The render is best effort and is attempted after the record is committed: a machine without a browser costs you the picture, never the capture.
 - `search_references` — find a stored pattern by intent, taxonomy, or host. Markup is omitted by default and returned on request: browsing the corpus is looking, not copying.
 - `map_reference_to_tokens` — translate a stored pattern's values into your own design system's tokens, emitting the token name, its value, and its CSS custom property.
-- `forget_references` — remove references by host or by id, with a preview computed by the same rule the removal uses and a confirmation step, so what the prompt says will go is what goes.
-- `generate_mood_board` — compose a taste binding's notes, references, and pattern thumbnails into one self-contained HTML board, plus an offline PNG. Takes your own images alongside the captured patterns. It names the next step and stops there rather than running it.
+- `forget_references` — remove references by host or by id, behind a confirmation step whose preview is computed by the same rule the removal uses. Preview and removal are two separate reads of the directory, so pass `expected_ref_ids` to pin the set you were shown: anything captured between the two calls is then reported rather than swept up silently. A sweep that cannot resolve a host says so instead of reporting a clean result.
+- `generate_mood_board` — compose a taste binding's notes, references, and pattern thumbnails into one self-contained HTML board, plus a PNG of it where one can be rendered. Takes your own images alongside the captured patterns. It names the next step and stops there rather than running it.
 
 ### Changed
 - `generate_design_system` takes `save`, persisting a generated token set under `~/.raven/design-systems` so its id works anywhere a bundled id works — `base_system`, `get_design_system`, `list_design_systems`, and `init_design_md`. Default is off, and the option is absent from the hosted surface.
 - The kickoff taste interview opens by asking what already exists — a brand, a design system, brand assets — and routes to the tool that closes the gap instead of assuming a blank page.
-- A Grab session proxying your own local dev server keeps authoring. Proxying a third-party site stays capture-only, and the overlay is now told which it is, so a capture there reports as captured instead of as a failed send.
+- A Grab session proxying `localhost`, `127.0.0.1`, or `[::1]` keeps authoring. Any other upstream stays capture-only, and the overlay is now told which it is, so a capture there reports as captured instead of as a failed send.
 - The Grab overlay gained a cubic-bezier easing editor, spring presets, named style versions, and on-canvas drag-to-reorder. `transition-*` is now part of the captured style set, so an agent reading a Grab payload can see motion at all.
+- The Grab overlay's text fields take dictation, on the panel's own fields rather than only the instruction box.
 
 ### Fixed
 - Typing in a Grab panel no longer reaches the page underneath it. Characters were being delivered to the site's own document-capture listeners, which on some pages consumed them and opened unrelated UI.

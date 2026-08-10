@@ -32,13 +32,13 @@
       "kind": "new",
       "title": "Keep the design you liked, and translate it into your own tokens",
       "changes": [
-        "capture_reference stores a pattern you grabbed from a page — its markup, its computed styles, and where it came from — and renders a thumbnail of it that never calls back to the site it was taken from. A style map is the right thing to store and the wrong thing to show a person, so every reference carries a picture of itself.",
+        "capture_reference stores a pattern you grabbed from a page — its markup, its computed styles, and where it came from — and renders a thumbnail with every outbound request blocked, so it never calls back to the site it was taken from. A style map is the right thing to store and the wrong thing to show a person. The picture is best effort and is rendered after the record is saved: a machine without a browser costs you the thumbnail, never the capture.",
         "search_references finds a stored pattern by what it does, not what it was called. Markup is left out of a browse and returned only when you ask for it: looking through the corpus is looking, not copying.",
         "map_reference_to_tokens translates a stored pattern’s values into your own design system — the token name, its value, and the CSS custom property, so what comes back is buildable rather than a list of names.",
-        "forget_references removes what you captured, by site or by id. The preview is computed by the same rule the removal uses, so what the prompt says will go is what goes, and anything it could not remove is reported instead of reported clean.",
-        "generate_mood_board composes your notes, your references and your own images into one self-contained board plus an offline PNG. It names the next step and stops there rather than running it.",
+        "forget_references removes what you captured, by site or by id. The preview is computed by the same rule the removal uses; pass expected_ref_ids to pin the exact set you were shown, and anything captured between the preview and the removal is reported rather than swept up. A sweep that cannot resolve a site says so, and anything it could not remove is reported instead of reported clean.",
+        "generate_mood_board composes your notes, your references and your own images into one self-contained board, plus a PNG of it where one can be rendered. It names the next step and stops there rather than running it.",
         "generate_design_system can now save what it generates. The id then works anywhere a bundled id works — base_system, get_design_system, list_design_systems, init_design_md.",
-        "A Grab session proxying your own local dev server keeps authoring; proxying someone else’s site stays capture-only, and the overlay now says which it is. Typing in a Grab panel no longer reaches the page underneath it, and a pending draft survives moving between slides, tabs or routes without a page load.",
+        "A Grab session proxying localhost, 127.0.0.1 or [::1] keeps authoring; any other site stays capture-only, and the overlay now says which it is. Typing in a Grab panel no longer reaches the page underneath it, a pending draft survives moving between slides, tabs or routes without a page load, and the panel’s text fields take dictation.",
         "The stdio surface goes from 105 tools to 110. The anonymous hosted endpoint still serves the same 45."
       ]
     },
