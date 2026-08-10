@@ -31,10 +31,36 @@
   <meta name="twitter:description" content="129 principles · 22 patterns · 104 tools · 12 design systems · a Taste Engine · web, iOS, Android & React Native audits · content voice · research · service blueprints. Design intelligence for AI, in one install.">
   <meta name="twitter:image" content="https://ravenmcp.ai/assets/og-image.jpg">
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <style>
+        <style>
+  @font-face {
+    font-family: "Untitled Sans";
+    src: url("/assets/fonts/untitled-sans-regular.woff2") format("woff2");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: "Untitled Sans";
+    src: url("/assets/fonts/untitled-sans-medium.woff2") format("woff2");
+    font-weight: 500 600;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: "Untitled Sans";
+    src: url("/assets/fonts/untitled-sans-bold.woff2") format("woff2");
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: "Untitled Sans";
+    src: url("/assets/fonts/untitled-sans-black.otf") format("opentype");
+    font-weight: 800 900;
+    font-style: normal;
+    font-display: swap;
+  }
+
     :root {
       /* Dark grey base — NOT black */
       --bg-base: #1a1a22;
@@ -72,7 +98,7 @@
       --mb-bezel: #0b0b0d; --mb-screen: #050508; --mb-groove: #1a1a1c;
       --mb-hinge-top: #454547; --mb-hinge-bottom: #2b2b2e;
 
-      --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-body: "Untitled Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       --font-mono: ui-monospace, "SF Mono", "Cascadia Code", monospace;
 
       --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;

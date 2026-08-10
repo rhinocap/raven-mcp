@@ -9,8 +9,37 @@
   <meta name="author" content="Andrew Cunliffe">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
+  @font-face {
+    font-family: "Untitled Sans";
+    src: url("/assets/fonts/untitled-sans-regular.woff2") format("woff2");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: "Untitled Sans";
+    src: url("/assets/fonts/untitled-sans-medium.woff2") format("woff2");
+    font-weight: 500 600;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: "Untitled Sans";
+    src: url("/assets/fonts/untitled-sans-bold.woff2") format("woff2");
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: "Untitled Sans";
+    src: url("/assets/fonts/untitled-sans-black.otf") format("opentype");
+    font-weight: 800 900;
+    font-style: normal;
+    font-display: swap;
+  }
+
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
     :root {
@@ -29,7 +58,7 @@
       --accent-cyan: #00E5FF;
       --border: rgba(255, 255, 255, 0.08);
       --border-strong: rgba(255, 255, 255, 0.12);
-      --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-body: "Untitled Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       --radius-md: 12px;
       --radius-lg: 16px;
       --radius-xl: 20px;
@@ -50,7 +79,7 @@
     body {
       background: var(--bg);
       color: var(--text-primary);
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: 'Untitled Sans', -apple-system, BlinkMacSystemFont, sans-serif;
       font-size: 16px;
       line-height: 1.6;
       -webkit-font-smoothing: antialiased;

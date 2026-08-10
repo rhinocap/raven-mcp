@@ -91,7 +91,7 @@ const subject =
 const html = `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="color-scheme" content="dark"></head>
-<body style="margin:0;padding:0;background:#1a1a22;font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;">
+<body style="margin:0;padding:0;background:#1a1a22;font-family:'Untitled Sans',-apple-system,BlinkMacSystemFont,sans-serif;">
   <table bgcolor="#1a1a22" width="100%" cellpadding="0" cellspacing="0" style="background:#1a1a22;padding:48px 24px;">
     <tr><td align="center">
       <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;">

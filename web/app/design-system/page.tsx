@@ -43,10 +43,10 @@ export default function DesignSystemPage() {
 
         {/* 02 TYPOGRAPHY */}
         <section>
-          <div className="sec-head"><span className="sec-num">02</span><h2>Typography</h2><span className="desc">Inter for product UI; monospace carries the technical tone in eyebrows, tool names, and code.</span></div>
+          <div className="sec-head"><span className="sec-num">02</span><h2>Typography</h2><span className="desc">Untitled Sans for product UI; monospace carries the technical tone in eyebrows, tool names, and code.</span></div>
           <div id="type-scale"></div>
           <div style={{ marginTop: 'var(--space-8)', display: 'flex', gap: 'var(--space-6)', flexWrap: 'wrap' }}>
-            <div style={{ flex: '1', minWidth: '240px' }}><div className="eyebrow" style={{ color: 'var(--text-tertiary)' }}>--font-body</div><div style={{ fontSize: '28px', fontWeight: '700' }}>Inter</div><div style={{ color: 'var(--text-secondary)' }}>The quick brown fox jumps over the lazy dog. 0123456789</div></div>
+            <div style={{ flex: '1', minWidth: '240px' }}><div className="eyebrow" style={{ color: 'var(--text-tertiary)' }}>--font-body</div><div style={{ fontSize: '28px', fontWeight: '700' }}>Untitled Sans</div><div style={{ color: 'var(--text-secondary)' }}>The quick brown fox jumps over the lazy dog. 0123456789</div></div>
             <div style={{ flex: '1', minWidth: '240px' }}><div className="eyebrow" style={{ color: 'var(--text-tertiary)' }}>--font-mono</div><div className="mono" style={{ fontSize: '28px', fontWeight: '700' }}>SF Mono</div><div className="mono" style={{ color: 'var(--text-secondary)' }}>claude mcp add raven 0123456789</div></div>
           </div>
         </section>

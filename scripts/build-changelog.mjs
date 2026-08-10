@@ -156,10 +156,35 @@ const html = `<!DOCTYPE html>
   <meta property="og:title" content="Changelog — Raven MCP">
   <meta property="og:description" content="Every release. Every new principle. Every fix.">
   <meta property="og:image" content="https://ravenmcp.ai/assets/og-image.jpg">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
+    @font-face {
+      font-family: "Untitled Sans";
+      src: url("/assets/fonts/untitled-sans-regular.woff2") format("woff2");
+      font-weight: 400;
+      font-style: normal;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: "Untitled Sans";
+      src: url("/assets/fonts/untitled-sans-medium.woff2") format("woff2");
+      font-weight: 500 600;
+      font-style: normal;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: "Untitled Sans";
+      src: url("/assets/fonts/untitled-sans-bold.woff2") format("woff2");
+      font-weight: 700;
+      font-style: normal;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: "Untitled Sans";
+      src: url("/assets/fonts/untitled-sans-black.otf") format("opentype");
+      font-weight: 800 900;
+      font-style: normal;
+      font-display: swap;
+    }
     :root {
       --bg-base: #1a1a22;
       --bg-surface: #212129;
@@ -175,7 +200,7 @@ const html = `<!DOCTYPE html>
       --accent-blue: #00BFFF;
       --accent-green: #00E676;
       --accent-orange: #FFAB40;
-      --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-body: "Untitled Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       --font-mono: ui-monospace, "SF Mono", "Cascadia Code", monospace;
       --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
       --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;

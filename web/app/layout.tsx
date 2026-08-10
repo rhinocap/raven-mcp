@@ -1,14 +1,21 @@
 import type { Metadata, Viewport } from 'next'
 import { Analytics } from '@vercel/analytics/next'
 import Script from 'next/script'
-import { Inter, JetBrains_Mono } from 'next/font/google'
+import { JetBrains_Mono } from 'next/font/google'
+import localFont from 'next/font/local'
 import './globals.css'
 import RevealAndCopy from '@/components/RevealAndCopy'
 import { TOOL_COUNT } from '@/lib/counts'
 
-const inter = Inter({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
+// Untitled Sans (Klim, licensed) — replaces Inter. The family has no 600:
+// Medium is declared across 500–600 so existing `font-weight: 600` roles
+// resolve to real Medium instead of synthesizing (no faux weights).
+const untitledSans = localFont({
+  src: [
+    { path: '../public/fonts/untitled-sans-regular.woff2', weight: '400', style: 'normal' },
+    { path: '../public/fonts/untitled-sans-medium.woff2', weight: '500 600', style: 'normal' },
+    { path: '../public/fonts/untitled-sans-bold.woff2', weight: '700', style: 'normal' },
+  ],
   variable: '--font-inter',
   display: 'swap',
 })
@@ -194,7 +201,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className={`${inter.variable} ${mono.variable}`}>
+    <html lang="en" className={`${untitledSans.variable} ${mono.variable}`}>
       <head>
         <script
           type="application/ld+json"

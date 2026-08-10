@@ -86,7 +86,7 @@
     .nav-page-links a.active { color: var(--text-accent); }\
     .btn {\
       display: inline-flex; align-items: center; gap: var(--space-2, 8px);\
-      padding: 12px 28px; font-family: var(--font-body, "Inter", -apple-system, BlinkMacSystemFont, sans-serif);\
+      padding: 12px 28px; font-family: var(--font-body, "Untitled Sans", -apple-system, BlinkMacSystemFont, sans-serif);\
       font-size: 14px; font-weight: 700; letter-spacing: -0.01em; border-radius: 9999px; border: none; cursor: pointer;\
       transition: all 250ms cubic-bezier(0.16, 1, 0.3, 1); white-space: nowrap; text-decoration: none;\
     }\

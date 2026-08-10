@@ -330,7 +330,7 @@ function emailShell(label: string, title: string, content: string): string {
     .card, .card td { background-color: #212129 !important; }
   </style>
 </head>
-<body class="body" bgcolor="#1a1a22" style="margin:0; padding:0; background-color:#1a1a22; font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+<body class="body" bgcolor="#1a1a22" style="margin:0; padding:0; background-color:#1a1a22; font-family:'Untitled Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
   <table bgcolor="#1a1a22" width="100%" cellpadding="0" cellspacing="0" style="background-color:#1a1a22; padding:48px 24px;">
     <tr><td bgcolor="#1a1a22" align="center">
       <table width="600" cellpadding="0" cellspacing="0" style="width:100%; max-width:600px;">

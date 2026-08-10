@@ -5,16 +5,42 @@
 <meta name="viewport" content="width=1200">
 <title>Raven OG Card</title>
 <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
+  @font-face {
+    font-family: "Untitled Sans";
+    src: url("/assets/fonts/untitled-sans-regular.woff2") format("woff2");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: "Untitled Sans";
+    src: url("/assets/fonts/untitled-sans-medium.woff2") format("woff2");
+    font-weight: 500 600;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: "Untitled Sans";
+    src: url("/assets/fonts/untitled-sans-bold.woff2") format("woff2");
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: "Untitled Sans";
+    src: url("/assets/fonts/untitled-sans-black.otf") format("opentype");
+    font-weight: 800 900;
+    font-style: normal;
+    font-display: swap;
+  }
+
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     width: 1200px;
     height: 630px;
     overflow: hidden;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: 'Untitled Sans', -apple-system, BlinkMacSystemFont, sans-serif;
     -webkit-font-smoothing: antialiased;
   }
   .og-card {

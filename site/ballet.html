@@ -8,8 +8,37 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap" rel="stylesheet">
   <style>
+  @font-face {
+    font-family: "Untitled Sans";
+    src: url("/assets/fonts/untitled-sans-regular.woff2") format("woff2");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: "Untitled Sans";
+    src: url("/assets/fonts/untitled-sans-medium.woff2") format("woff2");
+    font-weight: 500 600;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: "Untitled Sans";
+    src: url("/assets/fonts/untitled-sans-bold.woff2") format("woff2");
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: "Untitled Sans";
+    src: url("/assets/fonts/untitled-sans-black.otf") format("opentype");
+    font-weight: 800 900;
+    font-style: normal;
+    font-display: swap;
+  }
+
     :root {
       /* Warm feminine palette */
       --bg: #FDF8F5;
@@ -49,7 +78,7 @@
       --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.1), 0 10px 10px rgba(0, 0, 0, 0.04);
 
       --font-display: "Cormorant Garamond", Georgia, "Times New Roman", serif;
-      --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-body: "Untitled Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 
       --ease-out: cubic-bezier(0, 0, 0.2, 1);
       --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);

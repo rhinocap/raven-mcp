@@ -6,6 +6,35 @@
 <meta name="robots" content="noindex">
 <title>RavenMCP — Design System</title>
 <style>
+  @font-face {
+    font-family: "Untitled Sans";
+    src: url("/assets/fonts/untitled-sans-regular.woff2") format("woff2");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: "Untitled Sans";
+    src: url("/assets/fonts/untitled-sans-medium.woff2") format("woff2");
+    font-weight: 500 600;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: "Untitled Sans";
+    src: url("/assets/fonts/untitled-sans-bold.woff2") format("woff2");
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: "Untitled Sans";
+    src: url("/assets/fonts/untitled-sans-black.otf") format("opentype");
+    font-weight: 800 900;
+    font-style: normal;
+    font-display: swap;
+  }
+
   :root {
     /* Surfaces — dark grey base, NOT black */
     --bg-base: #1a1a22; --bg-surface: #212129; --bg-raised: #2a2a33;
@@ -20,7 +49,7 @@
     --border: rgba(255,255,255,0.06); --border-strong: rgba(255,255,255,0.1);
     --border-accent: rgba(0,191,255,0.3);
     /* Type */
-    --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-body: "Untitled Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     --font-mono: ui-monospace, "SF Mono", "Cascadia Code", monospace;
     /* Spacing */
     --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:20px;
@@ -167,10 +196,10 @@
 
   <!-- 02 TYPOGRAPHY -->
   <section>
-    <div class="sec-head"><span class="sec-num">02</span><h2>Typography</h2><span class="desc">Inter for product UI; monospace carries the technical tone in eyebrows, tool names, and code.</span></div>
+    <div class="sec-head"><span class="sec-num">02</span><h2>Typography</h2><span class="desc">Untitled Sans for product UI; monospace carries the technical tone in eyebrows, tool names, and code.</span></div>
     <div id="type-scale"></div>
     <div style="margin-top:var(--space-8); display:flex; gap:var(--space-6); flex-wrap:wrap;">
-      <div style="flex:1; min-width:240px;"><div class="eyebrow" style="color:var(--text-tertiary)">--font-body</div><div style="font-size:28px; font-weight:700;">Inter</div><div style="color:var(--text-secondary)">The quick brown fox jumps over the lazy dog. 0123456789</div></div>
+      <div style="flex:1; min-width:240px;"><div class="eyebrow" style="color:var(--text-tertiary)">--font-body</div><div style="font-size:28px; font-weight:700;">Untitled Sans</div><div style="color:var(--text-secondary)">The quick brown fox jumps over the lazy dog. 0123456789</div></div>
       <div style="flex:1; min-width:240px;"><div class="eyebrow" style="color:var(--text-tertiary)">--font-mono</div><div class="mono" style="font-size:28px; font-weight:700;">SF Mono</div><div class="mono" style="color:var(--text-secondary)">claude mcp add raven 0123456789</div></div>
     </div>
   </section>

@@ -19,7 +19,7 @@ if (mode === "install") {
     from: "Raven MCP <drew@ravenmcp.ai>",
     to: ["drew@ravenmcp.ai"],
     subject: "New Raven install",
-    html: `<div style="font-family:Inter,sans-serif; background:#1a1a22; color:#F0F0F2; padding:32px; border-radius:12px;">
+    html: `<div style="font-family:'Untitled Sans',sans-serif; background:#1a1a22; color:#F0F0F2; padding:32px; border-radius:12px;">
       <div style="color:#00BFFF; font-size:11px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; margin-bottom:12px;">New install</div>
       <div style="font-size:20px; font-weight:700; margin-bottom:20px;">Someone installed Raven</div>
       <table cellpadding="0" cellspacing="0" style="width:100%;">
@@ -65,7 +65,7 @@ function buildWelcomeHtml(firstName) {
     div[style*="margin: 16px 0"] { background-color: #1a1a22 !important; }
   </style>
 </head>
-<body class="body" bgcolor="#1a1a22" style="margin:0; padding:0; background-color:#1a1a22; font-family:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
+<body class="body" bgcolor="#1a1a22" style="margin:0; padding:0; background-color:#1a1a22; font-family:'Untitled Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
   <table bgcolor="#1a1a22" width="100%" cellpadding="0" cellspacing="0" style="background-color:#1a1a22; padding:48px 24px;">
     <tr>
       <td bgcolor="#1a1a22" align="center" style="background-color:#1a1a22;">

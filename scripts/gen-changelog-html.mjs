@@ -74,14 +74,39 @@ const html = `<!DOCTYPE html>
   <meta property="og:title" content="Changelog — RavenMCP">
   <meta property="og:description" content="Everything we're shipping — every RavenMCP release, in one stream.">
   <meta property="og:image" content="https://ravenmcp.ai/assets/og-image.jpg">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
+    @font-face {
+      font-family: "Untitled Sans";
+      src: url("/assets/fonts/untitled-sans-regular.woff2") format("woff2");
+      font-weight: 400;
+      font-style: normal;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: "Untitled Sans";
+      src: url("/assets/fonts/untitled-sans-medium.woff2") format("woff2");
+      font-weight: 500 600;
+      font-style: normal;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: "Untitled Sans";
+      src: url("/assets/fonts/untitled-sans-bold.woff2") format("woff2");
+      font-weight: 700;
+      font-style: normal;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: "Untitled Sans";
+      src: url("/assets/fonts/untitled-sans-black.otf") format("opentype");
+      font-weight: 800 900;
+      font-style: normal;
+      font-display: swap;
+    }
     /* Page base — the Next port gets this from globals.css; the standalone
        static page must set it itself so translucent cards composite over dark. */
     html { background: #1a1a22; }
-    body { margin: 0; background: #1a1a22; color: #F0F0F2; font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+    body { margin: 0; background: #1a1a22; color: #F0F0F2; font-family: "Untitled Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.6; -webkit-font-smoothing: antialiased; }
     *, *::before, *::after { box-sizing: border-box; }
 ${css.replace(/\n/g, '\n    ').trimEnd()}
   </style>
