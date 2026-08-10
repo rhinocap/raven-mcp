@@ -825,3 +825,77 @@ immediately. The apex round was launched with its PID captured (`SOL_PID=6084`).
 
 **Adjacent, one line, not fixed:** `mcp.ravenmcp.ai` states "104 tools" in its
 hero while the ledger has repo at 110 and npm at 105.
+
+## Sol round 2 (apex) — verdict REFUTED, no P1; four P2 and five P3 dispositioned
+
+Launched with its PID captured (`SOL_PID=6084`) and waited on with `kill -0`,
+which is the fix for the self-matching `pgrep -f` loop recorded above. Sol ran
+read-only with no network — `curl` returned `Could not resolve host` — so three
+of its findings are "could not independently verify" rather than counter-evidence.
+Each was closed here by running the check it named.
+
+**P2 — font identity unproven. CLOSED, and it needed the check.** Sol was right
+that `__untitledSans_a2f408` is a name generated from the import identifier and
+authenticates nothing about the bytes. Two measurements close it. (a) The three
+files served from the apex are hash-identical to the working-tree source:
+`b6176541c68c3d95-s.p.woff2` = `untitled-sans-regular.woff2` (46,456 B),
+`0d0f58188a5421fe-s.p` = medium (47,512 B), `ef083e45e3ef21a3-s.p` = bold
+(48,152 B). (b) Reading the `name` table out of the files **downloaded from the
+live apex**, not the local ones: family `Untitled Sans`, version
+`1.008;26071026`, `Copyright 2026 Klim Type Foundry. All Rights Reserved.`,
+vendor ID `KLIM`, usWeightClass 400/500/700. That is the identity question
+answered at the bytes rather than at the alias.
+
+**P2 — deployment binding unproven. CLOSED.** Sol correctly refused alias-list
+membership as proof of current routing. `https://ravenmcp.ai/` and
+`https://web-tau-olive-60.vercel.app/` — the immutable URL on
+`dpl_BMVBSTpAT4hSMdhjabeTkZsLxa8m` — return **byte-identical** HTML,
+sha256 `9b1989d3819e7b2667798e95832f7edc11e9cee2a5e2d3b0011adabbb22d6def`.
+That is the second of the two proofs Sol named as acceptable.
+
+**P2 — residual inventory incomplete. CONFIRMED, and it REVERSES the fix I
+proposed.** My sweep reported 2 Inter demos; there are **5 of 6**. The miss is
+mechanical and worth carrying: `coffee-shop`, `fitness` and `wedding` carry Inter
+as a *secondary* `&family=` inside a multi-family Google Fonts URL, so a pattern
+anchored on the first family walks straight past them. But widening the count is
+what makes the right answer visible — **these are not stragglers.** Each demo is
+a fictional client brand with a deliberate pairing: DM Serif Display + Inter
+(Ember & Grain), Bebas Neue + Inter (FORGE), Playfair Display + Inter (law firm),
+Inter + JetBrains Mono (Flux), Cormorant Garamond + Inter (wedding), Cormorant
+Garamond + system sans (Oleander Residence). Inter is the *demo brands'* body
+font, not Raven's. Migrating them would erase six distinct identities and make
+every showcase look like ravenmcp.ai — the opposite of what a demo gallery is for.
+**Corrected recommendation: leave all six alone.** All 200 live.
+
+The genuine Raven-brand stragglers are a different set — `site/previews/`
+`hero-grid/index.html`, `layout-1-editorial`, `layout-2-cinematic`,
+`layout-3-terminal`, `buttons-concepts`, plus `site/index.html.backup`. These are
+Raven's OWN homepage explorations rendered in Inter, all answering 200 on
+`mcp.ravenmcp.ai`. Six files, and `index.html.backup` should be deleted rather
+than migrated. So the earlier "ten files" figure was wrong in both directions:
+too many (it swept in demo brands that must not change) and mis-scoped (it never
+distinguished Raven surfaces from client surfaces).
+
+**P2 — manual deploy is not commit provenance. Partially closed, rest stated.**
+Sol is right in general: `vercel deploy --prod` on a project with no git
+integration uploads the working directory, so the deployed tree is not provably
+the committed tree. For the thing being claimed it *is* closed — the three font
+files are byte-identical live vs working tree, and the HTML is byte-identical to
+the immutable deployment. A full uploaded-file manifest was not obtained and that
+gap is real for any *other* file in that deploy.
+
+**P3s.** (a) Zero apex consumers request weight 800/900 — the Next pages and
+demos top out at 700, and the 800/900 values in `raven-grab.js` are editor
+options, not rendered requests. So the three-file family is sufficient for the
+apex, and the Black face matters only on `mcp.ravenmcp.ai`, which has it.
+(b) `document.fonts` reporting `loaded` does not prove selection for an element,
+and computed `font-family` reports the request not the glyph source — agreed,
+which is why there were three independent lines rather than one. (c) The width
+discriminator is sound but proves only that *a* registered custom face shaped the
+text; the name table now closes the identity gap it structurally could not.
+(d) Keeping `variable: '--font-inter'` routes correctly (`layout.tsx:204` →
+`globals.css:47` `--font-body`); misleading naming, not a defect. (e) The
+component-request preview endpoint renders its chrome in system sans — it is
+POST-only (GET returns 405), an API render surface, not a brand page.
+
+**One line, adjacent, not fixed:** the Vercel CLI here is 58.7.1 against 58.9.0.
