@@ -87,10 +87,19 @@ const ACTS: Act[] = [
       { name: "inventory_design_system", desc: "Read the components and tokens a local DESIGN.md actually declares" },
       { name: "diff_design_system", desc: "Diff your declared design system against Raven's canonical baseline—what's missing, drifted, or extra" },
       { name: "list_design_system_components", desc: "List the components in the Raven canonical baseline, with where each one came from" },
-      { name: "capture_reference", desc: "Keep a pattern you grabbed from any page—stored locally as a record plus a thumbnail rebuilt offline, credited to its source" },
-      { name: "search_references", desc: "Recall a kept pattern—“that hero from Linear”—by intent, host, owner, or tag, each result carrying its picture and its credit" },
+      // The thumbnail is BEST EFFORT and the credit is not: the record commits
+      // before the render is attempted, so a capture with no markup — or a machine
+      // with no browser — costs a picture and never the pattern. These two lines
+      // said "plus a thumbnail" and "each result carrying its picture", which is a
+      // guarantee the tool does not make.
+      { name: "capture_reference", desc: "Keep a pattern you grabbed from any page—stored locally as a record credited to its source, with a thumbnail rebuilt offline where the markup allows" },
+      { name: "search_references", desc: "Recall a kept pattern—“that hero from Linear”—by intent, host, owner, or tag, each result carrying its credit and its thumbnail where one exists" },
       { name: "map_reference_to_tokens", desc: "Translate a kept pattern's raw literals onto your own tokens—deterministic, family-bound, and honest about what it can't match" },
-      { name: "forget_references", desc: "Remove kept patterns by id, or every pattern from a site—the takedown path, confirmed and pinned to what you were shown" },
+      // Pinning is OPTIONAL (`expected_ref_ids`), and the tool says so in its own
+      // output: an unpinned removal reports that anything captured mid-sweep went
+      // with it unreported. "Pinned" as a flat claim promised a guarantee the
+      // caller has to ask for.
+      { name: "forget_references", desc: "Remove kept patterns by id, or every pattern from a site—the takedown path, confirmed and pinnable to exactly what you were shown" },
       { name: "review_diff", desc: "CI-shaped review of a code diff against the project's DESIGN.md tokens and recorded decisions—with fail_on_governed" },
       { name: "polish_diff", desc: "Turn design findings into deterministic token substitutions, ready to apply—no files written" },
       { name: "talon_scan", desc: "Run the deterministic detector engine over a page—pure measurement, no LLM" },

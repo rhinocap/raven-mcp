@@ -290,12 +290,12 @@ export default function Home() {
                 <div className="stat">4</div>
                 <div className="stat-label">Brand voice systems</div>
                 <h3>Content Systems</h3>
-                <p>Voice &amp; tone from Mailchimp, GOV.UK, Shopify Polaris, and Atlassian. Plus eleven UX-writing principles and content patterns for errors, empty states, notifications, and form validation.</p>
+                <p>Voice &amp; tone from GOV.UK, Shopify Polaris, Atlassian, and a conversational product voice. Plus eleven UX-writing principles and content patterns for errors, empty states, notifications, and form validation.</p>
                 <div className="layer-tags">
-                  <span className="tag">Mailchimp</span>
                   <span className="tag">GOV.UK</span>
                   <span className="tag">Polaris</span>
                   <span className="tag">Atlassian</span>
+                  <span className="tag">Product voice</span>
                 </div>
               </div>
 

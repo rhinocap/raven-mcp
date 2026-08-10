@@ -297,7 +297,7 @@ cd raven-mcp && npm install && npm run build`}</code></pre></div>
             <div className="rd-tool-list">
               <article className="rd-tool" id="tool-list_content_systems">
                 <h3 className="rd-tool-name"><a className="rd-tool-anchor" href="#tool-list_content_systems" aria-label="Link to list_content_systems">#</a><code>list_content_systems</code></h3>
-                <p className="rd-tool-desc">Browse available content design systems — brand voice and tone guides from real companies (Mailchimp, GOV.UK, Shopify Polaris, Atlassian). Filter by category or search by name.</p>
+                <p className="rd-tool-desc">Browse available content design systems — brand voice and tone guides from real companies (GOV.UK, Shopify Polaris, Atlassian) plus a conversational product voice. Filter by category or search by name.</p>
                 <p className="rd-param-heading">Parameters</p>
                 <dl className="rd-params">
                   <div className="rd-param"><dt><code>category</code><span className="rd-optional">optional</span></dt><dd>Filter by category: marketing-saas, government, commerce-saas, productivity-saas, fintech</dd></div>
@@ -1426,8 +1426,8 @@ cd raven-mcp && npm install && npm run build`}</code></pre></div>
     systems/stripe.json, linear.json, apple-hig.json, …
 
   content/             # v1.2 — content design systems
-    systems/           # 4 brand voice guides (Mailchimp, GOV.UK,
-                       #   Polaris, Atlassian)
+    systems/           # 4 brand voice guides (GOV.UK, Polaris,
+                       #   Atlassian, product voice)
     principles/        # 11 UX-writing principles
     patterns/          # 4 content patterns (errors, empty states,
                        #   notifications, form validation)
