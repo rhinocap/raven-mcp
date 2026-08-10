@@ -1323,3 +1323,34 @@ module-level throw executed and passed at 110. Private-path gate 4/4.
    fixes are public until he runs it. One run covers all of it.
 2. Whether to fix the `site/` Mailchimp + count claims, which is an edit to what
    `mcp.ravenmcp.ai` serves and therefore his gate, not mine.
+
+### Deploy verification for `d103f78` (post-push, measured)
+
+`site` production deployment `dpl_6DAzR75JvYSLn3maDkDWv59ZaEJK`, url
+`site-cj3ykf8gt-cunliffeandrewc-8712s-projects.vercel.app`, **● Ready**,
+`target: production`, `meta.githubCommitSha` starting `d103f78` — matched on the
+SHA out of `vercel ls site --prod --json`, never on a row position, which is the
+rule this log already carries after the `sed -n '5p'` watcher cost 28 minutes.
+
+Frozen anon surface re-measured against the live endpoint with the validated
+instrument (`scratchpad/anon-hash.mjs`, JSON-parsed rather than regex-scraped):
+
+```
+http status: 200 | content-type: application/json
+tools: 45
+hash : f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6
+GOLDEN MATCH
+names a [a-z_]+ regex cannot match: 2  audit_ios_a11y, get_d4d_framework
+```
+
+That last line is the instrument fault kept in the output on purpose. The
+earlier ad-hoc check reported **43 tools / HASH MOVED** and the cause was the
+`[a-z_]+` character class, which cannot match a digit-bearing tool name —
+45 − 2 = 43 exactly. A brand-new, unvalidated instrument disagreeing with a
+known-good frozen value is an instrument fault until proven otherwise, and the
+script now prints its own blind spot every run so the next reader cannot repeat
+the reasoning.
+
+`d103f78` touches no `src/` and no `api/`, so the human-gated endpoint path was
+never in the commit; the hash measurement is the confirmation of that rather
+than its substitute.
