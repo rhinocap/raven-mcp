@@ -30,7 +30,9 @@ const ACTS: Act[] = [
       { name: "get_metrics_framework", desc: "HEART, AARRR, North Star, conversion funnel, RICE, OKRs—with examples" },
       { name: "get_research_method", desc: "Qualitative, quantitative, and usability methods—with protocols and bias traps" },
       { name: "list_design_systems", desc: "Browse the registry of 12 design systems with tokens and metadata" },
-      { name: "list_content_systems", desc: "Browse brand voice & tone systems—Mailchimp, GOV.UK, Polaris, Atlassian" },
+      // The named set is the shipped corpus, verified against the published package's
+      // content registry — Mailchimp was removed in 3dafabb and this line outlived it.
+      { name: "list_content_systems", desc: "Browse brand voice & tone systems—GOV.UK, Polaris, Atlassian, and a conversational product voice" },
       { name: "get_content_system", desc: "A brand's full voice—attributes, tone shifts, vocabulary, grammar, content patterns" },
       { name: "get_content_principles", desc: "UX-writing principles—clarity, active voice, error anatomy, inclusive language" },
       { name: "get_content_pattern", desc: "Copy recipes for error messages, empty states, notifications, form validation" },
@@ -85,6 +87,10 @@ const ACTS: Act[] = [
       { name: "inventory_design_system", desc: "Read the components and tokens a local DESIGN.md actually declares" },
       { name: "diff_design_system", desc: "Diff your declared design system against Raven's canonical baseline—what's missing, drifted, or extra" },
       { name: "list_design_system_components", desc: "List the components in the Raven canonical baseline, with where each one came from" },
+      { name: "capture_reference", desc: "Keep a pattern you grabbed from any page—stored locally as a record plus a thumbnail rebuilt offline, credited to its source" },
+      { name: "search_references", desc: "Recall a kept pattern—“that hero from Linear”—by intent, host, owner, or tag, each result carrying its picture and its credit" },
+      { name: "map_reference_to_tokens", desc: "Translate a kept pattern's raw literals onto your own tokens—deterministic, family-bound, and honest about what it can't match" },
+      { name: "forget_references", desc: "Remove kept patterns by id, or every pattern from a site—the takedown path, confirmed and pinned to what you were shown" },
       { name: "review_diff", desc: "CI-shaped review of a code diff against the project's DESIGN.md tokens and recorded decisions—with fail_on_governed" },
       { name: "polish_diff", desc: "Turn design findings into deterministic token substitutions, ready to apply—no files written" },
       { name: "talon_scan", desc: "Run the deterministic detector engine over a page—pure measurement, no LLM" },
@@ -142,6 +148,7 @@ const ACTS: Act[] = [
       { name: "record_taste_decision", desc: "Log a chosen-vs-rejected decision so recurring choices become interview defaults" },
       { name: "list_taste_decisions", desc: "Review the decision history behind a profile's evolving taste" },
       { name: "generate_taste_portrait", desc: "Render a bound surface as a self-contained designed page built from its own taste store" },
+      { name: "generate_mood_board", desc: "Compose a mood board from the binding's notes, its captured references, and your own images—a self-contained page, and an approval stop" },
     ],
   },
   {

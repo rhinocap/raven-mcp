@@ -723,7 +723,7 @@ cd raven-mcp && npm install && npm run build`}</code></pre></div>
               </article>
             </div>
 
-            <div className="rd-layer-head"><h3>Taste Engine</h3><span className="rd-layer-count">10 tools</span></div>
+            <div className="rd-layer-head"><h3>Taste Engine</h3><span className="rd-layer-count">11 tools</span></div>
             <div className="rd-tool-list">
               <article className="rd-tool" id="tool-create_taste_profile">
                 <h3 className="rd-tool-name"><a className="rd-tool-anchor" href="#tool-create_taste_profile" aria-label="Link to create_taste_profile">#</a><code>create_taste_profile</code></h3>
@@ -835,6 +835,18 @@ cd raven-mcp && npm install && npm run build`}</code></pre></div>
                   <div className="rd-param"><dt><code>severity</code><span className="rd-optional">optional</span></dt><dd>Severity the human assigns. — “block” | “warn” | “nit”</dd></div>
                   <div className="rd-param"><dt><code>wrong</code><span className="rd-required">required</span></dt><dd>The wrong pattern — use a verbatim snippet so accept-suppression can match it.</dd></div>
                   <div className="rd-param"><dt><code>right</code><span className="rd-required">required</span></dt><dd>What right looks like.</dd></div>
+                </dl>
+              </article>
+              <article className="rd-tool" id="tool-generate_mood_board">
+                <h3 className="rd-tool-name"><a className="rd-tool-anchor" href="#tool-generate_mood_board" aria-label="Link to generate_mood_board">#</a><code>generate_mood_board</code></h3>
+                <p className="rd-tool-desc">Compose a mood board from what the Taste Engine already holds for a bound project — the binding’s design_notes as chips, its captured references, and pattern thumbnails from those same sites — written as one self-contained HTML file (plus a best-effort PNG) under the taste home’s moodboards/ directory. Pass image_paths to embed your OWN images too, shown as a “Your assets” section. Use it right after the kickoff interview binds a surface, or pass mode:’example’ to show a labeled sample to someone who has never made one. The board invents nothing: note text stays text, the light/dark ground is measured from the references’ own scheme traits, and every embedded pattern carries its credit. It is an approval stop — the result names generate_design_system as the next step and never runs it.</p>
+                <p className="rd-param-heading">Parameters</p>
+                <dl className="rd-params">
+                  <div className="rd-param"><dt><code>profile</code><span className="rd-required">required</span></dt><dd>Taste profile name (see list_taste_profiles).</dd></div>
+                  <div className="rd-param"><dt><code>project</code><span className="rd-optional">optional</span></dt><dd>Bound project name. Required for mode:’board’; ignored for mode:’example’.</dd></div>
+                  <div className="rd-param"><dt><code>mode</code><span className="rd-optional">optional</span></dt><dd>’board’ (default) composes the real board from the binding; ’example’ writes a clearly-labeled sample to seed thinking before calibration.</dd></div>
+                  <div className="rd-param"><dt><code>output_dir</code><span className="rd-optional">optional</span></dt><dd>Directory for the board files. Defaults to &lt;taste home&gt;/moodboards.</dd></div>
+                  <div className="rd-param"><dt><code>image_paths</code><span className="rd-optional">optional</span></dt><dd>Absolute paths to your own images (png/jpeg/gif/webp, sniffed from the bytes). Unusable paths are skipped with a named warning, never silently. mode:’board’ only.</dd></div>
                 </dl>
               </article>
             </div>
@@ -985,7 +997,7 @@ cd raven-mcp && npm install && npm run build`}</code></pre></div>
               </article>
             </div>
 
-            <div className="rd-layer-head"><h3>DESIGN.md &amp; Grab</h3><span className="rd-layer-count">12 tools</span></div>
+            <div className="rd-layer-head"><h3>DESIGN.md &amp; Grab</h3><span className="rd-layer-count">16 tools</span></div>
             <div className="rd-tool-list">
               <article className="rd-tool" id="tool-read_design_md">
                 <h3 className="rd-tool-name"><a className="rd-tool-anchor" href="#tool-read_design_md" aria-label="Link to read_design_md">#</a><code>read_design_md</code></h3>
@@ -1103,6 +1115,55 @@ cd raven-mcp && npm install && npm run build`}</code></pre></div>
                 <h3 className="rd-tool-name"><a className="rd-tool-anchor" href="#tool-list_templates" aria-label="Link to list_templates">#</a><code>list_templates</code></h3>
                 <p className="rd-tool-desc">List templates and their registered page pathnames from the active grab session. Template permissions and allowedTokens are cooperative advisory metadata: display labels only, not enforced.</p>
                 <p className="rd-param-heading rd-param-none">No parameters</p>
+              </article>
+              <article className="rd-tool" id="tool-capture_reference">
+                <h3 className="rd-tool-name"><a className="rd-tool-anchor" href="#tool-capture_reference" aria-label="Link to capture_reference">#</a><code>capture_reference</code></h3>
+                <p className="rd-tool-desc">Persist a pattern grabbed from any page so it survives the browser tab. Call it after get_grabbed_elements returns a selection, passing that selection’s selector/styles/html/rect plus the URL it came from. Stores one JSON record under ~/.raven/references, and — when html is supplied — renders a PNG thumbnail beside it by rebuilding that markup offline in headless Chromium with every external request blocked, so the record states its own fidelity. The thumbnail is best-effort: with no browser available the capture still succeeds. It does not fetch the source URL and does not map anything onto your tokens — that is map_reference_to_tokens.</p>
+                <p className="rd-param-heading">Parameters</p>
+                <dl className="rd-params">
+                  <div className="rd-param"><dt><code>url</code><span className="rd-required">required</span></dt><dd>Full http(s) URL of the page the pattern was grabbed from</dd></div>
+                  <div className="rd-param"><dt><code>selector</code><span className="rd-required">required</span></dt><dd>CSS selector of the grabbed element, from the grab selection</dd></div>
+                  <div className="rd-param"><dt><code>styles</code><span className="rd-required">required</span></dt><dd>Computed styles exactly as captured; rejected over 200 properties</dd></div>
+                  <div className="rd-param"><dt><code>owner</code><span className="rd-required">required</span></dt><dd>Whether the pattern came from your own product or someone else’s site — “self” | “third-party”</dd></div>
+                  <div className="rd-param"><dt><code>tags</code><span className="rd-required">required</span></dt><dd>Topic tags for later filtering, e.g. [’hero’,’typography’]</dd></div>
+                  <div className="rd-param"><dt><code>html</code><span className="rd-optional">optional</span></dt><dd>Captured markup; over 8000 characters it is truncated and flagged. Supplying it is what produces the thumbnail.</dd></div>
+                </dl>
+              </article>
+              <article className="rd-tool" id="tool-search_references">
+                <h3 className="rd-tool-name"><a className="rd-tool-anchor" href="#tool-search_references" aria-label="Link to search_references">#</a><code>search_references</code></h3>
+                <p className="rd-tool-desc">Find patterns previously kept with capture_reference — call it before rebuilding something already grabbed, or to recall “that hero from Linear”. host, owner, and tags compose with AND; free text expands recognized pattern intent through Raven’s controlled vocabulary, then matches note, app, tags, taxonomy ids, and selector. Every result carries a score, a “why” naming the matched fields, and a display object holding the credit line, the source URL, and the thumbnail’s path on disk. Browsing does not hand back the other site’s markup: results report html_available and omit the html unless you pass include_html. Show the credit whenever you show the pattern — this corpus holds other people’s work.</p>
+                <p className="rd-param-heading">Parameters</p>
+                <dl className="rd-params">
+                  <div className="rd-param"><dt><code>query</code><span className="rd-optional">optional</span></dt><dd>Free text expanded through the pattern taxonomy; omit to list everything passing the filters</dd></div>
+                  <div className="rd-param"><dt><code>host</code><span className="rd-optional">optional</span></dt><dd>Only references grabbed from this host, e.g. ’linear.app’</dd></div>
+                  <div className="rd-param"><dt><code>owner</code><span className="rd-optional">optional</span></dt><dd>Only your own product, or only third-party sites</dd></div>
+                  <div className="rd-param"><dt><code>tags</code><span className="rd-optional">optional</span></dt><dd>Only references carrying ALL of these tags</dd></div>
+                  <div className="rd-param"><dt><code>include_html</code><span className="rd-optional">optional</span></dt><dd>Return each record’s captured markup verbatim. Off by default — ask for it when you are actually reading the structure.</dd></div>
+                </dl>
+              </article>
+              <article className="rd-tool" id="tool-map_reference_to_tokens">
+                <h3 className="rd-tool-name"><a className="rd-tool-anchor" href="#tool-map_reference_to_tokens" aria-label="Link to map_reference_to_tokens">#</a><code>map_reference_to_tokens</code></h3>
+                <p className="rd-tool-desc">Translate a captured pattern’s raw literals (font-size: 64px, color: rgb(247,248,248)) onto your own design tokens, so generated code uses your type ramp and palette instead of another site’s values. Pure and deterministic — no model, no network. Colours compare by RGBA distance, lengths normalize to px at root 16, unitless numbers within 1%. A property with a known token family only ever binds inside that family: if the closest token by value belongs to another ramp, the result is a gap naming it, not a binding. Percent and viewport units, unparseable colour syntaxes, shadows and gradients become gaps with a stated reason — never a forced match. A project with no tokens is not an error: every property returns as a gap at coverage 0.</p>
+                <p className="rd-param-heading">Parameters</p>
+                <dl className="rd-params">
+                  <div className="rd-param"><dt><code>ref_id</code><span className="rd-optional">optional</span></dt><dd>Captured reference to translate; its styles are the input. Supply this or captured.</dd></div>
+                  <div className="rd-param"><dt><code>captured</code><span className="rd-optional">optional</span></dt><dd>Raw CSS property/value pairs to translate, if not using a stored ref_id</dd></div>
+                  <div className="rd-param"><dt><code>design_file_path</code><span className="rd-optional">optional</span></dt><dd>Path to your DESIGN.md; its flattened tokens are the target vocabulary. Supply this or tokens.</dd></div>
+                  <div className="rd-param"><dt><code>tokens</code><span className="rd-optional">optional</span></dt><dd>Flattened design tokens directly, if not reading a DESIGN.md</dd></div>
+                  <div className="rd-param"><dt><code>properties</code><span className="rd-optional">optional</span></dt><dd>Only map these CSS properties; omit to attempt every captured property</dd></div>
+                  <div className="rd-param"><dt><code>thresholds</code><span className="rd-optional">optional</span></dt><dd>Match tolerances — colour RGB distance (12), length px (2), unitless relative (0.01), root px (16)</dd></div>
+                </dl>
+              </article>
+              <article className="rd-tool" id="tool-forget_references">
+                <h3 className="rd-tool-name"><a className="rd-tool-anchor" href="#tool-forget_references" aria-label="Link to forget_references">#</a><code>forget_references</code></h3>
+                <p className="rd-tool-desc">Remove stored patterns from the local corpus — one by ref_id, or every pattern captured from a site. This is the takedown path: if a site asks that their design work not be kept, one call removes every record and every rendered thumbnail from that host. Host matching is exact plus subdomains (’linear.app’ takes ’app.linear.app’, never ’notlinear.app’), and a host-wide removal requires confirm:true because there is no trash. The refusal names the ref_ids it would remove — pass them back as expected_ref_ids to pin the removal to what you were shown. Returns the ref_ids actually removed, so a partial result is visible rather than assumed. Local only: it deletes files under the reference home and contacts nobody.</p>
+                <p className="rd-param-heading">Parameters</p>
+                <dl className="rd-params">
+                  <div className="rd-param"><dt><code>ref_id</code><span className="rd-optional">optional</span></dt><dd>Remove exactly this one reference. Supply this or host.</dd></div>
+                  <div className="rd-param"><dt><code>host</code><span className="rd-optional">optional</span></dt><dd>Remove every reference captured from this host and its subdomains</dd></div>
+                  <div className="rd-param"><dt><code>confirm</code><span className="rd-optional">optional</span></dt><dd>Required when removing by host — the removal is permanent</dd></div>
+                  <div className="rd-param"><dt><code>expected_ref_ids</code><span className="rd-optional">optional</span></dt><dd>The ref_ids the confirmation prompt listed. Anything matching the host that appeared since is reported, not deleted.</dd></div>
+                </dl>
               </article>
             </div>
 

@@ -989,3 +989,78 @@ by direct push, not through PRs, so there are no numbers to cite.
 3. Residual Inter sweep, six files, awaiting Andrew's word — NOT the demos,
    which he has settled.
 4. DialKit CSS spec round-4 findings still undispositioned.
+
+---
+
+## v2.4.0 published — four-surface verification
+
+Andrew ran `npm login` in a separate terminal because the interactive prompt
+would not run inside the Claude Code session. That carries over: npm auth is
+user-level, written to `~/.npmrc` as `//registry.npmjs.org/:_authToken=…`, and
+`npm whoami` from this session returned `accunliffe` before he ran anything —
+measured, not assumed, and the reason step 0 was dropped from his command list.
+
+| surface | measured |
+|---|---|
+| npm `raven-mcp` | 2.4.0, `time.modified` 2026-08-10T04:19:58Z |
+| MCP registry `ai.ravenmcp/raven-mcp` | 2.4.0, pkg `raven-mcp 2.4.0` |
+| git tag | `v2.4.0`, HEAD `655417f`, clean, 0 unpushed |
+| apex `raven.mcpb` | 200, 2.4.0, 110 tools, 5,352,943 bytes |
+| installed package `tools/list` | 110 tools, 5/5 new present |
+| anon `mcp.ravenmcp.ai` | 45 tools, `f64bb18…2bb0a6` GOLDEN MATCH |
+
+The anon re-check was not ceremonial: `release.sh` pushes to `main`, and since
+the 2026-07-27 unpin that fires a `site` production deploy of the live MCP
+endpoint. It did not move.
+
+**Instrument correction — the published count is 110, not 111.** A grep for
+`server\.tool\(\s*"([a-z_0-9]+)"` over `dist/` returned 111 unique names and
+disagreed with the ledger. The instrument was replaced rather than the ledger
+adjusted: the installed package was spawned over stdio and asked for its own
+`tools/list`, which answers 110. One matched string is not a registration.
+Two things had to be got right to ask at all — an unpacked npm tarball has no
+`node_modules`, so running its entry point dies on `ERR_MODULE_NOT_FOUND` for
+`@modelcontextprotocol/sdk`; the package must actually be installed. The
+published tarball also carries no `mailchimp.json` and no `reference-prompt.*`
+leftovers in `dist/`, so the `npm run clean && tsc` fix is holding.
+
+## Site: TOOL_COUNT 105 → 110
+
+Three files, one change, because the enumerations are what make the number
+true rather than merely stated.
+
+- `web/lib/counts.ts` — `TOOL_COUNT` 105 → 110.
+- `web/components/tools/ToolsSection.tsx` — Act 03 Design gains the four
+  pattern-library tools (`capture_reference`, `search_references`,
+  `map_reference_to_tokens`, `forget_references`); Act 05 Judge gains
+  `generate_mood_board`, beside `generate_taste_portrait`. Design 20 → 24,
+  Judge 10 → 11, total 110.
+- `web/app/docs/page.tsx` — **found by measuring, not by reading.** Its 19
+  layers each declare a count, every declared count equalled its card count,
+  and the total was exactly 105. The bump would have left that page stating
+  110 in three places over an enumeration of 105 — the "99 / one hundred / 104
+  on one page" failure the `counts.ts` comment warns about. Five real tool
+  cards added: DESIGN.md & Grab 12 → 16, Taste Engine 10 → 11. Re-measured:
+  declared 110, cards 110, every layer agreeing.
+
+**The guard was falsified, not trusted.** A green build only proves the two
+numbers agree if the assertion runs at all, so `TOOL_COUNT` was set to 111 and
+the build failed with `Error: ToolsSection lists 110 tools but TOOL_COUNT is
+111`, then restored. Clean build at 110 afterwards.
+
+Adjacent fix, in the exact list being edited: `list_content_systems` still
+named **Mailchimp**, removed from the corpus in `3dafabb`. The shipped set was
+read from the installed 2.4.0 package's own content registry — GOV.UK,
+Shopify Polaris, Atlassian, conversational-product-voice. The neighbouring
+"12 design systems" claim was measured too and is correct (12 entries, 12
+files). `web/public/llms.txt` already said 110.
+
+### Still open
+
+1. `cd web && vercel deploy --prod` — apex has no git integration, so nothing
+   above reaches ravenmcp.ai until that runs. Andrew's, it publishes.
+2. `docs/page.tsx` per-layer counts are hand-maintained with nothing asserting
+   them; `ToolsSection.tsx` has a build-time guard and the docs page does not.
+   Guarding it means turning hand-written JSX into data — noted, not done.
+3. Residual Inter sweep, six files, awaiting Andrew's word — NOT the demos.
+4. DialKit CSS spec round-4 findings still undispositioned.

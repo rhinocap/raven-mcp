@@ -11,5 +11,5 @@
 // says "nothing asserts this" — three surfaces once read 99, "one hundred" and 104
 // on one page. LAYER_COUNT (knowledge-layer groups in the Tool Reference) is still
 // hand-maintained; the docs page declares per-layer counts that sum to TOOL_COUNT.
-export const TOOL_COUNT = 105
+export const TOOL_COUNT = 110
 export const LAYER_COUNT = 19
