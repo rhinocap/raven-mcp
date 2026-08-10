@@ -309,7 +309,7 @@ cd raven-mcp && npm install && npm run build`}</code></pre></div>
                 <p className="rd-tool-desc">Get a brand’s content design system — voice attributes, tone shifts by context, vocabulary (use/avoid/never), grammar rules, content patterns for errors/empty-states/buttons/etc., and inclusive language guidance.</p>
                 <p className="rd-param-heading">Parameters</p>
                 <dl className="rd-params">
-                  <div className="rd-param"><dt><code>id</code><span className="rd-required">required</span></dt><dd>Content system ID (e.g. ’mailchimp’, ’gov-uk’, ’shopify-polaris’, ’atlassian’)</dd></div>
+                  <div className="rd-param"><dt><code>id</code><span className="rd-required">required</span></dt><dd>Content system ID — ’gov-uk’, ’shopify-polaris’, ’atlassian’, ’conversational-product-voice’</dd></div>
                   <div className="rd-param"><dt><code>section</code><span className="rd-optional">optional</span></dt><dd>Return just one section. Default: all. — “all” | “voice” | “tone_shifts” | “vocabulary” | “grammar” | “content-patterns” | “inclusive-language”</dd></div>
                 </dl>
               </article>
