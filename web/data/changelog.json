@@ -26,6 +26,23 @@
   },
   "releases": [
     {
+      "version": "v2.4.0",
+      "date": "2026-08-09",
+      "category": "tooling",
+      "kind": "new",
+      "title": "Keep the design you liked, and translate it into your own tokens",
+      "changes": [
+        "capture_reference stores a pattern you grabbed from a page — its markup, its computed styles, and where it came from — and renders a thumbnail of it that never calls back to the site it was taken from. A style map is the right thing to store and the wrong thing to show a person, so every reference carries a picture of itself.",
+        "search_references finds a stored pattern by what it does, not what it was called. Markup is left out of a browse and returned only when you ask for it: looking through the corpus is looking, not copying.",
+        "map_reference_to_tokens translates a stored pattern’s values into your own design system — the token name, its value, and the CSS custom property, so what comes back is buildable rather than a list of names.",
+        "forget_references removes what you captured, by site or by id. The preview is computed by the same rule the removal uses, so what the prompt says will go is what goes, and anything it could not remove is reported instead of reported clean.",
+        "generate_mood_board composes your notes, your references and your own images into one self-contained board plus an offline PNG. It names the next step and stops there rather than running it.",
+        "generate_design_system can now save what it generates. The id then works anywhere a bundled id works — base_system, get_design_system, list_design_systems, init_design_md.",
+        "A Grab session proxying your own local dev server keeps authoring; proxying someone else’s site stays capture-only, and the overlay now says which it is. Typing in a Grab panel no longer reaches the page underneath it, and a pending draft survives moving between slides, tabs or routes without a page load.",
+        "The stdio surface goes from 105 tools to 110. The anonymous hosted endpoint still serves the same 45."
+      ]
+    },
+    {
       "version": "v2.3.0",
       "date": "2026-07-28",
       "category": "tooling",

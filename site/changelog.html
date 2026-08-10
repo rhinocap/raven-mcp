@@ -11,36 +11,35 @@
   <meta property="og:title" content="Changelog — RavenMCP">
   <meta property="og:description" content="Everything we're shipping — every RavenMCP release, in one stream.">
   <meta property="og:image" content="https://ravenmcp.ai/assets/og-image.jpg">
-        <style>
-  @font-face {
-    font-family: "Untitled Sans";
-    src: url("/assets/fonts/untitled-sans-regular.woff2") format("woff2");
-    font-weight: 400;
-    font-style: normal;
-    font-display: swap;
-  }
-  @font-face {
-    font-family: "Untitled Sans";
-    src: url("/assets/fonts/untitled-sans-medium.woff2") format("woff2");
-    font-weight: 500 600;
-    font-style: normal;
-    font-display: swap;
-  }
-  @font-face {
-    font-family: "Untitled Sans";
-    src: url("/assets/fonts/untitled-sans-bold.woff2") format("woff2");
-    font-weight: 700;
-    font-style: normal;
-    font-display: swap;
-  }
-  @font-face {
-    font-family: "Untitled Sans";
-    src: url("/assets/fonts/untitled-sans-black.woff2") format("woff2");
-    font-weight: 800 900;
-    font-style: normal;
-    font-display: swap;
-  }
-
+  <style>
+    @font-face {
+      font-family: "Untitled Sans";
+      src: url("/assets/fonts/untitled-sans-regular.woff2") format("woff2");
+      font-weight: 400;
+      font-style: normal;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: "Untitled Sans";
+      src: url("/assets/fonts/untitled-sans-medium.woff2") format("woff2");
+      font-weight: 500 600;
+      font-style: normal;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: "Untitled Sans";
+      src: url("/assets/fonts/untitled-sans-bold.woff2") format("woff2");
+      font-weight: 700;
+      font-style: normal;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: "Untitled Sans";
+      src: url("/assets/fonts/untitled-sans-black.woff2") format("woff2");
+      font-weight: 800 900;
+      font-style: normal;
+      font-display: swap;
+    }
     /* Page base — the Next port gets this from globals.css; the standalone
        static page must set it itself so translucent cards composite over dark. */
     html { background: #1a1a22; }
@@ -53,7 +52,7 @@
     
     :root {
       --text-tertiary: var(--text-muted-deep);
-      --font-body: "Untitled Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-body: var(--font-inter, "Untitled Sans"), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       --font-mono: ui-monospace, "SF Mono", "Cascadia Code", monospace;
       --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
       --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
@@ -336,6 +335,28 @@
       </div>
 
       <ol class="cl-timeline">
+        <li class="cl-item" data-category="tooling">
+          <span aria-hidden="true" class="cl-node cat-tooling"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-tooling"></span>Tooling</span>
+              <span class="cl-version">v2.4.0</span>
+              <span class="cl-badge kind-new">New</span>
+              <time datetime="2026-08-09" class="cl-date">August 9, 2026</time>
+            </header>
+            <h2 class="cl-title">Keep the design you liked, and translate it into your own tokens</h2>
+            <ul class="cl-changes">
+              <li>capture_reference stores a pattern you grabbed from a page — its markup, its computed styles, and where it came from — and renders a thumbnail of it that never calls back to the site it was taken from. A style map is the right thing to store and the wrong thing to show a person, so every reference carries a picture of itself.</li>
+              <li>search_references finds a stored pattern by what it does, not what it was called. Markup is left out of a browse and returned only when you ask for it: looking through the corpus is looking, not copying.</li>
+              <li>map_reference_to_tokens translates a stored pattern’s values into your own design system — the token name, its value, and the CSS custom property, so what comes back is buildable rather than a list of names.</li>
+              <li>forget_references removes what you captured, by site or by id. The preview is computed by the same rule the removal uses, so what the prompt says will go is what goes, and anything it could not remove is reported instead of reported clean.</li>
+              <li>generate_mood_board composes your notes, your references and your own images into one self-contained board plus an offline PNG. It names the next step and stops there rather than running it.</li>
+              <li>generate_design_system can now save what it generates. The id then works anywhere a bundled id works — base_system, get_design_system, list_design_systems, init_design_md.</li>
+              <li>A Grab session proxying your own local dev server keeps authoring; proxying someone else’s site stays capture-only, and the overlay now says which it is. Typing in a Grab panel no longer reaches the page underneath it, and a pending draft survives moving between slides, tabs or routes without a page load.</li>
+              <li>The stdio surface goes from 105 tools to 110. The anonymous hosted endpoint still serves the same 45.</li>
+            </ul>
+          </article>
+        </li>
         <li class="cl-item" data-category="tooling">
           <span aria-hidden="true" class="cl-node cat-tooling"></span>
           <article class="cl-card">
