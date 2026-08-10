@@ -339,11 +339,71 @@ preservation check, not a progress check** — its expected value is its pre-val
 
 - **No code has been changed.** `browser/raven-grab.js` and `web/public/raven-grab.js` are
   untouched and byte-identical. There is nothing to release; this is a document.
-- **Sol round 4 is running detached** → `.claude/cssspec-2026-08-09/agent-output/sol-round4.log`,
-  brief at `.claude/cssspec-2026-08-09/BRIEF-R4.md`. **No round has yet audited the current
-  text** — round 3 audited a 742-line snapshot and nine edits landed after it launched, so
-  round 4 is mandatory regardless of what it returns.
-- Next session: read the round-4 log, disposition it, and only then consider Phase A.
+- **Sol round 4 came back `DOES NOT SURVIVE`** — 2 × P1, 4 × P2, 3 × P3, none dispositioned
+  yet. Log at `.claude/cssspec-2026-08-09/agent-output/sol-round4.log`, brief at
+  `.claude/cssspec-2026-08-09/BRIEF-R4.md`. This is the first round to audit the CURRENT
+  text (rounds 1–3 each audited a snapshot that nine or more edits landed after).
+- Next session: disposition the nine findings below **against `browser/raven-grab.js`
+  directly**, never on the report's word — rounds 1 and 3 each produced a claim that was
+  wrong in the spec's favour. Only then consider Phase A.
+
+## Sol round 4 findings — ALL OPEN
+
+**P1-1 — `data-side` is structural identity, not a docking state.** A fourth reason the
+attribute-only snap fails, beyond §6.2's three: `sideOf()` derives panel identity from the
+element object, not the attribute (`:1601`), and the attribute additionally gates the
+mobile hide (`:849`), the simple-mode hide (`:1328`) and footer/title routing (`:1320`).
+Writing `data-side="right"` would activate unintended narrow-viewport behaviour. §6.2 must
+prohibit repurposing it and require a separate dock state.
+
+**P1-2 — §5's six-read fixture omits load-bearing editor preconditions.**
+`.raven-grab-style-input` exists only on the generic `beginStyleEdit` path (`:7877`);
+several properties route to specialised editors (`:7849`) and enum controls emit
+`.raven-grab-style-select` instead (`:7888`). `.raven-grab-token-unlink` needs THAT edited
+property to have a matched token (`:7652`), not merely "at least one token in DESIGN.md".
+The six reads therefore need two explicit fixture states, not one.
+
+**P2-1 — the `:14302` collapsed residual is REACHABLE, not unmeasured.**
+`setMobileSheetSnap("collapsed")` preserves the old height (`:2750`), resize skips the
+rewrite while collapsed (`:14302`), and `expandPanel()` (`:2810`) updates neither snap nor
+height (`:2760`) — so release compares a stale height against targets derived from the new
+viewport (`:2971`) and the loop can select half or full. Narrow the §6.2 claim to "pointer
+movement does not change height"; drop "universally inert".
+
+**P2-2 — `.raven-grab-token-choice-row`'s `gap: 6px` (`:1115`) is inside `1073-1127` and
+absent from §3 altogether.** Same class as the `:1096` omission that was P1 in round 3.
+`6px` maps exactly to `--raven-grab-space-3`, so this adds no seventh moved pixel — but it
+must be either substituted or named as deliberately retained.
+
+**P2-3 — §2B specifies two different mono stacks.** The normative block leads with
+`"Geist Mono"` (spec `:245`); the recommendation says ship with `ui-monospace` leading
+(spec `:270`). Pick one; the zero-request recommendation requires the latter.
+
+**P2-4 — every §5 check passes on a wrong-taxonomy token.** Substituting
+`var(--raven-grab-space-2)` for `var(--raven-grab-radius-sm)` is wrong semantically and
+both resolve to `4px`, so the capture diff, the computed reads, the mono check and all
+three greps stay green. Needs a source-level exact-mapping check. **This is the same blind
+spot §5 already documents for font sizes, one level worse** — the spec found the value
+case and missed the equal-value case.
+
+**P3-1 — one stale "four-pixel" claim survives at spec `:157`.** Sixth location. The
+round-3 lesson ("a count in five places is five claims") was under-counted by one.
+
+**P3-2 — "the only declared transition" is literally false.** The mobile rule declares
+`height` and `transform` (`:854`). The no-`left` conclusion is unaffected; the wording is
+what is wrong.
+
+**P3-3 — one stale mono call-site citation.** Spec `:517` cites `:1104`, which starts the
+rule; the `var(--raven-grab-mono)` declaration is at `:1107`.
+
+### What round 4 CONFIRMED (do not re-audit)
+
+The six moved values and the 5-vs-7 grid arithmetic; the panel-wide inventory (23 spacing /
+16 radii / 30 sizes); the mono count of 28 split 4 + 24; the byte-identity of
+`--raven-grab-ui` / `--raven-grab-mono` and the Geist-only import; `panelPosition` having
+no reader; `pos.top` never reaching style; the omission tables being declaration-complete
+for the rules they cover; balanced CSS comments; both mirrors byte-identical; and the WCAG
+citations (2.5.5 = 44px AAA, 2.5.8 = 24×24 AA, met via the `-2px` inset at `:1089`).
 
 ## Lessons (round 3)
 
