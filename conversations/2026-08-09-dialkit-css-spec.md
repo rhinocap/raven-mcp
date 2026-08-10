@@ -566,3 +566,262 @@ push deploys they resolve to the real weight. The apex site is unaffected either
   chose it. Neither surface has been visually confirmed rendering Untitled Sans.
 - Sol round 4's **nine findings**, all still open.
 - The npm 2.4.0 release — Andrew's call and Andrew's hands (passkey 2FA).
+
+---
+
+## Checkpoint — the site deploy verified, the apex deploy silently did nothing
+
+State after the previous checkpoint: `89839cd` was written but unpushed, and both
+"still open" items above have now been measured rather than assumed. One of them
+came back the opposite of what the previous entry implied.
+
+### The push and the site deploy
+
+`f6dc738..89839cd` pushed to `origin/main`. Private-paths gate green (4/4);
+`git merge-base --is-ancestor origin/main HEAD` confirmed a clean fast-forward;
+committed with `--only` over 12 explicit paths and `-F <msgfile>`. Outgoing
+top-level paths were `.gitignore`, `conversations`, `scripts`, `site` — **no
+`src/`, no `api/`** — so the MCP endpoint could not move even though a push to
+`main` deploys it.
+
+The backgrounded watcher caught the deploy landing on attempt 5:
+
+- `untitled-sans-black.woff2` 404 → **200**, served at exactly **47,516 bytes**,
+  `content-type: font/woff2` (matches the local file byte-for-byte)
+- `regular` / `medium` / `bold` woff2 all 200
+- `untitled-sans-black.otf` **404** — the withheld desktop source is genuinely
+  not reachable on the public surface
+- anonymous `tools/list`: **45 tools**, hash `f64bb18…2bb0a6` — **MATCH**
+
+### Eyes-on, and why Chrome was the wrong instrument
+
+The first attempt used Chrome MCP and produced a hero that rendered blank. That
+was diagnosed rather than accepted: `opacity: 0`, `transform: matrix(1,0,0,1,0,32)`,
+class `reveal reveal-delay-1 visible` — the `.visible` class **was** applied, so the
+page JS ran correctly; `document.visibilityState === "hidden"`. An automated tab is
+backgrounded, so the entrance transition never commits. That is the documented
+`visibilityState` throttling artifact, not a product defect. A follow-up attempt to
+snap the transitions off froze the renderer (`Runtime.evaluate` timed out at 45s)
+and the tab was closed.
+
+Redone with Playwright (`.scratch/font-capture.mjs`, repo-local so ESM resolves),
+real Chromium at 1440×900, foreground-equivalent, `document.fonts.ready` awaited:
+
+| | `mcp.ravenmcp.ai` | apex `ravenmcp.ai` |
+|---|---|---|
+| declared stack | `"Untitled Sans", -apple-system, …` | `__Inter_8b3a0b, __Inter_Fallback_8b3a0b, …` |
+| faces loaded | all four, incl. `w=800 900` | Inter 400/500/600/700 |
+| hero `h1` | **weight 900 @ 88px** | weight 700 @ 88px |
+| width discriminator | 1635.48 vs 1505.33 fallback-only | 1482.09 vs 1419.22 |
+
+The discriminator measures the same string at the same size against the real stack
+and against the fallback stack alone — equal widths would mean the fallback is in
+use no matter how the picture looks. Both screenshots were then inspected by eye:
+the two surfaces are visibly **different typefaces**, and the site hero is rendering
+in the new Black weight.
+
+### The finding: the apex deploy produced nothing
+
+Andrew ran `! cd web && vercel deploy --prod` himself. **It created no deployment.**
+Measured rather than inferred, because `vercel ls` first reported the *personal*
+scope while `web/.vercel/project.json` links a *team* org — a real chance of reading
+the wrong project. Resolved by reading the alias directly:
+
+```
+vercel inspect ravenmcp.ai
+  → dpl_8ZvZcPzVBKy8mHdVtAEEYUBApp8c, project web, Ready
+  → created Tue Jul 28 2026 [12d ago]
+  → aliases: ravenmcp.ai, www.ravenmcp.ai, next.ravenmcp.ai
+```
+
+No deployment newer than 2026-07-28 exists in either scope, and **no ERROR-state
+deployment exists either** — so it failed at the CLI level, before a deployment was
+ever created, not during a build. `vercel whoami` is authenticated. The apex is
+therefore still on Inter, which is exactly what "they need to get opushed to the
+website" was about — the font migration had never reached the public marketing site.
+
+The `web` tree itself is correct and ready: `web/app/layout.tsx` registers the three
+woff2 via `localFont` (400 / 500–600 / 700, `variable: '--font-inter'` kept so no
+consumer had to change), and all three files are present in `web/public/fonts/`. The
+apex never referenced Black at all, so nothing there depends on this session's work.
+
+Re-running it here was blocked by the permission classifier a second time and was
+not worked around. The likeliest cause of his run doing nothing is an interactive
+prompt in a non-interactive shell, so the command to retry carries `--yes`.
+
+### Adjacent, reported not fixed
+
+`mcp.ravenmcp.ai` states **"104 tools"** in the hero. The ledger has repo at 110 /
+npm at 105. Commit `dc1b232` was supposed to make the site state one tool count and
+assert it at build time; either that assertion does not cover this page or the
+number drifted. One line, not a fix — out of scope for a font commit.
+
+### Still open
+
+- **The apex deploy** — the one blocker, Andrew's hands.
+- Sol falsification pass on this deploy claim: launched, `.claude/fonts-2026-08-09/`.
+- Sol round 4's **nine findings** on the DialKit CSS spec, all still open.
+- The npm 2.4.0 release — Andrew's call and Andrew's hands (passkey 2FA).
+
+## Addendum — post-checkpoint state
+
+Nothing on the apex has moved. Re-read at 19:37: `vercel inspect ravenmcp.ai`
+still resolves to `dpl_8ZvZcPzVBKy8mHdVtAEEYUBApp8c`, project `web`, Ready,
+created Tue Jul 28 2026, aliases `ravenmcp.ai` / `www.ravenmcp.ai` /
+`next.ravenmcp.ai`. So the `vercel deploy --prod` Andrew ran created no
+deployment at all — there is no newer one, and no ERROR-state one either, which
+places the failure at the CLI before a deployment record exists rather than in a
+build. `vercel whoami` answers `cunliffeandrewc-8712`, so it is not auth. Retry
+is `cd web && vercel deploy --prod --yes`.
+
+The apex font watcher (`b4ft6s682`) ran all ten attempts and never flipped —
+every one reported the same `/_next/static/css/097040637a2e6b5e.css` with
+`__Inter_` / `__Inter_Fallback_` / `__JetBrains_Mono_` families. That is the
+predicate working, not a broken watcher: it was tested against current output
+before being armed, and it matches on content rather than position.
+
+The Sol falsification pass on the site-deploy claim is still in flight —
+277,525 bytes at 19:37 and the process still alive. It has not been read, so no
+completion language about the font migration is permitted yet. A large file and
+a zero exit code are not a verdict; the findings have to be read.
+
+Sequence to close this out, in order:
+
+1. Andrew: `cd web && vercel deploy --prod --yes`.
+2. Me: re-measure the apex (`.scratch/font-capture.mjs`, absolute path, the
+   width discriminator plus a fresh full-size capture) once a deployment newer
+   than `dpl_8ZvZ…` exists.
+3. Me: read the Sol pass and disposition every real finding before the site half
+   is called verified.
+
+## Sol falsification pass — verdict REFUTED, six findings, dispositioned
+
+The pass finished; the `pgrep -f "gpt-5.6-sol"` waiter was matching its OWN
+command line and reported STILL RUNNING for ~20 minutes after the verdict had
+already been written. Wait on a captured PID with `kill -0`, never on a string.
+
+**P1 — the 45-name hash does not prove the endpoint did not move.** VALID in
+principle, mostly closed by measurement. `vercel inspect mcp.ravenmcp.ai` →
+`dpl_8WcasrNWA9R1Se7uz3GJBJzurRVA`, project `site`, target production, Ready,
+created **Sun Aug 09 19:21 (24m after the push)**, alias list carrying
+`mcp.ravenmcp.ai` AND `site-git-main-…`, so it is a git-integrated production
+build off `main`. That deployment is also the one that flipped `black.woff2`
+404 → 200, which ties the responding build to the pushed content rather than to
+a timestamp. The push range touched no `src/` and no `api/`, so the function
+source is unchanged. RESIDUAL, stated rather than papered over: the ledger's
+stronger check is a byte-identical full `tools/list` payload diff, and no
+pre-push payload snapshot was captured for this push, so that specific check
+cannot be reconstructed after the fact. Names + deployment identity + unchanged
+source is what is actually established.
+
+**P2 — the canvas discriminator is under-specified and can lie.** REFUTED by
+reading the script. `.scratch/font-capture.mjs:40` builds the control as
+`stack.split(',').slice(1).join(',')` — it takes the REAL computed stack and
+drops only the FIRST family, so both sides carry an identical downstream stack
+and differ solely by the custom family name. That is exactly the property Sol
+demanded. It is also not load-bearing alone: `document.fonts` enumerated
+`Untitled Sans w=800 900 loaded` directly, and the capture was inspected by eye.
+
+**P2 — `site/` still contains public Inter consumers.** CONFIRMED, and WIDER
+than Sol found. `vercel.json:3` publishes the whole `site/` directory, and
+**eight** files under it still load Inter from Google Fonts, not three:
+`previews/hero-grid/index.html`, `previews/layout-1-editorial.html`,
+`previews/layout-2-cinematic.html`, `previews/layout-3-terminal.html`,
+`previews/buttons-concepts.html`, `demos/law-firm.html`, `demos/saas.html`,
+`index.html.backup`. All three Sol named answer **200** live. So the true claim
+is *the seven main site pages are migrated*, not *the site project is migrated*
+— narrow the wording, which is what the claim gets here.
+Fix, named but NOT executed: the same `@font-face` block the seven pages carry,
+swapped for the Google Fonts `<link>` in those eight files, plus deleting
+`index.html.backup` rather than migrating it. Not done because it is unrequested
+scope on a pause turn AND because it means another push to `main`, which
+deploys the live MCP endpoint and is Andrew-gated.
+
+**P3 — the `.otf` rewrite was not an exhaustive migration sweep.** Same finding
+as above; absorbed into it. A post-edit search for stale `.otf` URLs is blind to
+files that never referenced the OTF because they still declare Inter.
+
+**P3 — "previously committed OTF" is not supported by this repo.** Confirms the
+safe direction: no reachable branch, remote ref, reflog entry or unreachable
+commit contains `site/assets/fonts/untitled-sans-black.otf`. The blob exists
+locally as an unreachable object, consistent with having been hashed or staged
+and then removed, never committed. No history exposure, no action.
+
+**P3 — the internal family-name mismatch is not a defect.** Refutes my own
+attack-list worry: CSS Fonts Level 4 makes the `@font-face` `font-family`
+descriptor the alias, overriding the name embedded in the font data, so an
+internal `Untitled Sans Black` served as `Untitled Sans` is correct. The real
+caveat is one layer over and is worth carrying: the file is a STATIC weight-800
+face advertised across `800 900`, so a `font-weight: 900` consumer computes 900
+and receives the same Black outlines — intended here, and not fallback or a
+synthetic bold, but it is not a distinct 900 design either.
+
+## Apex deploy verified — `ravenmcp.ai` now serves Untitled Sans
+
+Andrew ran the retry himself with the `--yes` that was missing the first time:
+`cd web && vercel deploy --prod --yes`. It produced a deployment; the earlier
+attempt without `--yes` had produced no deployment record at all, which is why
+there was neither a newer deployment NOR an ERROR-state one to inspect.
+
+**Deployment identity, read rather than inferred.** `vercel inspect ravenmcp.ai`
+resolves to `dpl_BMVBSTpAT4hSMdhjabeTkZsLxa8m`, project `web`, target production,
+● Ready, created Sun Aug 09 2026 20:14:03. Its alias list carries `ravenmcp.ai`,
+`www.ravenmcp.ai`, `next.ravenmcp.ai`, `web-tau-olive-60.vercel.app` and
+`web-cunliffeandrewc-8712s-projects.vercel.app`. The deployment it replaced was
+`dpl_8ZvZcPzVBKy8mHdVtAEEYUBApp8c` from Jul 28, which is the one that had been
+serving Inter for twelve days. This is the alias-list rule from the ledger: a URL
+probe cannot say which project owns a hostname, only the deployment record can.
+
+**Measured, not assumed — before vs after on the same instrument.** Same script
+(`.scratch/font-capture.mjs`), same viewport, same hero element:
+
+| | before (`dpl_8ZvZ…`) | after (`dpl_BMVB…`) |
+|---|---|---|
+| computed stack | `__Inter_8b3a0b, __Inter_Fallback_8b3a0b, …` | `__untitledSans_a2f408, __untitledSans_Fallback_a2f408, …` |
+| faces | Inter 400/500/600/700 + JetBrains Mono | untitledSans 400, 500‑600, 700, Fallback + JetBrains Mono; **zero Inter faces of any status** |
+| CSS bundle | `097040637a2e6b5e.css` | `13d2bdb9d3d688bb.css` |
+| widthReal / fallbackOnly | 1482.09 / 1419.22 | **1525.66 / 1393.91** |
+
+Three independent lines of evidence, not one: `document.fonts` enumerated the
+faces directly; the canvas discriminator separated real stack from fallback-only
+(control built as `computedStack.split(',').slice(1)`, so both sides share an
+identical downstream stack and differ solely by the custom family name — this is
+exactly the construction Sol's round-1 P2 demanded, and it was already there);
+and the full-size capture at `.scratch/captures/apex.png` was inspected by eye
+showing the hero rendering in Untitled Sans.
+
+Live CSS bundle extraction confirms it from the other direction: the only
+`font-family:__*` declarations remaining are `__untitledSans_a`,
+`__untitledSans_Fallback_a`, `__JetBrains_Mono_` and `__JetBrains_Mono_Fallback_`.
+The two case-insensitive `inter` matches left in the apex HTML are inside the
+words **interfaces** and **get_taste_interview** — not font references.
+
+**The residual sweep runs on BOTH projects, and the `web` half has the same
+finding.** Sol's round-1 P2 named three Inter consumers under `site/`; measuring
+rather than trusting the count found **eight**. Running the direct analogue on
+`web/` finds **two**: `web/public/demos/law-firm.html` and
+`web/public/demos/saas.html`, and `https://ravenmcp.ai/demos/saas.html` answers
+**200** serving `css2?family=Inter`. The apex's real routes are clean — `/`,
+`/changelog`, `/docs` all 200 with no Inter anywhere.
+
+So the honest scope statement is: **the seven main site pages and every real apex
+route are migrated; the two projects' static demo/preview pages are not.** Ten
+file-instances across eight unique pages (the two demos exist in both projects).
+Reported with the fix named — swap the Google Fonts `<link>` for the same
+`@font-face` block the migrated pages already carry, and delete
+`site/index.html.backup` rather than migrating it — and deliberately NOT executed:
+it is unrequested scope on a pause turn, and the `site/` half needs a push to
+`main`, which deploys the live MCP endpoint and is Andrew-gated.
+
+**Watcher lesson, third instance of the same class this session.** The waiter
+loop `while pgrep -f "gpt-5.6-sol"` matched **its own command line** — the shell
+running the loop contains that literal string — so it reported STILL RUNNING for
+~20 minutes after Sol had already written its verdict and printed its token
+count. A `pgrep -f` wait is structurally self-matching and its failure mode is
+indistinguishable from its success mode. Wait on a **captured PID with `kill -0`**.
+What actually broke the deadlock was grepping the in-progress `.out` for
+`^(P[123]|FINDING|VERDICT|##)`, which surfaced completed `## Findings` sections
+immediately. The apex round was launched with its PID captured (`SOL_PID=6084`).
+
+**Adjacent, one line, not fixed:** `mcp.ravenmcp.ai` states "104 tools" in its
+hero while the ledger has repo at 110 and npm at 105.
