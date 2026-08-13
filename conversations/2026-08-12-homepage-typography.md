@@ -90,7 +90,7 @@ The homepage typography work is locally verified; the recovered queue lane neede
 
 **What:** Landed the isolated queue, homepage, approved Grab, and fresh-project typography work on `main` as `7218371`, excluding the parked static-site/count/Inter lane. Deployed the exact clean release checkout to Vercel production as `dpl_CeJwYU6X61tFhXbYgk82jyZv7t4X`.
 
-**Verification:** Vercel reports READY with `ravenmcp.ai`, `www.ravenmcp.ai`, and `next.ravenmcp.ai` aliases. Live Chromium at 1440px and 390px measured 12 design-system cards with one resting color, four preserved raised hover variants, 13 H2s at weight 700, zero subordinate text above weight 400, zero non-Untitled text, and zero `.txb-num` nodes. The live anonymous MCP endpoint returned 45 tools with the frozen SHA-256 hash `f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6`. Final adverse follow-up: no findings.
+**Verification:** Vercel reports READY with `ravenmcp.ai`, `www.ravenmcp.ai`, and `next.ravenmcp.ai` aliases. Live Chromium at 1440px and 390px measured 12 design-system cards with one resting color, four preserved raised hover variants, 13 H2s at weight 700, zero subordinate text above weight 400, zero non-Untitled text, and zero `.txb-num` nodes. The live anonymous MCP endpoint returned 45 tools with the frozen SHA-256 hash `f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6`, and a live `generate_design_system` call returned the new typography ladder. The final Sol gate found one distribution boundary: npm `2.4.0` and the live `.mcpb` predate `7218371`, so local installs still need a separately human-gated package release.
 
 **Pushed:** `7218371` to `main`; production deployment READY.
 
@@ -105,5 +105,5 @@ The homepage typography work is locally verified; the recovered queue lane neede
 ## State at end of session
 
 - Homepage typography and approved Grab changes: live and verified on desktop and mobile.
-- Queue work and fresh-project typography defaults: on `main`; executable verification and final adverse review are current.
-- Remaining human gate: reload the old deck tab if it is still open; its embedded overlay may retain the previous bundle until reload.
+- Queue work and fresh-project typography defaults: on `main` and the hosted generator is current; local npm/Desktop installs remain on the prior package.
+- Remaining human gates: cut the passkey/2FA npm + `.mcpb` release, then reload the old deck tab so its embedded overlay takes the new bundle.
