@@ -6,6 +6,20 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 
 ## [Unreleased]
 
+## [2.4.1] - 2026-08-12
+
+### Added
+- Raven Design now has **Add to queue** beside the instruction microphone. It banks the current style and instruction draft before an in-page slide, tab, or route change can remove the selected element.
+
+### Changed
+- Fresh `generate_design_system` output starts with one H1 and three descending text styles: `32px/700`, `20px/600`, `16px/500`, and `14px/400`. The paired size and weight ladder is preserved in DTCG output, HTML specimens, Figma variables, and saved systems; inherited `base_system` typography is unchanged.
+- The homepage uses Untitled Sans throughout, restores responsive H2 section titles as its only bold subordinate tier, removes eyebrow treatments and tool-category numbers, and gives every design-system tile the same resting color while preserving its existing hover response. The homepage and docs catalog now enumerate the full 110-tool package.
+
+### Fixed
+- Queue banking now persists synchronously, keeps already-snapshotted detached drafts, merges edits committed inside the persistence debounce, refuses drafts whose element disappeared before a usable snapshot existed, and namespaces restored entries so they cannot collide with the first live draft after reload.
+- The queue confirmation renders once, paints visibly, announces through a reachable live region when a panel is collapsed, and expires only when the corresponding queued work is gone.
+- Generated typography HTML escapes font-family values before placing them in style attributes.
+
 ## [2.4.0] - 2026-08-09
 
 Five new tools take the stdio surface from 105 to 110. They are one lane: a local pattern library. Capture a piece of design you like from a page you are looking at, keep it with its source, search it later by what it does rather than what it is called, translate it into your own tokens, and remove it when the person who made it asks. All five are gated out of the anonymous remote surface, which still serves the same 45 tools.

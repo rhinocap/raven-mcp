@@ -26,6 +26,20 @@
   },
   "releases": [
     {
+      "version": "v2.4.1",
+      "date": "2026-08-12",
+      "category": "tooling",
+      "kind": "improvement",
+      "title": "Bank a Grab before the page changes",
+      "changes": [
+        "Add to queue now sits beside the instruction microphone. It banks the current style and instruction draft before an in-page slide, tab or route change can remove the selected element, including drafts already snapshotted from a detached element.",
+        "The confirmation appears once, remains visibly painted, and moves to a reachable live region when a panel is collapsed. Removing queued work clears the confirmation only when that work is actually gone.",
+        "Fresh generated design systems start with one H1 and three descending text styles: 32px/700, 20px/600, 16px/500 and 14px/400. The pairs carry through DTCG, HTML, Figma variables and saved systems; an inherited base system keeps its own typography.",
+        "Restored queue entries use a separate key namespace so they cannot collide with the first live draft after reload. Generated typography HTML also escapes font-family values before placing them in style attributes.",
+        "The homepage now uses Untitled Sans throughout, keeps responsive H2 section titles as its only bold subordinate tier, removes eyebrow treatments and tool-category numbers, gives all twelve design-system tiles one resting color without changing their hover response, and enumerates the full 110-tool package in the homepage and docs catalog."
+      ]
+    },
+    {
       "version": "v2.4.0",
       "date": "2026-08-09",
       "category": "tooling",
