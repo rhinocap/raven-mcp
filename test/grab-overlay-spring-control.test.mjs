@@ -1,5 +1,5 @@
-// The spring presets in the Grab overlay's Motion section — the last DialKit
-// motion gap, and the only way CSS can express a spring at all.
+// The spring presets in the Grab overlay's Motion section — the last motion gap
+// in the panel's timing controls, and the only way CSS can express a spring at all.
 //
 // This needs a real browser for one specific reason: the load-bearing decision
 // is WHERE the block attaches. Springs key on the PROPERTY, not on the control,
@@ -28,7 +28,7 @@
 // after any fix round: a find-string mutant dies silently the moment its target
 // line is edited.
 //
-// The harness is .claude/dialkit-2026-08-08/spring-mutants.mjs (tracked); its
+// The harness is .claude/overlay-controls-2026-08-08/spring-mutants.mjs (tracked); its
 // run of record is agent-output/spring-matrix-v3.txt, which is GITIGNORED, so
 // the figures are reproduced here rather than referenced — 13 mutants, 13
 // killed, 0 survived, plus 2 CONTROLS (expect: green), 0 false-failed, on a

@@ -1062,6 +1062,45 @@
     .raven-grab-textarea::placeholder, .raven-grab-input::placeholder { color: var(--raven-grab-tertiary); }
     .raven-grab-textarea { transition: opacity 240ms ease, transform 240ms ease; }
     .raven-grab-textarea[data-clearing] { opacity: 0; transform: translateY(-8px); }
+    /* The queue row is deliberately NOT folded into the shared mic-row rule
+       (.raven-grab-field > span, .raven-grab-feedback-field > span). The two rules
+       want opposite values: a label row is space-between, because its mic sits at the
+       far right of a row whose left end is the label; this row is flex-end, because
+       the mic and the button travel TOGETHER at the right edge with the note taking
+       the slack. Folding them would give one of the two the wrong justification.
+       Both are covered by test/grab-overlay-voice-alignment.test.mjs — the label rows
+       by the flush-right rule, this one by the paired gap/height/flush assertions. */
+    .raven-grab-queue { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+    /* The mic matches the button's height rather than the 24px it uses in a label row.
+       Andrew asked for "the same height"; it also lifts this instance over the 44px
+       tap-target floor the button already meets. Scoped to this row on purpose — the
+       global .raven-grab-voice stays 24px, where a taller mic would blow out the
+       label rows' line height. */
+    .raven-grab-queue .raven-grab-voice { width: 44px; height: 44px; border-radius: 8px; }
+    /* min-height is the tap-target floor, not a look: Raven's audit_tap_targets measured this
+       control at 104.4 x 31.6 and reported deficit_h 12.4 against the 44px clause, which a
+       12px/1.3 label inside 7px padding can never reach on its own. A native <button> centres
+       its content on both axes, so the floor costs nothing but height. The panel's style-value
+       cells are 18px and violate the same clause — pre-existing, reported, deliberately untouched. */
+    .raven-grab-queue-add { flex-shrink: 0; min-height: 44px; padding: 7px 12px; background: var(--raven-grab-raised); border: 1px solid rgba(255, 255, 255, .12); border-radius: 8px; color: var(--raven-grab-text); font: 600 calc(12px * var(--raven-grab-font-scale))/1.3 var(--raven-grab-ui); cursor: pointer; }
+    /* Keyed on aria-disabled, which is what carries this button's blocked state —
+       see syncQueueButton() for why it is not the native disabled attribute. */
+    .raven-grab-queue-add:hover:not([aria-disabled="true"]) { border-color: rgba(0, 191, 255, .3); }
+    .raven-grab-queue-add[aria-disabled="true"] { opacity: .45; cursor: default; }
+    /* There is deliberately NO prose element in this row. It used to hold one
+       (.raven-grab-queue-note, order: -1, flex: 1 1 auto) and Andrew killed it on
+       sight, 2026-08-10: "Why did thi smessage show up next to the wave form,
+       remove it". The slot was 11px in a min-width: 0 track, so the 62-character
+       confirmation wrapped to FOUR lines and crowded the waveform and the mic —
+       order: -1 put it leftmost, which is exactly where a caption is least
+       readable. A test asserting a string renders says nothing about whether it
+       renders legibly, and the geometry assertion measured the note's own box
+       rather than the row's. Every message it carried now goes where that message
+       belongs: a blocked reason to the button's own title (and to the aria-live
+       status line when the blocked button is pressed), the bank confirmation to
+       that same status line, VISIBLE. Do not reintroduce prose here — the row is
+       mic + button and the pair is measured flush right by
+       test/grab-overlay-voice-alignment.test.mjs. */
     .raven-grab-use-case { min-height: 200px; }
     .raven-grab-new-token { display: none; grid-template-columns: 1fr 1fr; gap: 8px; }
     .raven-grab-new-token[data-open="true"] { display: grid; }
@@ -4028,7 +4067,15 @@
   }
 
   function syncActiveStyleDraftKey() {
-    if (Object.keys(styleEdits).length || Object.keys(stateStyleEdits).length || Object.keys(tokenIntents).length || textEdit) ensureActiveStyleDraftKey();
+    // The instruction box counts as work, and leaving it out of this test was a
+    // silent way to LOSE a typed instruction. activeStyleDraft() and
+    // pruneEmptyStyleDraft() both already keep the key alive while the box has
+    // text; this was the third copy of that rule and the only wrong one. With it
+    // wrong, removing the last style edit from a draft that also carries an
+    // instruction nulled the key, the next activeStyleDraft() minted a FRESH one,
+    // and lastConnectedPending still held the snapshot under the old key — so
+    // carryDetachedDraft() found nothing when the element left the DOM.
+    if (Object.keys(styleEdits).length || Object.keys(stateStyleEdits).length || Object.keys(tokenIntents).length || textEdit || instructionDraft.trim()) ensureActiveStyleDraftKey();
     else activeStyleDraftKey = null;
     // The Versions section's visibility and its refusal note are derived from
     // exactly these four collections, so this is the one function that already
@@ -4038,6 +4085,33 @@
     // not re-render (that would destroy the open editor mid-keystroke), which
     // is why the section never appeared at all before this line existed.
     syncStyleVersionsSection();
+    syncQueueButton();
+    // Some style commits used to reach lastConnectedPending by no route at all,
+    // which is the other half of "I am losing grabs" and the half no button can
+    // fix. serializeLivePending() is the only writer of that rescue memo and it is
+    // only reached through persistPendingNow(), so a commit that ends without one
+    // leaves carryDetachedDraft() nothing to promote when the slide advances.
+    // RE-MEASURED across all eight commitStyleEdit call sites, because this
+    // paragraph has now been wrong TWICE — first claiming NO commit persisted, then
+    // naming the wrong pair. Six reach a persist: applyStyleVersionRestore (5305)
+    // schedules its own, and overflow (7472), size (7622), the generic editor
+    // (8456), the pointer scrub (8564) and border-radius (8658) all end at
+    // syncSendButtonDisabled(), which schedules one. EXACTLY TWO reach none —
+    // beginTextDecorationEdit (7127) and beginBoxShadowEdit (7350), both ending at
+    // `var ok = commitStyleEdit(...)` plus `replaceStyleInput(...)` and nothing
+    // else. beginStrokeEdit is NOT on this list in either direction: it is not a
+    // commitStyleEdit call site at all, and it does reach syncSendButtonDisabled
+    // (6913/6923/6948) — the previous version of this comment had it wrong in both
+    // halves. There is no ninth call site. Those two are what this line closes, and
+    // box-shadow is what test/grab-overlay-queue-draft.test.mjs drives.
+    // A line number in this paragraph is a claim: re-run
+    // `grep -n "commitStyleEdit(" browser/raven-grab.js` before quoting it.
+    // This is the same "one function that already means the edit set changed"
+    // argument as the two lines above, which is why it hangs here rather than off
+    // the fifteen mutation sites. It cannot recurse: persistPendingNow() reaches
+    // allStyleDrafts() but never syncActiveStyleDraftKey(), and the debounce's own
+    // pendingPersistTimer guard collapses a burst of edits into one write.
+    schedulePersistPending();
   }
 
   function clearActiveStyleDraftState() {
@@ -4064,6 +4138,200 @@
     styleDrafts[draft.clientKey] = draft;
     clearActiveStyleDraftState();
     return draft;
+  }
+
+  // Why the "Add to queue" button exists at all, in Andrew's words: "I am losing
+  // grabs because they are not making it to the queue." He reviews a slide deck
+  // through Grab, and the slides swap IN PAGE — no navigation, no pagehide. Two
+  // things follow from that, and this button is the deliberate answer to both.
+  //   1. sweepStaleStyleDrafts() only walks STASHED drafts, so the LIVE singleton
+  //      is never carried at the moment its element leaves the DOM. Widening the
+  //      sweep to the active draft is NOT the fix — it would clear the panel out
+  //      from under someone still typing. An explicit bank is.
+  //   2. The rescue snapshot in lastConnectedPending is written only by
+  //      serializeLivePending(), which every ordinary edit reaches through the
+  //      250ms DEBOUNCE. So this persists SYNCHRONOUSLY, while the element is
+  //      still connected — that snapshot is what lets carryDetachedDraft() rescue
+  //      the row a moment later. Swap persistPendingNow() for the debounced
+  //      schedulePersistPending() and the button becomes theatre: it still races
+  //      the next slide, which is the exact bug it was built for. Partly masked,
+  //      which is why that mutant needs a careful fixture: MEASURED in Chromium,
+  //      renderPanel() below destroys a FOCUSED instruction field, that fires a
+  //      focusout which still reaches the delegated onPanels("focusout") hook, and
+  //      the hook persists synchronously. So the mask only covers a draft whose
+  //      instruction box had focus — a style-only bank has nothing standing in.
+  function queueActiveDraft() {
+    if (queueDraftBlocker()) return false;
+    if (activeStyleEditorFlush) activeStyleEditorFlush();
+    capturePanelDrafts();
+    var draft = stashActiveStyleDraft();
+    if (!draft) return false;
+    // stashActiveStyleDraft copies instructionDraft ONTO the draft (via
+    // activeStyleDraft) but does not empty the shared box — a selection switch
+    // clears it separately in resetSelectionLocalContext. Leaving it would render
+    // the same instruction twice: once from the queued row, once from the
+    // rebuilt active draft. Assign like the send path does, rather than calling
+    // clearInstructionText(), whose field animation is pointless before a render.
+    instructionDraft = "";
+    persistPendingNow();
+    renderPanel();
+    return true;
+  }
+
+  // A successful bank leaves the button in a confusing state, and that is what
+  // queueNotice is for. The bank EMPTIES the draft, so queueDraftBlocker() answers
+  // QUEUE_NEEDS_WORK the instant the click succeeds, and the button the user just
+  // pressed would advertise a refusal of the click that worked — queueActiveDraft()
+  // ends in renderPanel(), which runs BEFORE the handler sets any status. So the
+  // notice outranks the blocker on the button's own `title`/aria-disabled, where it
+  // reads as a description of why the control is idle rather than as a complaint.
+  //
+  // HISTORY, do not restore: this notice was also rendered as visible prose in a
+  // <p> beside the button, on the reasoning that a bank had no other visible
+  // response once the left panel was collapsed. Both halves are now dead. Andrew
+  // removed the visible prose on sight (2026-08-10 — it wrapped to four lines left
+  // of the waveform; see the CSS block), and the premise was FALSE anyway:
+  // setGlobalActionStatus() SKIPS an unreachable candidate (statusNodeIsReachable),
+  // so a collapsed structure panel falls through to the design panel's own
+  // [data-status] — the same panel as this button. The confirmation goes there,
+  // visible, and there is nothing left for a local element to do.
+  //
+  // It masks QUEUE_NEEDS_WORK and nothing else. Every other blocker is a statement
+  // about something that has since gone WRONG — no selection, element detached —
+  // and hiding one of those behind a stale success is the false all-clear this
+  // control exists to avoid. That is why the two are compared through a shared
+  // constant rather than by literal text: a reworded reason must not silently
+  // become maskable.
+  var QUEUE_NEEDS_WORK = "Change a style or write an instruction first";
+  var QUEUE_ADDED_NOTICE = "Added to queue — change a style or write an instruction to add another";
+  var queueNotice = "";
+
+  // Selecting this element again re-activates the queued draft for editing
+  // (activateStyleDraft, called on a primary change) — that is the established
+  // stash contract, not a leak in the queue.
+  function queueDraftBlocker() {
+    if (!selectedElement) return "Select an element first";
+    if (!Object.keys(styleEdits).length && !Object.keys(stateStyleEdits).length && !Object.keys(tokenIntents).length && !textEdit && !instructionDraft.trim()) {
+      return QUEUE_NEEDS_WORK;
+    }
+    // The bank is a STASH, and the very next sweep DROPS a stashed draft whose
+    // target has left the DOM — carrying it only if serializeLivePending() had
+    // already memoized a snapshot while it was still connected. persistPendingNow()
+    // runs that sweep on its way through allStyleDrafts(), so on a detached target
+    // the button's own persist is what destroys the draft, and without this clause
+    // it still returned true and the status line still said "Added to queue": a
+    // false all-clear over work that no longer exists, which is the one forbidden
+    // outcome for a control whose entire job is not losing grabs. So ask the SAME
+    // three questions sweepStaleStyleDrafts() is about to ask, in the same order —
+    // preview and action are one rule, the drift this repo documents for
+    // takedown-preview-vs-delete and listing-vs-lookup.
+    //
+    // Two details are load-bearing rather than defensive. (a) Read the draft's OWN
+    // target, `styleEditTarget || selectedElement`, exactly as activeStyleDraft()
+    // builds it — grading selectedElement while the action stashes styleEditTarget
+    // is the preview-grades-a-different-node defect one layer in. (b) This must
+    // stay PURE: syncQueueButton() calls it on every sync, so it reads
+    // activeStyleDraftKey rather than minting one, and a null key indexes no memo,
+    // which correctly reads as "nothing banked yet".
+    //
+    // Deliberately NOT a blanket detached refusal: when a memo exists the sweep's
+    // carry works and the bank is real, and when draftAwaitingReconnect() is true
+    // the sweep does not drop the draft at all. Refusing either would be a red on
+    // correct code.
+    var target = styleEditTarget || selectedElement;
+    if (target.isConnected === false
+      && !draftAwaitingReconnect({ styleEdits: styleEdits, tokenIntents: tokenIntents })
+      && !lastConnectedPending[activeStyleDraftKey]) {
+      return "That element is gone from the page — reselect it to keep this draft";
+    }
+    return "";
+  }
+
+  // In-place sync, for the same reason the Versions section has one: a style
+  // commit deliberately does not renderPanel(), so a button whose enabled state
+  // depends on the draft has to be updated where it stands. Two callers, because
+  // the two halves of "is there work" move independently — syncActiveStyleDraftKey
+  // for the style collections, syncSendButtonDisabled for the instruction box.
+  //
+  // aria-disabled rather than the native `disabled` attribute, and since 2026-08-10 this
+  // is the ONLY thing carrying the reason at all — there is no sibling note any more, so
+  // the choice went from important to load-bearing. A natively-disabled button is not
+  // keyboard-focusable and is skipped in tab order, which would leave the reason
+  // reachable by hover alone; a control that cannot say why reads as broken, which is the
+  // whole point of the blocker returning a reason string instead of a boolean.
+  // aria-disabled keeps it in the tab order and announces it unavailable, `title` carries
+  // the reason as the button's own accessible description, and pressing it lands in the
+  // click handler, which states the reason in the [data-status] line — already
+  // aria-live="polite". The refusal itself is enforced in queueActiveDraft(), never by
+  // the attribute, so a clickable blocked button cannot bank anything.
+  // (This paragraph used to say the sibling note was the only statement of the reason.
+  // That was true until the note was removed; corrected in the same change, rather than
+  // left to decay.)
+  //
+  // NOT aria-describedby: an id would have to be unique, and this markup is in the DOM
+  // more than once — panelQueryAll walks BOTH panel and panelLeft, and instructionsMarkup
+  // renders in the desktop footer and the mobile Instructions tab. A duplicated id is a
+  // worse a11y defect than the one being fixed. That reasoning is kept because it binds
+  // any FUTURE element someone is tempted to point at from here.
+  // ONE rule, TWO doors: renderPanel() writes this text into fresh markup and
+  // syncQueueButton() writes it in place, and they must never disagree — the
+  // two-copies-of-one-rule drift this repo documents for takedown-preview-vs-action
+  // and for the per-selector version cap. Not pure, deliberately: the notice is
+  // SPENT once anything supersedes it, and this is the one function both doors pass
+  // through, so it is where that expiry belongs.
+  function queueNoteText() {
+    var blocker = queueDraftBlocker();
+    if (!queueNotice) return blocker;
+    if (blocker === QUEUE_NEEDS_WORK) {
+      // The notice ASSERTS that work is in the queue, and QUEUE_NEEDS_WORK is the
+      // normal state right after a bank (the draft moved into pending, so there is
+      // nothing live left to bank). But a removal drains pending without ever
+      // touching queueNotice — remove the sole banked row and the panel was left
+      // claiming "Added to queue" over an EMPTY queue. A control that contradicts
+      // the list beside it is worse than one that says nothing. Measured, not read:
+      // probe-stale-notice.mjs — which measured it "in both the note and the button's
+      // title", a dated and correct reading; the note is gone since 2026-08-10, so the
+      // title is now the whole surface. HISTORY: do not "update" the probe's finding.
+      // pendingLogicalCount() rather than pendingLogicalRows().length, because a
+      // carried row hydrated from a previous page load IS in the queue and the
+      // notice is still TRUE beside it — the rows-only form would expire it in a
+      // state where the claim holds. Safe to call from here: pendingLogicalRows()
+      // reaches sweepStaleStyleDrafts(), which calls only carryDetachedDraft()
+      // (guarded debounced persist) and dropStyleDraft() — no renderPanel(), no
+      // syncQueueButton(), so neither door can re-enter this function.
+      if (pendingLogicalCount() > 0) return queueNotice;
+      queueNotice = "";
+      return blocker;
+    }
+    queueNotice = "";
+    return blocker;
+  }
+
+  // There is no queueVisibleNote() any more, and there is no visible note for it to
+  // filter. Andrew, 2026-08-10 (two asks, one week apart, same direction): first
+  // "Get rid of this Change a style or write an instruction first", then "Why did
+  // thi smessage show up next to the wave form, remove it". The first was answered
+  // by MASKING one of the four blocker strings; that left the other three plus the
+  // bank confirmation still rendering as prose in an 11px min-width: 0 slot, which
+  // is the state his screenshot caught. So the element is gone rather than filtered
+  // further, and every string it carried now travels on the button's own `title`
+  // (below) or through the aria-live status line.
+  //
+  // ACCEPTED COST, reported rather than hidden: all four blocked reasons are now
+  // reachable only by hovering the button, or by PRESSING it — the click handler's
+  // else-branch states the reason in [data-status], which is aria-live. So the
+  // disabled state has no reason visible at rest. That is what both asks asked for.
+  function syncQueueButton() {
+    var blocker = queueNoteText();
+    panelQueryAll("[data-queue-draft]").forEach(function (button) {
+      if (blocker) {
+        button.setAttribute("aria-disabled", "true");
+        button.setAttribute("title", blocker);
+      } else {
+        button.removeAttribute("aria-disabled");
+        button.removeAttribute("title");
+      }
+    });
   }
 
   function activateStyleDraft(element) {
@@ -4158,10 +4426,75 @@
   // snapshot into carriedPending reuses the existing carried-row path verbatim —
   // rendered as a "Carried" row, removable, and sendable by POSTing the frozen
   // payload with no live target — rather than inventing a second mechanism.
+  // The memo has exactly ONE writer — serializeLivePending() — and every ordinary
+  // edit reaches it through schedulePersistPending()'s 250ms debounce, while
+  // detachment is instantaneous. So an edit committed inside that window is absent
+  // from the snapshot carryDetachedDraft() promotes, and promoting it verbatim
+  // reported "Added to queue" over a dropped box-shadow edit. MEASURED, not
+  // reasoned: .claude/queue-draft-2026-08-10/measurements/probe-race2.log detaches and
+  // banks inside ONE synchronous block (JavaScript is single-threaded, so a pending
+  // setTimeout cannot interleave — the window is deterministic rather than
+  // hoped-for) and read statusText "Added to queue" against stored edits []. A
+  // false all-clear is the one forbidden outcome for a control whose whole job is
+  // not losing grabs, and this path is SHARED with the automatic sweep, so the
+  // 2026-08-08 slide-deck rescue carried the same staleness.
+  //
+  // The snapshot's DOM-derived half cannot be rebuilt once the node is gone —
+  // payloadForSend throws ravenSelectionGone on a detached target for exactly that
+  // reason, and that half (selector/html/rect/styles/tokens/stateStyles, plus
+  // multiSelect) is the whole point of memoizing while connected. The EDIT-bearing
+  // half is draft data needing no live node: scopedIntentForSend returns the intent
+  // UNTOUCHED when scope !== "component", and under component scope it already has
+  // an explicit detached branch reading the frozen selection.componentScope instead
+  // of resnapshotting. So the fresh edits are OVERLAID onto the frozen snapshot
+  // rather than the payload being rebuilt (impossible) or the stale one shipped.
+  //
+  // Unconditional, with no staleness predicate: the draft's current edit set is by
+  // definition the truth, and a predicate is one more thing to get wrong. That also
+  // closes the same gap in the other direction — a row REMOVED inside the window
+  // was being carried as though it were still wanted.
+  //
+  // No emptiness guard, because the state is unreachable: pruneEmptyStyleDraft
+  // deletes a stashed draft the moment nothing but an empty instruction remains, so
+  // localStyleDrafts() cannot hand the sweep a draft carrying no work at all.
+  function freshenedCarryEntry(entry, draft) {
+    // A null draft.target is pre-existing defensive code no constructible input
+    // reaches (it is the declared EXPECTED survivor in the detached-draft matrix).
+    // Bail rather than overlay: scopedIntentForSend falls back to `selectedElement`
+    // on a falsy target, so a component-scope intent would be rescoped against
+    // whatever the user has selected NOW — a different element's match set.
+    if (!draft.target) return entry;
+    var ctx = styleDraftContextForFreeze(draft, draft.instruction || "");
+    var edits = {
+      tokenIntents: Object.keys(ctx.tokenIntents || {}).map(function (key) { return scopedIntentForSend(ctx.tokenIntents[key], ctx.target, ctx); }),
+      styleEdits: styleEditsForSend(ctx.styleEdits).map(function (intent) { return scopedIntentForSend(intent, ctx.target, ctx); }),
+      stateStyleEdits: stateStyleEditsForSend(ctx.stateStyleEdits).map(function (intent) { return scopedIntentForSend(intent, ctx.target, ctx); }),
+      instruction: ctx.instructionDraft || ""
+    };
+    if (ctx.textEdit && ctx.textEdit.newText !== ctx.textEdit.oldText) {
+      edits.textEdit = { oldText: ctx.textEdit.oldText, newText: ctx.textEdit.newText };
+    }
+    // Deep-clone through JSON exactly as serializeLivePending does — this object is
+    // handed to sessionStorage later, and one unserializable value in a live intent
+    // would poison the whole store rather than a single row. A throw here must leave
+    // the stale-but-real snapshot standing, never nothing.
+    var fresh;
+    try { fresh = JSON.parse(JSON.stringify(edits)); } catch (error) { return entry; }
+    var payload = {};
+    Object.keys(entry.payload).forEach(function (key) { payload[key] = entry.payload[key]; });
+    Object.keys(fresh).forEach(function (key) { payload[key] = fresh[key]; });
+    // textEdit is CONDITIONAL in payloadForSend, so overlaying only the keys that
+    // are present is not enough: a text edit undone inside the window would leave
+    // the frozen one standing and send text the user took back.
+    if (!fresh.textEdit) delete payload.textEdit;
+    return { key: entry.key, pathname: entry.pathname, endpoint: entry.endpoint, label: entry.label, payload: payload };
+  }
+
   function carryDetachedDraft(draft) {
     if (!draft) return false;
     var entry = lastConnectedPending[draft.clientKey];
     if (!entry) return false;
+    entry = freshenedCarryEntry(entry, draft);
     var already = carriedPending.some(function (existing) { return existing.key === entry.key; });
     if (!already) carriedPending.push(entry);
     // SCHEDULED, never persistPendingNow(): this runs inside the allStyleDrafts()
@@ -5829,7 +6162,7 @@
   // WHAT MEASURES THAT, precisely — the previous version of this sentence said
   // the fine-tier assertions in test/grab-bridge.test.mjs "fail if minPrecision
   // is dropped from either the helper or a call site", and the measured matrix
-  // (.claude/dialkit-2026-08-08/precision-mutants.mjs) refuted the second half:
+  // (.claude/overlay-controls-2026-08-08/precision-mutants.mjs) refuted the second half:
   // dropping the floor at any of the three call sites left the ENTIRE suite
   // green. The unit assertions grade this function and steppedNumericValue and
   // can see nothing past them. test/grab-overlay-precision-tiers.test.mjs is
@@ -6243,11 +6576,11 @@
 
   // ---- Spring -> linear() -------------------------------------------------
   //
-  // The last motion gap against DialKit. A cubic bezier cannot express a spring
-  // at all — it has two control points and a spring oscillates — and CSS's only
-  // way to say "spring" is linear(), a sampled progress curve. So this block
-  // GENERATES a linear() from spring physics; it is the CSS analogue of
-  // DialKit's spring editor, not a port of it.
+  // The last motion gap in this panel's own timing controls. A cubic bezier
+  // cannot express a spring at all — it has two control points and a spring
+  // oscillates — and CSS's only way to say "spring" is linear(), a sampled
+  // progress curve. So this block GENERATES a linear() from spring physics; it
+  // is a CSS analogue of a native spring editor, not a port of one.
   //
   // GENERATIVE-ONLY, and that is the load-bearing decision rather than a
   // simplification. Many different springs sample to visually identical curves,
@@ -10927,7 +11260,8 @@
   // sessionStorage. On the next load those become "carried" rows: detached from
   // any live node, not re-editable, but still sendable — they POST the frozen
   // payload straight to the bridge, bypassing the freeze/dispatch state machine
-  // entirely (no live target, no clientKey collision, no batch interaction).
+  // entirely (no live target, no batch interaction, and — see the renumber in
+  // readCarriedPending — no key collision with this page's live drafts).
   var PENDING_STORE_KEY = "raven-grab-pending-v1";
   var pendingPersistTimer = null;
 
@@ -10937,7 +11271,30 @@
       if (!raw) return [];
       var arr = JSON.parse(raw);
       if (!Array.isArray(arr)) return [];
-      return arr.filter(function (entry) { return entry && entry.payload && entry.endpoint; });
+      return arr
+        .filter(function (entry) { return entry && entry.payload && entry.endpoint; })
+        // RENUMBER, never validate. A stored key is `"live:" + clientKey` and
+        // clientKey is `"style-draft-" + styleDraftClientSequence`, a counter that
+        // RESETS TO 0 ON EVERY PAGE LOAD — so a carried entry restored verbatim
+        // collides with the first draft this page creates. That collision is a
+        // silent loss, not a cosmetic clash: carryDetachedDraft() de-dupes on
+        // entry.key, finds the prior page's row "already" there, declines to push
+        // and returns false, and sweepStaleStyleDrafts() drops the draft anyway
+        // (correctly — the same draft swept twice must still drop). The newer grab
+        // vanishes and the surviving row carries the OLD page's element. Two more
+        // consequences of the same key: persistPendingNow() concats carried +
+        // live, so storage can hold two entries under one key, and removeChange()
+        // filters by key, so one Remove click deletes both rows.
+        // Reassigning into a namespace no live key can mint kills all three at
+        // once, and it does so without asking whether the stored key was WELL
+        // FORMED — validation cannot survive garbage (Number.MAX_SAFE_INTEGER is a
+        // valid safe integer that passes any check and then stops incrementing),
+        // which is the same conclusion the named-style-versions hydrate reached.
+        // Index-based so it is stateless and cannot itself collide.
+        .map(function (entry, index) {
+          entry.key = "stored:" + (index + 1);
+          return entry;
+        });
     } catch (error) { return []; }
   }
 
@@ -11689,10 +12046,34 @@
         <button class="raven-grab-section-toggle" type="button" data-section-toggle="styles" aria-expanded="${expandedSections.styles ? "true" : "false"}" aria-controls="raven-grab-styles"><span>Styles</span><span class="raven-grab-caret" aria-hidden="true">▾</span></button>
         <div class="raven-grab-collapsible" id="raven-grab-styles" data-section-body="styles" data-open="${expandedSections.styles ? "true" : "false"}" aria-hidden="${expandedSections.styles ? "false" : "true"}"><div class="raven-grab-collapsible-inner">${tokensEmptyMarkup}<ul class="raven-grab-styles">${stylesMarkup}</ul>${stateStylesMarkup}${styleVersionsMarkup()}</div></div>
       </section>`;
+    // Computed once here rather than inline in the template: the same
+    // instructionsMarkup renders in BOTH the desktop footer and the mobile
+    // Instructions tab, and the disabled attribute must agree in both.
+    // The button is ALWAYS in the DOM for the reason styleVersionsMarkup states
+    // at length — a style commit does not re-render, so anything built only by
+    // renderPanel() can never appear when the user's first edit lands.
+    // syncQueueButton() owns it after that.
+    var queueNoteAtRender = queueNoteText();
+    // The row is mic + button and NOTHING else. There used to be a
+    // `.raven-grab-queue-note` <p> here carrying the blocked reason and then the
+    // bank confirmation; Andrew removed it on sight (2026-08-10) because at 11px
+    // in a min-width: 0 track it wrapped to four lines to the LEFT of the
+    // waveform. See the CSS block for the full reason. Its two messages moved:
+    // the blocked reason to this button's own title (below) and to the aria-live
+    // status line when a blocked button is pressed, and the confirmation to that
+    // same status line, VISIBLE (setGlobalActionStatus in the click handler).
+    // Keep the mic FIRST and add no interpolation between the queue row's
+    // opening tag and voiceButtonMarkup(): test/grab-overlay-voice-alignment.test.mjs
+    // requires that region to be nothing but concatenation, measured over its
+    // `glue` view, and a `${...}` body survives there as code. The rule is
+    // extended, never relaxed (nine Sol rounds), so the markup obeys it.
     var instructionsMarkup = `
       <section class="raven-grab-section raven-grab-composer">
-        <div class="raven-grab-section-heading"><h2 class="raven-grab-section-title">Instructions</h2>${voiceButtonMarkup("data-instruction", "instructions")}</div>
+        <div class="raven-grab-section-heading"><h2 class="raven-grab-section-title">Instructions</h2></div>
         <textarea class="raven-grab-textarea" data-instruction spellcheck="true" aria-label="Instructions" placeholder="Tell the agent what to change…">${escapeHtml(instructionDraft)}</textarea>
+        <div class="raven-grab-queue">${voiceButtonMarkup("data-instruction", "instructions")}
+          <button type="button" class="raven-grab-queue-add" data-queue-draft${queueNoteAtRender ? ' aria-disabled="true" title="' + escapeHtml(queueNoteAtRender) + '"' : ""}>Add to queue</button>
+        </div>
       </section>`;
     var issueTypes = ["UX/Usability", "Visual bug", "Missing variant", "Accessibility", "New pattern", "Other"];
     var issueSizes = ["1-10 users/customers", "10-100", "100-1,000", "1,000+", "Internal only"];
@@ -11945,6 +12326,10 @@
   function syncSendButtonDisabled() {
     mountGlobalActions();
     schedulePersistPending();
+    // The instruction box is the half of "is there work" that never touches the
+    // style collections, so syncActiveStyleDraftKey never fires for it. Typing
+    // the first character of an instruction has to enable Add to queue.
+    syncQueueButton();
   }
 
   function switchTab(tab) {
@@ -12421,11 +12806,56 @@
     else status.removeAttribute("data-kind");
   }
 
+  // A status node inside a COLLAPSED panel is aria-hidden AND inert
+  // (setPanelCollapsed), so its
+  // aria-live region is excluded from the accessibility tree: the announcement is
+  // written and never spoken. Both attributes are tested because collapse sets both
+  // and either one alone removes the subtree from AT — checking one is the
+  // one-of-two-call-sites drift this repo documents for preview-vs-action.
+  //
+  // This is NOT a defensive nicety for the queue confirmation. Since 2026-08-10 that
+  // confirmation is VISIBLE and it is the only one a successful bank has, so where the
+  // text lands decides whether the user sees any response at all — not merely whether
+  // it is spoken. It reaches the shared channel's other non-empty callers too, and
+  // regresses none of them. (The earlier wording said "the sr-only queue confirmation";
+  // that was true for exactly one round and is HISTORY.)
+  function statusNodeIsReachable(node) {
+    if (!node || !node.isConnected) return false;
+    for (var walk = node; walk; walk = walk.parentNode) {
+      // A ShadowRoot / fragment boundary is nodeType 11 and carries no attributes;
+      // skipping it is what lets the walk keep climbing to the panel elements.
+      if (walk.nodeType !== 1
+        || typeof walk.getAttribute !== "function"
+        || typeof walk.hasAttribute !== "function") continue;
+      if (walk.getAttribute("aria-hidden") === "true") return false;
+      if (walk.hasAttribute("inert")) return false;
+    }
+    return true;
+  }
+
   function setGlobalActionStatus(message, kind) {
-    var status = (structureActions && structureActions.querySelector("[data-status-b]"))
-      || (globalActions && globalActions.querySelector("[data-status]"))
-      || panelQuery("[data-status-b]")
-      || panelQuery("[data-status]");
+    // Same four candidates, same order (structureActions is detached with an empty
+    // innerHTML whenever Assets is not the active left tab, so its querySelector
+    // already returns null on a default load and resolution already falls through
+    // to the right panel). The ONLY behaviour change is the skip: an unreachable
+    // candidate is passed over for a live one, and when EVERY candidate is hidden
+    // the first available one is still used, so the text lands somewhere rather
+    // than nowhere. Guarded by Q26 (neuter the skip), Q27 (remove aria-hidden), and
+    // Q28 (remove inert); each turns T14 red in the queue matrix.
+    var candidates = [
+      structureActions && structureActions.querySelector("[data-status-b]"),
+      globalActions && globalActions.querySelector("[data-status]"),
+      panelQuery("[data-status-b]"),
+      panelQuery("[data-status]")
+    ];
+    var status = null;
+    var fallback = null;
+    for (var i = 0; i < candidates.length; i++) {
+      if (!candidates[i]) continue;
+      if (!fallback) fallback = candidates[i];
+      if (statusNodeIsReachable(candidates[i])) { status = candidates[i]; break; }
+    }
+    if (!status) status = fallback;
     if (!status) return;
     status.textContent = message;
     if (kind) status.setAttribute("data-kind", kind);
@@ -12660,6 +13090,50 @@
     if (event.target.closest("[data-save-version]")) {
       if (saveStyleVersion(styleVersionNameDraft)) styleVersionNameDraft = "";
       renderPanel();
+      return;
+    }
+    if (event.target.closest("[data-queue-draft]")) {
+      if (queueActiveDraft()) {
+        // Both, and in this order. queueActiveDraft() already re-rendered, so the button
+        // currently advertises QUEUE_NEEDS_WORK in its `title` — the sync is what replaces
+        // that with the confirmation, at the control that was actually pressed.
+        //
+        // The status line goes out VISIBLE, and this call carried "sr-only" for exactly
+        // one round (2026-08-10) — do not restore it. It was visually hidden because the
+        // <p> beside this button was ALSO rendering "Added to queue", and a design-judge
+        // pass measured that duplicate at 282x18px of visible text on a live region.
+        // Andrew then removed the <p> on sight, which removes the duplication and with
+        // it the whole reason for the hiding: this line is now the ONLY confirmation a
+        // successful bank has, in any modality. The sibling calls that legitimately pass
+        // "sr-only" ("Saved <selector>", the send label, "Sent to agent", "Email sent")
+        // all do so because their visible confirmation lives somewhere else; this one's
+        // does not. Guarded by Q24 (restore sr-only) and Q25 (retain geometry while
+        // painting no text), both of which turn T13 red on its pixel assertion.
+        //
+        // [data-status] carries aria-live="polite", so the same node both SHOWS and
+        // ANNOUNCES. Do NOT "simplify" by deleting the call: it is the only report this
+        // terminal action makes, visually and to assistive tech alike.
+        // statusNodeIsReachable() routes around collapsed candidates whenever another
+        // status region is reachable. Only the all-candidates-hidden fallback remains.
+        queueNotice = QUEUE_ADDED_NOTICE;
+        syncQueueButton();
+        setGlobalActionStatus("Added to queue");
+        return;
+      }
+      // A refusal has to SAY why, and the note cannot be assumed to already say it.
+      // This comment used to claim it did; that was a decayed claim. syncQueueButton()
+      // has exactly two callers — syncActiveStyleDraftKey and syncSendButtonDisabled —
+      // and NOTHING in the overlay observes an element leaving the DOM, so at the
+      // moment of this click the note holds whatever the last edit left behind and the
+      // button is still drawn enabled. Sync first (which also disables the stale-enabled
+      // button the user just pressed), then state the reason.
+      syncQueueButton();
+      // The || arm has no reachable trigger and is here rather than as a bare
+      // setGlobalActionStatus(blocker): queueActiveDraft's only other false return is
+      // a null stash, and stashActiveStyleDraft asks the same emptiness question the
+      // blocker just asked, so a passing blocker cannot produce one. Stating that
+      // beats an empty status line if the two rules ever diverge.
+      setGlobalActionStatus(queueDraftBlocker() || "Nothing to add yet");
       return;
     }
     if (event.target.closest("[data-maintainer-send]")) sendSelection();
@@ -13524,6 +13998,11 @@
     componentRequest = { issueType: "", issueSize: "", useCase: "", email: "" };
     componentRequestId = "";
     componentRequestInFlight = false;
+    // The confirmation is about the element that was just banked, so it expires with
+    // that selection. syncQueueButton() clears it on its own once there is real work
+    // again, but a selection change produces an empty draft — the one state where the
+    // notice would otherwise persist beside a different element indefinitely.
+    queueNotice = "";
   }
 
   function resetEditContext() {

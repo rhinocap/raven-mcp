@@ -5,7 +5,7 @@
 // `scrubPrecisionMode()` and `steppedNumericValue()` directly, and a comment in
 // browser/raven-grab.js claimed they "fail if minPrecision is dropped from
 // either the helper or a call site". The measured matrix
-// (.claude/dialkit-2026-08-08/precision-mutants.mjs) refuted the second half:
+// (.claude/overlay-controls-2026-08-08/precision-mutants.mjs) refuted the second half:
 // dropping the floor at ANY of the three call sites left the whole suite green.
 // The helper was guarded and the wiring was not — the inert-control shape this
 // codebase has shipped before, where a guard reads an intermediate rather than
@@ -24,7 +24,7 @@
 // returns 1 either way, and every assertion below passes with the floor deleted
 // from all three sites.
 //
-// MEASURED mutant matrix (.claude/dialkit-2026-08-08/precision-mutants.mjs v3,
+// MEASURED mutant matrix (.claude/overlay-controls-2026-08-08/precision-mutants.mjs v3,
 // which runs BOTH this suite and grab-bridge.test.mjs): 7 mutants, 7 killed, 0
 // survived; 1 control, 0 false-failed. v2 — the same matrix without this file —
 // was 4 killed and 3 SURVIVED, and the three survivors were exactly P5/P6/P7.

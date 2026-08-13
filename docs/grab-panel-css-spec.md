@@ -7,11 +7,12 @@ Scope: the design panels of the Raven Grab overlay (`browser/raven-grab.js`).
 
 ## 0. What is transcribed and what is derived — read this first
 
-Andrew's ask was to adopt "DialKit's visual design spacing, layout, and controls."
-**DialKit publishes none of those numbers.** `https://joshpuckett.me/dialkit` was
-opened directly; it documents exactly three visual-adjacent things:
+Andrew's ask was to adopt a reference tool's "visual design spacing, layout,
+and controls."
+**That tool publishes none of those numbers.** Its documentation page was opened
+directly; it documents exactly three visual-adjacent things:
 
-| DialKit fact | Published? |
+| Reference-tool fact | Published? |
 |---|---|
 | `theme: 'light' \| 'dark' \| 'system'` (default `system`) | **yes** |
 | `mode: 'popover' \| 'inline'` — in popover mode the **collapsed bubble** is draggable, and the panel snaps to the nearest side **when opened** | **yes** |
@@ -28,20 +29,25 @@ were wrong: re-read from the page 2026-08-09, the draggable object is the
 **collapsed bubble**, and the snap happens **when the panel is opened**, not when
 the drag ends.
 
-The page links a `/dialkit/photostack` demo. It does **not** instruct anyone to
+The page links a component demo. It does **not** instruct anyone to
 read component source — that was an earlier draft's invention. Reading the source
 or measuring the demo's computed styles is *this spec's own* proposal for a
-second pass, and should not be attributed to DialKit's documentation.
+second pass, and should not be attributed to the reference tool's documentation.
 
 So this spec splits into two honestly-labelled halves:
 
+**The reference tool is deliberately not named in this repo, which is public.**
+Its identity and documentation URL are recorded outside version control. Nothing
+in this spec depends on either — §1–§5 are Raven's own numbers, and §6 cites only
+three prop names any consumer of that tool would already have.
+
 - **§1–§5 are DERIVED, not transcribed.** They are a Raven-native scale
-  normalised from Raven's own measured values. Nothing in them is a DialKit
+  normalised from Raven's own measured values. Nothing in them is a reference-tool
   number and none of it should ever be described as one.
-- **§6 is TRANSCRIBED** — the three things DialKit actually documents, which
+- **§6 is TRANSCRIBED** — the three things the reference tool actually documents, which
   Raven genuinely lacks.
 
-If someone later wants real DialKit numbers, that is a second measurement pass
+If someone later wants real numbers from it, that is a second measurement pass
 against the demo's computed styles or the GitHub source. It has not been run.
 
 ---
@@ -275,7 +281,7 @@ closes the gap the value cells actually have.
 
 ## 3. Call-site migration — style rows
 
-This is the DialKit-adjacent surface and the highest-value migration. Current
+This is the highest-value migration surface. Current
 state is `browser/raven-grab.js:1073-1127`.
 
 **How to read the CSS blocks below.** They are **declaration-level
@@ -742,9 +748,9 @@ item below names the input that makes it fail.
 
 ---
 
-## 6. TRANSCRIBED — what DialKit actually documents, and what Raven lacks
+## 6. TRANSCRIBED — what the reference tool documents, and what Raven lacks
 
-These are the only three DialKit facts with published values. All three are
+These are the only three of its facts with published values. All three are
 **structural, not stylistic**, and each is a separate piece of work from §1–§5.
 
 ### 6.1 `theme: 'light' | 'dark' | 'system'` — Raven has no light mode
@@ -763,7 +769,7 @@ Raven `audit_contrast` run.
 
 ### 6.2 `mode: 'popover' | 'inline'` — Raven has popover only
 
-In DialKit's popover mode the **collapsed bubble** is draggable, and the panel
+In its popover mode the **collapsed bubble** is draggable, and the panel
 snaps to the nearest side **when it is opened**. (Not: the whole panel dragging
 with a snap on release. Two earlier drafts said that; see §0.)
 
@@ -864,7 +870,7 @@ Note the loop is described here as inert, not as a bug to fix: nothing observabl
 is currently wrong on mobile, because the detent it re-selects is the correct
 one. Whether to delete it is a separate call and is **not specced here**.
 
-DialKit's `inline` mode — the panel rendered in document flow rather than
+Its `inline` mode — the panel rendered in document flow rather than
 floating — has no Raven equivalent at all. Whether it is wanted is a product
 question, not a CSS one.
 

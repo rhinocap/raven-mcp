@@ -1,4 +1,5 @@
 (function() {
+  var path = window.location.pathname;
   var CSS = '\
     :host { display: block; }\
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }\
@@ -29,7 +30,16 @@
       .footer-inner { flex-direction: column; gap: var(--space-4, 16px); text-align: center; }\
       .footer-links { justify-content: center; flex-wrap: wrap; }\
     }\
-  ';
+  ' + ((path === '/' || path === '/index') ? '\
+    :host { --home-type-utility-size: 14px; --home-type-utility-weight: 400; }\
+    footer, footer * {\
+      font-family: var(--font-body, "Untitled Sans", -apple-system, BlinkMacSystemFont, sans-serif) !important;\
+      font-size: var(--home-type-utility-size) !important;\
+      font-weight: var(--home-type-utility-weight) !important;\
+      text-transform: none !important;\
+      letter-spacing: normal !important;\
+    }\
+  ' : '');
 
   var HTML = '\
     <footer>\

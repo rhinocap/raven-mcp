@@ -125,6 +125,8 @@ test('generate_design_system save:true persists, reports, and the id works in ge
       const tokens = JSON.parse(fetched.content[0].text);
       assert.equal(tokens.$name, 'Test Brand');
       assert.ok(tokens.color, 'the stored set carries the generated palette');
+      assert.deepEqual(tokens.typography['font-size'], { $type: 'dimension', h1: { $value: '32px' }, 'text-lg': { $value: '20px' }, text: { $value: '16px' }, 'text-sm': { $value: '14px' } });
+      assert.deepEqual(tokens.typography['font-weight'], { $type: 'fontWeight', h1: { $value: '700' }, 'text-lg': { $value: '600' }, text: { $value: '500' }, 'text-sm': { $value: '400' } });
     });
   });
 });
@@ -136,6 +138,50 @@ test('without save, nothing is written — the default is the old behavior exact
       assert.equal(res.content.length, 1, 'no saved-note block when nothing was saved');
       assert.deepEqual(readdirSync(home), []);
     });
+  });
+});
+
+test('fresh design systems start with one H1 and three descending text styles', async () => {
+  const expectedSizes = { h1: { $value: '32px' }, 'text-lg': { $value: '20px' }, text: { $value: '16px' }, 'text-sm': { $value: '14px' } };
+  const expectedWeights = { h1: { $value: '700' }, 'text-lg': { $value: '600' }, text: { $value: '500' }, 'text-sm': { $value: '400' } };
+  await withClient(async (client) => {
+    for (const style of ['minimal', 'bold', 'warm', 'corporate', 'playful', 'dark']) {
+      const res = await client.callTool({ name: 'generate_design_system', arguments: { name: `Fresh ${style}`, style, format: 'dtcg' } });
+      const typography = JSON.parse(res.content[0].text).typography;
+      assert.deepEqual(typography['font-size'], { $type: 'dimension', ...expectedSizes }, `${style} size ladder`);
+      assert.deepEqual(typography['font-weight'], { $type: 'fontWeight', ...expectedWeights }, `${style} weight ladder`);
+    }
+  });
+});
+
+test('fresh typography pairings survive the HTML and Figma exports', async () => {
+  await withClient(async (client) => {
+    const html = (await client.callTool({ name: 'generate_design_system', arguments: { name: 'Fresh HTML', format: 'html' } })).content[0].text;
+    for (const [name, size, weight] of [['h1', 32, 700], ['text-lg', 20, 600], ['text', 16, 500], ['text-sm', 14, 400]]) {
+      assert.match(html, new RegExp(`style="font-size:${size}px;font-family:&quot;Inter&quot;, system-ui, sans-serif;font-weight:${weight}"[^>]*>The quick brown fox`), `${name} HTML pairing`);
+      assert.match(html, new RegExp(`style="font-weight:${weight};font-family:&quot;Inter&quot;, system-ui, sans-serif"[^>]*>${name} \\(${weight}\\)`), `${name} weight specimen`);
+    }
+
+    const css = (await client.callTool({ name: 'generate_design_system', arguments: { name: 'Fresh CSS', format: 'css' } })).content[0].text;
+    for (const [name, size, weight] of [['h1', 32, 700], ['text-lg', 20, 600], ['text', 16, 500], ['text-sm', 14, 400]]) {
+      assert.match(css, new RegExp(`--fresh-css-typography-font-size-${name}: ${size}px;`));
+      assert.match(css, new RegExp(`--fresh-css-typography-font-weight-${name}: ${weight};`));
+    }
+
+    const figma = JSON.parse((await client.callTool({ name: 'generate_design_system', arguments: { name: 'Fresh Figma', format: 'figma' } })).content[0].text);
+    const typeVariables = figma.variableCollections[0].variables
+      .filter((variable) => variable.name.startsWith('typography/'))
+      .map((variable) => [variable.name, variable.valuesByMode.Light]);
+    assert.deepEqual(typeVariables, [
+      ['typography/font-size/h1', 32],
+      ['typography/font-size/text-lg', 20],
+      ['typography/font-size/text', 16],
+      ['typography/font-size/text-sm', 14],
+      ['typography/font-weight/h1', 700],
+      ['typography/font-weight/text-lg', 600],
+      ['typography/font-weight/text', 500],
+      ['typography/font-weight/text-sm', 400],
+    ]);
   });
 });
 

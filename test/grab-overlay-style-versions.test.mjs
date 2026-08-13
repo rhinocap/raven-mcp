@@ -1,6 +1,6 @@
 // Named style versions: save the active draft's style edits under a name, then
-// restore or delete them. DialKit's "explore variations without losing work",
-// which Raven had no equivalent of — every experiment overwrote the last one.
+// restore or delete them. "Explore variations without losing work", which Raven
+// had no equivalent of — every experiment overwrote the last one.
 //
 // Two decisions carry the whole feature, and neither is visible below the
 // browser, which is why this suite exists at all rather than a unit test:
@@ -234,7 +234,7 @@
 //      mechanism against garbage in hand-editable storage, never a security
 //      boundary against the page.
 //
-// MEASURED mutant matrix (.claude/dialkit-2026-08-08/version-mutants.mjs),
+// MEASURED mutant matrix (.claude/overlay-controls-2026-08-08/version-mutants.mjs),
 // re-run WHOLE after each fix round rather than carried forward — a find-string
 // mutant dies the moment its target line is edited, and SEVEN of them have
 // (V7's in round 1; V11's, V14's and V16's in round 2; V19's in round 3;

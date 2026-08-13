@@ -8,7 +8,7 @@ export default function Home() {
   return (
     <>
       {/* NAV (shared component) */}
-      <main id="main">
+      <main id="main" className="home-page">
 
         {/* Full-site interactive backdrop — fixed canvas behind all content.
             Rendered outside .hero so its z-index:-1 isn't trapped by the
@@ -29,7 +29,7 @@ export default function Home() {
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5" /><path d="M2 10V3a1 1 0 011-1h7" /></svg>
               </button>
             </div>
-      {/* Live install stats — three-card row with big numbers + monospace labels */}
+      {/* Live install stats — three-card row with big numbers + compact labels */}
             <div className="raven-stats-row reveal reveal-delay-3" aria-live="polite">
               <div className="raven-stat-card">
                 <div className="raven-stat-num" id="rs-ver">v—</div>
@@ -128,13 +128,12 @@ export default function Home() {
 
             <div className="recipe reveal">
               <div className="lifecycle-step">
-                <p className="step-label"><span className="step-num">01</span> Calibrate</p>
                 <div className="terminal">
                   <div className="terminal-header">
                     <span className="terminal-dot"></span>
                     <span className="terminal-dot"></span>
                     <span className="terminal-dot"></span>
-                    <span className="terminal-title">get_taste_interview &mdash; fieldnotes</span>
+                    <span className="terminal-title">01 Calibrate &middot; get_taste_interview &mdash; fieldnotes</span>
                   </div>
                   <div className="static-term-body">
                     <pre data-taste-quote aria-label="Recorded get_taste_interview output starting a calibration interview" dangerouslySetInnerHTML={{ __html: `<span class="g">$</span> get_taste_interview <span class="k">profile</span>:<span class="v">'andrew'</span> <span class="k">project</span>:<span class="v">'fieldnotes'</span>
@@ -154,13 +153,12 @@ export default function Home() {
               </div>
 
               <div className="lifecycle-step">
-                <p className="step-label"><span className="step-num">02</span> Audit</p>
                 <div className="terminal">
                   <div className="terminal-header">
                     <span className="terminal-dot"></span>
                     <span className="terminal-dot"></span>
                     <span className="terminal-dot"></span>
-                    <span className="terminal-title">audit_taste &mdash; raven-mcp</span>
+                    <span className="terminal-title">02 Audit &middot; audit_taste &mdash; raven-mcp</span>
                   </div>
                   <div className="static-term-body">
                     <pre data-taste-quote aria-label="Recorded audit_taste output showing a BLOCK verdict" dangerouslySetInnerHTML={{ __html: `<span class="g">$</span> audit_taste <span class="k">project</span>:<span class="v">'raven-mcp'</span>
@@ -180,13 +178,12 @@ export default function Home() {
               </div>
 
               <div className="lifecycle-step">
-                <p className="step-label"><span className="step-num">03</span> Kick off</p>
                 <div className="terminal">
                   <div className="terminal-header">
                     <span className="terminal-dot"></span>
                     <span className="terminal-dot"></span>
                     <span className="terminal-dot"></span>
-                    <span className="terminal-title">bind_taste_surface &mdash; fieldnotes</span>
+                    <span className="terminal-title">03 Kick off &middot; bind_taste_surface &mdash; fieldnotes</span>
                   </div>
                   <div className="static-term-body">
                     <pre data-taste-quote aria-label="Recorded bind_taste_surface output binding a new project surface" dangerouslySetInnerHTML={{ __html: `<span class="g">$</span> bind_taste_surface <span class="k">surface</span>:<span class="v">'fieldnotes'</span> <span class="k">profile</span>:<span class="v">'andrew'</span>
@@ -253,8 +250,7 @@ export default function Home() {
                 <div className="layer-icon blue">
                   <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="11" cy="11" r="8" /><path d="M11 7v4l3 2" /></svg>
                 </div>
-                <div className="stat">129</div>
-                <div className="stat-label">Design principles</div>
+                <div className="stat">129 <span className="stat-label">Design principles</span></div>
                 <h3>Principles</h3>
                 <p><a href="https://www.nngroup.com/articles/ten-usability-heuristics/" target="_blank" rel="noopener noreferrer">Nielsen's Heuristics</a>, <a href="https://lawsofux.com/" target="_blank" rel="noopener noreferrer">Laws of UX</a>, Gestalt, <a href="https://www.w3.org/WAI/standards-guidelines/wcag/" target="_blank" rel="noopener noreferrer">WCAG accessibility</a>, typography, color theory, mobile UX, responsive layout, and D4D&mdash;with violations and checklists.</p>
                 <div className="layer-tags">
@@ -271,8 +267,7 @@ export default function Home() {
                 <div className="layer-icon cyan">
                   <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="3" y="3" width="6" height="6" rx="1.5" /><rect x="13" y="3" width="6" height="6" rx="1.5" /><rect x="3" y="13" width="6" height="6" rx="1.5" /><rect x="13" y="13" width="6" height="6" rx="1.5" /></svg>
                 </div>
-                <div className="stat">22</div>
-                <div className="stat-label">Pattern libraries</div>
+                <div className="stat">22 <span className="stat-label">Pattern libraries</span></div>
                 <h3>Patterns</h3>
                 <p>Field-tested UI patterns for signup, pricing, dashboards, forms, navigation, CTAs&mdash;plus content patterns (errors, empty states, notifications) and service patterns (blueprinting, handoff).</p>
                 <div className="layer-tags">
@@ -287,8 +282,7 @@ export default function Home() {
                 <div className="layer-icon accent">
                   <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 5h14M4 10h10M4 15h12" /></svg>
                 </div>
-                <div className="stat">4</div>
-                <div className="stat-label">Brand voice systems</div>
+                <div className="stat">4 <span className="stat-label">Brand voice systems</span></div>
                 <h3>Content Systems</h3>
                 <p>Voice &amp; tone from GOV.UK, Shopify Polaris, Atlassian, and a conversational product voice. Plus eleven UX-writing principles and content patterns for errors, empty states, notifications, and form validation.</p>
                 <div className="layer-tags">
@@ -303,8 +297,7 @@ export default function Home() {
                 <div className="layer-icon accent">
                   <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="10" cy="10" r="6" /><path d="M14.5 14.5l4 4" /></svg>
                 </div>
-                <div className="stat">6</div>
-                <div className="stat-label">Metrics frameworks</div>
+                <div className="stat">6 <span className="stat-label">Metrics frameworks</span></div>
                 <h3>Research &amp; Data</h3>
                 <p>Qualitative, quantitative, and usability methods with protocols, sample-size guidance, and bias traps. Metrics frameworks: HEART, AARRR, North Star, conversion funnel, RICE, OKRs.</p>
                 <div className="layer-tags">
@@ -319,8 +312,7 @@ export default function Home() {
                 <div className="layer-icon green">
                   <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M3 6h7M3 11h10M3 16h8" /><path d="M15 6h4v10h-4z" /></svg>
                 </div>
-                <div className="stat">14</div>
-                <div className="stat-label">GOV.UK standard</div>
+                <div className="stat">14 <span className="stat-label">GOV.UK standard</span></div>
                 <h3>Service Design</h3>
                 <p>Stickdorn, Shostack, moments of truth, peak-end, human-handoff patterns. Plus an HTML service-blueprint generator with two-actor (HI-loop) mode for customer&#x2194;lawyer, patient&#x2194;doctor flows.</p>
                 <div className="layer-tags">
@@ -335,8 +327,7 @@ export default function Home() {
                 <div className="layer-icon accent">
                   <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="11" cy="11" r="8" /><circle cx="11" cy="11" r="3" /></svg>
                 </div>
-                <div className="stat">7</div>
-                <div className="stat-label">2026 visual trends</div>
+                <div className="stat">7 <span className="stat-label">2026 visual trends</span></div>
                 <h3>Brand &amp; Visual</h3>
                 <p>Logo usage, gradient systems, imagery, visual hierarchy, brand-as-system thinking&mdash;plus a time-stamped 2026 trends file (bento grids, monospace for tone, neon-on-glass, brutalism rebound).</p>
                 <div className="layer-tags">
@@ -351,8 +342,7 @@ export default function Home() {
                 <div className="layer-icon green">
                   <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M3 16l5-5 4 4 7-7" /><path d="M14 8h5v5" /></svg>
                 </div>
-                <div className="stat">5</div>
-                <div className="stat-label">Strategy domains</div>
+                <div className="stat">5 <span className="stat-label">Strategy domains</span></div>
                 <h3>Business Strategy</h3>
                 <p>Monetization, retention, onboarding, growth, and metrics&mdash;the business context that shapes every design decision.</p>
                 <div className="layer-tags">
@@ -367,8 +357,7 @@ export default function Home() {
                 <div className="layer-icon accent">
                   <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="3" y="3" width="16" height="16" rx="2" /><path d="M7 8h8M7 11h5M7 14h7" /></svg>
                 </div>
-                <div className="stat">12</div>
-                <div className="stat-label">Design systems</div>
+                <div className="stat">12 <span className="stat-label">Design systems</span></div>
                 <h3>Tokens</h3>
                 <p>Production design system tokens in W3C DTCG format. Compose tokens across systems, export as CSS variables, Figma Variables, or JSON. Generate custom systems from a brand color.</p>
                 <div className="layer-tags">
@@ -383,8 +372,7 @@ export default function Home() {
                 <div className="layer-icon blue">
                   <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="9" cy="9" r="6" /><path d="M13.5 13.5l4 4" /><path d="M6.5 9l2 2 4-4" /></svg>
                 </div>
-                <div className="stat">20</div>
-                <div className="stat-label">Audit tools</div>
+                <div className="stat">20 <span className="stat-label">Audit tools</span></div>
                 <h3>Render &amp; Audit</h3>
                 <p>Render any live URL or screen and grade it&mdash;contrast, typography, tap targets, responsive visibility, asset integrity. Native SwiftUI and React Native, plus parity and API-contract checks.</p>
                 <div className="layer-tags">
@@ -413,9 +401,8 @@ export default function Home() {
           <div className="watch-rows">
               <div className="watch-row reveal">
                 <div className="watch-text">
-                  <span className="wc-tool">get_principles &middot; evaluate_design</span>
                   <h3>Build from a prompt, design-guided</h3>
-                  <p>A single prompt scaffolds a full SwiftUI app&mdash;Raven's principles steer layout, color, and type from the first line of code.</p>
+                  <p>A single prompt scaffolds a full SwiftUI app&mdash;Raven's principles steer layout, color, and type from the first line of code. Tools: get_principles &middot; evaluate_design.</p>
                 </div>
                 <div className="watch-media">
                   <div className="mb">
@@ -430,9 +417,8 @@ export default function Home() {
 
               <div className="watch-row reveal">
                 <div className="watch-text">
-                  <span className="wc-tool">get_design_system &middot; get_pattern</span>
                   <h3>Design system applied, not guessed</h3>
-                  <p>Activity rings, KPI cards, dark-theme elevation&mdash;every choice traced to a principle: 44px targets, 60/30/10 color, Miller's Law.</p>
+                  <p>Activity rings, KPI cards, dark-theme elevation&mdash;every choice traced to a principle: 44px targets, 60/30/10 color, Miller's Law. Tools: get_design_system &middot; get_pattern.</p>
                 </div>
                 <div className="watch-media">
                   <div className="mb">
@@ -447,9 +433,8 @@ export default function Home() {
 
               <div className="watch-row reveal">
                 <div className="watch-text">
-                  <span className="wc-tool">audit_ios_screen &middot; audit_screen</span>
                   <h3>Real screens, audited live</h3>
-                  <p>The Workouts tab built and verified end-to-end&mdash;progressive disclosure, smart defaults, and 44pt targets checked against the HIG.</p>
+                  <p>The Workouts tab built and verified end-to-end&mdash;progressive disclosure, smart defaults, and 44pt targets checked against the HIG. Tools: audit_ios_screen &middot; audit_screen.</p>
                 </div>
                 <div className="watch-media">
                   <div className="mb">
@@ -464,9 +449,8 @@ export default function Home() {
 
               <div className="watch-row reveal">
                 <div className="watch-text">
-                  <span className="wc-tool">get_pattern &middot; audit_typography</span>
                   <h3>Patterns with checklists</h3>
-                  <p>Need a dashboard or streak system? Raven returns the relevant pattern, its do's and don'ts, and the research notes before a pixel is drawn.</p>
+                  <p>Need a dashboard or streak system? Raven returns the relevant pattern, its do's and don'ts, and the research notes before a pixel is drawn. Tools: get_pattern &middot; audit_typography.</p>
                 </div>
                 <div className="watch-media">
                   <div className="mb">
@@ -481,9 +465,8 @@ export default function Home() {
 
               <div className="watch-row reveal">
                 <div className="watch-text">
-                  <span className="wc-tool">audit_ios_a11y &middot; audit_contrast &middot; audit_tap_targets</span>
                   <h3>Accessibility checked after build</h3>
-                  <p>Raven audits VoiceOver labels, Dynamic Type, contrast ratios, tap-target sizes, and per-screen scores after the UI exists.</p>
+                  <p>Raven audits VoiceOver labels, Dynamic Type, contrast ratios, tap-target sizes, and per-screen scores after the UI exists. Tools: audit_ios_a11y &middot; audit_contrast &middot; audit_tap_targets.</p>
                 </div>
                 <div className="watch-media">
                   <div className="mb">
@@ -498,9 +481,8 @@ export default function Home() {
 
               <div className="watch-row reveal">
                 <div className="watch-text">
-                  <span className="wc-tool">evaluate_design</span>
                   <h3>Evaluated against 73 principles</h3>
-                  <p>The finished app scored against 73 principles and 13 patterns. Raven flags pure-black backgrounds, color-only indicators, and motion gaps&mdash;then fixes them.</p>
+                  <p>The finished app scored against 73 principles and 13 patterns. Raven flags pure-black backgrounds, color-only indicators, and motion gaps&mdash;then suggests fixes. Tool: evaluate_design.</p>
                 </div>
                 <div className="watch-media">
                   <div className="mb">
@@ -527,9 +509,8 @@ export default function Home() {
                 <a href="/demos/law-firm.html" className="demo-card">
                   <div className="demo-card-thumb"><video className="demo-video" muted loop playsInline preload="none" poster="assets/video/demos/law-firm.jpg" data-mp4="assets/video/demos/law-firm.mp4" aria-label="Harrison &amp; Cole, a litigation-firm site built with Raven"></video></div>
                   <div className="demo-card-overlay">
-                    <div className="demo-card-industry">Legal</div>
                     <div className="demo-card-name">Harrison &amp; Cole</div>
-                    <div className="demo-card-desc">Full-service litigation firm</div>
+                    <div className="demo-card-desc">Legal &middot; Full-service litigation firm</div>
                   </div>
                   <div className="demo-card-arrow">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 8h8M9 4l4 4-4 4" /></svg>
@@ -538,9 +519,8 @@ export default function Home() {
                 <a href="/demos/wedding.html" className="demo-card">
                   <div className="demo-card-thumb"><video className="demo-video" muted loop playsInline preload="none" poster="assets/video/demos/wedding.jpg" data-mp4="assets/video/demos/wedding.mp4" aria-label="Elara &amp; Co., a luxury wedding-planning site built with Raven"></video></div>
                   <div className="demo-card-overlay">
-                    <div className="demo-card-industry">Wedding</div>
                     <div className="demo-card-name">Elara &amp; Co.</div>
-                    <div className="demo-card-desc">Luxury wedding planning</div>
+                    <div className="demo-card-desc">Wedding &middot; Luxury wedding planning</div>
                   </div>
                   <div className="demo-card-arrow">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 8h8M9 4l4 4-4 4" /></svg>
@@ -549,9 +529,8 @@ export default function Home() {
                 <a href="/demos/coffee-shop.html" className="demo-card">
                   <div className="demo-card-thumb"><video className="demo-video" muted loop playsInline preload="none" poster="assets/video/demos/coffee-shop.jpg" data-mp4="assets/video/demos/coffee-shop.mp4" aria-label="Ember &amp; Grain, a specialty coffee-roaster site built with Raven"></video></div>
                   <div className="demo-card-overlay">
-                    <div className="demo-card-industry">Food &amp; Beverage</div>
                     <div className="demo-card-name">Ember &amp; Grain</div>
-                    <div className="demo-card-desc">Specialty coffee roaster</div>
+                    <div className="demo-card-desc">Food &amp; beverage &middot; Specialty coffee roaster</div>
                   </div>
                   <div className="demo-card-arrow">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 8h8M9 4l4 4-4 4" /></svg>
@@ -560,9 +539,8 @@ export default function Home() {
                 <a href="/demos/saas.html" className="demo-card">
                   <div className="demo-card-thumb"><video className="demo-video" muted loop playsInline preload="none" poster="assets/video/demos/saas.jpg" data-mp4="assets/video/demos/saas.mp4" aria-label="Flux, a real-time analytics SaaS site built with Raven"></video></div>
                   <div className="demo-card-overlay">
-                    <div className="demo-card-industry">SaaS</div>
                     <div className="demo-card-name">Flux</div>
-                    <div className="demo-card-desc">Real-time analytics platform</div>
+                    <div className="demo-card-desc">SaaS &middot; Real-time analytics platform</div>
                   </div>
                   <div className="demo-card-arrow">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 8h8M9 4l4 4-4 4" /></svg>
@@ -571,9 +549,8 @@ export default function Home() {
                 <a href="/demos/fitness.html" className="demo-card">
                   <div className="demo-card-thumb"><video className="demo-video" muted loop playsInline preload="none" poster="assets/video/demos/fitness.jpg" data-mp4="assets/video/demos/fitness.mp4" aria-label="FORGE, a performance training-studio site built with Raven"></video></div>
                   <div className="demo-card-overlay">
-                    <div className="demo-card-industry">Fitness</div>
                     <div className="demo-card-name">FORGE</div>
-                    <div className="demo-card-desc">Performance training studio</div>
+                    <div className="demo-card-desc">Fitness &middot; Performance training studio</div>
                   </div>
                   <div className="demo-card-arrow">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 8h8M9 4l4 4-4 4" /></svg>
@@ -582,9 +559,8 @@ export default function Home() {
                 <a href="/demos/real-estate.html" className="demo-card">
                   <div className="demo-card-thumb"><video className="demo-video" muted loop playsInline preload="none" poster="assets/video/demos/real-estate.jpg" data-mp4="assets/video/demos/real-estate.mp4" aria-label="Oleander Residence, a luxury real-estate listing site built with Raven"></video></div>
                   <div className="demo-card-overlay">
-                    <div className="demo-card-industry">Real Estate</div>
                     <div className="demo-card-name">Oleander Residence</div>
-                    <div className="demo-card-desc">Estate listing concept</div>
+                    <div className="demo-card-desc">Real estate &middot; Estate listing concept</div>
                   </div>
                   <div className="demo-card-arrow">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 8h8M9 4l4 4-4 4" /></svg>
@@ -697,19 +673,16 @@ export default function Home() {
 
             <div className="mythology-realms">
               <div className="glow-card realm reveal">
-                <div className="realm-tradition">Norse</div>
                 <h4>Huginn &amp; Muninn</h4>
-                <p>Thought &amp; Memory&mdash;Odin's ravens that fly across all nine realms and return with knowledge</p>
+                <p>Norse &middot; Thought &amp; Memory&mdash;Odin's ravens that fly across all nine realms and return with knowledge</p>
               </div>
               <div className="glow-card card-raised realm reveal reveal-delay-1">
-                <div className="realm-tradition">Celtic</div>
                 <h4>The Morr&iacute;gan</h4>
-                <p>Sovereignty &amp; Prophecy&mdash;the triple goddess who takes raven form to decide fate</p>
+                <p>Celtic &middot; Sovereignty &amp; Prophecy&mdash;the triple goddess who takes raven form to decide fate</p>
               </div>
               <div className="glow-card realm reveal reveal-delay-2">
-                <div className="realm-tradition">Tlingit</div>
                 <h4>Y&eacute;il the Transformer</h4>
-                <p>Light from Darkness&mdash;Raven stole the sun, moon, and stars and gave them to everyone</p>
+                <p>Tlingit &middot; Light from Darkness&mdash;Raven stole the sun, moon, and stars and gave them to everyone</p>
               </div>
             </div>
           </div>
@@ -747,9 +720,8 @@ export default function Home() {
               </div>
 
               <div className="glow-card pricing-services-card">
-                <p className="pricing-services-label">Need something custom?</p>
                 <h3 className="pricing-services-title">Custom Design Systems</h3>
-                <p className="pricing-services-desc">Get a Raven-compatible design system for your brand: tokens, principles, and evaluation rules matched to your product.</p>
+                <p className="pricing-services-desc">Need something custom? Get a Raven-compatible design system for your brand: tokens, principles, and evaluation rules matched to your product.</p>
                 <a href="mailto:andrew@ravenmcp.ai" className="pricing-services-link">Get in touch &rarr;</a>
               </div>
             </div>

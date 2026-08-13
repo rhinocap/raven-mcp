@@ -19,15 +19,17 @@
 // after any fix round: a find-string mutant dies silently the moment its target
 // line is edited.
 //
-// Run 4 (the whole matrix re-measured after round 2's token-lock fix added E14,
-// E15 and one test): 15 mutants, 15 killed, 0 survived.
+// Run 5 (the whole matrix re-measured 2026-08-10, after the "Add to queue" row
+// shrank the pinned actions chrome and forced a repair to the preset test below,
+// and after E15's find-string had to be RE-ANCHORED): 15 mutants, 15 killed, 0
+// survived, EXIT=0, against green baselines of parser 287/0 and widget 12/0.
 //
 //   E1  drop the easing branch from classifyStyleControl            -> 10
-//   E2  classifyStyleControl returns "easing" without the parser    -> 3
+//   E2  classifyStyleControl returns "easing" without the parser    -> 4
 //   E3  parseEasingValue skips the x in [0,1] check                 -> 1 (parser)
 //   E4  the drag clamps y into the unit square                      -> 1
 //   E5  a keyword lookup hands out the shared EASING_KEYWORDS array -> 1 (parser)
-//   E6  timingFunctionCount splits on every comma                   -> 10
+//   E6  timingFunctionCount splits on every comma                   -> 11
 //   E7  a preset writes the bezier expansion, not the keyword       -> 1
 //   E8  the drag redraws the curve but never writes input.value     -> 5
 //   E9  unitOptionsForProperty always returns the length list       -> 1 (parser)
@@ -38,23 +40,46 @@
 //   E14 the easing HANDLES ignore the row token lock                -> 1
 //   E15 the easing PRESETS are left out of styleValueControlsInEditor -> 1
 //
-// E1 and E6 have the SAME radius of 10, and the honest description is two
-// mutation SITES on ONE path — which is weaker than what this comment claimed
-// for one round, and the weaker version is the true one. Round 2 said "one
-// mechanism"; the correction said "two mechanisms, independently reachable";
-// Sol round 3 refuted the second half by reading the code, and so did I:
-// `timingFunctionCount` has exactly ONE call site in the overlay
-// (browser/raven-grab.js:5259, inside `parseEasingValue`), and
-// `classifyStyleControl`'s easing branch always calls `parseEasingValue`. There
-// is no input that reaches the count without going through classification, so
-// they are not two production paths. They are two edits to the same one, and
-// both land at the same place: the plain-text control, where every widget test
-// loses its subject. The radius cannot separate them; the assertion MESSAGE is
-// what does. Note this is NOT the shape of the A1/A2 note in the alignment
-// suite, which the previous version of this paragraph claimed — those two really
-// are separate mechanisms. Getting that wrong twice in two rounds is the reason
-// the rule is written here: a radius says how many tests a mutation reddens and
-// nothing whatsoever about how the code is wired. Read the call sites.
+// E15's anchor was DEAD for two days and the matrix aborted in preflight rather
+// than reporting a survivor about nothing. Its find-string ended in `!== -1;`
+// because the easing clause used to TERMINATE the || chain in
+// `isStyleValueControl`; the spring-presets round appended a
+// `raven-grab-spring-preset` clause below it and took the semicolon with it.
+// The standing "re-run the WHOLE matrix after any fix" rule is written per
+// FEATURE, and this is the cross-feature gap in it: a shared predicate like
+// `isStyleValueControl` is anchored by more than one harness, so a round that
+// edits one must re-run all of them. The spring round re-ran only its own.
+//
+// EXACTLY TWO radii moved from run 4 — E2 3->4 and E6 10->11 — and they gained
+// the SAME single parser red, `REGRESSION: spring -> linear() generation`. The
+// cause is not new wiring: the spring round appended a three-assertion
+// generative-only contract block to that test which grades `parseEasingValue`,
+// `classifyStyleControl` and `timingFunctionCount` DIRECTLY, so a mutation to
+// any of the three reddens it without passing through the widget at all. E1 is
+// untouched by it because deleting the branch outright still leaves
+// `classifyStyleControl` answering "text" for a linear(), which is what that
+// block asserts.
+//
+// E1 and E6 therefore NO LONGER share a radius, and the correction is narrower
+// than it looks — resist the pull to promote them to two mechanisms, which this
+// paragraph has already done wrongly once. `timingFunctionCount` still has
+// exactly ONE call site in the overlay (grep-verified 2026-08-10 at
+// browser/raven-grab.js:6281, inside `parseEasingValue`; the previous version of
+// this comment said :5259, which is the line-numbers-decay warning firing on
+// itself), and `classifyStyleControl`'s easing branch always calls
+// `parseEasingValue`. There is no input that reaches the count without going
+// through classification, so they are not two production paths. They are two
+// edits to the same one, and both land at the same place: the plain-text
+// control, where every widget test loses its subject. What separates them is
+// the assertion MESSAGE — and now, incidentally, a one-test radius difference
+// that says nothing about the wiring either. Round 2 said "one mechanism"; the
+// correction said "two mechanisms, independently reachable"; Sol round 3 refuted
+// the second half by reading the code, and so did I. Note this is NOT the shape
+// of the A1/A2 note in the alignment suite, which an earlier version of this
+// paragraph claimed — those two really are separate mechanisms. Getting that
+// wrong twice in two rounds is the reason the rule is written here: a radius
+// says how many tests a mutation reddens and nothing whatsoever about how the
+// code is wired. Read the call sites.
 // E10's 13 is the widest for a different reason one layer up — with no motion
 // properties in the capture set there is no row to click at all. E8's 5 and
 // E12's 2 are shared preconditions: every drag test asserts the value moved,
@@ -69,10 +94,10 @@
 // off the radius.
 //
 // Run 1 measured E1/E6 at 6, E8 at 2 and E10 at 9; run 3 measured them at 9, 5
-// and 12. Those numbers did not go up because coverage improved — tests were
-// added and they exercise the same mechanisms. That is why the whole matrix is
-// re-run rather than carried forward, and why a radius is read as a fact about
-// a mechanism.
+// and 12; run 4 at 10, 5 and 13; run 5 split E1 and E6 apart at 10 and 11. Those
+// numbers did not go up because coverage improved — tests were added and they
+// exercise the same mechanisms. That is why the whole matrix is re-run rather
+// than carried forward, and why a radius is read as a fact about a mechanism.
 //
 // E13 SURVIVED run 2 and is killed here only because a test was written for it.
 // A survivor is either a missing test or a clause with no reachable trigger, and
@@ -513,14 +538,28 @@ test('a preset writes the KEYWORD, not its bezier expansion', async () => {
   await withLocalOverlay(async (page) => {
     await selectElement(page, '#target');
     await openStyleEditor(page, 'transition-timing-function');
+    // Scroll the preset into view, then measure, then assert the measured point
+    // is actually OVER the button before clicking it. The preset row is the
+    // bottom-most part of the editor and the styles list is a flex child of a
+    // pinned actions chrome, so any change to that chrome's height (the "Add to
+    // queue" row, 2026-08-10) can push this row below the list's clipped edge —
+    // at which point the rect is still a valid layout rect, the click lands on
+    // the PAGE underneath, and the assertion below fails reporting the row
+    // original as though the preset had written a bezier expansion. Measured
+    // when that happened: shadowRoot.elementFromPoint returned null and the
+    // topmost element at the point was a fixture div. The hit-test turns a
+    // silent mis-scoped click into a named precondition failure.
     const point = await shadowEval(page, (root) => {
       const buttons = Array.from(root.querySelectorAll('.raven-grab-easing-preset'));
       const button = buttons.find((b) => b.textContent.trim() === 'ease-out');
       if (!button) return null;
+      button.scrollIntoView({ block: 'nearest' });
       const r = button.getBoundingClientRect();
-      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      const pt = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      return { ...pt, hits: root.elementFromPoint(pt.x, pt.y) === button };
     });
     assert.ok(point, 'the ease-out preset must render');
+    assert.ok(point.hits, 'the ease-out preset must be hit-testable at its own centre');
     await page.mouse.click(point.x, point.y);
 
     const applied = await shadowEval(page, (root) => {

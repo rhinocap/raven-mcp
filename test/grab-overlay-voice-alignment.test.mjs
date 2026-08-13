@@ -15,11 +15,18 @@
 // whole 57-mutant browser re-run to guard one CSS rule. A sibling file keeps
 // both matrices intact.
 //
-// EIGHT mics exist in the source and FIVE of them render in this fixture. The
-// fixture asks for the `consumer` role, so the three it never reaches are the
-// two template-mode rows (`:8518`, `:8552`) AND the maintainer-only Component
-// notes heading (`:10601`) — the source-enumeration test is the only guard on
-// all three. That last one is a Sol round 8 (P3) correction: this header named
+// NINE mics exist in the source and FIVE of them render in this fixture. The
+// fixture asks for the `consumer` role, so the FOUR it never reaches are the two
+// template-mode rows (`:9975`, `:10009`), the maintainer-only Component notes
+// heading (`:12109`), and the Versions section heading (`:5513`, which needs a
+// selection carrying style edits) — the source-enumeration test is the only
+// guard on all four. **This paragraph said EIGHT and THREE for several rounds
+// after the named-style-versions round added the ninth, while the count
+// assertion itself said 9 and its own inline comment said four-of-nine** — the
+// same claim, correct at the assertion and decayed in the header, which is the
+// fix-one-of-two-call-sites drift arriving in prose. Line numbers are re-grepped
+// here rather than carried; the previously-written `:8518`/`:8552`/`:10601` had
+// drifted by hundreds of lines. That last mic is a Sol round 8 (P3) correction: this header named
 // Component notes as one of the RENDERED heading mics for several rounds, when
 // the heading the consumer path actually renders is the use case one (`:10583`).
 // The rendered five are feedback message, Instructions, use case, template name
@@ -32,8 +39,50 @@
 // were already correct — the control gap is asserted too, but only where a
 // control exists.
 //
-// Mutation matrix v11 — MEASURED, re-run WHOLE after the round-9 fixes: 30
-// mutants, 30 killed, 0 survived, plus 12 CONTROLS that must stay green and do.
+// Mutation matrix v12 — MEASURED, re-run WHOLE after Andrew's queue-row asks: 33
+// mutants, 33 killed, 0 survived, plus 12 CONTROLS that must stay green and do.
+// EXIT=0, against a declared baseline of 2 pass / 0 fail; the log of record is
+// .claude/overlay-controls-2026-08-08/measurements/align-v12.log. The +3 over v11 is
+// A43/A44/A45, one per mechanism the new queue row introduced, and A6 was
+// RE-ANCHORED rather than carried: it found on the Instructions section heading
+// with the mic inside it, which is exactly the markup these asks rewrote, so the
+// harness's uniqueness check would have ABORTED rather than mis-measured. Its
+// documented property survived the move and was re-derived rather than assumed —
+// still radius 2, enumeration red because nine call sites is not eight, geometry
+// red because flex-end puts the duplicate BETWEEN the original and the button,
+// which measures 8 + 44 + 8 = 60px and fails the pair-gap check. The harness
+// printed exactly that 60.
+//
+// NO RADIUS MEASURED IN v11 MOVED IN v12, and unlike the usual claim this one is
+// a DIFF rather than a reading of this header: the header records radii in prose,
+// so it cannot be diffed. There is no v11 log on disk — the newest per-mutant log
+// is .claude/overlay-controls-2026-08-08/agent-output/align-r8-v10.out, which is a valid
+// baseline precisely because the paragraph below states no v10 radius moved in
+// v11. All 34 of its entries (A1-A34) join v12 with zero differences; A35-A42 are
+// round 9's additions and v12 is their first LOGGED measurement, not a
+// comparison. Write the next matrix to measurements/ so the next reader gets a
+// diff instead of this paragraph.
+//
+// One label mismatch to expect when reading align-v12.log against the harness:
+// A6, A33 and A38 print as "a ninth mic" there and read "an EXTRA mic" in the
+// file. The rename landed AFTER that run, for the reason recorded at the count
+// assertion below — the real mic count went 8 -> 9 at the named-style-versions
+// round, so an ordinal meaning "one more than the overlay has" had become false
+// in fourteen places. A description is element 0 of the tuple and is never an
+// anchor, so nothing about the v12 measurement changed; only its printed labels
+// are stale.
+//
+// A43 and A44 are the two halves of Andrew's asks, each at its own site with its
+// own message: A43 drops justify-content:flex-end and reports "Add-to-queue is
+// 129.56px from the row's right edge, not flush" (ask b); A44 drops the
+// row-scoped 44px mic box and reports "mic is 24px tall against a 44px button —
+// not the same height" (ask c). A45 escapes the mic into a sibling div and
+// reddens BOTH, the A7/A8 escape at the new site. The `order: -1` on
+// .raven-grab-queue-note is deliberately NOT mutated here: the note is hidden in
+// this fixture, and an out-of-layout element's `order` cannot change what this
+// suite measures — that mutant belongs to
+// .claude/queue-draft-2026-08-10/queue-mutants.mjs, whose fixture banks a draft and
+// shows the notice.
 // The controls arrived in v5 and they are not decoration: a matrix that only
 // ever asks "does this turn red" is structurally blind to a FALSE FAIL, and
 // a gate that cries wolf on correct code is how a gate gets muted. Round 6
@@ -57,7 +106,7 @@
 // evidence the fix worked — ask first whether the mutant is correct code.
 //
 // v10 stopped ASSERTING pre-fix behaviour in a comment and MEASURED it, and v11
-// keeps that: .claude/dialkit-2026-08-08/r9-prefix-measure.mjs reverts each
+// keeps that: .claude/overlay-controls-2026-08-08/r9-prefix-measure.mjs reverts each
 // round-9 fix individually in a copy of this file and runs the mutants that fix
 // owns, so "PRE-FIX: 2 pass / 0 fail" is a reading rather than a recollection.
 // (r8-prefix-measure.mjs is PINNED to the round-8 tree and throws on this one —
@@ -93,10 +142,14 @@
 //         -> radius 1, source test, reporting browser/raven-grab.js:8518
 //   A5  the per-template note's mic loses its covered wrapper
 //         -> radius 1, source test, reporting browser/raven-grab.js:8552
-//   A6  a ninth mic appears in the overlay
+//   A6  an EXTRA mic appears in the overlay
 //         -> radius 2 (source test on the count assertion, AND the rendered
-//            test, which sees the duplicate push the Instructions mic 109px off
-//            the right edge)
+//            test). RE-ANCHORED in v12 to the mic's new site in the queue row;
+//            the reported figure moved with it, from 109px off the right edge
+//            to "mic sits 60px left of Add-to-queue, not the 8px row gap",
+//            because flex-end now lands the duplicate BETWEEN the original mic
+//            and the button (8 + 44 + 8). The radius is what had to survive the
+//            move, and it did.
 //   A7  a mic ESCAPES its covered container into a sibling <div>
 //         -> radius 2 (source test, AND the rendered test at 396px)
 //   A8  the same escape at the per-template note, which the rendered test
@@ -236,9 +289,10 @@
 // like a call counted as one, and a call with a comment in it did not. The scan
 // runs on `glue` now and matches the bare identifier, then walks forward over
 // whitespace to require the `(`. A18's kill lands on the COUNT assertion
-// (`9 !== 8`) because assert aborts at the first failure and a ninth mic has to
-// pass that one first — which is exactly the point, since pre-fix it passed
-// neither.
+// (which read `9 !== 8` when this was measured against a real count of 8, and
+// reads one higher on each side now) because assert aborts at the first failure
+// and an added mic has to pass that one first — which is exactly the point,
+// since pre-fix it passed neither.
 //
 // A20 refutes round 5's claim that checking only the LAST occurrence of each
 // opener was "sufficient and not a shortcut". That argument was about the GLUE
@@ -335,7 +389,7 @@
 //        does not close one; inTag now tracks both.
 //   A32  CONTROL: (voiceButtonMarkup)("data-template-note"  (correct, covered)
 //          PRE 1p/1f -> POST 2p/0f
-//   A33  a NINTH mic, (voiceButtonMarkup)("data-extra-note", "extra"), in a
+//   A33  an EXTRA mic, (voiceButtonMarkup)("data-extra-note", "extra"), in a
 //        loose wrapper
 //          PRE 2p/0f -> POST 1p/1f   [the number of mics in the overlay changed]
 //        A grouping paren around the callee emits byte-identical markup, so it
@@ -391,14 +445,16 @@
 //        green". Both halves were false (round 9 P3): they are valid HTML, and
 //        a red on valid HTML is not an acceptable residual — it is the failure
 //        mode that gets a gate muted. Controls now, not a documented limitation.
-//   A38  a NINTH mic written (0, voiceButtonMarkup)("data-extra-note", …) in a
+//   A38  an EXTRA mic written (0, voiceButtonMarkup)("data-extra-note", …) in a
 //        loose wrapper
 //          PRE 2p/0f -> POST 1p/1f   [the number of mics in the overlay changed]
 //        `(0, f)(x)` is the standard indirect-call idiom and emits byte-
 //        identical markup, so it is the same call site. Round 8's strip was
 //        ADJACENCY-based — the `(` had to sit immediately before the identifier
-//        — so this was not a site at all: count stayed 8, the ninth mic was
-//        never examined, and the only guard on that row reported nothing. The
+//        — so this was not a site at all: count stayed 8 (HISTORY — the real
+//        count was 8 when this was measured; dated and correct, do not "update"
+//        it), the added mic was never examined, and the only guard on that row
+//        reported nothing. The
 //        walk finds the MATCHING paren by balance now, which also covers
 //        ((f))(x) and (a ? f : g)(x). A33 reached through a different token.
 //   A39  <div class="raven-grab-loose"><![CDATA[ <label class="raven-grab-
@@ -416,6 +472,26 @@
 //        element was a false red — script, style, textarea and title alike. It
 //        pushes first now, and the closer only counts when the tag name is
 //        followed by whitespace, `/` or `>` (`</scriptx` is text).
+//
+// A43/A44/A45 are v12, and they exist because Andrew moved the Instructions mic
+// into the queue row beside "Add to queue" and asked for it at the same height.
+// The flush-right rule could not be reused there — that mic is now deliberately
+// SECOND from right, so `rowGap ≈ 0` would assert something false — and dropping
+// the row would leave the layout he asked for measured by nothing. The
+// non-weakening form is a queue-only branch carrying three paired assertions,
+// and each of its mechanisms gets its own mutant rather than one mutant standing
+// for "the queue row":
+//
+//   A43  the queue row loses justify-content:flex-end
+//          -> radius 1, geometry: "Add-to-queue is 129.56px from the row's
+//             right edge, not flush"          (ask b)
+//   A44  the queue mic loses its row-scoped 44px box
+//          -> radius 1, geometry: "mic is 24px tall against a 44px button —
+//             not the same height"            (ask c)
+//   A45  the Instructions mic escapes the queue row into a sibling <div>
+//          -> radius 2, the A7/A8 escape at the new site: enumeration because
+//             the mic leaves its covered container, geometry because closest()
+//             then resolves no row at all
 //
 // The first draft of this test asserted per row and was measured NOT to
 // separate A1 from A3: assert aborts at the first failure, all three mutants
@@ -437,8 +513,9 @@ process.env.RAVEN_NO_USAGE_LOG = '1';
 
 // A missing playwright is NOT a reason to stop this file. The source-enumeration
 // test below reads browser/raven-grab.js and nothing else — no browser, no
-// server, no dist/ — and it is the ONLY guard on the two mics that live in
-// template-mode rows the browser test cannot render. Round 3 called
+// server, no dist/ — and it is the ONLY guard on the FOUR mics the browser test
+// cannot render (two template-mode rows, the maintainer-only Component notes
+// heading, and the Versions heading). Round 3 called
 // process.exit(0) here, which suppressed it along with the geometry test.
 let chromium = null;
 let playwrightError = null;
@@ -627,7 +704,12 @@ function skipIfNoBrowser(t) {
   return false;
 }
 
-test('every mic is flush with the right edge of the row that holds it', async (t) => {
+// The name carries the 2026-08-10 extension deliberately. Seven of the eight
+// mics ARE the rightmost thing in their row; the Instructions mic is paired with
+// the Add-to-queue button and the PAIR is flush instead. A name still claiming
+// "every mic is flush" would be a false claim about the row Andrew just asked
+// for, and this file's own history is a list of comments that decayed into lies.
+test('every mic is flush right in its row, or paired flush right with Add to queue', async (t) => {
   if (skipIfNoBrowser(t)) return;
   const rows = await withOverlay(async (page) => {
     // A selection is what makes the Component / Template rows exist at all;
@@ -648,19 +730,41 @@ test('every mic is flush with the right edge of the row that holds it', async (t
       const measure = (surface) => [...root.querySelectorAll('[data-voice-dictate]')].filter(visible).map((mic) => {
         // closest() from the mic itself lands on .raven-grab-voice-slot, the
         // mic's own inline wrapper, whose right edge is trivially the mic's.
-        // The row is the label span or section heading ABOVE that wrapper.
-        const row = mic.parentElement.closest('span:not(.raven-grab-voice-slot), .raven-grab-section-heading');
+        // The row is the label span, section heading or queue row ABOVE that
+        // wrapper. `.raven-grab-queue` joined the list on 2026-08-10 — without
+        // it the moved Instructions mic resolves NO row, `hasRow` is false, and
+        // the violation list reports "no label row or section heading above the
+        // voice slot" for a mic that is correctly placed.
+        const row = mic.parentElement.closest('span:not(.raven-grab-voice-slot), .raven-grab-section-heading, .raven-grab-queue');
         const label = mic.closest('label');
         const control = label && label.querySelector('input, textarea');
         const micBox = mic.getBoundingClientRect();
+        // The queue row is graded by a DIFFERENT rule, so it is identified here
+        // rather than guessed from the target attribute: the mic travels with the
+        // Add-to-queue button at the right edge, so it is deliberately not the
+        // rightmost thing in its row and the flush measure below does not apply.
+        const isQueue = Boolean(row && row.classList.contains('raven-grab-queue'));
+        const pair = isQueue ? row.querySelector('.raven-grab-queue-add') : null;
+        const pairBox = pair ? pair.getBoundingClientRect() : null;
+        const rowBox = row ? row.getBoundingClientRect() : null;
         return {
           surface,
           target: mic.getAttribute('data-voice-dictate'),
           hasRow: Boolean(row),
-          rowWidth: row ? +row.getBoundingClientRect().width.toFixed(2) : null,
+          isQueue,
+          rowWidth: rowBox ? +rowBox.width.toFixed(2) : null,
           micWidth: +micBox.width.toFixed(2),
-          rowGap: row ? +(row.getBoundingClientRect().right - micBox.right).toFixed(2) : null,
-          controlGap: control ? +(control.getBoundingClientRect().right - micBox.right).toFixed(2) : null
+          micHeight: +micBox.height.toFixed(2),
+          rowGap: rowBox ? +(rowBox.right - micBox.right).toFixed(2) : null,
+          controlGap: control ? +(control.getBoundingClientRect().right - micBox.right).toFixed(2) : null,
+          // Queue-row only. `hasPair` is separate from a null gap so a MISSING
+          // button reads as its own violation rather than as a silently skipped
+          // assertion — the shape this file's own history keeps warning about.
+          hasPair: Boolean(pair),
+          pairWidth: pairBox ? +pairBox.width.toFixed(2) : null,
+          pairHeight: pairBox ? +pairBox.height.toFixed(2) : null,
+          pairGap: pairBox ? +(pairBox.left - micBox.right).toFixed(2) : null,
+          pairFlush: pairBox && rowBox ? +(rowBox.right - pairBox.right).toFixed(2) : null
         };
       });
 
@@ -697,6 +801,42 @@ test('every mic is flush with the right edge of the row that holds it', async (t
       violations.push(`${where}: no label row or section heading above the voice slot`);
       continue;
     }
+    if (row.isQueue) {
+      // The queue row is graded by a DIFFERENT rule, and this is an EXTENSION of
+      // the flush property rather than an exemption from it. Andrew asked for the
+      // mic "to the left of the add to que button, it should be the same height",
+      // so in this ONE row the mic is deliberately second-from-right and
+      // `rowGap` is expected to be the button's width plus the gap — asserting
+      // flush here would assert something false, and dropping the row from the
+      // loop would leave the layout he asked for measured by nothing.
+      //
+      // What replaces it is three paired assertions covering the same ground:
+      // the pair is still flush right (only WHICH element is rightmost changed),
+      // the two sit 8px apart in that order, and they are the same height.
+      if (!row.hasPair) {
+        violations.push(`${where}: no .raven-grab-queue-add button in the queue row`);
+        continue;
+      }
+      // Precondition, not decoration: in a row only as wide as its two controls,
+      // "the pair is flush right" is true however the row lays out.
+      assert.ok(
+        row.rowWidth > row.micWidth + row.pairWidth + 40,
+        `${where}: queue row is ${row.rowWidth}px against a ${row.micWidth}px mic + ${row.pairWidth}px button — too narrow for flush to mean anything`
+      );
+      if (Math.abs(row.pairFlush) > 1) {
+        violations.push(`${where}: Add-to-queue is ${row.pairFlush}px from the row's right edge, not flush`);
+      }
+      // A NEGATIVE gap is the mic sitting to the RIGHT of the button, which is
+      // the opposite of what was asked for — so this is a signed check, not
+      // Math.abs. 8px is the row's own `gap`.
+      if (Math.abs(row.pairGap - 8) > 1) {
+        violations.push(`${where}: mic sits ${row.pairGap}px left of Add-to-queue, not the 8px row gap`);
+      }
+      if (Math.abs(row.micHeight - row.pairHeight) > 1) {
+        violations.push(`${where}: mic is ${row.micHeight}px tall against a ${row.pairHeight}px button — not the same height`);
+      }
+      continue;
+    }
     // Precondition, not decoration: in a row only as wide as the mic, "flush"
     // is true however the row lays out and the check below cannot fail.
     assert.ok(
@@ -726,8 +866,9 @@ test('every mic is flush with the right edge of the row that holds it', async (t
 // hold that red) — it is one of them being rewritten into a container the rule
 // does not cover, or a NEW mic being added to a fourth kind of row. So the
 // property asserted here is the enumeration: every voiceButtonMarkup call site
-// in the overlay sits inside one of the three containers the stylesheet aligns,
-// and there are exactly eight of them.
+// in the overlay sits inside one of the FOUR containers the stylesheet aligns,
+// and there are exactly eight of them. (Three until 2026-08-10, when the
+// Instructions mic moved out of its section heading and into the queue row.)
 //
 // What this does NOT prove, stated so the next reader does not over-read it:
 // it measures source structure, not rendered geometry. A container that is
@@ -749,7 +890,7 @@ test('every mic in the overlay source sits in a container the shared rule aligns
     : new URL('../browser/raven-grab.js', import.meta.url);
   const source = await readFile(overlayPath, 'utf8');
 
-  // The three row containers the stylesheet gives flex/space-between. Any
+  // The row containers the stylesheet lays out as a flex row. Any
   // other wrapper renders the mic inline after the label text, which is the
   // 396px defect this file exists to prevent.
   // An opener must be an actual ELEMENT carrying the class, not the class text
@@ -804,10 +945,28 @@ test('every mic in the overlay source sits in a container the shared rule aligns
   // `title=` case above is a silent green built out of exactly that gap.
   //
   // The class VALUE stays case-SENSITIVE, which is correct for standards mode.
+  // `raven-grab-queue` is the FOURTH entry, added 2026-08-10 when Andrew asked for
+  // the Instructions mic to sit beside the Add-to-queue button at the same height.
+  // It is a container the stylesheet aligns like the other three — the rule is
+  // EXTENDED, never relaxed, which is the standing discipline for this file. Two
+  // things about it are worth stating rather than leaving to inference:
+  //
+  //   tail: ''    the mic is a DIRECT child of the row, exactly like
+  //               `.raven-grab-section-heading`. The two field openers carry
+  //               `<span>` because their shared rule is `.raven-grab-field > span`
+  //               and the mic lives one level in; this row's rule is
+  //               `.raven-grab-queue` itself.
+  //   not folded  this row justifies flex-END while the label rows justify
+  //               space-between, so it cannot join the shared CSS rule (see the
+  //               comment above `.raven-grab-queue` in the overlay). That is also
+  //               why the geometry test below grades it with its own paired
+  //               assertions rather than the flush-right rule — the mic in this
+  //               row is deliberately NOT the rightmost thing in it.
   const CONTAINERS = [
     { cls: 'raven-grab-feedback-field', tail: '<span>' },
     { cls: 'raven-grab-field', tail: '<span>' },
-    { cls: 'raven-grab-section-heading', tail: '' }
+    { cls: 'raven-grab-section-heading', tail: '' },
+    { cls: 'raven-grab-queue', tail: '' }
   ];
   function parseStartTag(text, at) {
     if (text[at] !== '<' || !/[a-zA-Z]/.test(text[at + 1] || '')) return null;
@@ -1492,9 +1651,11 @@ test('every mic in the overlay source sits in a container the shared rule aligns
     skipSpace();
     // A GROUPING parenthesis around the callee emits byte-identical markup:
     // `(voiceButtonMarkup)(…)` is the same call. Sol round 8 (P1) measured both
-    // of its directions — with one of today's sites written that way the count
-    // reads 7 and the suite goes red on correct code, and with a NINTH mic
-    // written that way the count still reads 8, the new mic is never examined,
+    // of its directions (HISTORY — measured against a real count of 8, so both
+    // figures are dated and correct; do not "update" them) — with one of the
+    // sites written that way the count read 7 and the suite went red on correct
+    // code, and with an EXTRA mic written that way the count still read 8, i.e.
+    // unchanged, so the new mic is never examined,
     // and an uncovered template-mode row reports 2 pass / 0 fail. The second is
     // the round-6 lesson again: a call form the scan does not recognise is a
     // silent hole, not a spelling preference.
@@ -1564,8 +1725,14 @@ test('every mic in the overlay source sits in a container the shared rule aligns
     sites.push({ line, covered: enclosedByCovered(windowStartFor(identStart), identStart) });
   }
 
-  // A count assertion is what makes the coverage claim hold going forward: a
-  // ninth mic added to a fourth kind of row cannot pass by being new.
+  // A count assertion is what makes the coverage claim hold going forward: a mic
+  // added to a kind of row CONTAINERS does not cover cannot pass by being new.
+  // Deliberately written without ordinals — "a ninth mic added to a fourth kind
+  // of row" was true when CONTAINERS held three entries and the overlay held
+  // eight mics, and BOTH numbers have since moved (9 mics at the named-style-
+  // versions round, 4 containers when the queue row joined). An ordinal meaning
+  // "one more than the current count" is a decay generator; v12 found fourteen
+  // occurrences of it across this file and align-mutants.mjs.
   // 9 as of the named-style-versions round: the Versions section heading gained
   // a `data-version-name` mic. Four of the nine are never RENDERED by the
   // fixture (the two template-mode rows, the maintainer-only Component notes

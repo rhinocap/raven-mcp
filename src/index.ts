@@ -483,8 +483,8 @@ var STYLE_PRESETS: Record<string, { typography: any; spacing: any; radius: any; 
     defaultColor: "#3B82F6",
     typography: {
       "font-family": { "$type": "fontFamily", "display": { "$value": "\"Inter\", system-ui, sans-serif", "$description": "Display font" }, "body": { "$value": "\"Inter\", system-ui, sans-serif", "$description": "Body font" }, "mono": { "$value": "ui-monospace, \"SF Mono\", monospace", "$description": "Monospace font" } },
-      "font-size": { "$type": "dimension", "2xs": { "$value": "11px" }, "xs": { "$value": "12px" }, "sm": { "$value": "14px" }, "base": { "$value": "16px" }, "lg": { "$value": "18px" }, "xl": { "$value": "20px" }, "2xl": { "$value": "24px" }, "3xl": { "$value": "30px" }, "4xl": { "$value": "36px" }, "5xl": { "$value": "48px" } },
-      "font-weight": { "$type": "fontWeight", "regular": { "$value": "400" }, "medium": { "$value": "500" }, "semibold": { "$value": "600" }, "bold": { "$value": "700" } },
+      "font-size": { "$type": "dimension", "h1": { "$value": "32px" }, "text-lg": { "$value": "20px" }, "text": { "$value": "16px" }, "text-sm": { "$value": "14px" } },
+      "font-weight": { "$type": "fontWeight", "h1": { "$value": "700" }, "text-lg": { "$value": "600" }, "text": { "$value": "500" }, "text-sm": { "$value": "400" } },
       "line-height": { "$type": "number", "tight": { "$value": "1.25" }, "normal": { "$value": "1.5" }, "relaxed": { "$value": "1.75" } }
     },
     spacing: { "$type": "dimension", "0": { "$value": "0px" }, "1": { "$value": "4px" }, "2": { "$value": "8px" }, "3": { "$value": "12px" }, "4": { "$value": "16px" }, "5": { "$value": "20px" }, "6": { "$value": "24px" }, "8": { "$value": "32px" }, "10": { "$value": "40px" }, "12": { "$value": "48px" }, "16": { "$value": "64px" }, "20": { "$value": "80px" } },
@@ -496,8 +496,8 @@ var STYLE_PRESETS: Record<string, { typography: any; spacing: any; radius: any; 
     defaultColor: "#8B5CF6",
     typography: {
       "font-family": { "$type": "fontFamily", "display": { "$value": "\"Plus Jakarta Sans\", system-ui, sans-serif", "$description": "Display font" }, "body": { "$value": "\"Inter\", system-ui, sans-serif", "$description": "Body font" }, "mono": { "$value": "\"JetBrains Mono\", monospace", "$description": "Monospace font" } },
-      "font-size": { "$type": "dimension", "2xs": { "$value": "12px" }, "xs": { "$value": "13px" }, "sm": { "$value": "15px" }, "base": { "$value": "17px" }, "lg": { "$value": "20px" }, "xl": { "$value": "24px" }, "2xl": { "$value": "30px" }, "3xl": { "$value": "36px" }, "4xl": { "$value": "48px" }, "5xl": { "$value": "60px" } },
-      "font-weight": { "$type": "fontWeight", "regular": { "$value": "400" }, "medium": { "$value": "500" }, "semibold": { "$value": "600" }, "bold": { "$value": "700" }, "extrabold": { "$value": "800" } },
+      "font-size": { "$type": "dimension", "h1": { "$value": "32px" }, "text-lg": { "$value": "20px" }, "text": { "$value": "16px" }, "text-sm": { "$value": "14px" } },
+      "font-weight": { "$type": "fontWeight", "h1": { "$value": "700" }, "text-lg": { "$value": "600" }, "text": { "$value": "500" }, "text-sm": { "$value": "400" } },
       "line-height": { "$type": "number", "tight": { "$value": "1.2" }, "normal": { "$value": "1.5" }, "relaxed": { "$value": "1.7" } }
     },
     spacing: { "$type": "dimension", "0": { "$value": "0px" }, "1": { "$value": "4px" }, "2": { "$value": "8px" }, "3": { "$value": "12px" }, "4": { "$value": "16px" }, "6": { "$value": "24px" }, "8": { "$value": "32px" }, "10": { "$value": "40px" }, "12": { "$value": "48px" }, "16": { "$value": "64px" }, "20": { "$value": "80px" }, "24": { "$value": "96px" } },
@@ -509,8 +509,8 @@ var STYLE_PRESETS: Record<string, { typography: any; spacing: any; radius: any; 
     defaultColor: "#D97706",
     typography: {
       "font-family": { "$type": "fontFamily", "display": { "$value": "\"DM Serif Display\", Georgia, serif", "$description": "Display font" }, "body": { "$value": "\"DM Sans\", system-ui, sans-serif", "$description": "Body font" }, "mono": { "$value": "\"Fira Code\", monospace", "$description": "Monospace font" } },
-      "font-size": { "$type": "dimension", "2xs": { "$value": "11px" }, "xs": { "$value": "13px" }, "sm": { "$value": "15px" }, "base": { "$value": "17px" }, "lg": { "$value": "19px" }, "xl": { "$value": "22px" }, "2xl": { "$value": "28px" }, "3xl": { "$value": "34px" }, "4xl": { "$value": "42px" }, "5xl": { "$value": "54px" } },
-      "font-weight": { "$type": "fontWeight", "regular": { "$value": "400" }, "medium": { "$value": "500" }, "semibold": { "$value": "600" }, "bold": { "$value": "700" } },
+      "font-size": { "$type": "dimension", "h1": { "$value": "32px" }, "text-lg": { "$value": "20px" }, "text": { "$value": "16px" }, "text-sm": { "$value": "14px" } },
+      "font-weight": { "$type": "fontWeight", "h1": { "$value": "700" }, "text-lg": { "$value": "600" }, "text": { "$value": "500" }, "text-sm": { "$value": "400" } },
       "line-height": { "$type": "number", "tight": { "$value": "1.3" }, "normal": { "$value": "1.6" }, "relaxed": { "$value": "1.8" } }
     },
     spacing: { "$type": "dimension", "0": { "$value": "0px" }, "1": { "$value": "4px" }, "2": { "$value": "8px" }, "3": { "$value": "12px" }, "4": { "$value": "16px" }, "5": { "$value": "20px" }, "6": { "$value": "24px" }, "8": { "$value": "32px" }, "10": { "$value": "40px" }, "12": { "$value": "48px" }, "16": { "$value": "64px" }, "20": { "$value": "80px" } },
@@ -522,8 +522,8 @@ var STYLE_PRESETS: Record<string, { typography: any; spacing: any; radius: any; 
     defaultColor: "#1E40AF",
     typography: {
       "font-family": { "$type": "fontFamily", "display": { "$value": "\"Inter\", system-ui, sans-serif", "$description": "Display font" }, "body": { "$value": "\"Inter\", system-ui, sans-serif", "$description": "Body font" }, "mono": { "$value": "\"SF Mono\", monospace", "$description": "Monospace font" } },
-      "font-size": { "$type": "dimension", "2xs": { "$value": "11px" }, "xs": { "$value": "12px" }, "sm": { "$value": "14px" }, "base": { "$value": "16px" }, "lg": { "$value": "18px" }, "xl": { "$value": "20px" }, "2xl": { "$value": "24px" }, "3xl": { "$value": "28px" }, "4xl": { "$value": "32px" }, "5xl": { "$value": "40px" } },
-      "font-weight": { "$type": "fontWeight", "regular": { "$value": "400" }, "medium": { "$value": "500" }, "semibold": { "$value": "600" }, "bold": { "$value": "700" } },
+      "font-size": { "$type": "dimension", "h1": { "$value": "32px" }, "text-lg": { "$value": "20px" }, "text": { "$value": "16px" }, "text-sm": { "$value": "14px" } },
+      "font-weight": { "$type": "fontWeight", "h1": { "$value": "700" }, "text-lg": { "$value": "600" }, "text": { "$value": "500" }, "text-sm": { "$value": "400" } },
       "line-height": { "$type": "number", "tight": { "$value": "1.25" }, "normal": { "$value": "1.5" }, "relaxed": { "$value": "1.65" } }
     },
     spacing: { "$type": "dimension", "0": { "$value": "0px" }, "1": { "$value": "4px" }, "2": { "$value": "8px" }, "3": { "$value": "12px" }, "4": { "$value": "16px" }, "5": { "$value": "20px" }, "6": { "$value": "24px" }, "8": { "$value": "32px" }, "10": { "$value": "40px" }, "12": { "$value": "48px" }, "16": { "$value": "64px" } },
@@ -535,8 +535,8 @@ var STYLE_PRESETS: Record<string, { typography: any; spacing: any; radius: any; 
     defaultColor: "#EC4899",
     typography: {
       "font-family": { "$type": "fontFamily", "display": { "$value": "\"Nunito\", system-ui, sans-serif", "$description": "Display font" }, "body": { "$value": "\"Nunito Sans\", system-ui, sans-serif", "$description": "Body font" }, "mono": { "$value": "\"Fira Code\", monospace", "$description": "Monospace font" } },
-      "font-size": { "$type": "dimension", "2xs": { "$value": "12px" }, "xs": { "$value": "13px" }, "sm": { "$value": "15px" }, "base": { "$value": "17px" }, "lg": { "$value": "20px" }, "xl": { "$value": "24px" }, "2xl": { "$value": "32px" }, "3xl": { "$value": "40px" }, "4xl": { "$value": "52px" }, "5xl": { "$value": "64px" } },
-      "font-weight": { "$type": "fontWeight", "regular": { "$value": "400" }, "medium": { "$value": "500" }, "semibold": { "$value": "600" }, "bold": { "$value": "700" }, "extrabold": { "$value": "800" } },
+      "font-size": { "$type": "dimension", "h1": { "$value": "32px" }, "text-lg": { "$value": "20px" }, "text": { "$value": "16px" }, "text-sm": { "$value": "14px" } },
+      "font-weight": { "$type": "fontWeight", "h1": { "$value": "700" }, "text-lg": { "$value": "600" }, "text": { "$value": "500" }, "text-sm": { "$value": "400" } },
       "line-height": { "$type": "number", "tight": { "$value": "1.2" }, "normal": { "$value": "1.55" }, "relaxed": { "$value": "1.75" } }
     },
     spacing: { "$type": "dimension", "0": { "$value": "0px" }, "1": { "$value": "4px" }, "2": { "$value": "8px" }, "3": { "$value": "12px" }, "4": { "$value": "16px" }, "6": { "$value": "24px" }, "8": { "$value": "32px" }, "10": { "$value": "40px" }, "12": { "$value": "48px" }, "16": { "$value": "64px" }, "20": { "$value": "80px" }, "24": { "$value": "96px" } },
@@ -548,8 +548,8 @@ var STYLE_PRESETS: Record<string, { typography: any; spacing: any; radius: any; 
     defaultColor: "#00BFFF",
     typography: {
       "font-family": { "$type": "fontFamily", "display": { "$value": "\"Inter\", system-ui, sans-serif", "$description": "Display font" }, "body": { "$value": "\"Inter\", system-ui, sans-serif", "$description": "Body font" }, "mono": { "$value": "\"Cascadia Code\", ui-monospace, monospace", "$description": "Monospace font" } },
-      "font-size": { "$type": "dimension", "2xs": { "$value": "11px" }, "xs": { "$value": "12px" }, "sm": { "$value": "14px" }, "base": { "$value": "16px" }, "lg": { "$value": "18px" }, "xl": { "$value": "20px" }, "2xl": { "$value": "24px" }, "3xl": { "$value": "30px" }, "4xl": { "$value": "36px" }, "5xl": { "$value": "48px" } },
-      "font-weight": { "$type": "fontWeight", "regular": { "$value": "400" }, "medium": { "$value": "500" }, "semibold": { "$value": "600" }, "bold": { "$value": "700" } },
+      "font-size": { "$type": "dimension", "h1": { "$value": "32px" }, "text-lg": { "$value": "20px" }, "text": { "$value": "16px" }, "text-sm": { "$value": "14px" } },
+      "font-weight": { "$type": "fontWeight", "h1": { "$value": "700" }, "text-lg": { "$value": "600" }, "text": { "$value": "500" }, "text-sm": { "$value": "400" } },
       "line-height": { "$type": "number", "tight": { "$value": "1.25" }, "normal": { "$value": "1.5" }, "relaxed": { "$value": "1.75" } }
     },
     spacing: { "$type": "dimension", "0": { "$value": "0px" }, "1": { "$value": "4px" }, "2": { "$value": "8px" }, "3": { "$value": "12px" }, "4": { "$value": "16px" }, "5": { "$value": "20px" }, "6": { "$value": "24px" }, "8": { "$value": "32px" }, "10": { "$value": "40px" }, "12": { "$value": "48px" }, "16": { "$value": "64px" }, "20": { "$value": "80px" } },
@@ -4803,21 +4803,24 @@ function tokensToHTML(tokens: any, systemName: string): string {
   // Typography specimens
   var typoHTML = "";
   var fontSizes = typo["font-size"] || {};
+  var fontDisplayAttribute = escapeHtml(fontDisplay);
   for (var tk of Object.keys(fontSizes)) {
     if (tk.startsWith("$")) continue;
     var tv = fontSizes[tk];
     if (!tv || !tv["$value"]) continue;
-    typoHTML += '<div class="type-specimen"><div class="type-sample" style="font-size:' + tv["$value"] + ';font-family:' + fontDisplay + '">The quick brown fox</div><div class="type-meta"><span class="type-name">' + tk + '</span><span class="type-value">' + tv["$value"] + '</span><span class="type-var">--' + systemId + '-typography-font-size-' + tk + '</span></div></div>';
+    var pairedWeight = typo["font-weight"]?.[tk]?.["$value"] || "400";
+    typoHTML += '<div class="type-specimen"><div class="type-sample" style="font-size:' + tv["$value"] + ';font-family:' + fontDisplayAttribute + ';font-weight:' + pairedWeight + '">The quick brown fox</div><div class="type-meta"><span class="type-name">' + tk + '</span><span class="type-value">' + tv["$value"] + ' / ' + pairedWeight + '</span><span class="type-var">--' + systemId + '-typography-font-size-' + tk + '</span></div></div>';
   }
 
   // Font weight specimens
   var weightHTML = "";
   var fontWeights = typo["font-weight"] || {};
+  var fontBodyAttribute = escapeHtml(fontBody);
   for (var wk of Object.keys(fontWeights)) {
     if (wk.startsWith("$")) continue;
     var wv = fontWeights[wk];
     if (!wv || !wv["$value"]) continue;
-    weightHTML += '<div class="weight-specimen" style="font-weight:' + wv["$value"] + ';font-family:' + fontBody + '">' + wk + ' (' + wv["$value"] + ')</div>';
+    weightHTML += '<div class="weight-specimen" style="font-weight:' + wv["$value"] + ';font-family:' + fontBodyAttribute + '">' + wk + ' (' + wv["$value"] + ')</div>';
   }
 
   // Spacing scale
@@ -5049,6 +5052,16 @@ function tokensToFigmaVariables(tokens: any, systemName: string): any {
     var fpx = parseFloat(fv["$value"]);
     if (isNaN(fpx)) continue;
     variables.push({ name: "typography/font-size/" + fk, type: "FLOAT", valuesByMode: { Light: fpx } });
+  }
+
+  var fontWeight = tokens["typography"]?.["font-weight"] || {};
+  for (var wk of Object.keys(fontWeight)) {
+    if (wk.startsWith("$")) continue;
+    var wv = fontWeight[wk];
+    if (!wv || !wv["$value"]) continue;
+    var weight = parseFloat(wv["$value"]);
+    if (isNaN(weight)) continue;
+    variables.push({ name: "typography/font-weight/" + wk, type: "FLOAT", valuesByMode: { Light: weight } });
   }
 
   return {

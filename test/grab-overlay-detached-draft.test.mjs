@@ -33,7 +33,7 @@
 // finding the typed instruction inside it is what proves the user's actual
 // words survived, which is the only thing that matters here.
 //
-// MEASURED mutant matrix (.claude/dialkit-2026-08-08/detached-draft-mutants.mjs,
+// MEASURED mutant matrix (.claude/overlay-controls-2026-08-08/detached-draft-mutants.mjs,
 // v2): 5 mutants, 4 killed, 0 unexpected survivors, 1 EXPECTED survivor; 1
 // control, 0 false-failed. Both tests passed on the first run, which under this
 // repo's own rule means nothing until a revert proves them red — so every claim

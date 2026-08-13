@@ -239,7 +239,6 @@ export default function ToolsSection() {
                   aria-expanded={open}
                   aria-controls={"txb-panel-" + act.num}
                 >
-                  <span className="txb-num">{act.num}</span>
                   <span className="txb-head-main">
                     <span className="txb-head-top">
                       <span className="txb-title">{act.title}</span>

@@ -308,6 +308,9 @@
     .glow-card.card-raised {
       background: var(--bg-raised);
     }
+    .systems-grid .system-card.card-raised {
+      background: var(--bg-surface);
+    }
     .glow-card.card-raised::before {
       background: linear-gradient(135deg, rgba(0,191,255,0.15), rgba(255,255,255,0.08), rgba(0,229,255,0.12));
     }
@@ -323,17 +326,7 @@
 
     /* ── Top gradient wash (behind floating nav) ── */
     body::before {
-      content: "";
-      position: fixed;
-      top: 0; left: 0; right: 0;
-      height: 400px;
-      background: linear-gradient(180deg,
-        rgba(0, 191, 255, 0.38) 0%,
-        rgba(0, 191, 255, 0.22) 25%,
-        rgba(0, 191, 255, 0.10) 55%,
-        transparent 100%);
-      pointer-events: none;
-      z-index: 99;
+      content: none;
     }
 
     /* ══════════════════════════════════════════
@@ -348,9 +341,7 @@
     }
 
     .hero .glow-1 {
-      top: -120px; left: 50%; transform: translateX(-50%);
-      width: 1400px; height: 800px;
-      background: radial-gradient(ellipse, rgba(0,191,255,0.40) 0%, rgba(0,229,255,0.18) 30%, rgba(0,191,255,0.06) 55%, transparent 80%);
+      display: none;
     }
     .hero .glow-2 {
       top: 100px; left: 15%;
@@ -379,7 +370,7 @@
     }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
-    /* ── Floating ambient orbs (Linear/Raycast-level) ── */
+    /* ── Floating ambient orbs ── */
     @keyframes float-drift-1 {
       0%, 100% { transform: translate(0, 0) scale(1); }
       25% { transform: translate(60px, -40px) scale(1.1); }
@@ -451,10 +442,10 @@
       background-clip: text;
     }
     .hero h1 .line-accent {
-      background: linear-gradient(135deg, var(--accent-cyan) 0%, var(--accent-blue) 40%, #7c3aed 100%);
-      -webkit-background-clip: text;
-      background-clip: text;
-      filter: drop-shadow(0 0 40px rgba(0, 191, 255, 0.4));
+      background: none;
+      color: var(--text-inverse);
+      -webkit-text-fill-color: var(--text-inverse);
+      filter: none;
     }
     /* keep the old single-gradient helper working anywhere else it's used */
     .hero h1 .gradient {
@@ -940,7 +931,11 @@
       -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
       margin-bottom: var(--space-1);
     }
-    .layer-card .stat-label { font-size: 13px; color: var(--text-tertiary); }
+    .layer-card .stat-label {
+      font-size: 13px;
+      color: var(--text-tertiary);
+      -webkit-text-fill-color: var(--text-tertiary);
+    }
 
     .layer-tags {
       display: flex; flex-wrap: wrap; gap: var(--space-2);
@@ -1708,18 +1703,6 @@
           font: inherit;
         }
 
-        .txb-num {
-          font-family: var(--font-mono);
-          font-size: 14px;
-          font-weight: 600;
-          color: var(--text-tertiary);
-          padding-top: 6px;
-          width: 28px;
-          flex-shrink: 0;
-          transition: color var(--duration-fast) var(--ease-out);
-        }
-        .txb-act[data-open="true"] .txb-num { color: var(--text-accent); }
-
         .txb-head-main { display: block; flex: 1; min-width: 0; }
 
         .txb-head-top {
@@ -1792,9 +1775,8 @@
 
         .txb-panel {
           padding: 0 0 var(--space-10);
-          /* indent past the number column so tool names share the title's
-             left edge; the border marks the gutter line */
-          margin-left: 28px;
+          /* The border marks the expanded tool-list gutter. */
+          margin-left: 0;
           border-left: 1px solid var(--border);
           padding-left: calc(var(--space-6) - 1px);
         }
@@ -1827,3 +1809,54 @@
           .txb-purpose { font-size: 16px; }
           .txb-grid { grid-template-columns: 1fr; gap: var(--space-5); }
         }
+
+    /* Homepage typography: display H1, section H2, then two quiet Untitled Sans roles. */
+    .home-page {
+      --home-type-heading-size: clamp(30px, 4vw, 44px);
+      --home-type-heading-weight: 700;
+      --home-type-body-size: 17px;
+      --home-type-body-weight: 400;
+      --home-type-utility-size: 14px;
+      --home-type-utility-weight: 400;
+    }
+
+    .home-page :where(:not(h1):not(h1 *)),
+    body:has(.home-page) #copy-status,
+    body:has(.home-page) .skip-link {
+      font-family: var(--font-body) !important;
+      font-size: var(--home-type-body-size, 17px) !important;
+      font-weight: var(--home-type-body-weight, 400) !important;
+      text-transform: none !important;
+      letter-spacing: normal !important;
+    }
+
+    .home-page h2 {
+      font-size: var(--home-type-heading-size) !important;
+      font-weight: var(--home-type-heading-weight) !important;
+    }
+
+    .home-page :where(
+      button, button *, .btn, .btn *, .cta-install, .cta-install *,
+      code, code *, pre, pre *, strong,
+      .raven-stat-label,
+      .terminal-title, .terminal-title *, .static-term-body *,
+      .tag, .stat-label,
+      .demo-card-name, .demo-card-desc,
+      .system-category, .system-tags,
+      .pricing-open-label, .pricing-services-link,
+      .txb-count, .txb-marquee-item, .txb-tool-name,
+      .ba-pill
+    ),
+    body:has(.home-page) #copy-status,
+    body:has(.home-page) .skip-link {
+      font-size: var(--home-type-utility-size, 14px) !important;
+      font-weight: var(--home-type-utility-weight, 400) !important;
+    }
+
+    @media (max-width: 768px) {
+      .home-page { --home-type-heading-size: clamp(22px, 5.5vw, 32px); }
+    }
+
+    @media (max-width: 480px) {
+      .home-page { --home-type-heading-size: 20px; }
+    }

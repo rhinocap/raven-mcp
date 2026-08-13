@@ -149,7 +149,16 @@
       .nav-actions .btn-primary { font-size: 13px; padding: 8px 14px; }\
       .nav-brand span { font-size: 14px; }\
     }\
-  ';
+  ' + ((path === '/' || path === '/index') ? '\
+    :host { --home-type-utility-size: 14px; --home-type-utility-weight: 400; }\
+    nav, nav *, .nav-mobile-menu, .nav-mobile-menu * {\
+      font-family: var(--font-body, "Untitled Sans", -apple-system, BlinkMacSystemFont, sans-serif) !important;\
+      font-size: var(--home-type-utility-size) !important;\
+      font-weight: var(--home-type-utility-weight) !important;\
+      text-transform: none !important;\
+      letter-spacing: normal !important;\
+    }\
+  ' : '');
 
   var HTML = '\
     <nav>\

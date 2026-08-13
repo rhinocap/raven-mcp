@@ -5960,7 +5960,7 @@ test('REGRESSION: spring -> linear() generation', async () => {
     'the commas INSIDE linear() are not top-level — one timing function, not twenty');
 });
 
-// DialKit ships three precision tiers on every numeric control; Raven had two
+// A numeric control wants three precision tiers; Raven had two
 // (normal, and shift for coarse) at three separate sites. These grade the SHARED
 // rule and the thing that makes the new tier exist rather than merely be wired:
 // the precision floor.
