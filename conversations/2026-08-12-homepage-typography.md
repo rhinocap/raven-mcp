@@ -94,6 +94,14 @@ The homepage typography work is locally verified; the recovered queue lane neede
 
 **Pushed:** `7218371` to `main`; production deployment READY.
 
+### Package and installer release
+
+**What:** Published Raven `2.4.1` to npm and the official MCP Registry, rebuilt both `.mcpb` copies from the release source, tagged `v2.4.1`, and deployed the matching web project to production. Corrected the release script's stale Claude session/co-author template before it wrote the permanent release commit.
+
+**Verification:** npm reports `raven-mcp@2.4.1`; a fresh registry tarball contains Add to queue and the `32/20/16/14` plus `700/600/500/400` ladders. The MCP Registry API reports `ai.ravenmcp/raven-mcp` `2.4.1` active and latest. The live installer is manifest `2.4.1`, contains 110 tools and the same queue/type markers, and is byte-sized exactly like the committed public bundle. Git `main`, tag `v2.4.1`, and release commit all resolve to `bbffa28768ca634de82db06253b4a6a9dfea9ef5`. Vercel deployment `dpl_Fd2k4nygEeKDmWzwkhcJvbjoMCnx` is READY and aliased to `ravenmcp.ai`, `www`, and `next`; the live changelog shows `v2.4.1`. Focused production captures at desktop and mobile confirm 12 cards with the single resting color, intended H2 scales, zero subordinate bold, zero non-Untitled text, and zero tool numbers. The hosted MCP remains exactly 45 tools with the frozen hash.
+
+**Pushed:** `bbffa28` to `main`; npm, MCP Registry, Git tag, live installer, and production web deployment are current.
+
 ## Mistakes & lessons
 
 | Mistake | Type | Rule added |
@@ -105,5 +113,5 @@ The homepage typography work is locally verified; the recovered queue lane neede
 ## State at end of session
 
 - Homepage typography and approved Grab changes: live and verified on desktop and mobile.
-- Queue work and fresh-project typography defaults: on `main` and the hosted generator is current; local npm/Desktop installs remain on the prior package.
-- Remaining human gates: cut the passkey/2FA npm + `.mcpb` release, then reload the old deck tab so its embedded overlay takes the new bundle.
+- Queue work and fresh-project typography defaults: published in npm, the MCP Registry, and the live `.mcpb` as `2.4.1`.
+- Remaining human gate: reload or reinstall Raven in any already-open Desktop/deck session so it loads the new bundle; existing embedded overlays do not hot-replace themselves.
