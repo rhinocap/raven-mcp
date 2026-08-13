@@ -326,7 +326,17 @@
 
     /* ── Top gradient wash (behind floating nav) ── */
     body::before {
-      content: none;
+      content: "";
+      position: fixed;
+      inset: 0 0 auto;
+      height: 400px;
+      background: linear-gradient(180deg,
+        rgba(0, 191, 255, 0.14) 0%,
+        rgba(0, 191, 255, 0.08) 25%,
+        rgba(0, 191, 255, 0.03) 55%,
+        transparent 100%);
+      pointer-events: none;
+      z-index: 99;
     }
 
     /* ══════════════════════════════════════════
