@@ -325,7 +325,7 @@
     /* Nav and footer styles are in assets/nav.js and assets/footer.js (web components) */
 
     /* ── Top gradient wash (behind floating nav) ── */
-    body::before {
+    body:has(.home-page)::before {
       content: "";
       position: fixed;
       inset: 0 0 auto;
