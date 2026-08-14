@@ -895,7 +895,7 @@ test('tool gating keeps the anonymous remote surface at 45 and gates the local D
     'polish_diff'
   ];
 
-  assert.equal(stdioNames.length, 110);
+  assert.equal(stdioNames.length, 111);
   for (const name of newTools) {
     assert.equal(stdioNames.includes(name), true, `${name} should be registered on stdio`);
     assert.equal(remoteNames.includes(name), false, `${name} should be gated off remote anonymous`);

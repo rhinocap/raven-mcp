@@ -3,7 +3,7 @@
  *
  * The FULL authed taste subset over a per-user Redis store (fake client):
  *   - gating: remote+store = 56 tools (45 + all 10 + delete); remote bare = golden 45;
- *     stdio = 110
+ *     stdio = 111
  *   - the whole loop via the registered tool handlers on a remote+store
  *     server: create → interview → bind → record_decision → list_decisions →
  *     audit_taste (binding echoed in design_notes) → label_finding →
@@ -80,7 +80,7 @@ function anonymousMetadataPayload(server, names) {
   });
 }
 
-test('gating: remote+store = 56 (45 + all 10 taste + delete_taste_data); bare remote = golden 45; stdio = 110', () => {
+test('gating: remote+store = 56 (45 + all 10 taste + delete_taste_data); bare remote = golden 45; stdio = 111', () => {
   const bare = buildServer({ remote: true });
   const bareNames = Object.keys(bare._registeredTools).sort();
   assert.equal(bareNames.length, 45);
@@ -92,7 +92,7 @@ test('gating: remote+store = 56 (45 + all 10 taste + delete_taste_data); bare re
   const extras = authedNames.filter((n) => !bareNames.includes(n)).sort();
   assert.deepEqual(extras, ALL_TASTE.concat('delete_taste_data').sort());
 
-  assert.equal(Object.keys(buildServer({})._registeredTools).length, 110, 'stdio includes audit, template/layer, review/polish, and 14 local Decision Graph tools');
+  assert.equal(Object.keys(buildServer({})._registeredTools).length, 111, 'stdio includes audit, template/layer, review/polish, and 14 local Decision Graph tools');
 });
 
 test('authed startup tuning appears only on store-backed remote metadata', () => {

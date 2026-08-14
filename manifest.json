@@ -476,6 +476,10 @@
       "description": "Enumerate Raven's Talon detector rule corpus — id, category, severity, taste scope, and the src/data/principles/*.json…"
     },
     {
+      "name": "design_gauntlet",
+      "description": "Compare a subject page to a reference page (vercel.com, linear.app, any site the user admires) from LIVE computed CSS —…"
+    },
+    {
       "name": "configure_design_system_source",
       "description": "Save which local DESIGN.md file Raven should use for design-system inventory and comparison."
     },

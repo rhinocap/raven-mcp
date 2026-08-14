@@ -220,10 +220,10 @@ test('taste is skipped only when neither project nor profile is supplied', async
   });
 });
 
-test('audit is a local tool (110 total) and remains outside the frozen anonymous 45-tool surface', () => {
+test('audit is a local tool (111 total) and remains outside the frozen anonymous 45-tool surface', () => {
   const localNames = Object.keys(buildServer({ remote: false })._registeredTools);
   const remoteNames = Object.keys(buildServer({ remote: true })._registeredTools).sort();
-  assert.equal(localNames.length, 110);
+  assert.equal(localNames.length, 111);
   assert.equal(localNames.includes('audit'), true);
   assert.equal(remoteNames.length, 45);
   assert.equal(remoteNames.includes('audit'), false);

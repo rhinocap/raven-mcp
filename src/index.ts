@@ -41,6 +41,7 @@ import type { NoteAssessment, MobileSourceKind } from "./taste-fidelity.js";
 import { readFile } from "fs/promises";
 import { registerCalls } from "./calls.js";
 import { runTalon, listTalonRules, type TalonElement } from "./talon.js";
+import { measureGauntletPage, compareGauntletMeasurements, GAUNTLET_LOOP_PROTOCOL, GAUNTLET_DISCIPLINE_NOTICE } from "./design-gauntlet.js";
 import { parseDesignMd, serializeDesignMd, flattenDesignTokens, readDesignMd, initDesignMd, updateDesignMd, type DesignMdUpdateSet, type FlattenedDesignToken } from "./designmd.js";
 import { loadStoredSystem, listUserSystemIds, saveUserSystem, bundledSystemPath, userSystemsDir, userSystemsDirProblem } from "./user-systems.js";
 import { startGrabSession, getGrabbedElements, stopGrabSession, getPageTemplate, setTemplateSlots, listTemplates, getGrabLayers, moveGrabLayer, getGrabOperation, isProxyGrabSession } from "./grab-bridge.js";
@@ -1906,6 +1907,10 @@ const REMOTE_GATED_TOOLS = new Set<string>([
   // anonymous 45-tool golden hash unchanged. Revisit if/when Talon gets its
   // own remote-safety pass (URL-guard like audit_page, or an authed lane).
   "talon_scan", "talon_rules",
+  // Design gauntlet — takes TWO caller-supplied URLs and drives a real browser
+  // against each (same class of fetch surface as talon_scan/audit_url); gated
+  // off remote to keep the frozen anonymous 45-tool golden hash unchanged.
+  "design_gauntlet",
   // DESIGN.md, design review, and grab bridge stateful tools.
   "read_design_md", "init_design_md", "update_design_md",
   "start_grab_session", "get_grabbed_elements", "stop_grab_session",
@@ -2108,6 +2113,8 @@ const TOOL_ACCESS: Record<string, "readOnly" | "destructive"> = {
   audit_taste: "readOnly",
   talon_scan: "readOnly",
   talon_rules: "readOnly",
+  // Measures two live pages and compares them; writes nothing anywhere.
+  design_gauntlet: "readOnly",
   // Pattern library. capture_reference writes a record under ~/.raven/references;
   // the other two only read. None of them fetches the captured URL — it is stored
   // for provenance — so none is open-world.
@@ -2133,9 +2140,9 @@ function toolTitle(toolName: string): string {
 }
 
 // openWorldHint defaults to TRUE in the MCP spec, so the interesting statement is
-// the explicit `false` on the other 89 tools: they read bundled knowledge, local
+// the explicit `false` on the other 99 tools: they read bundled knowledge, local
 // ~/.raven state, or caller-pasted markup and never reach an unpredictable host.
-// These 11 take a caller-supplied URL/endpoint and drive a real browser or fetch
+// These 12 take a caller-supplied URL/endpoint and drive a real browser or fetch
 // against it. `audit` is a dispatcher that fans out to this same set.
 // init_design_md is deliberately absent — its fetch targets one fixed starter
 // base URL, a closed set, not an open world.
@@ -2150,7 +2157,8 @@ const TOOL_OPEN_WORLD: string[] = [
   "score_page",
   "audit_typography",
   "audit_api_contract",
-  "audit"
+  "audit",
+  "design_gauntlet"
 ];
 
 // All three hints are stated explicitly rather than left to their spec defaults.
@@ -2175,18 +2183,18 @@ function toolAnnotations(toolName: string): {
     : { title: toolTitle(toolName), readOnlyHint: true, destructiveHint: false, openWorldHint: openWorld };
 }
 
-// buildServer() returns a FRESH McpServer with all 110 local tools + the usage-log/
+// buildServer() returns a FRESH McpServer with all 111 local tools + the usage-log/
 // update-banner wrapper registered. A new instance is required per transport
 // connection (SDK #961: one McpServer connects to exactly one transport, ever).
 // The stdio entry calls this once; a future HTTP entry calls it per request.
 // NOTE: importing this module does NOT start a server — only calling buildServer()
 // registers the tools, and only main() (guarded to direct-run) connects stdio.
 export function buildServer(opts?: { remote?: boolean; tasteStore?: TasteStore }): McpServer {
-// remote = serve only the 45 stateless remote-safe tools (gate off the 64 gated tools
+// remote = serve only the 45 stateless remote-safe tools (gate off the 66 gated tools
 // as appropriate; authenticated stores selectively restore taste tools). evaluate_design
 // stays but its screenshot pixel-diff is arg-guarded off).
 // Defaults from RAVEN_REMOTE env so a serverless entry can set it
-// without threading opts. stdio callers pass nothing → remote=false → all 110.
+// without threading opts. stdio callers pass nothing → remote=false → all 111.
 var remote: boolean = (opts && typeof opts.remote === "boolean")
   ? opts.remote
   : (process.env.RAVEN_REMOTE === "1" || process.env.RAVEN_REMOTE === "true");
@@ -8234,6 +8242,57 @@ server.tool(
 );
 
 server.tool(
+  "design_gauntlet",
+  "Compare a subject page to a reference page (vercel.com, linear.app, any site the user admires) from LIVE computed CSS — measure, never recall. Both URLs are rendered headless and probed across the nine dimensions that decide perceived polish: surfaces, hairlines, text roles, letter spacing, accent, type scale, radii, elevation, rhythm (the first four dominate). Returns both raw measurements, a per-dimension diff with subject_worse flags, a checkable bar derived from the reference's measured values, fixes split mechanical (find-and-replace) vs needs_a_decision (ask the human), and a binary verdict.on_par — the exit gate for the gauntlet loop the response embeds: build, critique with FRESH-context critics against renders, re-run this tool, and only call the work done when on_par is true. The reference is a standard, not a source — never copy its copy, marks, imagery or brand color.",
+  {
+    subject_url: z.string().describe("The page being improved — rendered headless and measured live."),
+    reference_url: z.string().describe("The benchmark page (e.g. https://linear.app) — measured the same way; its values derive the bar."),
+    viewport: z.object({ width: z.number(), height: z.number() }).optional().describe("Viewport for both measurements. Default 1440x900."),
+    color_scheme: z.enum(["light", "dark"]).optional().describe("prefers-color-scheme emulated for BOTH pages (sites that theme by system preference measure differently per scheme). Default light; it is reported on each measurement.")
+  },
+  async function ({ subject_url, reference_url, viewport, color_scheme }) {
+    try {
+      var subjectMeasurement = await measureGauntletPage(subject_url, { viewport: viewport, color_scheme: color_scheme });
+      var referenceMeasurement = await measureGauntletPage(reference_url, { viewport: viewport, color_scheme: color_scheme });
+      var comparison = compareGauntletMeasurements(subjectMeasurement, referenceMeasurement);
+      var out = {
+        tool: "design_gauntlet",
+        discipline: GAUNTLET_DISCIPLINE_NOTICE,
+        subject: subjectMeasurement,
+        reference: referenceMeasurement,
+        diff: comparison.diff,
+        bar: comparison.bar,
+        fixes: comparison.fixes,
+        verdict: comparison.verdict,
+        loop_protocol: GAUNTLET_LOOP_PROTOCOL
+      };
+      return { content: [{ type: "text" as const, text: JSON.stringify(out, null, 2) }] };
+    } catch (e) {
+      if (e instanceof CaptureUnavailableError) {
+        // isError + a JSON body, diverging deliberately from the audit_* siblings'
+        // plain-text no-isError shape: the loop protocol tells a consumer to PARSE
+        // this tool's output, and an un-flagged prose success is indistinguishable
+        // from a result to a client that branches on isError (Sol P2, 2026-08-14).
+        // No deterministic seam forces CaptureUnavailableError through the zod
+        // layer in-process, so this branch — like every sibling's — is untested.
+        return {
+          isError: true,
+          content: [{
+            type: "text" as const,
+            text: JSON.stringify({
+              tool: "design_gauntlet",
+              error: "chromium_unavailable",
+              message: "Playwright chromium not available. Run: npx playwright install chromium"
+            }, null, 2)
+          }]
+        };
+      }
+      throw e;
+    }
+  }
+);
+
+server.tool(
   "configure_design_system_source",
   "Save which local DESIGN.md file Raven should use for design-system inventory and comparison.",
   {
@@ -8355,7 +8414,7 @@ server.tool(
 // ── Start ───────────────────────────────────────────────────────────
 
 async function main() {
-  // Hardcode remote:false so stdio ALWAYS serves all 110 tools regardless of any
+  // Hardcode remote:false so stdio ALWAYS serves all 111 tools regardless of any
   // ambient RAVEN_REMOTE env — the stdio wire contract stays byte-for-byte
   // unchanged in every runtime condition (additive-only invariant).
   const server = buildServer({ remote: false, tasteStore: new FsTasteStore() });
