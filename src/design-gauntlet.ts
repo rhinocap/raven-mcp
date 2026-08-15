@@ -29,6 +29,7 @@ export type TallyEntry = { value: string; count: number };
 export type GauntletMeasurement = {
   url: string;
   viewport: string;
+  device_scale_factor: number;
   color_scheme: string;
   visible_elements: number;
   fonts_status: string;
@@ -509,10 +510,16 @@ export const GAUNTLET_DISCIPLINE_NOTICE =
 export type GauntletMeasureOptions = {
   viewport?: { width: number; height: number };
   color_scheme?: "light" | "dark";
+  device_scale_factor?: number;
   timeout_ms?: number;
 };
 
 const DEFAULT_VIEWPORT = { width: 1440, height: 900 };
+// Deliberately 1, matching a plain desktop display: raising the default would
+// silently move the hairline vocabulary of every existing comparison. A design
+// that draws sub-pixel strokes opts IN.
+const DEFAULT_DEVICE_SCALE_FACTOR = 1;
+const MAX_DEVICE_SCALE_FACTOR = 4;
 const DEFAULT_TIMEOUT_MS = 30000;
 // A normal marketing page renders hundreds of visible elements; single digits
 // means layout has not settled and every tally below would be empty-but-
@@ -527,6 +534,16 @@ export async function measureGauntletPage(
   const viewport = opts.viewport || DEFAULT_VIEWPORT;
   const colorScheme = opts.color_scheme || "light";
   const timeoutMs = opts.timeout_ms || DEFAULT_TIMEOUT_MS;
+  // Rejected, never clamped: a silently-corrected scale would report a hairline
+  // vocabulary measured at a factor the caller did not ask for, which is the
+  // exact class of quiet wrongness this dimension exists to catch.
+  const dsfRaw = opts.device_scale_factor;
+  if (dsfRaw !== undefined && (!Number.isFinite(dsfRaw) || dsfRaw <= 0 || dsfRaw > MAX_DEVICE_SCALE_FACTOR)) {
+    throw new Error(
+      "device_scale_factor must be a number in (0, " + MAX_DEVICE_SCALE_FACTOR + "] — got " + String(dsfRaw)
+    );
+  }
+  const deviceScaleFactor = dsfRaw === undefined ? DEFAULT_DEVICE_SCALE_FACTOR : dsfRaw;
   const warnings: string[] = [];
 
   let browser: Awaited<ReturnType<typeof launchAuditChromium>> | null = null;
@@ -539,8 +556,10 @@ export async function measureGauntletPage(
       );
     }
 
-    const page = await browser.newPage();
-    await page.setViewportSize(viewport);
+    // viewport and deviceScaleFactor are set together at page creation:
+    // setViewportSize() afterwards is a size-only call and cannot carry a
+    // scale, so the factor has to ride along here or it is silently 1.
+    const page = await browser.newPage({ viewport, deviceScaleFactor });
     await page.emulateMedia({ colorScheme });
     await page.goto(url, { waitUntil: "load", timeout: timeoutMs });
 
@@ -595,7 +614,37 @@ export async function measureGauntletPage(
       warnings.push("document.fonts.status is '" + fontsStatus + "' — families and tracking may reflect fallback fonts.");
     }
 
-    const { visibleCount, truncated, ...dimensions } = raw;
+    const { visibleCount, truncated, hairlines, ...dimensions } = raw;
+
+    // Hairline provenance. Blink rounds a non-zero border-width up to 1px in
+    // the used value — getComputedStyle AND getBoundingClientRect both report
+    // 1px, at EVERY device scale factor (measured 2026-08-14 at dsf 1/2/3;
+    // border-RADIUS by contrast keeps 10.5px, so the limit is width-specific).
+    // The probe recovers the authored width from the CSSOM. These two warnings
+    // report what that recovery did and, more importantly, where it could not
+    // run — an unread stylesheet means a 1px entry may still be a rounded
+    // hairline, and the caller has to know which tally it is holding.
+    if (hairlines.subPixelRecovered > 0) {
+      warnings.push(
+        "Hairlines: " + hairlines.subPixelRecovered + " sub-pixel border(s) were recovered from the authored " +
+        "CSS. Computed style reports every one of them as 1px — the engine rounds sub-pixel widths up — so " +
+        "this tally is finer-grained than the rendered page can show."
+      );
+    }
+    if (hairlines.subPixelAmbiguous > 0 || hairlines.sheetsBlocked > 0 || hairlines.ruleOverflow) {
+      const causes: string[] = [];
+      if (hairlines.sheetsBlocked > 0) {
+        causes.push(hairlines.sheetsBlocked + " cross-origin stylesheet(s) could not be read");
+      }
+      if (hairlines.ruleOverflow) causes.push("the authored-rule scan hit its cap");
+      if (hairlines.subPixelAmbiguous > 0) {
+        causes.push(hairlines.subPixelAmbiguous + " element(s) matched conflicting widths whose winner depends on specificity");
+      }
+      warnings.push(
+        "Hairline caveat: " + causes.join("; ") + ". A 1px entry in this tally may therefore be an authored " +
+        "1px border OR a rounded sub-pixel hairline, so treat a hairline-vocabulary difference as unproven."
+      );
+    }
     for (const name of truncated) {
       warnings.push(
         "The " + name + " tally hit the in-page cap — vocabulary counts for that dimension may read LOW, " +
@@ -606,6 +655,7 @@ export async function measureGauntletPage(
     return {
       url,
       viewport: viewport.width + "x" + viewport.height,
+      device_scale_factor: deviceScaleFactor,
       color_scheme: colorScheme,
       visible_elements: visibleCount,
       fonts_status: fontsStatus,
@@ -695,11 +745,90 @@ function probeInPage({ vpW, vpH }: { vpW: number; vpH: number }) {
   }
 
   // Hairlines
+  //
+  // Blink rounds any non-zero border-width UP to 1px in the used value, so
+  // getComputedStyle reports a 0.5px hairline as 1px at every device scale
+  // factor (measured 2026-08-14 at dsf 1/2/3; getBoundingClientRect agrees).
+  // The authored value survives only in the CSSOM, so sub-pixel strokes are
+  // recovered from there — inline style first, then matching stylesheet rules —
+  // and every case that cannot be resolved is COUNTED rather than guessed, so
+  // the caller is told the tally is provisional instead of being handed a
+  // confident 1px.
+  const AUTHORED_RULE_CAP = 300;
+  let sheetsBlocked = 0;
+  let ruleOverflow = false;
+  const authoredRules: { selector: string; width: number }[] = [];
+
+  const collectRules = (rules: CSSRuleList): void => {
+    for (const rule of Array.from(rules) as any[]) {
+      if (authoredRules.length >= AUTHORED_RULE_CAP) { ruleOverflow = true; return; }
+      // Collect BEFORE recursing, and never treat "has cssRules" as "is a group".
+      // CSS nesting gave CSSStyleRule its own .cssRules, so a group-first check
+      // skips every plain style rule on a modern engine and the whole recovery
+      // silently reads empty (measured: the stylesheet fixture stayed at 1px).
+      if (rule.selectorText && rule.style) {
+        // Populated by the `border` shorthand too — the CSSOM expands it.
+        const w = rule.style.borderTopWidth;
+        const n = w ? parseFloat(w) : NaN;
+        // Keywords (thin/medium/thick) parse to NaN and are dropped: they are
+        // engine-defined integers, never the sub-pixel case this recovers.
+        if (isFinite(n)) authoredRules.push({ selector: rule.selectorText, width: n });
+      }
+      // @media / @supports / @layer carry nested rules, as does a nesting style
+      // rule. A media block that does not currently apply is skipped: its
+      // widths are not on this render.
+      if (rule.cssRules) {
+        if (rule.media && rule.conditionText) {
+          try { if (!matchMedia(rule.conditionText).matches) continue; } catch { /* unparsable: fall through */ }
+        }
+        collectRules(rule.cssRules);
+      }
+    }
+  };
+  for (const sheet of Array.from(document.styleSheets)) {
+    // A cross-origin sheet throws on .cssRules. Counted, never swallowed.
+    try { collectRules(sheet.cssRules); } catch { sheetsBlocked++; }
+  }
+
+  let subPixelRecovered = 0;
+  let subPixelAmbiguous = 0;
+
+  // Returns the authored sub-pixel width, or null when it cannot be established
+  // HONESTLY. Specificity is deliberately not resolved — source order is used —
+  // so any element whose matching rules disagree returns null and stays 1px.
+  const authoredSubPixel = (el: Element): number | null => {
+    const inline = (el as HTMLElement).style && (el as HTMLElement).style.borderTopWidth;
+    if (inline) {
+      const n = parseFloat(inline);
+      // Inline wins the cascade outright, so it needs no conflict handling.
+      if (isFinite(n)) return n > 0 && n < 1 ? n : null;
+    }
+    const matched: number[] = [];
+    for (const r of authoredRules) {
+      try { if (el.matches(r.selector)) matched.push(r.width); } catch { /* exotic selector */ }
+    }
+    if (matched.length === 0) return null;
+    const last = matched[matched.length - 1];
+    if (last >= 1) return null;
+    // Mixed sub-pixel and full-pixel declarations: the winner depends on
+    // specificity, which is not computed here. Ambiguous, so report neither.
+    if (matched.some((w) => w >= 1)) { subPixelAmbiguous++; return null; }
+    return last > 0 ? last : null;
+  };
+
   const borderValues: string[] = [];
   for (const el of visible) {
     const s = getComputedStyle(el);
     if (s.borderTopStyle !== "none" && parseFloat(s.borderTopWidth) > 0) {
-      borderValues.push(s.borderTopWidth + " " + toHex(s.borderTopColor));
+      let width = s.borderTopWidth;
+      // 1px is the ONLY ambiguous reading — it is what every sub-pixel width
+      // rounds to. Anything else is already the authored value.
+      if (width === "1px") {
+        const authored = authoredSubPixel(el);
+        if (authored !== null) { width = authored + "px"; subPixelRecovered++; }
+        else if (sheetsBlocked > 0 || ruleOverflow) subPixelAmbiguous++;
+      }
+      borderValues.push(width + " " + toHex(s.borderTopColor));
     }
   }
 
@@ -813,6 +942,7 @@ function probeInPage({ vpW, vpH }: { vpW: number; vpH: number }) {
     truncated,
     surfaces: { canvas, tally: cap("surfaces", tally(surfaceValues)) },
     borders: { tally: cap("borders", tally(borderValues)) },
+    hairlines: { subPixelRecovered, subPixelAmbiguous, sheetsBlocked, ruleOverflow },
     text: { tally: cap("text colors", tally(textColors)) },
     tracking: { display: tally(displayTracking).slice(0, 4), body: tally(bodyTracking).slice(0, 4) },
     accent: { candidates: tally(accentValues).slice(0, 5), usesInFirstViewport: accentFirstViewport },

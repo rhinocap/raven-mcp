@@ -8248,12 +8248,13 @@ server.tool(
     subject_url: z.string().describe("The page being improved — rendered headless and measured live."),
     reference_url: z.string().describe("The benchmark page (e.g. https://linear.app) — measured the same way; its values derive the bar."),
     viewport: z.object({ width: z.number(), height: z.number() }).optional().describe("Viewport for both measurements. Default 1440x900."),
-    color_scheme: z.enum(["light", "dark"]).optional().describe("prefers-color-scheme emulated for BOTH pages (sites that theme by system preference measure differently per scheme). Default light; it is reported on each measurement.")
+    color_scheme: z.enum(["light", "dark"]).optional().describe("prefers-color-scheme emulated for BOTH pages (sites that theme by system preference measure differently per scheme). Default light; it is reported on each measurement."),
+    device_scale_factor: z.number().positive().max(4).optional().describe("Device pixel ratio for BOTH measurements — one value, so the hairline diff is never scale-mismatched. Default 1. Pass 2 to measure a page the way a retina display resolves it — it selects the retina branch of image-set()/srcset and min-resolution media queries, which can change the surfaces and type a page actually renders. It does NOT fix hairlines: border-width is rounded up to 1px by the engine at every scale (border-radius is not), so sub-pixel strokes stay unmeasurable and the borders dimension warns when a 1px entry is ambiguous. Range (0, 4].")
   },
-  async function ({ subject_url, reference_url, viewport, color_scheme }) {
+  async function ({ subject_url, reference_url, viewport, color_scheme, device_scale_factor }) {
     try {
-      var subjectMeasurement = await measureGauntletPage(subject_url, { viewport: viewport, color_scheme: color_scheme });
-      var referenceMeasurement = await measureGauntletPage(reference_url, { viewport: viewport, color_scheme: color_scheme });
+      var subjectMeasurement = await measureGauntletPage(subject_url, { viewport: viewport, color_scheme: color_scheme, device_scale_factor: device_scale_factor });
+      var referenceMeasurement = await measureGauntletPage(reference_url, { viewport: viewport, color_scheme: color_scheme, device_scale_factor: device_scale_factor });
       var comparison = compareGauntletMeasurements(subjectMeasurement, referenceMeasurement);
       var out = {
         tool: "design_gauntlet",

@@ -545,3 +545,112 @@ test('lazy-load: content appended DURING the scroll is reached and measured', as
   assert.ok(m.surfaces.tally.some((e) => e.value === '#010203'), 'stage-1 lazy content is measured (precondition: the feed grew at all)');
   assert.ok(m.surfaces.tally.some((e) => e.value === '#090807'), 'stage-2 content — appended past the ORIGINAL page height — is measured');
 });
+
+// --- device scale factor ---------------------------------------------------
+
+const HAIRLINE_ROWS = (style, extra) => '<body>' +
+  Array.from({ length: 24 }, (_, i) =>
+    '<div class="row" style="width:400px;height:40px;background:rgb(250,250,250);border-radius:10.5px;' +
+    (extra ? extra(i) : '') + style(i) + '">row</div>').join('') + '</body>';
+
+test('hairlines: the engine rounds sub-pixel strokes to 1px at EVERY scale — the authored value is recovered instead', async (t) => {
+  if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
+  // Pins a measured engine fact that a plausible-sounding theory got wrong.
+  // The theory was a device-pixel-grid collapse — 0.5px unresolvable at dsf 1,
+  // recoverable at dsf 2. Measured 2026-08-14 that is FALSE: Blink rounds any
+  // non-zero border-width up to 1px in the used value, in getComputedStyle and
+  // in layout alike, at dsf 1, 2 AND 3. Scale does not touch it. So the tally
+  // is built from the authored CSS, and the dsf pair below is the guard against
+  // anyone re-deriving the scale theory: both scales must agree.
+  // The radius assertion is the control — it proves the fixture really authors
+  // sub-pixel values and that the engine keeps them elsewhere, so a green
+  // border assertion cannot be the fixture silently doing nothing.
+  const html = '<!doctype html><title>hairline</title>' +
+    HAIRLINE_ROWS((i) => 'border-top:0.5px solid rgb(' + (10 + i) + ',20,30)');
+
+  const at1 = await withFixture(html, (url) => measureGauntletPage(url, { device_scale_factor: 1 }));
+  const at2 = await withFixture(html, (url) => measureGauntletPage(url, { device_scale_factor: 2 }));
+
+  const widths = (m) => new Set(m.borders.tally.map((e) => e.value.split(' ')[0]));
+  for (const [label, m] of [['scale 1', at1], ['scale 2', at2]]) {
+    assert.ok(widths(m).has('0.5px'), 'at ' + label + ' the authored 0.5px hairline is recovered from inline style');
+    assert.ok(!widths(m).has('1px'), 'at ' + label + ' the rounded 1px reading does not reach the tally');
+    assert.ok(
+      m.warnings.some((w) => w.includes('sub-pixel border(s) were recovered')),
+      'at ' + label + ' the recovery is disclosed — the tally is finer than the render'
+    );
+    assert.ok(
+      !m.warnings.some((w) => w.includes('Hairline caveat')),
+      'at ' + label + ' nothing was unresolvable, so the caveat does NOT fire — it is a real signal, not decoration'
+    );
+  }
+  assert.deepEqual(widths(at1), widths(at2), 'device scale factor does not move the hairline vocabulary');
+
+  // Control: sub-pixel RADIUS is untouched by the engine, so the limitation is
+  // width-specific and the recovery is not blanket sub-pixel pessimism.
+  assert.ok(
+    at2.radii.tally.some((e) => e.value === '10.5px'),
+    'border-radius keeps sub-pixel precision — the fixture authored 10.5px and the engine kept it'
+  );
+  assert.equal(at1.device_scale_factor, 1, 'the measurement reports the scale it was taken at');
+  assert.equal(at2.device_scale_factor, 2, 'the measurement reports the scale it was taken at');
+});
+
+test('hairlines: authored width is recovered from a STYLESHEET rule, not just inline style', async (t) => {
+  if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
+  // The inline path is the easy half. Real pages put hairlines in a class, and
+  // the `border` SHORTHAND is the common authoring form — the CSSOM expands it
+  // into style.borderTopWidth, which is what makes this recoverable. Dropping
+  // the stylesheet walk leaves this at 1px while the test above stays green.
+  const html = '<!doctype html><title>sheet-hairline</title>' +
+    '<style>.row { border-top: 0.5px solid #123456; } ' +
+    '@media (min-width: 100px) { .row { border-top-width: 0.5px; } }</style>' +
+    HAIRLINE_ROWS(() => '');
+  const m = await withFixture(html, (url) => measureGauntletPage(url));
+  const widths = new Set(m.borders.tally.map((e) => e.value.split(' ')[0]));
+  assert.ok(widths.has('0.5px'), 'a class-authored hairline (and its @media override) is recovered');
+  assert.ok(!widths.has('1px'), 'the rounded reading does not reach the tally');
+});
+
+test('hairlines: a specificity conflict is reported ambiguous, never guessed', async (t) => {
+  if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
+  // Two rules match every row: a LATER 0.5px and an EARLIER higher-specificity
+  // 1px. Source order says 0.5px, specificity says 1px, and the probe computes
+  // specificity for neither — so the honest answer is "unresolved". Guessing
+  // source order here would silently report a hairline vocabulary the page does
+  // not have, which is the exact failure this dimension exists to catch.
+  const html = '<!doctype html><title>conflict</title>' +
+    '<style>body div.row { border-top: 1px solid #123456; } .row { border-top: 0.5px solid #123456; }</style>' +
+    HAIRLINE_ROWS(() => '');
+  const m = await withFixture(html, (url) => measureGauntletPage(url));
+  const widths = new Set(m.borders.tally.map((e) => e.value.split(' ')[0]));
+  assert.ok(widths.has('1px'), 'the unresolved element keeps its computed reading');
+  assert.ok(!widths.has('0.5px'), 'source order is NOT taken as the winner');
+  assert.ok(
+    m.warnings.some((w) => w.includes('Hairline caveat') && w.includes('specificity')),
+    'the caveat names specificity as the reason the tally is provisional'
+  );
+});
+
+test('device_scale_factor: defaults to 1 and is REJECTED, never clamped, outside (0, 4]', async (t) => {
+  if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
+  // A clamp would report a hairline vocabulary measured at a factor the caller
+  // never asked for — the quiet wrongness this dimension exists to catch. The
+  // rejection is asserted BEFORE any browser work, so these throw fast.
+  const html = '<!doctype html><title>dsf</title><body>' +
+    Array.from({ length: 24 }, () =>
+      '<div style="width:400px;height:40px;background:rgb(9,9,9)">row</div>').join('') + '</body>';
+
+  await withFixture(html, async (url) => {
+    const dflt = await measureGauntletPage(url);
+    assert.equal(dflt.device_scale_factor, 1, 'the default stays 1 — raising it would move every existing comparison');
+
+    for (const bad of [0, -1, 5, NaN, Infinity]) {
+      await assert.rejects(
+        () => measureGauntletPage(url, { device_scale_factor: bad }),
+        /device_scale_factor must be a number/,
+        'rejects ' + String(bad)
+      );
+    }
+  });
+});
