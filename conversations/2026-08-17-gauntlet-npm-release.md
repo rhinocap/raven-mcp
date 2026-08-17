@@ -367,3 +367,31 @@ the `elTreatments` dedupe are all correct) and needs no action.
   defect, same declared behaviour, new anchor.
 - Suite is 44 tests, 44 pass, 0 fail, 0 skipped. **That is worth nothing until
   the matrix proves each new test red** — matrix v8 is in flight.
+
+### Round-3 measurement
+
+- **Matrix v8**: 50 mutants, 50 killed, 0 survived, 0 false-failed; 2 controls
+  green; `EXIT=0`, against a declared 44/44/0/0 baseline. Pre-flight passed at
+  52 anchors. Read from inside the log.
+- **G44–G47 each at radius 1**, each reddening exactly its own new test — which
+  is the only thing that makes those four tests guards rather than comments.
+- **G48 at radius 6, and that number IS the P2 disposition.** Six hairline tests
+  carry a caveat assertion sitting BEHIND a value assertion, and until G48
+  existed not one of the six was falsifiable, because `assert` aborts at the
+  first failure. G48 breaks the disclosure and leaves every value assertion
+  green, so each caveat is reached on its own. One mechanism, six observables —
+  never six independent guards; G49/G50 separate the named causes, one each.
+- **Exactly one carried-over radius moved: G42 1 → 2**, checked BY SET against
+  the printed red names, not by arithmetic. It picks up the new non-px test
+  because `0.5em` IS an unresolved rule and reaches the very push G42 deletes.
+  Every other v7 radius held identically; G19 stays 18.
+- **G42's anchor died** and was re-cut — this round's `pxLength()` fix rewrote
+  the exact line it named. v7's header had called an intact pre-flight "luck
+  rather than a property." It was luck.
+- Build clean at **111 tools**; `manifest.json` unmoved (no tool added).
+- **Full suite 1583 / 1580 / 0 / 3, `EXIT=0`.** The +4 over 1579 is exactly the
+  four new browser tests. Skips read INDIVIDUALLY at lines 109/758/759 — the
+  same three, shifted only because the new tests print above them — and the
+  gauntlet suite was confirmed RUN by grepping its own test names, the four new
+  ones at lines 357–360.
+- `npm whoami` → `accunliffe`. The E401 that blocked `release.sh` is cleared.

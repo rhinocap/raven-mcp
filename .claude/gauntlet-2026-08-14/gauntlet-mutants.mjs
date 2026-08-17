@@ -6,7 +6,64 @@
  * false-fails). Run with:  node .claude/gauntlet-2026-08-14/gauntlet-mutants.mjs
  * NEVER via `npm test` with a mutant applied — clean && tsc clobbers dist/.
  *
- * MEASURED v7 (2026-08-17, agent-output/mutants-v7.log), 40p/0f/0s declared
+ * MEASURED v8 (2026-08-17, agent-output/mutants-v8.log), 44p/0f/0s declared
+ * baseline: 50 mutants, 50 killed, 0 survived, 0 false-failed; 2 CONTROLS
+ * green; EXIT=0 and the summary line both read from INSIDE the log, never
+ * from the background task notification. Pre-flight passed at 52 anchors.
+ * Re-run WHOLE (not extended) after the Sol ROUND-3 disposition: DOES NOT
+ * SURVIVE on 3 P1 + 1 P2 + 1 P3, and all three P1s are the SAME direction as
+ * round 2's — a CONFIDENT WRONG HAIRLINE. The organising principle is
+ * unchanged and is now three rounds old: a false RECOVERY is worse than a
+ * false ambiguity, because the caller is handed a number instead of a warning.
+ *   G42's ANCHOR DIED and had to be re-cut — this round's pxLength() fix
+ *   rewrote the exact line it named (the keyword-drop branch it was pinned to
+ *   no longer exists). That is the standing dead-anchor rule landing exactly
+ *   where it always lands, one round after v7's header called an intact
+ *   pre-flight "luck rather than a property". It was luck.
+ *   SEVEN mutants entered. G44–G47 are one per P1 fix, each at radius 1,
+ *   each reddening exactly its own new test — which is the only thing that
+ *   makes those four tests guards rather than comments. All four passed on
+ *   their first run and that was worth nothing until these four proved them
+ *   red (the sixth time this project has recorded that).
+ *   THE INLINE P1 NEEDED TWO TESTS, NOT ONE, and G45/G46 are why: an inline
+ *   width fails in two different ways on one code path — a stylesheet rule
+ *   marked !important OUTRANKS the attribute (G45 drops the conflict clause
+ *   and trusts inline unconditionally), and an inline value this probe cannot
+ *   read used to FALL THROUGH to the stylesheet scan, letting a rule the
+ *   inline declaration overrides answer for the edge (G46 deletes the refusal
+ *   return). One mutant cannot separate those; two do.
+ *   G48–G50 ARE THE P2 DISPOSITION AND THEY GENERALISE IT. Sol's P2 was that
+ *   G41 and G43 do not independently prove all their declared behaviour,
+ *   because `assert` aborts at the first failure — so a mutant declared
+ *   against a test can be graded by a DIFFERENT assertion inside that test,
+ *   and every caveat assertion sitting behind a value assertion was never
+ *   reached by any mutant in the matrix. The fix is mechanical rather than a
+ *   reordering: G48–G50 break the DISCLOSURE and nothing else, leaving every
+ *   value assertion green, so each caveat assertion is reached on its own.
+ *   G48 (ambiguity never counted) is radius 6 and that number IS the
+ *   measurement — six hairline tests carry a caveat assertion behind a value
+ *   assertion, and before G48 existed not one of those six was falsifiable.
+ *   It is a fact about ONE mechanism (the ambiguity counter every caveat runs
+ *   through), never evidence of six independent guards; G49 and G50 are what
+ *   separate the individual NAMED causes, one each, at radius 1.
+ *   EXACTLY ONE carried-over radius moved: G42 1 -> 2, checked by SET against
+ *   the printed red names rather than by arithmetic on the counts. It picks up
+ *   the new non-px test because a `0.5em` width IS an unresolved rule, so it
+ *   reaches the very push G42 deletes — one mechanism gaining an observable,
+ *   not a second guard. Every other v7 radius held IDENTICALLY, which was
+ *   verified in both directions rather than believed: a uniform hold is
+ *   exactly the shape that would hide one mechanism shrinking while another
+ *   grew. G19 stays 18 — the four new tests are hairline assertions outside
+ *   the rhythm comparison set.
+ *   G38 3 · G39 1 · G40 1 · G41 1 · G42 2 · G43 1 · G44 1 · G45 1 · G46 1 ·
+ *   G47 1 · G48 6 · G49 1 · G50 1.
+ *   G47 (the unit-blind length) is the cheapest defect in the round and the
+ *   one most likely to come back: parseFloat("0.5em") is 0.5, so an edge
+ *   authored .5em at a 2px font-size — which computes and renders at exactly
+ *   1px — reported as a recovered 0.5px hairline. parseFloat is not a unit
+ *   check, and the mutant re-widens the suffix set rather than deleting the
+ *   test, because a deletion would be caught by reading and this would not.
+ *   v7 (2026-08-17, agent-output/mutants-v7.log), 40p/0f/0s declared
  * baseline: 43 mutants, 43 killed, 0 survived, 0 false-failed; 2 CONTROLS
  * green; EXIT=0 and the summary line both read from INSIDE the log, never
  * from the background task notification — a notification describes the
