@@ -632,6 +632,75 @@ test('hairlines: a specificity conflict is reported ambiguous, never guessed', a
   );
 });
 
+// --- all four edges --------------------------------------------------------
+
+const SIDE_BASE = 'width:400px;height:40px;background:rgb(250,250,250);';
+const SIDE_ROWS = (n, style) =>
+  Array.from({ length: n }, () => '<div class="row" style="' + SIDE_BASE + style + '">row</div>').join('');
+
+test('borders: every edge is read, not just the top — a bottom-only divider is the common case', async (t) => {
+  if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
+  // The probe read borderTopWidth alone, which is the one edge a real page is
+  // LEAST likely to use on its own: a divider is authored border-bottom, a
+  // sidebar rule border-left, a tab strip border-right. Under the top-only
+  // probe this whole fixture reports NO border vocabulary at all — every row
+  // has a visible stroke and the tally is empty, which reads to the caller as
+  // a page with no border treatments rather than a probe that did not look.
+  // Dropping any single side from SIDES reddens exactly its own assertion.
+  const html = '<!doctype html><title>sides</title><body>' +
+    SIDE_ROWS(8, 'border-bottom:2px solid #111111') +
+    SIDE_ROWS(8, 'border-left:3px solid #222222') +
+    SIDE_ROWS(8, 'border-right:4px solid #333333') + '</body>';
+  const m = await withFixture(html, (url) => measureGauntletPage(url));
+  const values = new Set(m.borders.tally.map((e) => e.value));
+  assert.ok(values.has('2px #111111'), 'a bottom-only border reaches the tally');
+  assert.ok(values.has('3px #222222'), 'a left-only border reaches the tally');
+  assert.ok(values.has('4px #333333'), 'a right-only border reaches the tally');
+});
+
+test('borders: sub-pixel recovery is matched PER SIDE — a thick top does not poison a hairline bottom', async (t) => {
+  if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
+  // The authored-rule table holds one entry per (selector, side), and the
+  // lookup must filter on side. Drop `if (r.side !== side) continue` and the
+  // 3px top joins the bottom's candidate list: matched becomes [3, 0.5] in
+  // SIDES push order, the last entry is the 0.5 so the `>= 1` early return
+  // does not fire, and `matched.some(w => w >= 1)` then reports the row
+  // AMBIGUOUS. So the failure is not a wrong number — it is a real hairline
+  // silently downgraded to "unresolvable" by a border on an unrelated edge,
+  // with the caveat warning firing on a page that has no conflict in it.
+  // Both directions are asserted: the hairline is recovered AND the thick
+  // edge still reads at its authored width.
+  const html = '<!doctype html><title>per-side</title>' +
+    '<style>.row { border-bottom: 0.5px solid #123456; border-top: 3px solid #654321; }</style>' +
+    HAIRLINE_ROWS(() => '');
+  const m = await withFixture(html, (url) => measureGauntletPage(url));
+  const values = new Set(m.borders.tally.map((e) => e.value));
+  assert.ok(values.has('0.5px #123456'), 'the bottom hairline is recovered on its own side');
+  assert.ok(values.has('3px #654321'), 'the top border is unaffected and keeps its authored width');
+  assert.ok(
+    m.warnings.some((w) => w.includes('sub-pixel border(s) were recovered')),
+    'the recovery is disclosed'
+  );
+  assert.ok(
+    !m.warnings.some((w) => w.includes('Hairline caveat')),
+    'nothing is ambiguous here — a second edge is not a specificity conflict'
+  );
+});
+
+test('borders: one element with four identical edges is ONE treatment, not four', async (t) => {
+  if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
+  // Reading four edges multiplies the tally by four on the commonest authoring
+  // form there is — the `border` shorthand. The count is what the vocabulary
+  // report is built from, so an inflated count does not add a value, it
+  // reweights every existing one against the others.
+  const html = '<!doctype html><title>dedupe</title><body>' +
+    SIDE_ROWS(24, 'border:2px solid #445566') + '</body>';
+  const m = await withFixture(html, (url) => measureGauntletPage(url));
+  const entry = m.borders.tally.find((e) => e.value === '2px #445566');
+  assert.ok(entry, 'precondition: the uniform border is measured at all');
+  assert.equal(entry.count, 24, 'counted once per ELEMENT — 96 would be once per edge');
+});
+
 test('device_scale_factor: defaults to 1 and is REJECTED, never clamped, outside (0, 4]', async (t) => {
   if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
   // A clamp would report a hairline vocabulary measured at a factor the caller

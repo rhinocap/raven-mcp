@@ -753,11 +753,21 @@ function probeInPage({ vpW, vpH }: { vpW: number; vpH: number }) {
   // recovered from there — inline style first, then matching stylesheet rules —
   // and every case that cannot be resolved is COUNTED rather than guessed, so
   // the caller is told the tally is provisional instead of being handed a
-  // confident 1px.
-  const AUTHORED_RULE_CAP = 300;
+  // confident 1px. All four edges are read, not just the top: a border can be
+  // authored on any single side (a bottom-only divider is the common case),
+  // and each side rounds to 1px independently under the same Blink behavior.
+  // The cap counts ENTRIES, and reading four edges means one rule can now
+  // contribute four of them — so the 300 that bounded 300 rules would bound 75.
+  // Raised to 4x to hold the per-rule reach exactly where it was; shrinking it
+  // would not lose the recovery quietly, it would report MORE elements
+  // ambiguous, which reads to the caller as a page with unresolvable hairlines
+  // rather than as a probe that stopped looking.
+  const AUTHORED_RULE_CAP = 1200;
   let sheetsBlocked = 0;
   let ruleOverflow = false;
-  const authoredRules: { selector: string; width: number }[] = [];
+  type Side = "Top" | "Right" | "Bottom" | "Left";
+  const SIDES: Side[] = ["Top", "Right", "Bottom", "Left"];
+  const authoredRules: { selector: string; side: Side; width: number }[] = [];
 
   const collectRules = (rules: CSSRuleList): void => {
     for (const rule of Array.from(rules) as any[]) {
@@ -768,11 +778,14 @@ function probeInPage({ vpW, vpH }: { vpW: number; vpH: number }) {
       // silently reads empty (measured: the stylesheet fixture stayed at 1px).
       if (rule.selectorText && rule.style) {
         // Populated by the `border` shorthand too — the CSSOM expands it.
-        const w = rule.style.borderTopWidth;
-        const n = w ? parseFloat(w) : NaN;
-        // Keywords (thin/medium/thick) parse to NaN and are dropped: they are
-        // engine-defined integers, never the sub-pixel case this recovers.
-        if (isFinite(n)) authoredRules.push({ selector: rule.selectorText, width: n });
+        for (const side of SIDES) {
+          if (authoredRules.length >= AUTHORED_RULE_CAP) { ruleOverflow = true; break; }
+          const w = rule.style["border" + side + "Width"];
+          const n = w ? parseFloat(w) : NaN;
+          // Keywords (thin/medium/thick) parse to NaN and are dropped: they are
+          // engine-defined integers, never the sub-pixel case this recovers.
+          if (isFinite(n)) authoredRules.push({ selector: rule.selectorText, side, width: n });
+        }
       }
       // @media / @supports / @layer carry nested rules, as does a nesting style
       // rule. A media block that does not currently apply is skipped: its
@@ -793,11 +806,12 @@ function probeInPage({ vpW, vpH }: { vpW: number; vpH: number }) {
   let subPixelRecovered = 0;
   let subPixelAmbiguous = 0;
 
-  // Returns the authored sub-pixel width, or null when it cannot be established
-  // HONESTLY. Specificity is deliberately not resolved — source order is used —
-  // so any element whose matching rules disagree returns null and stays 1px.
-  const authoredSubPixel = (el: Element): number | null => {
-    const inline = (el as HTMLElement).style && (el as HTMLElement).style.borderTopWidth;
+  // Returns the authored sub-pixel width for ONE side, or null when it cannot
+  // be established HONESTLY. Specificity is deliberately not resolved —
+  // source order is used — so any element whose matching rules disagree
+  // returns null and stays 1px. Rules for other sides are ignored entirely.
+  const authoredSubPixel = (el: Element, side: Side): number | null => {
+    const inline = (el as HTMLElement).style && ((el as HTMLElement).style as any)["border" + side + "Width"];
     if (inline) {
       const n = parseFloat(inline);
       // Inline wins the cascade outright, so it needs no conflict handling.
@@ -805,6 +819,7 @@ function probeInPage({ vpW, vpH }: { vpW: number; vpH: number }) {
     }
     const matched: number[] = [];
     for (const r of authoredRules) {
+      if (r.side !== side) continue;
       try { if (el.matches(r.selector)) matched.push(r.width); } catch { /* exotic selector */ }
     }
     if (matched.length === 0) return null;
@@ -819,17 +834,30 @@ function probeInPage({ vpW, vpH }: { vpW: number; vpH: number }) {
   const borderValues: string[] = [];
   for (const el of visible) {
     const s = getComputedStyle(el);
-    if (s.borderTopStyle !== "none" && parseFloat(s.borderTopWidth) > 0) {
-      let width = s.borderTopWidth;
-      // 1px is the ONLY ambiguous reading — it is what every sub-pixel width
-      // rounds to. Anything else is already the authored value.
-      if (width === "1px") {
-        const authored = authoredSubPixel(el);
-        if (authored !== null) { width = authored + "px"; subPixelRecovered++; }
-        else if (sheetsBlocked > 0 || ruleOverflow) subPixelAmbiguous++;
+    // Distinct "width color" treatments per element, deduped so a uniform
+    // 4-side border contributes ONE vocabulary entry (not four) and a box
+    // ruled on a single side still contributes exactly one. This keeps the
+    // tally a count of border TREATMENTS, which is what the 90%-coverage
+    // calculation is meant to measure — undeduped, every uniform box would
+    // quadruple its own weight against boxes with a border on only one edge.
+    const elTreatments = new Set<string>();
+    for (const side of SIDES) {
+      const styleProp = s["border" + side + "Style" as "borderTopStyle"];
+      const widthProp = s["border" + side + "Width" as "borderTopWidth"];
+      const colorProp = s["border" + side + "Color" as "borderTopColor"];
+      if (styleProp !== "none" && parseFloat(widthProp) > 0) {
+        let width = widthProp;
+        // 1px is the ONLY ambiguous reading — it is what every sub-pixel width
+        // rounds to. Anything else is already the authored value.
+        if (width === "1px") {
+          const authored = authoredSubPixel(el, side);
+          if (authored !== null) { width = authored + "px"; subPixelRecovered++; }
+          else if (sheetsBlocked > 0 || ruleOverflow) subPixelAmbiguous++;
+        }
+        elTreatments.add(width + " " + toHex(colorProp));
       }
-      borderValues.push(width + " " + toHex(s.borderTopColor));
     }
+    for (const treatment of elTreatments) borderValues.push(treatment);
   }
 
   // Text roles + tracking + type scale (elements with direct text)
