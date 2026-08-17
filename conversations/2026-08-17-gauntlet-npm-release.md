@@ -148,3 +148,149 @@ a false mismatch.
 7. `cd web && vercel deploy --prod` — the apex `.mcpb` and the marketing changelog stay
    stale until this, and the workflow path does not print the reminder.
 8. Rebuild local `dist/` + `/mcp` reconnect; `git stash pop`.
+
+## Sol adverse pass — verdict DOES NOT SURVIVE (3 × P1, 3 × P2, 2 × P3)
+
+The nested self-refutation run came back **INDETERMINATE**, not clean: the sandbox
+denied `sandbox_apply` and even `pwd`, and the release branch is not publicly
+reachable on GitHub, so it could not read the tree it was asked to attack. Per the
+standing rule an environment-blocked adverse output is a FAILED run and must never
+be dispositioned as "no findings" — so the primary pass's eight findings stand
+unrefuted. Every one was then confirmed independently against the source rather
+than accepted from the report.
+
+### The organising principle
+
+**A false RECOVERY is worse than a false ambiguity.** This is the house takedown
+rule — "a false all-clear is the one forbidden outcome" — applied to measurement.
+A caller handed `0.5px` acts on a number; a caller handed a caveat knows to look.
+Every fix below chooses the second when the probe cannot honestly produce the first.
+
+### P1 — three ways `authoredSubPixel` produced a confident wrong hairline
+
+1. **Two SUB-PIXEL rules that disagree were answered by SOURCE ORDER.** The old
+   guard was `matched.some(w => w >= 1)`, which only ever caught a sub-pixel rule
+   paired with a full-pixel one. `0.25px` against `0.5px` is decided by specificity
+   exactly as much as `0.5px` against `1px`, and the probe computes specificity for
+   neither — yet it silently answered whichever rule came last in the sheet, with no
+   caveat at all. That is a **fabricated hairline vocabulary reported with full
+   confidence**. Now: `new Set(matched).size > 1` → `"unresolved"`. Any disagreement
+   at all is unresolvable.
+
+2. **A width the CSSOM hands back unresolved was DROPPED, and the drop inverted the
+   feature.** `border-top-width: var(--hairline)` is how a tokenised design system
+   writes this — the likeliest real case, not an exotic one. It parses to NaN, was
+   discarded, the row then matched no collected rule, and the probe answered the
+   engine's own computed `1px` as a confident measurement. A page authored at half a
+   pixel reported as having a 1px vocabulary it does not have. Now recorded in a new
+   `unresolvedRules` collection; a matching element returns `"unresolved"`.
+   Keywords (`thin`/`medium`/`thick`) are still dropped deliberately — they are
+   engine-defined integers, never the sub-pixel case this recovers.
+
+3. **Past the rule-scan cap, stylesheet-derived values were still trusted.** The cap
+   can stop **MID-RULE**, so the collected set past that point is not a prefix of the
+   cascade — it is an arbitrary truncation of it. A later rule's winning `1px` can be
+   missing while an earlier `0.5px` on the same side was kept, and the retained value
+   reads as a confident recovery of an edge that really renders at 1px. Now
+   `if (ruleOverflow) return "unresolved"` — past the cap **no** stylesheet-derived
+   value is trusted for any element. That also makes `SIDES` order unobservable in
+   the recovery path, which is the only reason the truncation is safe.
+
+`authoredSubPixel`'s return type widened to `number | "unresolved" | null`. Inline
+style is read off the element rather than from the capped scan, so it stays
+trustworthy past overflow and needs no conflict handling — it wins the cascade
+outright. The caller no longer re-tests `ruleOverflow` (that would count the same
+edge twice); it branches on `typeof authored === "number"`.
+
+### P2/P3 — four prose claims that were false as written
+
+- The `AUTHORED_RULE_CAP` comment claimed the 4× raise merely "held the reach where
+  it was". It now also states what hitting the cap MEANS: not a quiet narrowing but
+  a full shutoff of stylesheet-derived recovery.
+- `src/index.ts:~1858` claimed 64 gated / 110 stdio, and its per-category split
+  summed to **63** against its own stated 64. Both fixed to 66/111 and the decayed
+  split **deleted** rather than patched — only the totals the count-asserting suites
+  actually enforce are claimed now.
+- `design_gauntlet`'s tool description front-loaded "family budget", "elevation
+  strategy", `subject_worse` and `verdict.on_par` with no example — jargon-first for
+  the bound solo-dev lens. Rewritten to open with the question the tool answers
+  ("why does my page look less polished than theirs?"), name concrete references,
+  and give a worked bar. **Consequence: `manifest.json` carries tool descriptions,
+  so `sync-manifest-tools.mjs` must re-run AFTER the build and will show a non-empty
+  diff this time.** The anon 45-name hash cannot see it — gauntlet is gated and the
+  hash is name-only.
+- CHANGELOG 2.5.0 claimed the unresolvable case was "two rules of different
+  specificity both matching". That was narrower than the code even before this round
+  and false after it; rewritten to name all four causes. `web/data/changelog.json`'s
+  sentence is true as written and was deliberately left alone.
+
+Also: `.claude/linear-backlog-queue.jsonl` carried a **semantic** duplicate the
+earlier union merge missed — lines 24/25 had identical `title` and `body`, differing
+only in `source`, and the merge deduped by exact line. Line 25 dropped;
+revalidated at **27 lines, 0 invalid JSON, 0 duplicate titles** (was 28).
+
+### Found here, not by Sol: the SIDES-reorder "CONTROL" is not provably neutral
+
+`tally`'s `sort` is stable, so equal-count entries break ties by `Map` insertion
+order — which depends on `SIDES` order — and `cap` then slices at `TALLY_CAP`. A
+reorder can therefore change which entries survive the slice on a page with ties at
+the boundary. It is green in practice, but "green" and "behaviour-neutral by
+construction" are different claims, and a matrix's control has to be the second.
+Reclassification pending in the harness rewrite.
+
+### Measured
+
+Gauntlet suite **40 tests / 40 pass / 0 fail / 0 skipped, EXIT=0**
+(`node --test test/design-gauntlet.test.mjs` — never `--test-force-exit`, which
+truncates the run and reports the browser tests as passing-by-absence). 37 → 40 is
+exactly the three new browser tests, one per P1.
+
+**All three passed on their first run, which by this repo's own standing rule is
+worth nothing until a mutant proves each red.** That is the open work.
+
+### Harness state — STALE, blocks the completion claim
+
+`.claude/gauntlet-2026-08-14/gauntlet-mutants.mjs` would ABORT immediately against
+the current tree: `EXPECTED_BASELINE` is `{tests:30, pass:30}` — already stale at 30
+against a 37-test suite before this round, now against 40. And
+`grep -E 'SIDES|elTreatments|r.side !== side'` returns **nothing**: the four-edge
+work has no mutants at all, so the three tests the previous session called
+"mutant-proven" were proven by hand-reverts that were never encoded. Outstanding:
+
+1. ~~`EXPECTED_BASELINE` → 40/40/0/0.~~ **DONE.**
+2. ~~Three mutants for the four-edge work.~~ **DONE** — G38 `SIDES=["Top"]`,
+   G39 neuters the `r.side !== side` filter while leaving the four-edge READ
+   intact (the only thing that separates the two mechanisms — G38 alone would
+   not, since the SIDES list is the entry point both assertions run through),
+   G40 swaps the `elTreatments` Set for a push-through array so an undeduped
+   uniform box quadruples its own weight in the 90%-coverage tally.
+3. ~~Three mutants for this round's fixes.~~ **DONE** — G41 restores the exact
+   pre-fix shape of BOTH halves (`matched.some(w => w >= 1)` + last-wins) and
+   must leave the existing mixed conflict test GREEN, which is precisely why
+   that test could not see the defect; G42 drops the unresolved-expression
+   record so a `var()` width falls to `null` and the engine's own rounded 1px
+   is reported as measured; G43 turns off the overflow refusal, which still
+   fires the cap caveat — only the recovered VALUE separates it.
+4. ~~Reclassify the SIDES-reorder control.~~ **DONE, and the premise was wrong:**
+   the file contained no such control to reclassify. Only C1 (object-literal
+   key order) and C2 (declaration order) exist, both behaviour-neutral by
+   CONSTRUCTION. The previous session's "CONTROL reorder SIDES" row was a
+   hand-run that was never encoded — the same unencoded-hand-probe class as the
+   four-edge tests, one file over. It is now written into the harness as
+   deliberately NOT a control: `tally`'s sort is stable, so equal-count entries
+   break ties by Map insertion order (which SIDES order decides) and `cap` then
+   slices at `TALLY_CAP`, so a reorder can change which entries survive the
+   slice on a page with ties at the boundary. It is unobservable in the
+   RECOVERY path only — a narrower claim than behaviour-neutral, and green is
+   not the claim a control makes.
+5. **IN FLIGHT** — matrix v7 re-run WHOLE (45 mutants), header rewrite pending
+   its result. Pre-flight passed at **45 anchor uniquely and parse**, which is
+   itself worth reading: no find-string went stale despite this round rewriting
+   `authoredSubPixel` wholesale. Baseline read from inside the log at
+   **tests=40 pass=40 fail=0 skipped=0 status=0**. Through G30 at last read,
+   every carried-over radius matches v6 exactly.
+
+Also closed this session, unrecorded above: `site/changelog.html` regenerated
+(`node scripts/gen-changelog-html.mjs` → 34 releases) and the diff is **empty** —
+it was already correct from `a1dfdaf`. A no-op regeneration is still worth running,
+because "already correct" and "never generated" are indistinguishable without it.

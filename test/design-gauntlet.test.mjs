@@ -632,6 +632,78 @@ test('hairlines: a specificity conflict is reported ambiguous, never guessed', a
   );
 });
 
+test('hairlines: two SUB-PIXEL rules that disagree are unresolved, not last-wins', async (t) => {
+  if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
+  // The conflict test above pairs a sub-pixel rule with a FULL-pixel one, which
+  // the old guard caught with `matched.some(w => w >= 1)`. That guard is blind
+  // to the case where both candidates are sub-pixel: 0.25px against 0.5px is
+  // decided by specificity exactly as much as 0.5px against 1px, and the probe
+  // computes specificity for neither — yet source order silently answered 0.5px
+  // with no caveat at all, which is a fabricated hairline vocabulary reported
+  // with full confidence. Two DIFFERENT wrong answers are available here, so
+  // neither may appear.
+  const html = '<!doctype html><title>subpixel-conflict</title>' +
+    '<style>body div.row { border-top: 0.25px solid #123456; } ' +
+    '.row { border-top: 0.5px solid #123456; }</style>' +
+    HAIRLINE_ROWS(() => '');
+  const m = await withFixture(html, (url) => measureGauntletPage(url));
+  const widths = new Set(m.borders.tally.map((e) => e.value.split(' ')[0]));
+  assert.ok(!widths.has('0.5px'), 'source order is NOT taken as the winner');
+  assert.ok(!widths.has('0.25px'), 'specificity is NOT taken as the winner either — neither is computed');
+  assert.ok(widths.has('1px'), 'the unresolved element keeps its computed reading');
+  assert.ok(
+    m.warnings.some((w) => w.includes('Hairline caveat') && w.includes('specificity')),
+    'the caveat fires — this is a declared unknown, not a silent one'
+  );
+});
+
+test('hairlines: a width the CSSOM hands back unresolved is declared, not read as 1px', async (t) => {
+  if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
+  // `border-top-width: var(--hairline)` is how a tokenised design system writes
+  // this, so it is the LIKELIEST real case, not an exotic one. The CSSOM hands
+  // the rule back with the reference unresolved, parseFloat gives NaN, and
+  // dropping it means the row matches no collected rule — which the probe would
+  // then answer as a confident 1px, exactly inverting the feature. The engine's
+  // own computed value is 1px here (0.5px rounds up), so a page authored at
+  // half a pixel is reported as having a 1px vocabulary it does not have.
+  const html = '<!doctype html><title>unresolved-width</title>' +
+    '<style>:root { --hairline: 0.5px; } ' +
+    '.row { border-top-style: solid; border-top-color: #123456; border-top-width: var(--hairline); }</style>' +
+    HAIRLINE_ROWS(() => '');
+  const m = await withFixture(html, (url) => measureGauntletPage(url));
+  const widths = new Set(m.borders.tally.map((e) => e.value.split(' ')[0]));
+  assert.ok(widths.has('1px'), 'precondition: the engine really does round this to 1px');
+  assert.ok(
+    m.warnings.some((w) => w.includes('Hairline caveat')),
+    'the 1px reading is disclosed as provisional rather than reported as measured'
+  );
+});
+
+test('hairlines: past the rule-scan cap NOTHING is recovered — a partial scan is not a partial answer', async (t) => {
+  if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
+  // The cap can stop MID-SCAN, so what was collected is not a prefix of the
+  // cascade — it is an arbitrary truncation of it. Here the 0.5px rule is
+  // collected and the higher-specificity 1px rule that actually wins is cut
+  // off, so a probe that trusts its truncated table reports a confident 0.5px
+  // hairline on a page that renders at 1px. That is a false RECOVERY, which is
+  // strictly worse than a false ambiguity: the caller is handed a number rather
+  // than a warning. Past the cap no stylesheet-derived value is trusted at all.
+  const filler = Array.from({ length: 400 }, (_, i) =>
+    '.f' + i + ' { border: 0.5px solid #abcdef; }').join(' ');
+  const html = '<!doctype html><title>overflow</title>' +
+    '<style>.row { border-top: 0.5px solid #123456; } ' + filler +
+    ' body div.row { border-top: 1px solid #123456; }</style>' +
+    HAIRLINE_ROWS(() => '');
+  const m = await withFixture(html, (url) => measureGauntletPage(url));
+  const widths = new Set(m.borders.tally.map((e) => e.value.split(' ')[0]));
+  assert.ok(!widths.has('0.5px'), 'the truncated table does not produce a confident hairline');
+  assert.ok(widths.has('1px'), 'the computed reading stands');
+  assert.ok(
+    m.warnings.some((w) => w.includes('Hairline caveat') && w.includes('cap')),
+    'the caveat names the cap, so the caller can tell a busy page from a conflicted one'
+  );
+});
+
 // --- all four edges --------------------------------------------------------
 
 const SIDE_BASE = 'width:400px;height:40px;background:rgb(250,250,250);';
@@ -662,10 +734,9 @@ test('borders: sub-pixel recovery is matched PER SIDE — a thick top does not p
   if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
   // The authored-rule table holds one entry per (selector, side), and the
   // lookup must filter on side. Drop `if (r.side !== side) continue` and the
-  // 3px top joins the bottom's candidate list: matched becomes [3, 0.5] in
-  // SIDES push order, the last entry is the 0.5 so the `>= 1` early return
-  // does not fire, and `matched.some(w => w >= 1)` then reports the row
-  // AMBIGUOUS. So the failure is not a wrong number — it is a real hairline
+  // 3px top joins the bottom's candidate list: matched becomes [3, 0.5], the
+  // set has two members, and the disagreement rule reports the row
+  // UNRESOLVED. So the failure is not a wrong number — it is a real hairline
   // silently downgraded to "unresolvable" by a border on an unrelated edge,
   // with the caveat warning firing on a page that has no conflict in it.
   // Both directions are asserted: the hairline is recovered AND the thick

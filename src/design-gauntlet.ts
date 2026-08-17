@@ -758,20 +758,32 @@ function probeInPage({ vpW, vpH }: { vpW: number; vpH: number }) {
   // and each side rounds to 1px independently under the same Blink behavior.
   // The cap counts ENTRIES, and reading four edges means one rule can now
   // contribute four of them — so the 300 that bounded 300 rules would bound 75.
-  // Raised to 4x to hold the per-rule reach exactly where it was; shrinking it
-  // would not lose the recovery quietly, it would report MORE elements
-  // ambiguous, which reads to the caller as a page with unresolvable hairlines
-  // rather than as a probe that stopped looking.
+  // Raised to 4x to hold the per-rule reach exactly where it was. Hitting it is
+  // not a quiet loss: the cap can stop MID-RULE, so the collected set past that
+  // point is not a prefix of the cascade and no value drawn from it can be
+  // trusted. `ruleOverflow` therefore turns OFF stylesheet-derived recovery
+  // entirely rather than narrowing it — every 1px edge reads as unresolvable,
+  // which is a legible "this probe stopped looking" and never a confident
+  // wrong hairline.
   const AUTHORED_RULE_CAP = 1200;
   let sheetsBlocked = 0;
   let ruleOverflow = false;
   type Side = "Top" | "Right" | "Bottom" | "Left";
   const SIDES: Side[] = ["Top", "Right", "Bottom", "Left"];
   const authoredRules: { selector: string; side: Side; width: number }[] = [];
+  // A width the CSSOM hands back unresolved — var(), calc(), env() — parses to
+  // NaN and is NOT a value this probe can compare. Dropping it silently is the
+  // false-recovery direction, and it is the likeliest real case there is: a
+  // tokenised `--hairline: .5px` renders at 1px, matches no collected rule, and
+  // the report calls that a confident 1px. Recorded instead, so a matching
+  // element is declared unresolved rather than answered.
+  const unresolvedRules: { selector: string; side: Side }[] = [];
 
   const collectRules = (rules: CSSRuleList): void => {
     for (const rule of Array.from(rules) as any[]) {
-      if (authoredRules.length >= AUTHORED_RULE_CAP) { ruleOverflow = true; return; }
+      // Both collections are bounded by the ONE cap — they are two halves of the
+      // same scan, and counting only one of them lets the other grow unbounded.
+      if (authoredRules.length + unresolvedRules.length >= AUTHORED_RULE_CAP) { ruleOverflow = true; return; }
       // Collect BEFORE recursing, and never treat "has cssRules" as "is a group".
       // CSS nesting gave CSSStyleRule its own .cssRules, so a group-first check
       // skips every plain style rule on a modern engine and the whole recovery
@@ -779,12 +791,15 @@ function probeInPage({ vpW, vpH }: { vpW: number; vpH: number }) {
       if (rule.selectorText && rule.style) {
         // Populated by the `border` shorthand too — the CSSOM expands it.
         for (const side of SIDES) {
-          if (authoredRules.length >= AUTHORED_RULE_CAP) { ruleOverflow = true; break; }
+          if (authoredRules.length + unresolvedRules.length >= AUTHORED_RULE_CAP) { ruleOverflow = true; break; }
           const w = rule.style["border" + side + "Width"];
-          const n = w ? parseFloat(w) : NaN;
+          if (!w) continue;
+          const n = parseFloat(w);
           // Keywords (thin/medium/thick) parse to NaN and are dropped: they are
           // engine-defined integers, never the sub-pixel case this recovers.
+          // Anything else that fails to parse is an unresolved expression.
           if (isFinite(n)) authoredRules.push({ selector: rule.selectorText, side, width: n });
+          else if (!/^(thin|medium|thick)$/i.test(w.trim())) unresolvedRules.push({ selector: rule.selectorText, side });
         }
       }
       // @media / @supports / @layer carry nested rules, as does a nesting style
@@ -806,29 +821,49 @@ function probeInPage({ vpW, vpH }: { vpW: number; vpH: number }) {
   let subPixelRecovered = 0;
   let subPixelAmbiguous = 0;
 
-  // Returns the authored sub-pixel width for ONE side, or null when it cannot
-  // be established HONESTLY. Specificity is deliberately not resolved —
-  // source order is used — so any element whose matching rules disagree
-  // returns null and stays 1px. Rules for other sides are ignored entirely.
-  const authoredSubPixel = (el: Element, side: Side): number | null => {
+  // Returns the authored sub-pixel width for ONE side; "unresolved" when this
+  // probe cannot answer and must SAY so; null when nothing authored matched,
+  // which the caller may still qualify. Specificity is deliberately not
+  // resolved, so any disagreement among matching rules is unresolved rather
+  // than guessed. Rules for other sides are ignored entirely.
+  const authoredSubPixel = (el: Element, side: Side): number | "unresolved" | null => {
+    // Inline style is read off the element and does not come from the capped
+    // stylesheet scan, so it stays trustworthy even once that scan overflowed.
     const inline = (el as HTMLElement).style && ((el as HTMLElement).style as any)["border" + side + "Width"];
     if (inline) {
       const n = parseFloat(inline);
       // Inline wins the cascade outright, so it needs no conflict handling.
       if (isFinite(n)) return n > 0 && n < 1 ? n : null;
     }
+    // An overflowed scan is not a partial answer, it is an untrustworthy one.
+    // The cap can stop MID-RULE, so a later rule's 1px on this side can be
+    // missing while an earlier rule's 0.5px on the same side was kept — and the
+    // retained value then reads as a confident recovery of an edge that really
+    // renders at 1px. A false RECOVERY is worse than a false ambiguity, so past
+    // the cap no stylesheet-derived value is trusted for any element. That is
+    // also what makes SIDES order unobservable here: with recovery off past the
+    // cap, which sides of a truncated rule survived cannot change an answer.
+    if (ruleOverflow) return "unresolved";
     const matched: number[] = [];
     for (const r of authoredRules) {
       if (r.side !== side) continue;
       try { if (el.matches(r.selector)) matched.push(r.width); } catch { /* exotic selector */ }
     }
+    for (const r of unresolvedRules) {
+      if (r.side !== side) continue;
+      try { if (el.matches(r.selector)) return "unresolved"; } catch { /* exotic selector */ }
+    }
     if (matched.length === 0) return null;
-    const last = matched[matched.length - 1];
-    if (last >= 1) return null;
-    // Mixed sub-pixel and full-pixel declarations: the winner depends on
-    // specificity, which is not computed here. Ambiguous, so report neither.
-    if (matched.some((w) => w >= 1)) { subPixelAmbiguous++; return null; }
-    return last > 0 ? last : null;
+    // "Last wins" is a SOURCE-ORDER proxy while the cascade is decided by
+    // specificity, so it is only safe where every matching rule agrees. Any
+    // disagreement — .25 against .5 just as much as .5 against 2 — is a value
+    // this probe cannot resolve without implementing the cascade. The previous
+    // rule tested only the mixed sub-pixel/full-pixel case, so two conflicting
+    // SUB-PIXEL declarations were silently answered with whichever happened to
+    // come last in the sheet.
+    if (new Set(matched).size > 1) return "unresolved";
+    const only = matched[0];
+    return only > 0 && only < 1 ? only : null;
   };
 
   const borderValues: string[] = [];
@@ -851,8 +886,10 @@ function probeInPage({ vpW, vpH }: { vpW: number; vpH: number }) {
         // rounds to. Anything else is already the authored value.
         if (width === "1px") {
           const authored = authoredSubPixel(el, side);
-          if (authored !== null) { width = authored + "px"; subPixelRecovered++; }
-          else if (sheetsBlocked > 0 || ruleOverflow) subPixelAmbiguous++;
+          // `ruleOverflow` is NOT re-tested here: it now returns "unresolved"
+          // from inside, so testing it again would count the same edge twice.
+          if (typeof authored === "number") { width = authored + "px"; subPixelRecovered++; }
+          else if (authored === "unresolved" || sheetsBlocked > 0) subPixelAmbiguous++;
         }
         elTreatments.add(width + " " + toHex(colorProp));
       }

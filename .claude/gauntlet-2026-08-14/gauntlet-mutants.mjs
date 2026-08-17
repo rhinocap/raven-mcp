@@ -6,7 +6,52 @@
  * false-fails). Run with:  node .claude/gauntlet-2026-08-14/gauntlet-mutants.mjs
  * NEVER via `npm test` with a mutant applied — clean && tsc clobbers dist/.
  *
- * MEASURED v6 (2026-08-14, agent-output/mutants-v6.log), 30p/0f/0s declared
+ * MEASURED v7 (2026-08-17, agent-output/mutants-v7.log), 40p/0f/0s declared
+ * baseline: 43 mutants, 43 killed, 0 survived, 0 false-failed; 2 CONTROLS
+ * green; EXIT=0 and the summary line both read from INSIDE the log, never
+ * from the background task notification — a notification describes the
+ * WRAPPER, not the harness verdict. Re-run WHOLE (not extended) after the
+ * npm-release round: the Sol adverse pass returned DOES NOT SURVIVE on three
+ * P1s, all three the same direction — a CONFIDENT WRONG HAIRLINE — and the
+ * organising principle behind every fix is that a false RECOVERY is worse
+ * than a false ambiguity, because the caller is handed a number instead of a
+ * warning (the house takedown rule, "a false all-clear is the one forbidden
+ * outcome", applied to measurement).
+ *   THE PRE-FLIGHT PASSING AT 45 IS ITSELF A MEASUREMENT: not one find-string
+ *   went stale even though this round rewrote `authoredSubPixel` wholesale.
+ *   That is unusual here and worth reading as luck rather than as a property —
+ *   the standing dead-anchor rule stands.
+ *   Six mutants entered this round and ALL SIX guard work that previously had
+ *   none. G38–G40 cover the FOUR-EDGE feature, whose three tests the session
+ *   that wrote them called "mutant-proven" on the strength of hand-reverting
+ *   dist/ and never encoding the reverts — a hand-probe establishes
+ *   point-in-time behaviour and encodes no regression guard, so those tests
+ *   were unguarded from the moment that session ended. G41–G43 are one per Sol
+ *   P1. All three of THIS round's new tests passed on their first run, which
+ *   was worth nothing until G41/G42/G43 proved each red.
+ *   EVERY carried-over radius (G1–G37) held IDENTICALLY, checked by SET
+ *   against the printed red names rather than by arithmetic on the counts —
+ *   a uniform hold is exactly the shape that would hide one mechanism
+ *   shrinking while another grew. G19 stays 18: the three new tests are
+ *   hairline/border assertions outside the rhythm comparison set.
+ *   G38 radius 3 · G39 1 · G40 1 · G41 1 · G42 1 · G43 1.
+ *   G38 (SIDES=["Top"]) is the entry point both four-edge assertions run
+ *   through, so its radius is a fact about THAT ENTRY POINT and never evidence
+ *   of three independent guards — which is precisely why G39 exists: it drops
+ *   the per-side FILTER while leaving the four-edge READ intact, and nothing
+ *   else separates the two mechanisms. G38 also reddens the overflow-cap test,
+ *   for a reason that has nothing to do with the cap, which is why G43 is a
+ *   separate mutant rather than a corollary of G38.
+ *   G41 restores BOTH halves of the pre-fix shape (`matched.some(w => w >= 1)`
+ *   plus last-wins) and MUST leave the pre-existing mixed sub-pixel/full-pixel
+ *   conflict test GREEN — that test passes under both shapes, which is exactly
+ *   why it could not see this defect and exactly what the new test is for.
+ *   G42's row falls to `null` and emits no caveat at all, so the engine's own
+ *   rounded 1px reports as measured — the feature inverted on the likeliest
+ *   real input there is, a tokenised var() width. G43 still FIRES the cap
+ *   caveat; only the recovered VALUE separates it, which is what its test's
+ *   first assertion reads.
+ *   v6 (2026-08-14, agent-output/mutants-v6.log), 30p/0f/0s declared
  * baseline: 37 mutants, 37 killed, 0 survived, 0 false-failed; 2 CONTROLS
  * green; EXIT=0 read from inside the log. Re-run WHOLE after the Sol ROUND-2
  * disposition (2 CONFIRMED findings, both fixed this round: the P1
@@ -95,7 +140,10 @@ const MODULE = path.join(ROOT, 'dist', 'design-gauntlet.js');
 const INDEX = path.join(ROOT, 'dist', 'index.js');
 const SUITE = path.join(ROOT, 'test', 'design-gauntlet.test.mjs');
 
-const EXPECTED_BASELINE = { tests: 30, pass: 30, fail: 0, skipped: 0 };
+// Declared, not derived. This was stale at 30 against a 37-test suite for a
+// whole round — a baseline that lags the suite makes the harness abort rather
+// than mis-measure, which is the guard working, but it also means nobody ran it.
+const EXPECTED_BASELINE = { tests: 40, pass: 40, fail: 0, skipped: 0 };
 
 const MUTANTS = [
   { id: 'G1-vocab-boundary-exclusive', file: MODULE,
@@ -231,8 +279,64 @@ const MUTANTS = [
   { id: 'G30-protocol-any-critic', file: MODULE,
     find: 'binary, no scores. ALL critics must pass.',
     replace: 'binary, no scores. ANY critic passing suffices.' },
+  // ---- G38–G40: the FOUR-EDGE work, which shipped with no mutants at all.
+  // The session that added it proved its three tests red by hand-reverting
+  // dist/ and never encoded the reverts, so "mutant-proven" was true of that
+  // afternoon and of nothing since. A hand-probe establishes point-in-time
+  // behaviour and encodes no regression guard — the standing rule.
+  { id: 'G38-sides-top-only', file: MODULE,
+    find: 'const SIDES = ["Top", "Right", "Bottom", "Left"];',
+    replace: 'const SIDES = ["Top"];' },
+  // G39 is the load-bearing one: it drops the per-side FILTER while leaving the
+  // four-edge READ intact, which is the only thing that separates the two
+  // mechanisms. G38 alone would not — the SIDES list is the entry point both
+  // assertions run through, so its radius is a fact about that entry point and
+  // never evidence of two independent guards.
+  { id: 'G39-recovery-ignores-side', file: MODULE,
+    find: 'for (const r of authoredRules) {\n            if (r.side !== side)\n                continue;',
+    replace: 'for (const r of authoredRules) {\n            if (false)\n                continue;' },
+  // G40 drops the dedupe without touching the iteration contract, so an
+  // undeduped uniform box quadruples its own weight in the 90%-coverage tally.
+  { id: 'G40-treatments-not-deduped', file: MODULE,
+    find: 'const elTreatments = new Set();',
+    replace: 'const elTreatments = { _a: [], add(v) { this._a.push(v); }, [Symbol.iterator]() { return this._a[Symbol.iterator](); } };' },
+  // ---- G41–G43: one per Sol P1 of the release round. All three defects are
+  // the SAME direction — a confident wrong hairline — and the principle behind
+  // every fix is that a false RECOVERY is worse than a false ambiguity, because
+  // the caller is handed a number instead of a warning.
+  // G41 is the exact pre-fix shape, both halves: the `>= 1` guard only ever
+  // caught a sub-pixel rule paired with a FULL-pixel one, and the answer it
+  // then gave was source order. It must leave the mixed conflict test GREEN —
+  // that test passes under both shapes, which is precisely why it could not
+  // see this defect.
+  { id: 'G41-conflict-mixed-only-last-wins', file: MODULE,
+    find: 'if (new Set(matched).size > 1)\n            return "unresolved";\n        const only = matched[0];',
+    replace: 'if (matched.some((w) => w >= 1))\n            return "unresolved";\n        const only = matched[matched.length - 1];' },
+  // G42 drops the unresolved-expression record. The row then matches no
+  // collected rule, `authoredSubPixel` answers null, and the engine's own
+  // rounded 1px is reported as measured with no caveat — the feature inverted
+  // on the likeliest real input there is, a tokenised var() width.
+  { id: 'G42-unresolved-width-dropped', file: MODULE,
+    find: '                    else if (!/^(thin|medium|thick)$/i.test(w.trim()))\n                        unresolvedRules.push({ selector: rule.selectorText, side });\n',
+    replace: '' },
+  // G43 trusts the truncated table. The cap can stop MID-RULE, so what was
+  // collected is not a prefix of the cascade; a kept 0.5px with the winning
+  // 1px cut off becomes a confident hairline on a page that renders at 1px.
+  // The caveat still fires under this mutant — only the recovered VALUE
+  // separates it, which is what the test's first assertion reads.
+  { id: 'G43-overflow-still-recovers', file: MODULE,
+    find: '        if (ruleOverflow)\n            return "unresolved";',
+    replace: '        if (false)\n            return "unresolved";' },
   // Controls — behaviour-neutral by CONSTRUCTION (object-literal key order and
   // declaration order carry no semantics), never merely unasserted.
+  // Deliberately NOT a control: reordering SIDES. The previous session's log
+  // called it one on the strength of a green run, and green is not the claim a
+  // control makes. `tally`'s sort is stable, so equal-count entries break ties
+  // by Map insertion order — which SIDES order decides — and `cap` then slices
+  // at TALLY_CAP, so a reorder can change which entries survive the slice on a
+  // page with ties at the boundary. It is unobservable in the RECOVERY path
+  // (G43's fix turns recovery off past the cap), and that is a narrower claim
+  // than behaviour-neutral.
   { id: 'C1-control-key-order-swap', file: MODULE, expect: 'green',
     find: 'fix: "Remove positive letter-spacing from body text.",\n                kind: "mechanical", effect: "medium"',
     replace: 'fix: "Remove positive letter-spacing from body text.",\n                effect: "medium", kind: "mechanical"' },

@@ -1855,14 +1855,16 @@ function numberedDocMaterial(repoRelative: string, content: string): string {
   }).join("\n");
 }
 
-// The 64 gated tools are NOT served on a shared remote server (buildServer({remote:true})).
-// 33 are stateful/local (per-user ~/.raven files, or the create_generation_job
-// subprocess), 6 reach the filesystem/network or have an external side effect,
-// 2 are Talon tools pending a remote-safety pass, 14 are DESIGN.md / review /
-// grab-bridge tools, 4 are design-system diff tools, 3 are pattern-library tools
-// backed by ~/.raven/references, plus the local audit dispatcher.
-// Everything else (45 stateless tools, including the 5 guarded browser URL audits
-// added in Phase 3) is remote-safe, from 110 local tools.
+// The 66 gated tools are NOT served on a shared remote server (buildServer({remote:true})).
+// They are the ones that are stateful/local (per-user ~/.raven files, or the
+// create_generation_job subprocess), reach the filesystem/network, have an
+// external side effect, or are pending a remote-safety pass — DESIGN.md,
+// review, grab-bridge, design-system diff, pattern-library and local-audit
+// tools among them. Everything else (45 stateless tools, including the 5
+// guarded browser URL audits added in Phase 3) is remote-safe, from 111 local
+// tools. The per-category split that used to sit here decayed silently against
+// several releases and summed to 63 against a stated 64, so only the totals —
+// which the count-asserting suites actually enforce — are claimed here.
 // Traced to docs/remote-mcp-scope.md §2; asserted at build time.
 function resolveDesignSystemPath(projectDir?: string, designFilePath?: string): string {
   if (designFilePath) return resolve(designFilePath);
@@ -8243,7 +8245,7 @@ server.tool(
 
 server.tool(
   "design_gauntlet",
-  "Compare a subject page to a reference page (vercel.com, linear.app, any site the user admires) from LIVE computed CSS — measure, never recall. Both URLs are rendered headless and probed across the nine dimensions that decide perceived polish: surfaces, hairlines, text roles, letter spacing, accent, type scale, radii, elevation, rhythm (the first four dominate). Returns both raw measurements, a per-dimension diff with subject_worse flags, a checkable bar derived from the reference's measured values, fixes split mechanical (find-and-replace) vs needs_a_decision (ask the human), and a binary verdict.on_par — the exit gate for the gauntlet loop the response embeds: build, critique with FRESH-context critics against renders, re-run this tool, and only call the work done when on_par is true. The reference is a standard, not a source — never copy its copy, marks, imagery or brand color.",
+  "Answers 'why does my page look less polished than theirs?' with numbers instead of adjectives. Give it your page and a page you admire (vercel.com, linear.app, anything); both are rendered headless and their LIVE computed CSS is measured — never recalled from memory — across the nine things that decide perceived polish: surfaces, hairlines, text roles, letter spacing, accent, type scale, radii, elevation, rhythm (the first four dominate). You get back both sets of raw measurements, a per-dimension diff flagging where yours is worse, a concrete bar derived from the reference's own values (e.g. 'at most 4 surface colors — yours has 11'), a fix list split into mechanical find-and-replace vs decisions a human has to make, and one boolean, verdict.on_par. That boolean is the exit gate of the loop the response spells out: build, critique with fresh-context critics against renders, re-run this tool, and only call the work done when on_par is true. The reference is a standard, not a source — never copy its copy, marks, imagery or brand color.",
   {
     subject_url: z.string().describe("The page being improved — rendered headless and measured live."),
     reference_url: z.string().describe("The benchmark page (e.g. https://linear.app) — measured the same way; its values derive the bar."),
