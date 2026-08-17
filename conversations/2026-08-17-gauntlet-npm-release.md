@@ -71,30 +71,80 @@ number — a wrong verdict about the page.
 
 Gauntlet suite: 33 → **37 tests, 37 pass, 0 skipped**.
 
-## Blockers — all four need a genuine turn from Andrew
+## The four decisions — ANSWERED
 
-An `AskUserQuestion` earlier in this session returned four answers. **The system then
-explicitly flagged that result as an automated background-task event, not user input.**
-None of it counts. Re-ask:
+An `AskUserQuestion` earlier in this session returned four answers which the system then
+explicitly flagged as an **automated background-task event, not user input**. None of that
+counted, so all four were re-asked in prose. Andrew then answered for real:
 
-1. **Ship or park the four-edge WIP** in this release.
-2. **Version bump** — 2.4.1 → 2.5.0 minor was proposed, not chosen.
-3. **Push `main`.** Hard gate. Pushing `main` deploys the live MCP endpoint at
-   `mcp.ravenmcp.ai`, and getting to npm requires the gauntlet commits on `main`.
-   Needs fresh explicit approval in the conversation.
-4. **Release scope** — full four-surface runbook (npm + registry + tag + apex `.mcpb`)
-   or npm only.
+> *"1. Ship it its important for the gauntlet  2. I already said yes to this  3. yes.
+> 4. full, I already answered these"*
 
-Plus: `npm login` and the passkey `npm publish` are Andrew-only, in a real Terminal.
+1. **Ship the four-edge WIP** in this release.
+2. **2.5.0 minor.**
+3. **Push `main`: YES** — fresh, explicit, in-conversation approval, which is what the hard
+   gate requires. Pushing `main` deploys the live MCP endpoint at `mcp.ravenmcp.ai`.
+4. **Full four-surface runbook** — npm + MCP Registry + git tag + apex `.mcpb`.
 
-## Sequence once unblocked
+Do not re-litigate any of the four; the tone read as impatience at being re-asked.
 
-Integrate onto `origin/main` → full suite → `CHANGELOG.md` + `web/data/changelog.json` +
-`node scripts/gen-changelog-html.mjs` → `DRY_RUN=1 scripts/release.sh` → `scripts/release.sh
-minor` → Andrew publishes → `mcp-publisher publish` → tag/push → `cd web && vercel deploy
---prod` (apex `.mcpb` is stale until this; the workflow path does not print the reminder)
-→ rebuild local `dist/` + `/mcp` reconnect.
+Still Andrew-only, in a real Terminal: `npm login` (currently **E401**) and the passkey
+`npm publish`.
 
-Verify the anonymous 45-tool hash `f64bb18…2bb0a6` against production **before and after**
-any push. `design_gauntlet` is in `REMOTE_GATED_TOOLS`, so it should not move — that is a
-claim to measure, not to assume.
+## Integration
+
+Branch **`release/gauntlet-2.5.0`**, cut from `origin/main` (not from local `main`, which
+is 9 behind). Three commits cherry-picked in order:
+
+```
+40e93d4  Add design_gauntlet (111 stdio / 66 gated)
+6ed6f09  Recover authored sub-pixel hairlines; add device_scale_factor
+dbe69b0  Read all four border edges, guarded by three mutant-proven tests
+a1dfdaf  Changelog surfaces for 2.5.0
+```
+
+Cherry-pick over rebase, deliberately: rebasing drags the auto-save noise and the
+`site/`/`web/` deletions, which are artifacts of being behind rather than intentional
+reverts.
+
+**Left behind on purpose — flag to Andrew:** `9ec2560` "Remove homepage tool ordinals".
+Unrelated product work, and it conflicts with `origin/main`'s homepage gradient commits
+(`b342d0a`, `d13f00e`). It is not lost; it is still on `feat/gauntlet-hairline-provenance`
+and needs its own pass.
+
+One conflict, `.claude/linear-backlog-queue.jsonl`, resolved by union merge with a node
+script that validates each line as JSON and dedupes: **kept 28, invalid 0, dupes 0**.
+
+WIP rescue before the branch switch: **`stash@{0}`** — "pre-release-integration: backlog
+queue autosave". (`stash@{1}` is older and unrelated, from an accidental `release.sh minor`
+run.) Pop `stash@{0}` when the release is done.
+
+## Verification on the integrated tree
+
+**Full suite: 1576 / 1573 pass / 0 fail / 3 skipped, EXIT=0** — the exit code read from
+inside the log, not from the background task's notification, which describes the wrapper.
+The 3 skips are the same three this repo has always carried, read **individually** at log
+lines 109/751/752 (the file-URL fallback notice and the two removed-capability phase2
+tests), not inferred from the total. Identical to the pre-integration figure, so the
+cherry-pick cost nothing.
+
+`node scripts/sync-manifest-tools.mjs` → "Synced 111 tools" with an **empty** diff — the
+manifest was already correct.
+
+Anon production hash measured BEFORE any push: 45 tools, `f64bb18…2bb0a6`, `design_gauntlet`
+absent. Note the hash is computed over the **newline-joined** sorted names —
+`printf '%s' "$(cat …)" | shasum -a 256`; a trailing newline gives `fa10e4cd…` and reads as
+a false mismatch.
+
+## Remaining sequence
+
+1. Sol adverse pass (running, `.claude/gauntlet-2026-08-14/agent-output/SOL-RELEASE.out`)
+   → disposition every real finding.
+2. Andrew: `npm login`.
+3. `DRY_RUN=1 scripts/release.sh` → `scripts/release.sh minor`.
+4. Andrew: `npm publish` (passkey, his terminal).
+5. `mcp-publisher publish` → git tag → push `main` (approved).
+6. Re-verify the anon 45-tool hash against production **after** the push.
+7. `cd web && vercel deploy --prod` — the apex `.mcpb` and the marketing changelog stay
+   stale until this, and the workflow path does not print the reminder.
+8. Rebuild local `dist/` + `/mcp` reconnect; `git stash pop`.
