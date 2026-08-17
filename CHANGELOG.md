@@ -6,6 +6,17 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-08-17
+
+One new tool takes the stdio surface from 110 to 111. It is gated out of the anonymous remote surface, which still serves the same 45 tools.
+
+### Added
+- `design_gauntlet` — put your surface next to a reference and measure the gap. It scores both pages on the same dimensions and returns the differences that a side-by-side glance produces but cannot name: type scale sprawl, family budget, accent overuse, radius vocabulary, elevation strategy, rhythm, and tracking. It reports where you sit against the reference, not against an absolute, so a deliberately plain page is not marked down for being plain — a dimension only fires when the reference does something your page does not.
+
+  Two measurement details are worth knowing, because both change what the numbers mean. Sub-pixel borders are read from the authored CSS rather than from the render: the engine rounds any non-zero border width up to 1px in its computed value at every device scale, so a page authored with 0.5px hairlines would otherwise report a vocabulary it does not have. Where the authored value genuinely cannot be resolved — two rules of different specificity both matching — the tool says so rather than guessing, and the report carries the caveat. `device_scale_factor` is accepted and validated rather than clamped, so a measurement is never quietly taken at a scale you did not ask for.
+
+  Borders are read on all four edges. A divider is authored `border-bottom`, a sidebar rule `border-left`; reading only the top reports a page full of strokes as having no border treatment at all.
+
 ## [2.4.1] - 2026-08-12
 
 ### Added

@@ -340,6 +340,24 @@
           <article class="cl-card">
             <header class="cl-card-head">
               <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-tooling"></span>Tooling</span>
+              <span class="cl-version">v2.5.0</span>
+              <span class="cl-badge kind-new">New</span>
+              <time datetime="2026-08-17" class="cl-date">August 17, 2026</time>
+            </header>
+            <h2 class="cl-title">Measure your surface against a reference</h2>
+            <ul class="cl-changes">
+              <li>design_gauntlet puts your page next to a reference and measures the gap. It scores both on the same dimensions and returns the differences a side-by-side glance produces but cannot name: type scale sprawl, family budget, accent overuse, radius vocabulary, elevation strategy, rhythm and tracking.</li>
+              <li>It reports where you sit against the reference, not against an absolute. A dimension only fires when the reference does something your page does not, so a deliberately plain page is not marked down for being plain.</li>
+              <li>Sub-pixel borders are read from the authored CSS rather than the render. The engine rounds any non-zero border width up to 1px at every device scale, so a page authored with 0.5px hairlines would otherwise report a vocabulary it does not have. Where the authored value cannot be resolved, the report says so instead of guessing.</li>
+              <li>Borders are read on all four edges, and device_scale_factor is validated rather than clamped, so a measurement is never quietly taken at a scale you did not ask for.</li>
+            </ul>
+          </article>
+        </li>
+        <li class="cl-item" data-category="tooling">
+          <span aria-hidden="true" class="cl-node cat-tooling"></span>
+          <article class="cl-card">
+            <header class="cl-card-head">
+              <span class="cl-surface"><span aria-hidden="true" class="cl-dot cat-tooling"></span>Tooling</span>
               <span class="cl-version">v2.4.1</span>
               <span class="cl-badge kind-improvement">Improvement</span>
               <time datetime="2026-08-12" class="cl-date">August 12, 2026</time>
