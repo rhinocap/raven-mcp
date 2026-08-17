@@ -840,9 +840,55 @@ function probeInPage({ vpW, vpH }: { vpW: number; vpH: number }) {
     // A cross-origin sheet throws on .cssRules. Counted, never swallowed.
     try { collectRules(sheet.cssRules); } catch { sheetsBlocked++; }
   }
+  // `document.adoptedStyleSheets` is a SEPARATE collection from
+  // `document.styleSheets` — CSSOM defines constructed sheets outside the
+  // stylesheet list while the cascade includes both. Scanning only the latter
+  // meant an adopted `!important` rule was invisible, so the inline fast path
+  // below saw no conflict and confidently recovered a 0.5px edge that renders
+  // at 1px: a false RECOVERY, the one outcome this probe exists to avoid.
+  // Constructed sheets are same-origin by construction, so the catch here is
+  // for a shimmed or exotic object, not for the cross-origin case.
+  try {
+    for (const sheet of Array.from((document as any).adoptedStyleSheets || [])) {
+      try { collectRules((sheet as CSSStyleSheet).cssRules); } catch { sheetsBlocked++; }
+    }
+  } catch { /* engine without adoptedStyleSheets: nothing to add */ }
 
   let subPixelRecovered = 0;
   let subPixelAmbiguous = 0;
+
+  // Is this side's border-width under an active animation or transition? The
+  // property name is read from the effect's own keyframes (camelCase keys, per
+  // the Web Animations `getKeyframes` contract) and from a transition's
+  // `transitionProperty`, so a `border-radius` animation on the same element
+  // does not poison a hairline reading — the per-side discipline the rest of
+  // this probe already keeps. Anything unreadable answers TRUE, because the
+  // question being asked is "can I trust the cascade here", and a probe that
+  // cannot see the animation list cannot answer it.
+  const animatedSide = (el: Element, side: Side): boolean => {
+    const prop = "border" + side + "Width";
+    const hyphen = "border-" + side.toLowerCase() + "-width";
+    let anims: any[];
+    try {
+      if (typeof (el as any).getAnimations !== "function") return true;
+      anims = (el as any).getAnimations({ subtree: false }) || [];
+    } catch { return true; }
+    for (const a of anims) {
+      try {
+        // A finished or idle animation contributes nothing to the cascade.
+        const state = a.playState;
+        if (state === "finished" || state === "idle") continue;
+        if (a.transitionProperty) {
+          if (a.transitionProperty === hyphen || a.transitionProperty === "all") return true;
+          continue;
+        }
+        const frames = a.effect && typeof a.effect.getKeyframes === "function" ? a.effect.getKeyframes() : null;
+        if (!frames) return true;
+        for (const f of frames) if (Object.prototype.hasOwnProperty.call(f, prop)) return true;
+      } catch { return true; }
+    }
+    return false;
+  };
 
   // Returns the authored sub-pixel width for ONE side; "unresolved" when this
   // probe cannot answer and must SAY so; null when nothing authored matched,
@@ -873,6 +919,15 @@ function probeInPage({ vpW, vpH }: { vpW: number; vpH: number }) {
     // order unobservable here: with recovery off past the cap, which sides of a
     // truncated rule survived cannot change an answer.
     if (ruleOverflow) return "unresolved";
+    // An animation or transition declaration outranks EVERY normal author
+    // declaration — inline style included — and its value lives in no rule this
+    // scan collects, so a side under active animation cannot be answered from
+    // the collected rules at all. That is why this gate sits ahead of BOTH
+    // doors rather than inside the inline branch: the stylesheet path is wrong
+    // for the same reason the inline path is. An engine with no
+    // `getAnimations` cannot be asked, and "cannot be asked" is unresolved on
+    // this probe's own rule — a false ambiguity is the survivable direction.
+    if (animatedSide(el, side)) return "unresolved";
     // Does any `!important` rule for THIS side match? That is the only thing
     // that can outrank the element's own style attribute.
     let importantConflict = false;

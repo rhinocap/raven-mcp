@@ -395,3 +395,189 @@ the `elTreatments` dedupe are all correct) and needs no action.
   gauntlet suite was confirmed RUN by grepping its own test names, the four new
   ones at lines 357–360.
 - `npm whoami` → `accunliffe`. The E401 that blocked `release.sh` is cleared.
+
+## Provenance gap closed (was missing from this log)
+
+- Commits: `01abec4` — the `auto-save-on-turn.sh` hook swept `src/design-gauntlet.ts`
+  and `test/design-gauntlet.test.mjs` into its own generic-message commit mid-turn,
+  which is why a `git commit --only` reported 2 files rather than 4. Nothing was
+  lost; the content is split across two commits. Then `2d1c12e` — the harness
+  header v7→v8 rewrite plus the log entry above.
+- Release pre-flight, all green: `DRY_RUN=1 scripts/release.sh minor` reports
+  "would bump to 2.5.0" from a current **2.4.1** (the CLAUDE.md ledger still says
+  2.4.0 and is stale by one). Clean tree, on `main`, `mcp-publisher` on PATH,
+  registry key present, `git pull --ff-only` a no-op — local main 8 ahead / 0 behind.
+- `npm pack --dry-run`: `dist/design-gauntlet.js` at 52.7kB is in the payload
+  (231 files, 1.1 MB packed / 4.6 MB unpacked). The tool genuinely ships. That is
+  the repo-vs-published discipline — `dist/` is gitignored, so `git status` says
+  nothing about the npm payload.
+
+## Sol round 4 — DOES NOT SURVIVE (2 × P1, 1 × P3)
+
+Brief `.claude/gauntlet-2026-08-14/SOL-BRIEF-R4.md`, log
+`.claude/gauntlet-2026-08-14/agent-output/sol-r4.log`, `SOL_EXIT=0`, 138,426 tokens.
+Both P1s are the SAME class as all three round-3 P1s and as each other: **a cascade
+source the probe cannot see, producing a confident wrong hairline.** Round 3 fixed
+the doors; round 4 found the scan itself was incomplete.
+
+- **P1 — constructed stylesheets bypass the `!important` guard.** `document.
+  adoptedStyleSheets` is a SEPARATE collection from `document.styleSheets` and the
+  cascade includes both. An adopted `.row { border-top-width: 1px !important }`
+  against an inline `0.5px` renders at 1px while the probe saw no conflict and
+  recovered 0.5px. CONFIRMED against source. Fixed by scanning the adopted list
+  after the document list, counting an unreadable one into `sheetsBlocked` exactly
+  as a cross-origin sheet is counted.
+- **P1 — an active animation also outranks inline width.** The code's own comment
+  said `!important` is "the only thing" that can outrank inline style. CSS Cascade
+  places animation declarations above ALL normal author declarations, inline
+  included, and the animated value is in no rule this scan collects. CONFIRMED.
+  Fixed with `animatedSide(el, side)` — a Web Animations `getAnimations` read that
+  matches the effect's own keyframe property names and a transition's
+  `transitionProperty`. **The gate sits ahead of BOTH doors, not inside the inline
+  branch**, because the stylesheet path is wrong for exactly the same reason. An
+  unreadable animation list answers TRUE: the question is "can I trust the cascade
+  here", and a probe that cannot see the list cannot answer it.
+- **P3 — the `pxLength()` contract was misstated in my own claim.** Keywords return
+  `"keyword"` and are DROPPED, not `"unresolved"`. The source comment is accurate;
+  the brief's claim 3 was not. Corrected wording, no code change — and it does not
+  recover a false sub-pixel value, so the safety outcome was never at risk.
+- Claims 1, 4, 5 and 6 SURVIVED, including an independent re-parse of the v8
+  matrix log (50/50, two green controls, `EXIT=0`, baseline 44/44/0/0, 52 pre-flight
+  anchors, only G42 moved 1→2).
+
+Two new guards, both written to be blind-spot-proof rather than merely present:
+the adopted-sheet test is byte-identical in EFFECT to the existing `<style>`
+`!important` test, which is the point — a mutant confined to the
+`importantConflict` branch cannot see it, so only a scan-source mutant can; and
+the animation test carries a second arm animating `border-radius` on the same
+geometry, proving the check is PER-PROPERTY and not a blanket refusal for any
+animated element.
+
+### Round-4 fix measurements
+
+- Gauntlet suite after the fixes: **46 tests / 46 pass / 0 fail / 0 skipped,
+  EXIT=0** (`.claude/gauntlet-2026-08-14/agent-output/suite-r4.log`). The +2 over
+  44 is exactly the two new tests — the adopted-stylesheet test and the
+  two-armed animation test. Build clean (`BUILD=0`).
+- Three mutants added to `.claude/gauntlet-2026-08-14/gauntlet-mutants.mjs`, all
+  three find-strings taken from the COMPILED `dist/design-gauntlet.js` rather than
+  from `src/` (TypeScript reformats multi-line bodies, so a source-shaped anchor
+  does not resolve):
+  - **G51** — adopted sheets unscanned (the loop iterates `[]`).
+  - **G52** — the animation gate deleted (`if (false)`).
+  - **G53** — the animation gate made PROPERTY-BLIND (any keyframe matches).
+  G52 and G53 pull in OPPOSITE directions on purpose: G52 is the under-refusal
+  and G53 is the over-refusal, so a "fix" that simply refuses every animated
+  element cannot pass both. That is the A9/A10 pattern from the mic-alignment
+  suite, and it is why the animation test has a `border-radius` arm at all.
+- `EXPECTED_BASELINE` raised 44 → 46.
+- Matrix **v9 launched** (background `bn1dsvimr`), writing to
+  `agent-output/mutants-v9.log` with `EXIT=` appended inside the file. Re-run
+  WHOLE rather than extended, per the standing rule — the round rewrote the scan
+  loop and inserted a gate ahead of both doors, so no carried-over radius can be
+  assumed.
+
+### Matrix v9 — and the round-4 guards' own defect, found by grading the mutants
+
+v9 measured **53 mutants, 0 survived, 0 controls false-failed, EXIT=0**, against a
+declared baseline of 46/46/0/0 read from inside `agent-output/mutants-v9.log`.
+G51, G52 and G53 each killed at radius 1.
+
+**A kill is not evidence the declared assertion fired.** Both G52 and G53 redden
+the SAME test, so each was graded by hand — mutant applied to `dist/`, that one
+test run by name, the `AssertionError` message read:
+
+- **G53** fires on `an animation on ANOTHER property does not poison the reading`
+  — the arm it was written for. Correct.
+- **G52** fires on `precondition: the animation actually forces 1px` — NOT the
+  harm assertion. The precondition was computed from the same probe output as the
+  harm assertion, so deleting the gate emptied the tally of `1px` and the
+  precondition aborted the test first. The reader would have been told the
+  FIXTURE was broken while the product had regressed. Both new tests had it.
+
+That is round 3's own P2 arriving inside the tests written to close round 4, and
+it is worth stating as a rule: **a precondition derived from the artifact under
+test is not a precondition — it is a second harm assertion wearing a fixture
+label, and it outranks the real one by sitting above it.** The two readings are
+genuinely indistinguishable from this output alone (a fixture whose animation
+never applied produces the identical tally), so the fix is not a better
+discriminator but an ORDER plus an honest message: harm first, message naming
+both readings, fixture check immediately below as the separator.
+
+Second gap from the same measurement: **every caveat assertion in the hairline
+tests was a comment.** They sit last, and no value-breaking mutant reaches them.
+**G54** is the disclosure-only mutant that closes it — it suppresses the
+`Hairline caveat` warning and moves no reported number, the G48–G50 pattern
+applied to the round-4 tests.
+
+Suite after the reorder: **46 / 46 / 0 / 0, EXIT=0** (`agent-output/suite-r5.log`),
+build clean. Matrix **v10 re-run WHOLE** (54 mutants), never extended.
+
+## Matrix v10 — the disclosure gap measured, and the full suite
+
+**Matrix v10, re-run WHOLE** after the assertion reorder. Read from inside
+`.claude/gauntlet-2026-08-14/agent-output/mutants-v10.log`:
+
+```
+baseline: tests=46 pass=46 fail=0 skipped=0 status=0
+summary: 54 mutants, 0 survived, 0 controls false-failed
+EXIT=0
+```
+
+**G54 killed at radius 10, and that number IS the measurement.** G54 is
+disclosure-only — it suppresses the `Hairline caveat` warning and touches no
+reported number, so every value assertion stays green and the trailing caveat
+assertion is finally the first thing that can fail. Ten tests went red. Before
+G54 existed, those ten caveat assertions were **comments**: `assert` aborts at
+the first failure, so no value-breaking mutant ever reached one. This is the
+G48–G50 pattern generalised, and its radius is the size of the gap it closed.
+
+**Zero carried-over radii moved and zero red SETS changed between v9 and v10** —
+the only delta is G54 entering. Verified BY SET against the printed red test
+names, in both directions, not by arithmetic on counts. That is the right shape:
+the reorder changed *which assertion fires*, not *which tests fail*.
+
+The first attempt at that diff was garbage and is recorded rather than dropped:
+I split the harness lines on `|`, but the harness joins multiple red test names
+with ` | `, so fields misaligned and 18 bogus "RADIUS MOVED" lines printed. Fixed
+with a tab-based extraction (`sed -E 's/^([^:]+): killed, radius ([0-9]+) — (.*)$/\1\t\2\t\3/'`
+then `join -t\t`). **A diff instrument is a claim like any other.**
+
+**G52 and G51 re-graded BY HAND after the reorder**, because a kill is not
+evidence the declared assertion fired. Both now fire on the harm assertion:
+
+- G52 → `an animated border-width is not answered from the inline declaration —
+  a 0.5px here is EITHER the gate missing OR a fixture whose animation never
+  applied; the next assertion separates them`
+- G51 → `an adopted !important rule outranks the inline declaration — a 0.5px
+  here is EITHER the probe trusting inline over an adopted rule OR a fixture
+  whose adopted sheet never applied; the next assertion separates them`
+
+Harness header rewritten as a MEASURED v10 block, demoting v8 to history, with a
+note that v9 is superseded ONLY because G52 was mis-graded there and that **no
+product code differs between v9 and v10**.
+
+### Full suite
+
+`RAVEN_NO_USAGE_LOG=1 npm test`, read from inside
+`.claude/gauntlet-2026-08-14/agent-output/full-suite-r5.log`:
+
+**1585 tests / 1582 pass / 0 fail / 0 cancelled / 3 skipped / 0 todo, EXIT=0.**
+
+The **+2** over the previously ledgered 1583 is exactly the two round-4 tests,
+confirmed to have RUN inside the full pass by name at log lines 360 (`hairlines:
+an ADOPTED stylesheet is part of the cascade this probe reads`) and 361
+(`hairlines: a side under an ACTIVE animation is unresolved, never recovered`),
+both `✔`. Everything else this round — the reorder, G54, the header rewrite —
+moves the count by ZERO.
+
+**The 3 skips are the same three, read INDIVIDUALLY at output lines 109 / 760 /
+761** (the file-URL fallback notice and the two removed-capability phase2 tests),
+shifted from 109/758/759 by exactly +2 because the two new tests sit above them.
+
+Instrument lesson, same class as the `ℹ`-not-`#` one already in the ledger: the
+first skip grep (`↓`, `# SKIP`) returned NOTHING, which is indistinguishable from
+a run with no skips. `node --test` emits `﹣` (U+FE63) as its skip marker here.
+The silence was re-grepped rather than accepted.
+
+**Nothing is committed or pushed and nothing is on npm.**

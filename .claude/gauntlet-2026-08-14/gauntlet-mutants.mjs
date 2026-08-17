@@ -6,7 +6,64 @@
  * false-fails). Run with:  node .claude/gauntlet-2026-08-14/gauntlet-mutants.mjs
  * NEVER via `npm test` with a mutant applied — clean && tsc clobbers dist/.
  *
- * MEASURED v8 (2026-08-17, agent-output/mutants-v8.log), 44p/0f/0s declared
+ * MEASURED v10 (2026-08-17, agent-output/mutants-v10.log), 46p/0f/0s declared
+ * baseline: 54 mutants, 54 killed, 0 survived, 0 false-failed; 2 CONTROLS
+ * green; EXIT=0 and the summary line both read from INSIDE the log. Re-run
+ * WHOLE after the Sol ROUND-4 disposition (DOES NOT SURVIVE: 2 P1 + 1 P3) and
+ * again after grading its own new mutants by hand.
+ *   ROUND 4'S UNIFYING FINDING IS THAT THE SCAN WAS INCOMPLETE, NOT THAT A
+ *   DOOR WAS WRONG. Rounds 2 and 3 hardened which branch trusts what; round 4
+ *   found two cascade sources the probe could not SEE at all, which is why
+ *   neither is reachable by any mutant confined to the importantConflict
+ *   branch and why the green v8 matrix was blind to both.
+ *   G51 — `document.adoptedStyleSheets` is a SEPARATE collection from
+ *   `document.styleSheets`; CSSOM puts constructed sheets outside the
+ *   stylesheet list while the cascade includes both. An adopted `!important`
+ *   rule was invisible, so the inline fast path recovered 0.5px on an edge
+ *   rendering at 1px. FIXED by scanning, not by refusing — constructed sheets
+ *   are same-origin by construction and readable.
+ *   G52/G53 — a CSS animation declaration outranks EVERY normal author
+ *   declaration, inline included, and its value is in no rule this scan
+ *   collects, so the answer is REFUSAL rather than a wider scan. The gate sits
+ *   ahead of BOTH doors because the stylesheet path is wrong for the same
+ *   reason as the inline path. G52 and G53 PULL IN OPPOSITE DIRECTIONS on
+ *   purpose — G52 deletes the gate (under-refusal), G53 makes it
+ *   property-blind (over-refusal) — so "fix it by refusing every animated
+ *   element" cannot pass both. That is the A9/A10 pattern from the
+ *   mic-alignment suite, and it is why the animation test has a
+ *   `border-radius` arm at all.
+ *   A KILL IS NOT EVIDENCE THE DECLARED ASSERTION FIRED, and grading these by
+ *   hand is what found the round's real defect. G52 and G53 redden the SAME
+ *   test, so each was applied to dist/ and run by name with the
+ *   AssertionError message read. G53 landed on its own arm. G52 landed on the
+ *   PRECONDITION — because the precondition was computed from the same probe
+ *   output as the harm assertion, deleting the gate emptied the tally of 1px
+ *   and aborted the test above the line that mattered, reporting a product
+ *   regression as a broken fixture. Both round-4 tests had it. THE RULE: a
+ *   precondition derived from the artifact under test is not a precondition,
+ *   it is a second harm assertion wearing a fixture label, and it outranks the
+ *   real one by sitting above it. The two readings are indistinguishable from
+ *   this output alone, so the fix is ORDER plus an honest message — harm
+ *   first, message naming both readings, fixture check below as the separator
+ *   — and both were re-graded by hand afterwards to confirm the harm
+ *   assertion now fires.
+ *   G54 IS THE ROUND-3 P2 ARRIVING AGAIN AND ITS RADIUS IS THE MEASUREMENT.
+ *   Every hairline test asserts a value and THEN the caveat; no value-breaking
+ *   mutant reaches a caveat assertion, so all of them were comments. G54
+ *   suppresses the `Hairline caveat` warning and moves no reported number:
+ *   radius 10, which is exactly how many caveat assertions were unfalsifiable
+ *   before it existed. One mechanism, ten observables — never ten guards.
+ *   ZERO carried-over radii moved and ZERO red SETS changed between v9 and
+ *   v10; the only delta is G54 entering. Checked by SET against the printed
+ *   red names in both directions, never by arithmetic on counts — a uniform
+ *   hold is exactly the shape that would hide one mechanism shrinking while
+ *   another grew. G51/G52/G53 each enter at radius 1.
+ *   G38 3 · G39 1 · G40 1 · G41 1 · G42 2 · G43 1 · G44 1 · G45 1 · G46 1 ·
+ *   G47 1 · G48 6 · G49 1 · G50 1 · G51 1 · G52 1 · G53 1 · G54 10.
+ *   v9 (agent-output/mutants-v9.log) measured 53/53/0/0 on the same 46p
+ *   baseline and is superseded ONLY because G52 was mis-graded there; no
+ *   product code differs between v9 and v10.
+ *   v8 (2026-08-17, agent-output/mutants-v8.log), 44p/0f/0s declared
  * baseline: 50 mutants, 50 killed, 0 survived, 0 false-failed; 2 CONTROLS
  * green; EXIT=0 and the summary line both read from INSIDE the log, never
  * from the background task notification. Pre-flight passed at 52 anchors.
@@ -200,7 +257,7 @@ const SUITE = path.join(ROOT, 'test', 'design-gauntlet.test.mjs');
 // Declared, not derived. This was stale at 30 against a 37-test suite for a
 // whole round — a baseline that lags the suite makes the harness abort rather
 // than mis-measure, which is the guard working, but it also means nobody ran it.
-const EXPECTED_BASELINE = { tests: 44, pass: 44, fail: 0, skipped: 0 };
+const EXPECTED_BASELINE = { tests: 46, pass: 46, fail: 0, skipped: 0 };
 
 const MUTANTS = [
   { id: 'G1-vocab-boundary-exclusive', file: MODULE,
@@ -444,6 +501,41 @@ const MUTANTS = [
   { id: 'G50-cross-origin-cause-unnamed', file: MODULE,
     find: '                causes.push(hairlines.sheetsBlocked + " cross-origin stylesheet(s) could not be read");',
     replace: '                causes.push("a stylesheet could not be read");' },
+  // ---- G51–G53 are Sol's round-4 P1s. Both findings are the SAME class as all
+  // three round-3 P1s and as each other: a cascade source the probe cannot see,
+  // producing a confident wrong hairline. Round 3 hardened the DOORS; round 4
+  // found the SCAN itself was incomplete, which is why neither is reachable by
+  // any mutant confined to the importantConflict branch.
+  // G51 drops the adopted-stylesheet scan. `document.adoptedStyleSheets` is a
+  // separate collection from `document.styleSheets` and the cascade includes
+  // both, so an adopted `!important` rule was invisible and the inline fast
+  // path recovered 0.5px on an edge rendering at 1px.
+  { id: 'G51-adopted-sheets-unscanned', file: MODULE,
+    find: '        for (const sheet of Array.from(document.adoptedStyleSheets || [])) {',
+    replace: '        for (const sheet of Array.from([])) {' },
+  // G52 deletes the animation gate outright. An animation declaration outranks
+  // every normal author declaration INCLUDING inline, and its value is in no
+  // rule this scan collects — so "!important is the only thing that can outrank
+  // inline" was false by a second, independent path.
+  { id: 'G52-animation-gate-dropped', file: MODULE,
+    find: '        if (animatedSide(el, side))\n            return "unresolved";',
+    replace: '        if (false)\n            return "unresolved";' },
+  // G53 is the OTHER direction and is why the animation test carries a second
+  // arm. Making the gate blanket-refuse for ANY animated element closes the
+  // finding and is still wrong: an element animating border-radius has a
+  // perfectly readable border-width. G52 and G53 pull opposite ways, so a fix
+  // that merely refused everything could not pass both — the A9/A10 pattern.
+  { id: 'G53-animation-gate-property-blind', file: MODULE,
+    find: '                for (const f of frames)\n                    if (Object.prototype.hasOwnProperty.call(f, prop))\n                        return true;',
+    replace: '                for (const f of frames)\n                    if (f)\n                        return true;' },
+  // G54 is DISCLOSURE-ONLY, the G48-G50 pattern applied to the round-4 tests.
+  // Every hairline test asserts a value and THEN the caveat; `assert` aborts at
+  // the first failure, so no value-breaking mutant ever reaches a caveat
+  // assertion and all of them are comments until something leaves the values
+  // green. This suppresses the warning and touches no reported number.
+  { id: 'G54-hairline-caveat-undisclosed', file: MODULE,
+    find: '        if (hairlines.subPixelAmbiguous > 0 || hairlines.sheetsBlocked > 0 || hairlines.ruleOverflow) {',
+    replace: '        if (false) {' },
   // Controls — behaviour-neutral by CONSTRUCTION (object-literal key order and
   // declaration order carry no semantics), never merely unasserted.
   // Deliberately NOT a control: reordering SIDES. The previous session's log

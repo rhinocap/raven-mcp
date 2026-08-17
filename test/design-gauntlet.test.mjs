@@ -780,6 +780,79 @@ test('hairlines: an inline width this probe cannot read refuses outright — it 
   assert.ok(m.warnings.some((w) => w.includes('Hairline caveat')), 'the refusal is disclosed');
 });
 
+// HAIRLINE_ROWS fixes class="row"; the animation fixtures need a SECOND class
+// on the same elements, so they build their own rows off the same geometry.
+const ANIM_ROWS = (cls) => '<body>' +
+  Array.from({ length: 24 }, () =>
+    '<div class="row ' + cls + '" style="width:400px;height:40px;' +
+    'background:rgb(250,250,250);border-radius:10.5px;' +
+    'border-top:0.5px solid #123456;">row</div>').join('') + '</body>';
+
+test('hairlines: an ADOPTED stylesheet is part of the cascade this probe reads', async (t) => {
+  if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
+  // `document.adoptedStyleSheets` is a SEPARATE collection from
+  // `document.styleSheets`, and the cascade includes both. Scanning only the
+  // latter left an adopted `!important` rule invisible: the inline fast path
+  // saw no conflict and confidently recovered 0.5px on an edge rendering at
+  // 1px. Byte-identical in effect to the `<style>` case one test above, and
+  // that is the point — the SOURCE of the rule is what the old scan missed, so
+  // a mutant confined to the importantConflict branch cannot see this at all.
+  const html = '<!doctype html><title>adopted-important</title>' +
+    HAIRLINE_ROWS(() => 'border-top-width:0.5px;') +
+    '<script>const s = new CSSStyleSheet();' +
+    "s.replaceSync('.row { border-top-style: solid; border-top-color: #123456; " +
+    "border-top-width: 1px !important; }');" +
+    'document.adoptedStyleSheets = [s];<\/script>';
+  const m = await withFixture(html, (url) => measureGauntletPage(url));
+  const widths = new Set(m.borders.tally.map((e) => e.value.split(' ')[0]));
+  // HARM FIRST. `assert` aborts at the first failure, so a probe-derived
+  // precondition placed above the harm assertion is graded INSTEAD of it: G51
+  // regresses the scan, the tally loses its 1px, and the reader is told the
+  // FIXTURE is broken. The two are indistinguishable from this output alone —
+  // a fixture whose adopted sheet never applied produces the identical tally —
+  // so the harm message names both readings and the fixture check follows it.
+  assert.ok(!widths.has('0.5px'),
+    'an adopted !important rule outranks the inline declaration — a 0.5px here is EITHER the probe ' +
+    'trusting inline over an adopted rule OR a fixture whose adopted sheet never applied; the next ' +
+    'assertion separates them');
+  assert.ok(widths.has('1px'), 'fixture: the adopted rule actually renders at 1px');
+  assert.ok(m.warnings.some((w) => w.includes('Hairline caveat')), 'the refusal is disclosed');
+});
+
+test('hairlines: a side under an ACTIVE animation is unresolved, never recovered', async (t) => {
+  if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
+  // An animation declaration outranks every normal author declaration, inline
+  // included, and its value is in no rule this scan collects — so the old
+  // "!important is the only thing that can outrank inline" claim was false by
+  // a second, independent path. The gate therefore sits ahead of BOTH doors.
+  // The second row proves the check is PER-PROPERTY: an element animating
+  // border-radius is still recovered normally, so the fix is not a blanket
+  // refusal for any animated element.
+  const html = '<!doctype html><title>animated-width</title>' +
+    '<style>@keyframes force-width { from, to { border-top-width: 1px } } ' +
+    '.anim { animation: force-width 1000s linear infinite; } ' +
+    '@keyframes wobble { from, to { border-radius: 4px } } ' +
+    '.other { animation: wobble 1000s linear infinite; }</style>' +
+    ANIM_ROWS('anim');
+  const m = await withFixture(html, (url) => measureGauntletPage(url));
+  const widths = new Set(m.borders.tally.map((e) => e.value.split(' ')[0]));
+  // HARM FIRST — see the adopted-stylesheet test above. Measured: with the
+  // precondition on top, G52 was graded by it and reported as a broken fixture.
+  assert.ok(!widths.has('0.5px'),
+    'an animated border-width is not answered from the inline declaration — a 0.5px here is EITHER ' +
+    'the gate missing OR a fixture whose animation never applied; the next assertion separates them');
+  assert.ok(widths.has('1px'), 'fixture: the animation actually forces 1px');
+  assert.ok(m.warnings.some((w) => w.includes('Hairline caveat')), 'the refusal is disclosed');
+
+  const other = '<!doctype html><title>animated-radius</title>' +
+    '<style>@keyframes wobble { from, to { border-radius: 4px } } ' +
+    '.other { animation: wobble 1000s linear infinite; }</style>' +
+    ANIM_ROWS('other');
+  const m2 = await withFixture(other, (url) => measureGauntletPage(url));
+  const w2 = new Set(m2.borders.tally.map((e) => e.value.split(' ')[0]));
+  assert.ok(w2.has('0.5px'), 'an animation on ANOTHER property does not poison the reading');
+});
+
 test('hairlines: a non-px length is unresolved — parseFloat is not a unit check', async (t) => {
   if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
   // `parseFloat("0.5em")` is 0.5, so an edge authored .5em at a 2px font-size —
