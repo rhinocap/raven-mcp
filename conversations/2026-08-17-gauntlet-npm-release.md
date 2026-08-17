@@ -294,3 +294,76 @@ Also closed this session, unrecorded above: `site/changelog.html` regenerated
 (`node scripts/gen-changelog-html.mjs` → 34 releases) and the diff is **empty** —
 it was already correct from `a1dfdaf`. A no-op regeneration is still worth running,
 because "already correct" and "never generated" are indistinguishable without it.
+
+---
+
+## Checkpoint — matrix v7 landed, commit `62b9276`, Sol round 3 returned
+
+Everything from item 5 above closed, and the numbers are read from inside the
+logs rather than from the background task notifications (a notification
+describes the WRAPPER, not the harness verdict).
+
+- **Matrix v7**: 43 mutants, 43 killed, 0 survived, 0 false-failed; 2 controls
+  green; `EXIT=0`, against a declared 40/40/0/0 baseline. Pre-flight passed at
+  45 anchors. Harness header rewritten v6 → v7.
+- **Build clean at 111 tools**; `manifest.json` moved by one line — the first
+  round in a while where it actually moved.
+- **Full suite 1579 / 1576 / 0 / 3, `EXIT=0`.** The 3 skips read INDIVIDUALLY at
+  output lines 109/754/755, not inferred from the total; the gauntlet suite was
+  confirmed to have RUN inside the full pass by grepping its own test names out
+  of the log, at lines 347–359.
+- **Commit `62b9276`** (9 files, +436/−38). Local `main` moved `ceb2138` →
+  `62b9276` only after proving all 8 divergent commits are preserved on
+  `feat/gauntlet-hairline-provenance` (`git branch -a --contains` per commit).
+- `package.json` reads **2.4.1**, observed in the build output — NOT the 2.4.0
+  the CLAUDE.md ledger states. The ledger is stale by one patch.
+
+### Sol round 3 — DOES NOT SURVIVE (3 × P1, 1 × P2, 1 × P3)
+
+All three P1s CONFIRMED by reading the source rather than trusting the report,
+and all three are the SAME direction the previous round's were: **a confident
+wrong hairline**. The organising principle holds — a false RECOVERY is worse
+than a false ambiguity, because the caller is handed a number instead of a
+warning.
+
+1. **A blocked stylesheet did not prevent a confident recovery.** The caller
+   accepted a recovered number and only then consulted `sheetsBlocked`, so every
+   UNrecovered 1px edge was flagged ambiguous while the recovered ones — the
+   ones carrying an actual claim — were the exception.
+2. **Inline style does not win the cascade outright.** A stylesheet declaration
+   marked `!important` beats it, so the shipped comment claiming a style
+   attribute "stays trustworthy even once that scan overflowed" was false. The
+   same path also mishandled an inline `var(--hairline)`: the parse failed and
+   it FELL THROUGH to the stylesheet scan, letting a rule the inline
+   declaration overrides answer for the edge.
+3. **`parseFloat` is not a unit check.** `parseFloat("0.5em")` is `0.5`, so an
+   edge authored `.5em` at a 2px font-size — which computes and renders at
+   exactly 1px — was reported as a recovered `0.5px` hairline.
+
+P2: G41 and G43 do not independently prove all their declared behaviour —
+`assert` aborts at the first failure, so each mutant reddens a value assertion
+and the caveat assertion behind it is never reached. P3 was a confirmation
+(the `new Set(matched)` numeric dedupe, `matched[0]`, the per-side filters and
+the `elTreatments` dedupe are all correct) and needs no action.
+
+### Round-3 dispositions
+
+- **Four new browser tests**, not three: the inline P1 has two distinct doors
+  (an `!important` rule outranking the attribute, and an unreadable inline
+  value falling through), and one mutant cannot separate them.
+- The blocked-sheet fixture's mechanism was **MEASURED, not assumed**: from a
+  `file://` page a sibling `file://` `<link rel=stylesheet>` loads, applies, and
+  then throws `SecurityError` on `.cssRules` — which is what increments
+  `sheetsBlocked`. A `data:text/css` link is READABLE and leaves it at 0, so the
+  obvious fixture would have measured nothing. `withFixture` gained an `extra`
+  sibling-files parameter for exactly this.
+- **Seven new mutants.** G44–G47 are one per fix. G48–G50 are the P2
+  disposition and generalise it: they break the DISCLOSURE and nothing else, so
+  each caveat assertion is reached on its own — G48 stops the ambiguity being
+  counted (widths stay correct, the caveat simply never fires), G49 and G50 drop
+  one NAMED cause each.
+- **G42 was re-anchored** — its find-string named the keyword test the unit gate
+  replaced, so it died exactly as the standing dead-anchor rule predicts. Same
+  defect, same declared behaviour, new anchor.
+- Suite is 44 tests, 44 pass, 0 fail, 0 skipped. **That is worth nothing until
+  the matrix proves each new test red** — matrix v8 is in flight.

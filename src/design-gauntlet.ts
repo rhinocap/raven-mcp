@@ -770,14 +770,31 @@ function probeInPage({ vpW, vpH }: { vpW: number; vpH: number }) {
   let ruleOverflow = false;
   type Side = "Top" | "Right" | "Bottom" | "Left";
   const SIDES: Side[] = ["Top", "Right", "Bottom", "Left"];
-  const authoredRules: { selector: string; side: Side; width: number }[] = [];
+  const authoredRules: { selector: string; side: Side; width: number; important: boolean }[] = [];
   // A width the CSSOM hands back unresolved — var(), calc(), env() — parses to
   // NaN and is NOT a value this probe can compare. Dropping it silently is the
   // false-recovery direction, and it is the likeliest real case there is: a
   // tokenised `--hairline: .5px` renders at 1px, matches no collected rule, and
   // the report calls that a confident 1px. Recorded instead, so a matching
   // element is declared unresolved rather than answered.
-  const unresolvedRules: { selector: string; side: Side }[] = [];
+  const unresolvedRules: { selector: string; side: Side; important: boolean }[] = [];
+
+  // A border-width is comparable to a computed px reading only when it IS a px
+  // length. `parseFloat` reads "0.5em" as 0.5, so an edge authored `.5em` at a
+  // 2px font-size — which renders, and computes, at 1px — was reported as a
+  // recovered 0.5px hairline: a confident wrong number, the one outcome this
+  // whole probe exists to avoid. Keywords are engine-defined integers and can
+  // never be the sub-pixel case, so they are DROPPED rather than flagged;
+  // every other non-px form is UNRESOLVED, because "not a px length" and "not
+  // authored at all" are different answers and only one of them is safe.
+  const pxLength = (raw: string): number | "keyword" | "unresolved" => {
+    const t = String(raw).trim();
+    if (/^(thin|medium|thick)$/i.test(t)) return "keyword";
+    // A bare 0 is the one unitless length CSS accepts here.
+    if (/^[+-]?(?:\d+\.?\d*|\.\d+)$/.test(t)) return parseFloat(t) === 0 ? 0 : "unresolved";
+    const m = /^([+-]?(?:\d+\.?\d*|\.\d+))px$/i.exec(t);
+    return m ? parseFloat(m[1]) : "unresolved";
+  };
 
   const collectRules = (rules: CSSRuleList): void => {
     for (const rule of Array.from(rules) as any[]) {
@@ -794,12 +811,18 @@ function probeInPage({ vpW, vpH }: { vpW: number; vpH: number }) {
           if (authoredRules.length + unresolvedRules.length >= AUTHORED_RULE_CAP) { ruleOverflow = true; break; }
           const w = rule.style["border" + side + "Width"];
           if (!w) continue;
-          const n = parseFloat(w);
-          // Keywords (thin/medium/thick) parse to NaN and are dropped: they are
-          // engine-defined integers, never the sub-pixel case this recovers.
-          // Anything else that fails to parse is an unresolved expression.
-          if (isFinite(n)) authoredRules.push({ selector: rule.selectorText, side, width: n });
-          else if (!/^(thin|medium|thick)$/i.test(w.trim())) unresolvedRules.push({ selector: rule.selectorText, side });
+          // `!important` is recorded because it is the one thing that beats an
+          // inline declaration, and the inline fast path below is trustworthy
+          // only in its absence.
+          let important = false;
+          try { important = rule.style.getPropertyPriority("border-" + side.toLowerCase() + "-width") === "important"; }
+          catch { /* a shimmed declaration may not implement it: assume not */ }
+          const n = pxLength(w);
+          // Keywords are engine-defined integers, never the sub-pixel case this
+          // recovers, so they are dropped. Anything else that is not a px length
+          // is an unresolved expression and is recorded as one.
+          if (typeof n === "number") authoredRules.push({ selector: rule.selectorText, side, width: n, important });
+          else if (n === "unresolved") unresolvedRules.push({ selector: rule.selectorText, side, important });
         }
       }
       // @media / @supports / @layer carry nested rules, as does a nesting style
@@ -827,23 +850,60 @@ function probeInPage({ vpW, vpH }: { vpW: number; vpH: number }) {
   // resolved, so any disagreement among matching rules is unresolved rather
   // than guessed. Rules for other sides are ignored entirely.
   const authoredSubPixel = (el: Element, side: Side): number | "unresolved" | null => {
-    // Inline style is read off the element and does not come from the capped
-    // stylesheet scan, so it stays trustworthy even once that scan overflowed.
-    const inline = (el as HTMLElement).style && ((el as HTMLElement).style as any)["border" + side + "Width"];
-    if (inline) {
-      const n = parseFloat(inline);
-      // Inline wins the cascade outright, so it needs no conflict handling.
-      if (isFinite(n)) return n > 0 && n < 1 ? n : null;
-    }
+    // BOTH gates sit ahead of the inline read, and that ordering IS the fix.
+    // Inline style does not win the cascade outright — a stylesheet declaration
+    // marked `!important` beats it — so an inline 0.5px is only trustworthy
+    // once the whole cascade has been read. A blocked sheet or an overflowed
+    // scan means it has not been, and neither can be narrowed to "stylesheet-
+    // derived values only" while an unread `!important` can still override the
+    // element's own style attribute.
+    //
+    // An unreadable cross-origin sheet may carry the rule that actually wins.
+    // Recovering 0.5px from the sheets that DID parse hands the caller a number
+    // for an edge whose real authored width is unknown; the caller already
+    // counts every unrecovered 1px edge as ambiguous when sheetsBlocked > 0, so
+    // this only stops the recovered ones from being the exception.
+    if (sheetsBlocked > 0) return "unresolved";
     // An overflowed scan is not a partial answer, it is an untrustworthy one.
     // The cap can stop MID-RULE, so a later rule's 1px on this side can be
     // missing while an earlier rule's 0.5px on the same side was kept — and the
     // retained value then reads as a confident recovery of an edge that really
     // renders at 1px. A false RECOVERY is worse than a false ambiguity, so past
-    // the cap no stylesheet-derived value is trusted for any element. That is
-    // also what makes SIDES order unobservable here: with recovery off past the
-    // cap, which sides of a truncated rule survived cannot change an answer.
+    // the cap nothing is trusted for any element. That is also what makes SIDES
+    // order unobservable here: with recovery off past the cap, which sides of a
+    // truncated rule survived cannot change an answer.
     if (ruleOverflow) return "unresolved";
+    // Does any `!important` rule for THIS side match? That is the only thing
+    // that can outrank the element's own style attribute.
+    let importantConflict = false;
+    for (const r of authoredRules) {
+      if (r.side !== side || !r.important) continue;
+      try { if (el.matches(r.selector)) { importantConflict = true; break; } } catch { /* exotic selector */ }
+    }
+    if (!importantConflict) for (const r of unresolvedRules) {
+      if (r.side !== side || !r.important) continue;
+      try { if (el.matches(r.selector)) { importantConflict = true; break; } } catch { /* exotic selector */ }
+    }
+    const inline = (el as HTMLElement).style && ((el as HTMLElement).style as any)["border" + side + "Width"];
+    if (inline && !importantConflict) {
+      // With no important rule in play the inline declaration DOES win, so it
+      // decides this side outright and the stylesheet scan below is skipped —
+      // including when it is a keyword (an engine integer, never sub-pixel) or
+      // an expression this probe cannot read. Falling through on an unreadable
+      // inline `var(--hairline)` is the false-recovery direction: it would let
+      // a losing stylesheet rule answer for the edge, or report a confident
+      // 1px for the likeliest tokenised hairline there is.
+      const n = pxLength(inline);
+      if (typeof n === "number") return n > 0 && n < 1 ? n : null;
+      return n === "unresolved" ? "unresolved" : null;
+    }
+    // An inline declaration that an `!important` rule outranks is a cascade
+    // this probe does not resolve. With NO inline declaration, importance
+    // changes nothing: the agreement test below already refuses any matched set
+    // that disagrees, and where every matched rule agrees the winner carries
+    // that same width whatever its priority. So the refusal is scoped to the
+    // one case where importance can change the answer.
+    if (inline && importantConflict) return "unresolved";
     const matched: number[] = [];
     for (const r of authoredRules) {
       if (r.side !== side) continue;

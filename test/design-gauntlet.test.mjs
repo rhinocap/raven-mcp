@@ -426,11 +426,18 @@ try {
   gauntletProbeReason = e && e.message ? e.message : String(e);
 }
 
-const withFixture = async (html, fn) => {
+// `extra` writes SIBLING files next to page.html. It exists for exactly one
+// case and the mechanism was MEASURED rather than assumed: from a file:// page
+// a sibling file:// <link rel=stylesheet> LOADS and applies, and then throws
+// SecurityError on .cssRules — which is what makes sheetsBlocked increment.
+// The obvious alternative, a `data:text/css` link, is READABLE and leaves
+// sheetsBlocked at 0, so a fixture built that way would measure nothing.
+const withFixture = async (html, fn, extra) => {
   const dir = await mkdtemp(join(tmpdir(), 'gauntlet-fixture-'));
   try {
     const file = join(dir, 'page.html');
     await writeFile(file, html);
+    for (const [name, body] of Object.entries(extra || {})) await writeFile(join(dir, name), body);
     return await fn(pathToFileURL(file).href);
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -702,6 +709,93 @@ test('hairlines: past the rule-scan cap NOTHING is recovered — a partial scan 
     m.warnings.some((w) => w.includes('Hairline caveat') && w.includes('cap')),
     'the caveat names the cap, so the caller can tell a busy page from a conflicted one'
   );
+});
+
+test('hairlines: a BLOCKED stylesheet stops every recovery, not just the elements it touched', async (t) => {
+  if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
+  // The cap case above and this one are the same defect through two doors, and
+  // only the cap door was closed. An unreadable cross-origin sheet may carry
+  // the rule that actually WINS, so a value recovered from the sheets that did
+  // parse is a confident number for an edge whose authored width is unknown —
+  // a false RECOVERY, strictly worse than a false ambiguity, because the caller
+  // is handed a number instead of a warning. The caller already counted every
+  // UNrecovered 1px edge as ambiguous when sheetsBlocked > 0; the recovered
+  // ones were the exception, which is precisely backwards.
+  // Here the readable sheet says 0.5px and the blocked one says 1px, so the
+  // page renders at 1px and a pre-fix run reports a 0.5px vocabulary it does
+  // not have.
+  const html = '<!doctype html><title>blocked-sheet</title>' +
+    '<link rel="stylesheet" href="blocked.css">' +
+    '<style>.row { border-top: 0.5px solid #123456; }</style>' +
+    HAIRLINE_ROWS(() => '');
+  const m = await withFixture(html, (url) => measureGauntletPage(url),
+    { 'blocked.css': 'body div.row { border-top: 1px solid #123456; }' });
+  const widths = new Set(m.borders.tally.map((e) => e.value.split(' ')[0]));
+  assert.ok(
+    m.warnings.some((w) => w.includes('Hairline caveat') && w.includes('cross-origin')),
+    'precondition AND assertion: the sheet really was unreadable, and that is disclosed'
+  );
+  assert.ok(!widths.has('0.5px'), 'no value is recovered from a partially-read cascade');
+  assert.ok(widths.has('1px'), 'the computed reading stands');
+});
+
+test('hairlines: inline style is trusted only when no !important rule can outrank it', async (t) => {
+  if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
+  // The inline fast path shipped with a comment claiming a style attribute
+  // "stays trustworthy" whatever the sheets say. It does not: a declaration
+  // marked !important beats inline, so the element renders at the sheet's
+  // width while the probe reports the inline one. Same false-recovery
+  // direction as the two above, reached without any blocked sheet or cap.
+  // The fix reads the whole cascade for `!important` on THIS side before
+  // trusting the attribute, which is also why both gates now sit AHEAD of the
+  // inline read rather than beside it.
+  const html = '<!doctype html><title>important-vs-inline</title>' +
+    '<style>.row { border-top-style: solid; border-top-color: #123456; ' +
+    'border-top-width: 1px !important; }</style>' +
+    HAIRLINE_ROWS(() => 'border-top-width:0.5px;');
+  const m = await withFixture(html, (url) => measureGauntletPage(url));
+  const widths = new Set(m.borders.tally.map((e) => e.value.split(' ')[0]));
+  assert.ok(!widths.has('0.5px'), 'the losing inline declaration is not reported as the authored width');
+  assert.ok(widths.has('1px'), 'the computed reading stands');
+  assert.ok(m.warnings.some((w) => w.includes('Hairline caveat')), 'the refusal is disclosed');
+});
+
+test('hairlines: an inline width this probe cannot read refuses outright — it never falls through', async (t) => {
+  if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
+  // `style="border-top-width: var(--hairline)"` is ordinary tokenised
+  // authoring. Parsing it gives NaN, and falling through to the stylesheet
+  // scan then answers the edge with a rule the inline declaration OVERRIDES —
+  // here 0.25px, a width that appears nowhere on the rendered page. The inline
+  // declaration WINS (no !important above it), so it decides the side outright
+  // and an unreadable one is unresolved, never an invitation to guess.
+  const html = '<!doctype html><title>inline-var</title>' +
+    '<style>:root { --hairline: 0.5px; } ' +
+    '.row { border-top: 0.25px solid #123456; }</style>' +
+    HAIRLINE_ROWS(() => 'border-top-width:var(--hairline);');
+  const m = await withFixture(html, (url) => measureGauntletPage(url));
+  const widths = new Set(m.borders.tally.map((e) => e.value.split(' ')[0]));
+  assert.ok(!widths.has('0.25px'), 'an overridden stylesheet rule never answers for an inline edge');
+  assert.ok(!widths.has('0.5px'), 'nor is the token resolved by guesswork');
+  assert.ok(widths.has('1px'), 'the computed reading stands');
+  assert.ok(m.warnings.some((w) => w.includes('Hairline caveat')), 'the refusal is disclosed');
+});
+
+test('hairlines: a non-px length is unresolved — parseFloat is not a unit check', async (t) => {
+  if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
+  // `parseFloat("0.5em")` is 0.5, so an edge authored .5em at a 2px font-size —
+  // which computes, and renders, at exactly 1px — was reported as a recovered
+  // 0.5px hairline. A confident wrong number, from a value the probe never had
+  // the font context to resolve. Keywords (thin/medium/thick) are the one
+  // non-px form that is DROPPED rather than flagged: they are engine-defined
+  // integers and can never be the sub-pixel case.
+  const html = '<!doctype html><title>em-width</title>' +
+    '<style>.row { font-size: 2px; border-top: 0.5em solid #123456; }</style>' +
+    HAIRLINE_ROWS(() => '');
+  const m = await withFixture(html, (url) => measureGauntletPage(url));
+  const widths = new Set(m.borders.tally.map((e) => e.value.split(' ')[0]));
+  assert.ok(!widths.has('0.5px'), 'an em length is not read as a px length');
+  assert.ok(widths.has('1px'), 'the computed reading stands');
+  assert.ok(m.warnings.some((w) => w.includes('Hairline caveat')), 'the refusal is disclosed');
 });
 
 // --- all four edges --------------------------------------------------------

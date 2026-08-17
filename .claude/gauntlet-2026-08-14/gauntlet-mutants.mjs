@@ -143,7 +143,7 @@ const SUITE = path.join(ROOT, 'test', 'design-gauntlet.test.mjs');
 // Declared, not derived. This was stale at 30 against a 37-test suite for a
 // whole round — a baseline that lags the suite makes the harness abort rather
 // than mis-measure, which is the guard working, but it also means nobody ran it.
-const EXPECTED_BASELINE = { tests: 40, pass: 40, fail: 0, skipped: 0 };
+const EXPECTED_BASELINE = { tests: 44, pass: 44, fail: 0, skipped: 0 };
 
 const MUTANTS = [
   { id: 'G1-vocab-boundary-exclusive', file: MODULE,
@@ -316,8 +316,14 @@ const MUTANTS = [
   // collected rule, `authoredSubPixel` answers null, and the engine's own
   // rounded 1px is reported as measured with no caveat — the feature inverted
   // on the likeliest real input there is, a tokenised var() width.
+  // G42 was RE-ANCHORED in round 3: its find-string named the keyword test that
+  // the unit-gate fix (G47 below) replaced, so it died exactly as the standing
+  // dead-anchor rule predicts. Same defect, same declared behaviour — drop the
+  // unresolved-expression record and the row matches no collected rule, so
+  // `authoredSubPixel` answers null and the engine's own rounded 1px is
+  // reported as measured with no caveat.
   { id: 'G42-unresolved-width-dropped', file: MODULE,
-    find: '                    else if (!/^(thin|medium|thick)$/i.test(w.trim()))\n                        unresolvedRules.push({ selector: rule.selectorText, side });\n',
+    find: '                    else if (n === "unresolved")\n                        unresolvedRules.push({ selector: rule.selectorText, side, important });\n',
     replace: '' },
   // G43 trusts the truncated table. The cap can stop MID-RULE, so what was
   // collected is not a prefix of the cascade; a kept 0.5px with the winning
@@ -327,6 +333,60 @@ const MUTANTS = [
   { id: 'G43-overflow-still-recovers', file: MODULE,
     find: '        if (ruleOverflow)\n            return "unresolved";',
     replace: '        if (false)\n            return "unresolved";' },
+  // ---- G44–G47: one per Sol ROUND-3 P1/P1/P1 fix. Same direction again — a
+  // confident wrong hairline — reached through three doors the round-2 fixes
+  // left open, plus the one the caller's own comment claimed was closed.
+  // G44 is the blocked-sheet door. It is G43's defect one gate over: an
+  // unreadable cross-origin sheet may carry the rule that WINS, so a value
+  // recovered from the sheets that did parse is a number for an edge whose
+  // authored width is unknown. Pre-fix the caller checked sheetsBlocked only
+  // AFTER accepting a recovered number, which made the recovered edges the
+  // exception to a caveat that covered every other one.
+  { id: 'G44-blocked-sheet-still-recovers', file: MODULE,
+    find: '        if (sheetsBlocked > 0)\n            return "unresolved";',
+    replace: '        if (false)\n            return "unresolved";' },
+  // G45 restores the shipped claim that inline style "stays trustworthy" —
+  // it does not, because a stylesheet declaration marked `!important` beats it.
+  // The later `if (inline && importantConflict)` line goes unreachable under
+  // this mutant, which is the pre-fix shape exactly.
+  { id: 'G45-inline-wins-unconditionally', file: MODULE,
+    find: '        const inline = el.style && el.style["border" + side + "Width"];\n        if (inline && !importantConflict) {',
+    replace: '        const inline = el.style && el.style["border" + side + "Width"];\n        if (inline) {' },
+  // G46 restores the FALL-THROUGH on an inline width this probe cannot read.
+  // `parseFloat("var(--hairline)")` is NaN, and continuing to the stylesheet
+  // scan then answers the edge with a rule the inline declaration OVERRIDES —
+  // a width that appears nowhere on the rendered page.
+  { id: 'G46-inline-unreadable-falls-through', file: MODULE,
+    find: '            const n = pxLength(inline);\n            if (typeof n === "number")\n                return n > 0 && n < 1 ? n : null;\n            return n === "unresolved" ? "unresolved" : null;\n',
+    replace: '            const n = pxLength(inline);\n            if (typeof n === "number")\n                return n > 0 && n < 1 ? n : null;\n' },
+  // G47 makes the length gate unit-BLIND, which is what `parseFloat` was: it
+  // reads "0.5em" as 0.5, so an edge authored .5em at a 2px font-size — which
+  // computes at exactly 1px — is reported as a recovered 0.5px hairline.
+  { id: 'G47-unit-blind-length', file: MODULE,
+    find: '        const m = /^([+-]?(?:\\d+\\.?\\d*|\\.\\d+))px$/i.exec(t);',
+    replace: '        const m = /^([+-]?(?:\\d+\\.?\\d*|\\.\\d+))(?:px|em|rem|pt)$/i.exec(t);' },
+  // ---- G48–G50 exist because of Sol's round-3 P2, and the finding generalises:
+  // `assert` aborts at the first failure, so a mutant declared against a test
+  // can be graded by a DIFFERENT assertion inside it. Every caveat assertion in
+  // this suite sat behind a value assertion that the value mutants redden
+  // first, which left the DISCLOSURE half of each claim unguarded. These three
+  // break the disclosure and nothing else, so each caveat assertion is reached.
+  // G48 stops the ambiguity from being COUNTED: the widths stay correct and the
+  // caveat simply never fires, which is the silent-unknown outcome the whole
+  // hairline feature exists to prevent.
+  { id: 'G48-ambiguity-not-counted', file: MODULE,
+    find: '                    else if (authored === "unresolved" || sheetsBlocked > 0)\n                        subPixelAmbiguous++;',
+    replace: '                    else if (false)\n                        subPixelAmbiguous++;' },
+  // G49 and G50 drop one NAMED cause each. The caveat still fires, so only the
+  // assertions that read the cause by name can see them — which is what makes
+  // "the caller can tell a busy page from a conflicted one" a measurement
+  // rather than a sentence in a comment.
+  { id: 'G49-cap-cause-unnamed', file: MODULE,
+    find: '            if (hairlines.ruleOverflow)\n                causes.push("the authored-rule scan hit its cap");\n',
+    replace: '' },
+  { id: 'G50-cross-origin-cause-unnamed', file: MODULE,
+    find: '                causes.push(hairlines.sheetsBlocked + " cross-origin stylesheet(s) could not be read");',
+    replace: '                causes.push("a stylesheet could not be read");' },
   // Controls — behaviour-neutral by CONSTRUCTION (object-literal key order and
   // declaration order carry no semantics), never merely unasserted.
   // Deliberately NOT a control: reordering SIDES. The previous session's log
