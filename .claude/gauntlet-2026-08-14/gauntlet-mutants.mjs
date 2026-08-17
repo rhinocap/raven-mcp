@@ -6,6 +6,78 @@
  * false-fails). Run with:  node .claude/gauntlet-2026-08-14/gauntlet-mutants.mjs
  * NEVER via `npm test` with a mutant applied — clean && tsc clobbers dist/.
  *
+ * MEASURED v12 (2026-08-17, agent-output/mutants-v12.log), 51p/0f/0s declared
+ * baseline: 60 mutants, 60 killed, 0 survived, 0 false-failed; 2 CONTROLS
+ * green; EXIT=0 and the summary line both read from INSIDE the log — a
+ * background task notification describes the WRAPPER, not the harness verdict.
+ * Pre-flight passed at 62 anchors. ONE mutant entered (G60).
+ *   ROUND 6 FOUND NOTHING BY KILL COUNT AND TWO THINGS BY HAND-GRADING, and
+ *   both were defects in CLAIMS rather than in shipped behaviour. No product
+ *   code changed this round; every edit is test-side or harness-side.
+ *   (a) G58 AND G59 FAIL ON THE IDENTICAL ASSERTION (test line 959). They are
+ *   one rule at two doors — G58 breaks the unevaluable FLAG at the @container
+ *   call site, G59 breaks the PUSH that honours it — so they are separated by
+ *   mutation SITE, not by message, and the harm message named only ONE of the
+ *   two doors. A future reader hitting that red would have chased the wrong
+ *   mechanism. Widened to name both; the following assertion still separates
+ *   the fixture reading from the two mechanism readings.
+ *   (b) THE @import TEST'S "BOTH READINGS ARE COVERED" WAS A DISJUNCTION, NOT
+ *   COVERAGE. The comment claimed either reading satisfied the assertions — a
+ *   readable sheet gives an !important conflict, a blocked one increments
+ *   sheetsBlocked. True of the ASSERTIONS and false of the FIXTURE. Measured
+ *   with a standalone probe: from a file:// page `'cssRules' in importRule` is
+ *   FALSE (the imported sheet hangs off rule.styleSheet, which is the whole
+ *   reason the recursion missed it) and `importRule.styleSheet.cssRules`
+ *   THROWS SecurityError, every time. So that test is deterministically the
+ *   BLOCKED arm — and `sheetsBlocked > 0` returns "unresolved" GLOBALLY
+ *   (src/design-gauntlet.ts:983), so it passes even if the import walk collects
+ *   nothing at all. The CONFLICT arm — an imported !important rule actually
+ *   COLLECTED and outranking the inline width, which is half of round 5's fix —
+ *   was exercised by NOTHING. A blunt refusal satisfying every assertion for
+ *   entirely the wrong reason is the shape this loop keeps finding.
+ *   The file ALREADY carried a comment 40 lines above withFixture documenting
+ *   that exact SecurityError behaviour: two comments in one file contradicted
+ *   each other for a full round, and only a measurement resolved it.
+ *   G60 IS THE SEPARATION, AND IT IS WHY G55 COULD NOT BE IT. G55 deletes the
+ *   whole rule.styleSheet branch and reddens BOTH import tests, so it cannot
+ *   tell one arm from the other. G60 forces the BLOCKED path on a READABLE
+ *   sheet: hand-graded at radius 1, on its declared assertion, with the file://
+ *   test staying GREEN. That green half is the measurement — without it the two
+ *   tests would be two names for one path.
+ *   FIVE CARRIED-OVER RADII MOVED, ALL BY +1, EVERY ONE CONFIRMED BY SET rather
+ *   than by arithmetic: no mutant LOST a red-set member, no count held while
+ *   its set changed, and no set held while its count moved.
+ *     G45 2->3 · G48 10->11 · G54 13->14 · G55 1->2 · G50 1->2.
+ *   G55's move is the only one that was STRUCTURALLY PREDICTED — it deletes the
+ *   branch both import tests exercise — and predicting it before the run is
+ *   what makes the other four readable as measurements rather than noise.
+ *   G50's move is the one worth carrying. Its added red is the file:// test,
+ *   NOT the new http one: it comes from this round's PINNING assertion, which
+ *   fixes that fixture's reading through the caveat's own wording. A pin that
+ *   no mutant can redden is a comment, and G50 is the proof this one is not.
+ *   G45/G48/G54 each gained the NEW http test, and the contrast with v11's
+ *   readable negative is the reason to state it: the FALSE @supports test
+ *   reached NO caveat mutant, because it asserts a RECOVERY only. The http test
+ *   asserts a recovery AND a caveat disclosure, so it reaches the caveat
+ *   mutants. Which mutants a test moves is evidence about what it asserts.
+ *   THE TABLE BELOW IS DERIVED FROM mutants-v12.log. Re-derive every cell from
+ *   the CURRENT log each round — it was transcribed from v8 once and shipped
+ *   wrong in two cells, and a correctly-measured delta diff cannot catch an
+ *   error inherited from a stale table.
+ *   G38 3 · G39 1 · G40 1 · G41 1 · G42 3 · G43 1 · G44 2 · G45 3 · G46 1 ·
+ *   G47 1 · G48 11 · G49 1 · G50 2 · G51 1 · G52 2 · G53 1 · G54 14 ·
+ *   G55 2 · G56 1 · G57 1 · G58 1 · G59 1 · G60 1.
+ *   v11 (agent-output/mutants-v11.log) measured 59 mutants, 0 survived, 0
+ *   controls false-failed, EXIT=0 on a 50p baseline, and is superseded here
+ *   rather than written up separately. Five radii moved v10 -> v11 (G42 2->3,
+ *   G44 1->2, G48 8->10, G52 1->2, G54 10->13) as round 5's four tests landed.
+ *   Its readable NEGATIVE is retained because v12 builds on it: the FALSE
+ *   @supports test appeared in NO carried-over mutant's red set at all.
+ *   G42'S ANCHOR DIED FOR THE SECOND TIME at v11 and the harness ABORTED rather
+ *   than mis-measuring — the uniqueness check working, and the standing
+ *   dead-anchor rule landing where it always lands: round 5's demotion arm
+ *   rewrote the exact `else if` line it was pinned to.
+ *
  * MEASURED v10 (2026-08-17, agent-output/mutants-v10.log), 46p/0f/0s declared
  * baseline: 54 mutants, 54 killed, 0 survived, 0 false-failed; 2 CONTROLS
  * green; EXIT=0 and the summary line both read from INSIDE the log. Re-run
@@ -47,19 +119,29 @@
  *   first, message naming both readings, fixture check below as the separator
  *   — and both were re-graded by hand afterwards to confirm the harm
  *   assertion now fires.
- *   G54 IS THE ROUND-3 P2 ARRIVING AGAIN AND ITS RADIUS IS THE MEASUREMENT.
- *   Every hairline test asserts a value and THEN the caveat; no value-breaking
- *   mutant reaches a caveat assertion, so all of them were comments. G54
- *   suppresses the `Hairline caveat` warning and moves no reported number:
- *   radius 10, which is exactly how many caveat assertions were unfalsifiable
- *   before it existed. One mechanism, ten observables — never ten guards.
+ *   G54 IS THE ROUND-3 P2 ARRIVING AGAIN AND ITS RADIUS IS A MEASUREMENT — BUT
+ *   NOT OF WHAT THIS PARAGRAPH FIRST CLAIMED. It suppresses the `Hairline
+ *   caveat` warning, moves no reported number, and reddens 10 tests. The first
+ *   wording read that as ten caveat assertions that "were comments before it
+ *   existed", and that is FALSE: G48 already reaches 8 of those 10 (its own red
+ *   set, v10 log line 50, is a strict subset of G54's at line 56). Only TWO are
+ *   newly reached — the rule-scan cap and the blocked-sheet caveats — because
+ *   those two tests' caveats sit behind value assertions G48 leaves green. The
+ *   correction is the file's own rule turned on the file: a radius is a fact
+ *   about ONE mechanism, and the DELTA against the mutants already in the
+ *   matrix is a separate question from the count.
  *   ZERO carried-over radii moved and ZERO red SETS changed between v9 and
  *   v10; the only delta is G54 entering. Checked by SET against the printed
  *   red names in both directions, never by arithmetic on counts — a uniform
  *   hold is exactly the shape that would hide one mechanism shrinking while
  *   another grew. G51/G52/G53 each enter at radius 1.
- *   G38 3 · G39 1 · G40 1 · G41 1 · G42 2 · G43 1 · G44 1 · G45 1 · G46 1 ·
- *   G47 1 · G48 6 · G49 1 · G50 1 · G51 1 · G52 1 · G53 1 · G54 10.
+ *   THE TABLE BELOW IS DERIVED FROM mutants-v10.log, NOT FROM THE v8 HEADER.
+ *   It was transcribed from v8 once and shipped WRONG in two cells — G45 and
+ *   G48 both moved at v8 -> v9 when the two round-4 tests landed, and a
+ *   correctly-measured v9 -> v10 delta diff cannot catch an error inherited
+ *   from v8. Re-derive every cell from the CURRENT log each round.
+ *   G38 3 · G39 1 · G40 1 · G41 1 · G42 2 · G43 1 · G44 1 · G45 2 · G46 1 ·
+ *   G47 1 · G48 8 · G49 1 · G50 1 · G51 1 · G52 1 · G53 1 · G54 10.
  *   v9 (agent-output/mutants-v9.log) measured 53/53/0/0 on the same 46p
  *   baseline and is superseded ONLY because G52 was mis-graded there; no
  *   product code differs between v9 and v10.
@@ -257,7 +339,7 @@ const SUITE = path.join(ROOT, 'test', 'design-gauntlet.test.mjs');
 // Declared, not derived. This was stale at 30 against a 37-test suite for a
 // whole round — a baseline that lags the suite makes the harness abort rather
 // than mis-measure, which is the guard working, but it also means nobody ran it.
-const EXPECTED_BASELINE = { tests: 46, pass: 46, fail: 0, skipped: 0 };
+const EXPECTED_BASELINE = { tests: 51, pass: 51, fail: 0, skipped: 0 };
 
 const MUTANTS = [
   { id: 'G1-vocab-boundary-exclusive', file: MODULE,
@@ -437,7 +519,14 @@ const MUTANTS = [
   // `authoredSubPixel` answers null and the engine's own rounded 1px is
   // reported as measured with no caveat.
   { id: 'G42-unresolved-width-dropped', file: MODULE,
-    find: '                    else if (n === "unresolved")\n                        unresolvedRules.push({ selector: rule.selectorText, side, important });\n',
+    // ANCHOR RE-CUT FOR v11 (second time for this mutant): round 5 rewrote this
+    // exact line, adding the `unevaluable` demotion arm to the same else-if.
+    // The harness ABORTED on it rather than mis-measuring, which is the
+    // uniqueness check working. The edit's INTENT is unchanged — delete the
+    // unresolved push — but its blast radius is now wider by construction,
+    // because the same branch also carries the demotion G59 targets from the
+    // other side. That is a fact about the branch, not a second guard.
+    find: '                    else if (n === "unresolved" || (unevaluable && typeof n === "number"))\n                        unresolvedRules.push({ selector: rule.selectorText, side, important });\n',
     replace: '' },
   // G43 trusts the truncated table. The cap can stop MID-RULE, so what was
   // collected is not a prefix of the cascade; a kept 0.5px with the winning
@@ -536,6 +625,71 @@ const MUTANTS = [
   { id: 'G54-hairline-caveat-undisclosed', file: MODULE,
     find: '        if (hairlines.subPixelAmbiguous > 0 || hairlines.sheetsBlocked > 0 || hairlines.ruleOverflow) {',
     replace: '        if (false) {' },
+  // ROUND 5 (G55-G59). The round-4 header called the scan complete for the
+  // sources this probe can read. It was not, and BOTH P1s are the round-4
+  // shape again: a cascade source the probe cannot SEE, producing a confident
+  // wrong hairline — the outcome this feature exists to prevent — reached
+  // through doors round 4 did not enumerate. Fourth consecutive round to
+  // demonstrate that a matrix measures the mechanisms it NAMES and is blind to
+  // the ones nobody thought of.
+  // G55 — @import is a THIRD rule source and it is reached through a DIFFERENT
+  // property: CSSOM gives a CSSImportRule no `cssRules` at all, exposing the
+  // imported sheet as `rule.styleSheet`, so the recursion never saw one. The
+  // mutant restores that blindness exactly (the rule then falls to the
+  // `rule.cssRules` test, which is undefined, and is skipped entirely).
+  { id: 'G55-import-sheet-unscanned', file: MODULE,
+    find: '            if (rule.styleSheet) {\n                if (rule.media && rule.media.mediaText) {',
+    replace: '            if (false) {\n                if (rule.media && rule.media.mediaText) {' },
+  // G56 — FINISHED IS NOT GONE. `animation-fill-mode: forwards|both` keeps
+  // applying the final keyframe after the animation ends, and an
+  // animation-origin value outranks every normal author declaration, inline
+  // included. The mutant restores the unconditional skip on `finished`.
+  { id: 'G56-finished-fill-ignored', file: MODULE,
+    find: '                    if (fill === "none" || fill === "backwards")\n                        continue;',
+    replace: '                    if (true)\n                        continue;' },
+  // G57 — the OTHER direction from G55/G56: a false AMBIGUITY, not a false
+  // recovery. The old conditional-group test asked `rule.media &&
+  // rule.conditionText`, and CSSSupportsRule has conditionText and NO media, so
+  // every @supports branch was recursed into as though active. The mutant makes
+  // the evaluated verdict inert, collecting rules that are not on this render.
+  { id: 'G57-supports-branch-blind', file: MODULE,
+    find: '                    if (applies === false)\n                        continue;',
+    replace: '                    if (false)\n                        continue;' },
+  // G58/G59 are ONE RULE AT TWO DOORS and both redden the SAME single test,
+  // separated only by which mechanism they break — the V14/V16 and V21/V22
+  // pattern. A container query is decided by a box this probe is not reading,
+  // so its subtree degrades to UNRESOLVED: it can force an honest ambiguity and
+  // can never be handed back as a recovered answer. G58 breaks the FLAG at the
+  // call site (the block becomes ordinary nested rules); G59 breaks the PUSH
+  // that honours it (widths under an unevaluable condition land in
+  // authoredRules again). Either way the container width is recovered.
+  { id: 'G58-container-treated-as-plain', file: MODULE,
+    find: '                    collectRules(rule.cssRules, true);\n                    continue;',
+    replace: '                    collectRules(rule.cssRules, unevaluable);\n                    continue;' },
+  { id: 'G59-unevaluable-push-ignored', file: MODULE,
+    find: '                    if (typeof n === "number" && !unevaluable)',
+    replace: '                    if (typeof n === "number")' },
+  // G60 — ROUND 6, and it exists because HAND-GRADING the round-5 matrix found
+  // a claim in a comment that a kill could never have caught. The file://
+  // @import fixture asserted that "either reading is covered": readable sheet
+  // gives an !important conflict, blocked sheet increments sheetsBlocked. That
+  // is true of the assertions and FALSE of the fixture — measured directly, a
+  // file:// import throws SecurityError on .cssRules every time, so the
+  // conflict arm was exercised by NOTHING while a green test looked like it
+  // covered both. G55 cannot separate them (it deletes the whole branch and
+  // reddens both import tests). G60 forces the BLOCKED path on a readable
+  // sheet, which leaves the file:// test green and the http test red on its
+  // discriminator — the ABSENCE of the cross-origin cause in the caveat. (That
+  // assertion was DRAFTED as `sheetsBlocked === 0` and could not ship: the
+  // counters are destructured out at src/design-gauntlet.ts:617 and never
+  // re-emitted, so they surface only as warning TEXT. The wording is the better
+  // discriminator anyway — it names the mechanism instead of a number, and
+  // adding `hairlines` to the public type to satisfy a test would be a product
+  // change made for a test's convenience.) That is the arm proving the imported
+  // rules are actually COLLECTED rather than blanket-refused.
+  { id: 'G60-readable-import-forced-blocked', file: MODULE,
+    find: '                try {\n                    collectRules(rule.styleSheet.cssRules, unevaluable);\n                }',
+    replace: '                try {\n                    throw new Error("forced");\n                }' },
   // Controls — behaviour-neutral by CONSTRUCTION (object-literal key order and
   // declaration order carry no semantics), never merely unasserted.
   // Deliberately NOT a control: reordering SIDES. The previous session's log

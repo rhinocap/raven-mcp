@@ -796,7 +796,11 @@ function probeInPage({ vpW, vpH }: { vpW: number; vpH: number }) {
     return m ? parseFloat(m[1]) : "unresolved";
   };
 
-  const collectRules = (rules: CSSRuleList): void => {
+  // `unevaluable` marks a subtree whose enclosing condition this probe could not
+  // decide (an @container query today). Its widths are recorded as UNRESOLVED
+  // rather than authored, so they can force an honest ambiguity but can never
+  // be handed back as a recovered answer.
+  const collectRules = (rules: CSSRuleList, unevaluable = false): void => {
     for (const rule of Array.from(rules) as any[]) {
       // Both collections are bounded by the ONE cap — they are two halves of the
       // same scan, and counting only one of them lets the other grow unbounded.
@@ -821,18 +825,67 @@ function probeInPage({ vpW, vpH }: { vpW: number; vpH: number }) {
           // Keywords are engine-defined integers, never the sub-pixel case this
           // recovers, so they are dropped. Anything else that is not a px length
           // is an unresolved expression and is recorded as one.
-          if (typeof n === "number") authoredRules.push({ selector: rule.selectorText, side, width: n, important });
-          else if (n === "unresolved") unresolvedRules.push({ selector: rule.selectorText, side, important });
+          if (typeof n === "number" && !unevaluable) authoredRules.push({ selector: rule.selectorText, side, width: n, important });
+          // A keyword stays DROPPED even under an unevaluable condition: it is
+          // an engine-defined integer and can never be the sub-pixel case, so
+          // demoting it would manufacture ambiguity out of nothing.
+          else if (n === "unresolved" || (unevaluable && typeof n === "number")) unresolvedRules.push({ selector: rule.selectorText, side, important });
         }
       }
-      // @media / @supports / @layer carry nested rules, as does a nesting style
-      // rule. A media block that does not currently apply is skipped: its
-      // widths are not on this render.
+      // @import is a THIRD rule source and it is reached through a different
+      // property: CSSOM gives CSSImportRule no `cssRules` at all, exposing the
+      // imported sheet as `rule.styleSheet` instead, so the recursion below
+      // never saw one — while the cascade places an imported sheet's rules as
+      // though substituted at the @import. An imported `!important` width
+      // therefore outranked the inline declaration invisibly and the inline
+      // fast path confidently recovered a 0.5px edge rendering at 1px: the
+      // adopted-stylesheet defect again, through a third door. A cross-origin
+      // import throws on .cssRules exactly like a cross-origin <link> and is
+      // counted the same way, which is what makes it stop every recovery.
+      if (rule.styleSheet) {
+        if (rule.media && rule.media.mediaText) {
+          try { if (!matchMedia(rule.media.mediaText).matches) continue; } catch { /* unparsable: fall through */ }
+        }
+        try { collectRules(rule.styleSheet.cssRules, unevaluable); } catch { sheetsBlocked++; }
+        continue;
+      }
+      // @media / @supports / @container / @layer carry nested rules, as does a
+      // nesting style rule. A block that does not currently apply is skipped:
+      // its widths are not on this render.
       if (rule.cssRules) {
+        // Discriminate by rule TYPE, never by shape. The previous check asked
+        // for `rule.media && rule.conditionText`, and CSSSupportsRule has
+        // conditionText and NO media — so every @supports branch was recursed
+        // into as though active, false ones included. A shape test also cannot
+        // separate @supports from @container: `CSS.supports("(min-width:400px)")`
+        // answers TRUE about a DECLARATION while the identical text is a
+        // container query about a box.
+        const isSupports = typeof CSSSupportsRule !== "undefined" && rule instanceof CSSSupportsRule;
+        const isContainer = typeof (window as any).CSSContainerRule !== "undefined" && rule instanceof (window as any).CSSContainerRule;
+        if (isSupports) {
+          // Only the engine can evaluate a supports condition; this probe
+          // cannot parse one, and a condition it cannot decide must not CLAIM
+          // the block applies.
+          let applies: boolean | null = null;
+          try { applies = CSS.supports(rule.conditionText); } catch { applies = null; }
+          if (applies === false) continue;
+          collectRules(rule.cssRules, unevaluable || applies === null);
+          continue;
+        }
+        if (isContainer) {
+          // A container query's answer depends on a box this probe is not
+          // looking at, so it is UNEVALUABLE rather than false — recorded as
+          // unresolved, which degrades to a stated ambiguity and never to a
+          // recovery. Anything the platform adds next falls through to the
+          // plain recursion below and can produce a false ambiguity: a known,
+          // bounded residual in the honest direction.
+          collectRules(rule.cssRules, true);
+          continue;
+        }
         if (rule.media && rule.conditionText) {
           try { if (!matchMedia(rule.conditionText).matches) continue; } catch { /* unparsable: fall through */ }
         }
-        collectRules(rule.cssRules);
+        collectRules(rule.cssRules, unevaluable);
       }
     }
   };
@@ -875,9 +928,27 @@ function probeInPage({ vpW, vpH }: { vpW: number; vpH: number }) {
     } catch { return true; }
     for (const a of anims) {
       try {
-        // A finished or idle animation contributes nothing to the cascade.
+        // An idle animation contributes nothing. FINISHED does not mean gone:
+        // `animation-fill-mode: forwards|both` keeps applying the final
+        // keyframe value after the animation ends, and an animation-origin
+        // value outranks EVERY normal author declaration, inline included — so
+        // skipping on `finished` handed back a confident 0.5px for an edge the
+        // engine paints at 1px. A finished animation is skippable only when its
+        // resolved fill cannot reach past the end (`none` or `backwards`); a
+        // fill this probe cannot read falls through and refuses, like every
+        // other unreadable thing here. Falling THROUGH rather than returning
+        // true keeps the per-property discipline: a finished forwards animation
+        // on border-radius still must not poison a border-width reading.
         const state = a.playState;
-        if (state === "finished" || state === "idle") continue;
+        if (state === "idle") continue;
+        if (state === "finished") {
+          let fill: string | null = null;
+          try {
+            const t = a.effect && typeof a.effect.getComputedTiming === "function" ? a.effect.getComputedTiming() : null;
+            fill = t && typeof t.fill === "string" ? t.fill : null;
+          } catch { fill = null; }
+          if (fill === "none" || fill === "backwards") continue;
+        }
         if (a.transitionProperty) {
           if (a.transitionProperty === hyphen || a.transitionProperty === "all") return true;
           continue;

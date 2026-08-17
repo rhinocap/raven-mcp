@@ -581,3 +581,292 @@ a run with no skips. `node --test` emits `﹣` (U+FE63) as its skip marker here.
 The silence was re-grepped rather than accepted.
 
 **Nothing is committed or pushed and nothing is on npm.**
+
+---
+
+## Round 5 — Sol verdict DOES NOT SURVIVE (2 P1 + 2 P2 + 2 P3)
+
+Fourth consecutive round to demonstrate the same thing: **a matrix measures the
+mechanisms it NAMES and is blind to the ones nobody thought of.** Round 4's
+header claimed the cascade scan was complete "for the sources this probe can
+read". It was not, and both P1s are round 4's own shape one door over — a
+cascade source the probe cannot SEE, producing a confident wrong hairline.
+
+### The two self-corrections owed from round 4, both mine, both now applied
+
+1. **The v10 radius table was transcribed from the v8 header, not derived from
+   the v10 log.** Two cells shipped wrong: **G45 1 → 2** and **G48 6 → 8**. Both
+   moved at **v8 → v9**, when the two round-4 tests landed. My v9 → v10 *delta*
+   diff was correct and could not have caught this, because the error was
+   inherited from a version older than the delta. Verified against
+   `mutants-v10.log` lines 47 and 50, which print the red SETS. The rule now
+   sits in the header: **re-derive every cell from the CURRENT log each round.**
+2. **G54's radius of 10 was described as "exactly how many caveat assertions
+   were comments before it existed". False.** G48's red set (v10 log line 50) is
+   a strict subset of G54's (line 56): G48 already reached **8** of those 10.
+   Only **2** were newly reached — the rule-scan-cap and blocked-sheet caveats,
+   whose value assertions G48 leaves green. A radius is a fact about one
+   mechanism; the DELTA against the mutants already in the matrix is a separate
+   question from the count.
+
+### The four product fixes (`src/design-gauntlet.ts`)
+
+- **`@import` is a THIRD rule source, reached through a DIFFERENT property.**
+  CSSOM gives a `CSSImportRule` **no `cssRules` at all** — the imported sheet
+  hangs off `rule.styleSheet` — so the recursion never descended into one. An
+  `!important` rule in an imported sheet outranks an inline width, and the probe
+  answered from inline anyway. Now recursed, with the same blocked-sheet
+  accounting (a cross-origin imported sheet increments `sheetsBlocked`, which
+  stops every recovery).
+- **`finished` is not gone.** `animation-fill-mode: forwards|both` keeps applying
+  the final keyframe after `playState === "finished"`, and an animation-origin
+  value outranks every normal author declaration including inline. The gate
+  skipped every finished animation. Only a resolved fill of `none`/`backwards`
+  is skippable now, read via `getComputedTiming()`.
+- **A FALSE `@supports` branch was recursed into as though active** — the
+  conditional-group test asked `rule.media && rule.conditionText`, and
+  `CSSSupportsRule` has `conditionText` and NO `media`. That is the OTHER
+  direction: a false AMBIGUITY, not a false recovery. Rules that are not on this
+  render were collected and then reported as a conflict.
+- **`@container` degrades to UNRESOLVED, deliberately.** A shape test cannot
+  separate `@supports` from `@container`, and it must not try:
+  `CSS.supports("(min-width:400px)")` answers TRUE about a *declaration* while
+  identical text is a container query about a *box* this probe is not reading.
+  So the subtree is marked unevaluable — widths under it land in
+  `unresolvedRules`, where they can force an honest ambiguity and can never be
+  handed back as a recovered answer. **The trade is stated rather than hidden:**
+  it costs a correct recovery when the query DOES apply, and that is the
+  survivable direction, because the same path with a FALSE query would recover a
+  width that is not on the render at all.
+
+Discrimination is by **TYPE** (`instanceof CSSSupportsRule` /
+`window.CSSContainerRule`), never by shape — the round's transferable rule.
+
+### Two harm-message widenings (Sol P3b)
+
+Round 4's reorder put harm first and named **two** readings. There are **three**:
+the probe misbehaving, a fixture whose sheet/animation never applied, and a
+fixture that applied the **wrong value**. Naming two when a third exists
+mis-attributes a fixture defect as product harm just as confidently as naming
+one. Both messages now name all three, with the fixture check below as separator.
+
+### Four new tests
+
+Each fixture had to be designed against `authoredSubPixel()`'s **decision order**
+rather than assumed, or it would measure nothing:
+
+- **`@import`** — both readings are covered by the same three assertions. If the
+  sibling sheet is readable its `!important` rule is a conflict; if Chromium
+  blocks a `file://` sibling read it increments `sheetsBlocked`, which stops
+  every recovery. Robust either way.
+- **finished-forwards** — `0.01s linear forwards` finishes long before the
+  measurement while `getAnimations()` still returns it.
+- **false `@supports`** — the false branch must carry `!important`, so the
+  pre-fix code produces a false ambiguity (the observable) and the post-fix code
+  recovers the honest inline `0.5px`.
+- **`@container`** — must have **no inline width** and a **non-important**
+  declaration. With either, old and new code answer identically and the test
+  measures nothing: a non-important `unresolvedRules` entry only forces
+  "unresolved" on the no-inline path.
+
+All four passed on their **first run**, which is worth nothing until a mutant
+proves them red — the seventh time this project has recorded that.
+
+### Gauntlet suite
+
+`.claude/gauntlet-2026-08-14/agent-output/suite-r6.log`: **50 tests / 50 pass /
+0 fail / 0 skipped**, EXIT=0, all four new tests present by name with `✔`.
+
+### Matrix v11 — five new mutants, and a dead anchor
+
+G55 (`@import` invisible again) · G56 (unconditional `finished` skip) · G57
+(false `@supports` branch collected) · G58 / G59 (**one rule at two doors** —
+G58 breaks the unevaluable FLAG at the container call site, G59 breaks the PUSH
+that honours it; both redden the same single test, separated only by which
+mechanism they break — the V14/V16 and V21/V22 pattern).
+
+**G42's anchor died for the SECOND time** and the harness ABORTED rather than
+mis-measuring — the uniqueness check working, and the standing dead-anchor rule
+landing exactly where it always lands: round 5's demotion arm rewrote the exact
+`else if` line G42 was pinned to. Re-cut with its intent unchanged, and its
+blast radius is now wider **by construction**, because that one branch also
+carries the demotion G59 targets from the other side.
+
+`EXPECTED_BASELINE` bumped 46 → 50. Pre-flight: **61 mutants anchor uniquely and
+parse.**
+
+**Nothing is committed or pushed and nothing is on npm.**
+
+**Matrix v11 — measured.** `59 mutants, 0 survived, 0 controls false-failed`,
+`EXIT=0` read from INSIDE the log, against a declared 50/50/0/0 baseline; both
+controls green. Exactly **five** carried-over radii moved, and every one was
+confirmed by a red-set diff rather than by the arithmetic — no set changed while
+its count held, no count moved while its set held, and **no mutant LOST a
+red-set member**:
+
+| mutant | v10 | v11 | ADDED to red set |
+|---|---|---|---|
+| G42-unresolved-width-dropped | 2 | 3 | @container |
+| G44-blocked-sheet-still-recovers | 1 | 2 | @import |
+| G48-ambiguity-not-counted | 8 | 10 | finished-forwards, @container |
+| G52-animation-gate-dropped | 1 | 2 | finished-forwards |
+| G54-hairline-caveat-undisclosed | 10 | 13 | finished-forwards, @container, @import |
+
+The readable NEGATIVE is the load-bearing half: the FALSE `@supports` test
+appears in **no** carried-over mutant's red set at all. That is consistent with
+it being the only one of the four new tests asserting a *recovery* rather than
+an *ambiguity* — it carries no caveat assertion for G48 or G54 to reach. A test
+that moved nothing is evidence about what it measures, not a test that measures
+nothing.
+
+### Round 6 — found by HAND-GRADING, which a kill count structurally cannot produce
+
+Both findings are defects in **claims**, not in shipped behaviour, and neither
+was reachable from the matrix summary. Hand-grading means applying the mutant to
+`dist/` and reading the `AssertionError` — asking WHICH assertion fired, not
+whether something did.
+
+**(a) G58 and G59 fail on the IDENTICAL assertion (line 959).** They are one
+rule at two doors — G58 breaks the unevaluable FLAG at the `@container` call
+site, G59 breaks the PUSH that honours it — so they are separated by mutation
+SITE, not by message, and the harm message named only one of the two doors. A
+future reader hitting that red would have chased the wrong mechanism. Widened to
+name both, plus the fixture reading, with the next assertion doing the
+separating.
+
+**(b) The `@import` test's "both readings are covered" was a DISJUNCTION, not
+coverage.** The comment claimed either reading satisfied the assertions — a
+readable sheet gives an `!important` conflict, a blocked one increments
+`sheetsBlocked`. True of the ASSERTIONS and false of the FIXTURE. Measured with
+a standalone probe: from a `file://` page `'cssRules' in importRule` is **false**
+(the imported sheet hangs off `rule.styleSheet`, which is the entire reason the
+recursion missed it) and `importRule.styleSheet.cssRules` **throws
+SecurityError**, every time. So that test is deterministically the BLOCKED arm —
+and `sheetsBlocked > 0` returns `"unresolved"` **globally**
+(`src/design-gauntlet.ts:983`), so it would pass even if the import walk
+collected nothing at all. **The conflict arm — an imported `!important` rule
+actually COLLECTED and outranking the inline width, which is half of round 5's
+fix — was exercised by nothing.** A blunt refusal satisfying every assertion for
+entirely the wrong reason is the shape this loop keeps finding.
+
+Notably the file **already contained a comment 40 lines above `withFixture`
+documenting that exact SecurityError behaviour** — two comments in one file
+contradicted each other for a full round, and only a measurement resolved it.
+
+Closed with four things. `withHttpFixture` serves the page and its imported
+sheet over loopback http so the import is same-origin and readable, each
+response carrying an explicit `Content-Type` (a stylesheet served as `text/html`
+is not applied in standards mode, and the fixture would then measure nothing
+while still looking like a passing test). A new test grades the conflict arm,
+and **the ABSENCE of the cross-origin cause in the caveat is its whole
+discriminator** — without that assertion a mutant forcing the blocked path keeps
+it green while deleting the mechanism it exists to guard. The `file://` test's
+reading is now PINNED through the caveat's own wording rather than assumed. And
+**G60** forces the blocked path on a readable sheet: hand-graded at radius 1, on
+its declared assertion, **with the `file://` test staying GREEN** — which is the
+measurement that proves the two arms are genuinely separated rather than two
+names for one path. G55 cannot do that job; it deletes the whole branch and
+reddens both.
+
+The probe grew a loopback `listen` in the same edit, because **a probe covers
+every environmental prerequisite the tests use, not just the most obvious one** —
+adding an http fixture obliges it. The `listen` gets its own `once('error')`
+listener: an emitted `'error'` with nothing listening throws from the EVENT
+LOOP, outside any surrounding try/catch, and can therefore never be classified.
+
+One thing was deliberately NOT done: `m.hairlines` does not exist on the outer
+measurement (`src/design-gauntlet.ts:617` destructures it out and the counters
+surface only as warning text), and the fix was to assert on the two separately
+worded caveat causes — **not** to add `hairlines` to the public
+`GauntletMeasurement` type. That would be a product change made to satisfy a
+test, and the caveat wording is the better discriminator here anyway, because it
+names the mechanism instead of a number.
+
+Suite: **51 tests / 51 pass / 0 fail / 0 skipped, EXIT=0**
+(`agent-output/suite-r7.log`). `EXPECTED_BASELINE` bumped 50 → 51.
+
+**Nothing is committed or pushed and nothing is on npm.**
+
+## Matrix v12 — measured, and read from inside its own log
+
+`.claude/gauntlet-2026-08-14/agent-output/mutants-v12.log`:
+
+```
+summary: 60 mutants, 0 survived, 0 controls false-failed
+EXIT=0
+```
+
+Declared baseline 51p/0f/0s; pre-flight passed at 62 anchors (60 mutants + 2
+controls). Both controls green (`C1-control-key-order-swap`,
+`C2-control-decl-order-swap`).
+
+The first background task notification for this run reported exit 0 while the
+matrix had produced only its pre-flight line — **a notification describes the
+WRAPPER, not the harness verdict**, so `EXIT=` was taken from inside the file.
+The Monitor was written to fire on `EXIT=` *or* on the harness process vanishing
+without one, because silence is not success.
+
+### v11 → v12 radius delta, diffed BY SET in both directions
+
+Computed by parsing both logs and comparing radius counts AND red-name sets, with
+an explicit check for the two shapes arithmetic cannot see: a count that held
+while its set changed, and a set that held while its count moved. **59 v11
+mutants, 60 v12; G60 is the only entrant, none departed; exactly five
+carried-over radii moved, every one +1, every one with an ADDED member, ZERO
+lost members, ZERO count/set mismatches.**
+
+| mutant | v11 | v12 | ADDED to red set |
+|---|---|---|---|
+| G45-inline-wins-unconditionally | 2 | 3 | READABLE-import conflict-arm test |
+| G48-ambiguity-not-counted | 10 | 11 | READABLE-import conflict-arm test |
+| G50-cross-origin-cause-unnamed | 1 | 2 | the `file://` @import test |
+| G54-hairline-caveat-undisclosed | 13 | 14 | READABLE-import conflict-arm test |
+| G55-import-sheet-unscanned | 1 | 2 | READABLE-import conflict-arm test |
+
+Three readings worth carrying.
+
+**G55's move was STRUCTURALLY PREDICTED before the run** — it deletes the whole
+`rule.styleSheet` branch, so it *must* redden both import tests once a second one
+exists. Predicting one cell in advance is what makes the other four readable as
+measurements rather than as noise.
+
+**G50 widened on the `file://` test, not on the new one.** That red comes from
+this round's *pinning* assertion — the one fixing that fixture's reading through
+the caveat's own wording. A pin no mutant can redden is a comment; G50 is the
+measurement proving this one is falsifiable.
+
+**G45/G48/G54 each gained the new http test, and v11's readable negative is why
+that is worth stating.** In v11 the FALSE `@supports` test appeared in NO
+carried-over mutant's red set at all, because it asserts a RECOVERY only. The new
+http test asserts a recovery (`!widths.has('0.5px')`) AND a caveat disclosure, so
+it reaches the caveat mutants. Which mutants a test moves is evidence about what
+that test asserts.
+
+The harness header was rewritten as a MEASURED v12 block, with the entire radius
+roster re-derived from `mutants-v12.log` — v10 and v11 demoted to history. The
+roster had been carrying **v10** values through the whole of v11, which is
+exactly the decay the file's own standing rule warns about ("it was transcribed
+from v8 once and shipped wrong in two cells"), and a correctly-measured delta
+diff cannot catch an error inherited from a stale table.
+
+## Round 6 close-out
+
+Full suite: **1590 tests / 1587 pass / 0 fail / 3 skipped, EXIT=0**
+(`agent-output/full-suite-r7.log`), `EXIT=` read from inside the file. Its **+1**
+over the previously ledgered 1589 is exactly the one new browser test — the
+READABLE-import conflict-arm test. Every round-6 harness edit, the pinned
+`file://` reading, the widened `@container` message and G60 move the count by
+ZERO.
+
+**The 3 skips are the same three, read INDIVIDUALLY at output lines 109/765/766**
+— the file-URL fallback notice and the two removed-capability phase2 tests — not
+inferred from the total. All seventeen `hairlines:` tests were confirmed to have
+RUN by name at log lines 351–367, the new one at 363. Grepping the word
+"skipped" is the wrong instrument here and says so out loud: line 365 is a
+PASSING test whose own name contains it (`a FALSE @supports branch is skipped`).
+
+Sol round 6 was fired against `SOL-BRIEF-R6.md` (nine claims, covering rounds 5
+and 6, with round 6's own method claim — *a kill is not evidence the declared
+assertion fired* — offered up as claim 9 for falsification).
+
+**Nothing is committed or pushed and nothing is on npm.**

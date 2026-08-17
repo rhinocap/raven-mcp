@@ -25,6 +25,7 @@ import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { createServer } from 'node:http';
 
 import {
   vocabularyCount,
@@ -411,12 +412,30 @@ try {
   try {
     const probePath = join(probeDir, 'probe.html');
     await writeFile(probePath, '<!doctype html><title>probe</title>');
-    const b = await chromium.launch({ headless: true });
+    // A loopback LISTEN is a second environmental prerequisite as of round 6:
+    // `withHttpFixture` needs one, and a probe narrower than the tests it gates
+    // reports an environment failure as a product defect (this repo's own
+    // round-6 alignment lesson, arrived at here independently). `listen` gets
+    // its own 'error' listener because an emitted 'error' with nothing
+    // listening throws from the EVENT LOOP, outside any surrounding try/catch,
+    // and can therefore never be classified.
+    const probeServer = createServer((_req, res) => { res.end('probe'); });
+    await new Promise((resolve, reject) => {
+      probeServer.once('error', reject);
+      probeServer.listen(0, '127.0.0.1', resolve);
+    });
     try {
-      const p = await b.newPage();
-      await p.goto(pathToFileURL(probePath).href);
+      const b = await chromium.launch({ headless: true });
+      try {
+        const p = await b.newPage();
+        await p.goto(pathToFileURL(probePath).href);
+        const r = await p.goto('http://127.0.0.1:' + probeServer.address().port + '/');
+        if (!r || !r.ok()) throw new Error('loopback probe navigation failed');
+      } finally {
+        await b.close();
+      }
     } finally {
-      await b.close();
+      await new Promise((resolve) => probeServer.close(resolve));
     }
     gauntletChromiumOk = true;
   } finally {
@@ -441,6 +460,38 @@ const withFixture = async (html, fn, extra) => {
     return await fn(pathToFileURL(file).href);
   } finally {
     await rm(dir, { recursive: true, force: true });
+  }
+};
+
+// The SAME-ORIGIN counterpart, and it exists because a measurement showed the
+// file:// @import fixture below can only ever exercise ONE of the two arms its
+// comment claimed to cover. Measured with a standalone probe: from a file://
+// page, `'cssRules' in importRule` is FALSE (the imported sheet hangs off
+// `rule.styleSheet`, which is the whole reason the recursion missed it) and
+// `importRule.styleSheet.cssRules` THROWS SecurityError — so that fixture is
+// deterministically the sheetsBlocked path, and `sheetsBlocked > 0` refuses
+// every recovery globally. The CONFLICT arm — an imported !important rule
+// COLLECTED and outranking the inline width — was exercised by nothing. Served
+// over loopback http the import is same-origin and readable, which is the only
+// way to reach it. Each response carries an explicit Content-Type: a stylesheet
+// served as text/html is not applied in standards mode, and the fixture would
+// then measure nothing while still looking like a passing test.
+const withHttpFixture = async (files, fn) => {
+  const server = createServer((req, res) => {
+    const name = (req.url || '/').replace(/^\//, '').split('?')[0] || 'page.html';
+    const body = files[name];
+    if (body === undefined) { res.statusCode = 404; res.end('no ' + name); return; }
+    res.setHeader('Content-Type', name.endsWith('.css') ? 'text/css' : 'text/html; charset=utf-8');
+    res.end(body);
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  try {
+    return await fn('http://127.0.0.1:' + server.address().port + '/page.html');
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
   }
 };
 
@@ -808,13 +859,17 @@ test('hairlines: an ADOPTED stylesheet is part of the cascade this probe reads',
   // HARM FIRST. `assert` aborts at the first failure, so a probe-derived
   // precondition placed above the harm assertion is graded INSTEAD of it: G51
   // regresses the scan, the tally loses its 1px, and the reader is told the
-  // FIXTURE is broken. The two are indistinguishable from this output alone —
-  // a fixture whose adopted sheet never applied produces the identical tally —
-  // so the harm message names both readings and the fixture check follows it.
+  // FIXTURE is broken. The readings are indistinguishable from this output
+  // alone — a fixture whose adopted sheet never applied, and one that applied
+  // the WRONG value, both produce the identical tally — so the harm message
+  // names all THREE and the fixture check follows it. The third reading was a
+  // Sol round-5 P3: naming two readings when a third exists mis-attributes a
+  // fixture defect as product harm just as confidently as naming one.
   assert.ok(!widths.has('0.5px'),
     'an adopted !important rule outranks the inline declaration — a 0.5px here is EITHER the probe ' +
-    'trusting inline over an adopted rule OR a fixture whose adopted sheet never applied; the next ' +
-    'assertion separates them');
+    'trusting inline over an adopted rule, OR a fixture whose adopted sheet never applied, OR a ' +
+    'fixture whose adopted rule declares the wrong width; the next assertion separates the first from ' +
+    'the other two');
   assert.ok(widths.has('1px'), 'fixture: the adopted rule actually renders at 1px');
   assert.ok(m.warnings.some((w) => w.includes('Hairline caveat')), 'the refusal is disclosed');
 });
@@ -840,7 +895,8 @@ test('hairlines: a side under an ACTIVE animation is unresolved, never recovered
   // precondition on top, G52 was graded by it and reported as a broken fixture.
   assert.ok(!widths.has('0.5px'),
     'an animated border-width is not answered from the inline declaration — a 0.5px here is EITHER ' +
-    'the gate missing OR a fixture whose animation never applied; the next assertion separates them');
+    'the gate missing, OR a fixture whose animation never applied, OR a fixture whose keyframe ' +
+    'declares the wrong width; the next assertion separates the first from the other two');
   assert.ok(widths.has('1px'), 'fixture: the animation actually forces 1px');
   assert.ok(m.warnings.some((w) => w.includes('Hairline caveat')), 'the refusal is disclosed');
 
@@ -851,6 +907,159 @@ test('hairlines: a side under an ACTIVE animation is unresolved, never recovered
   const m2 = await withFixture(other, (url) => measureGauntletPage(url));
   const w2 = new Set(m2.borders.tally.map((e) => e.value.split(' ')[0]));
   assert.ok(w2.has('0.5px'), 'an animation on ANOTHER property does not poison the reading');
+});
+
+test('hairlines: an @import is a THIRD rule source, reached through a different property', async (t) => {
+  if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
+  // Round 4 closed `document.adoptedStyleSheets` and called the scan complete
+  // for the sources this probe can read. It was not: CSSOM gives a
+  // `CSSImportRule` NO `cssRules` at all — the imported sheet hangs off
+  // `rule.styleSheet` — so the recursion that walks nested rules never saw one,
+  // while the cascade places the imported rules as though substituted at the
+  // @import. An imported `!important` width therefore outranked the inline
+  // declaration invisibly and the inline fast path confidently recovered a
+  // 0.5px edge the engine paints at 1px. The adopted-stylesheet defect again,
+  // through a third door.
+  // WHICH ARM THIS FIXTURE EXERCISES IS MEASURED, NOT A DISJUNCTION. The first
+  // version of this comment said either reading was fine — readable sheet gives
+  // an !important conflict, blocked sheet increments sheetsBlocked — and that
+  // is true of the ASSERTIONS and false of this fixture: probed directly, a
+  // file:// import throws SecurityError on `.cssRules` every time, so this test
+  // is deterministically the BLOCKED path and the conflict arm was exercised by
+  // nothing at all. `sheetsBlocked` is asserted below so the reading is pinned
+  // rather than assumed, and the http test that follows covers the other arm.
+  // A disjunction in a comment is not coverage of both branches.
+  const html = '<!doctype html><title>imported-important</title>' +
+    '<style>@import url("imported.css");</style>' +
+    HAIRLINE_ROWS(() => 'border-top-width:0.5px;');
+  const m = await withFixture(html, (url) => measureGauntletPage(url), {
+    'imported.css': '.row { border-top-style: solid; border-top-color: #123456; ' +
+      'border-top-width: 1px !important; }',
+  });
+  const widths = new Set(m.borders.tally.map((e) => e.value.split(' ')[0]));
+  // HARM FIRST — see the adopted-stylesheet test above.
+  assert.ok(!widths.has('0.5px'),
+    'an imported !important rule outranks the inline declaration — a 0.5px here is EITHER the probe ' +
+    'never reaching CSSImportRule.styleSheet, OR a fixture whose import never loaded, OR a fixture ' +
+    'whose imported rule declares the wrong width; the next assertion separates the first from the ' +
+    'other two');
+  assert.ok(widths.has('1px'), 'fixture: the imported rule actually renders at 1px');
+  assert.ok(m.warnings.some((w) => w.includes('Hairline caveat')), 'the refusal is disclosed');
+  // The reading is PINNED through the caveat's own wording, because `hairlines`
+  // is destructured out of the measurement (src/design-gauntlet.ts:617) and
+  // never re-emitted — the counters surface only as warning text. That is the
+  // better discriminator here anyway: the two causes are separately worded, so
+  // the assertion names the mechanism rather than a number.
+  assert.ok(m.warnings.some((w) => w.includes('cross-origin stylesheet(s) could not be read')),
+    'fixture reading is PINNED: a file:// import is unreadable, so this test grades the BLOCKED ' +
+    'accounting — if this cause ever disappears the import became readable and this test silently ' +
+    'moved to the conflict arm, which is the http test\'s job');
+});
+
+test('hairlines: a READABLE imported !important rule is the conflict arm, not the blocked one', async (t) => {
+  if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
+  // The other half of the @import fix, and the only test that reaches it. The
+  // file:// fixture above refuses for a BLUNT reason — `sheetsBlocked > 0`
+  // returns "unresolved" for every edge on the page, so it would still pass if
+  // the import walk collected nothing useful. Same-origin, the imported rules
+  // are actually COLLECTED, the !important width outranks the inline 0.5px, and
+  // the refusal comes from that conflict. The ABSENCE of the cross-origin cause
+  // in the caveat is the whole discriminator: without it a mutant that forces
+  // the blocked path (G60) keeps this test green while deleting the mechanism
+  // it exists to guard, because a blanket refusal satisfies every other
+  // assertion here for entirely the wrong reason.
+  const m = await withHttpFixture({
+    'page.html': '<!doctype html><title>imported-readable</title>' +
+      '<style>@import url("imported.css");</style>' +
+      HAIRLINE_ROWS(() => 'border-top-width:0.5px;'),
+    'imported.css': '.row { border-top-style: solid; border-top-color: #123456; ' +
+      'border-top-width: 1px !important; }',
+  }, (url) => measureGauntletPage(url));
+  const widths = new Set(m.borders.tally.map((e) => e.value.split(' ')[0]));
+  assert.ok(!m.warnings.some((w) => w.includes('cross-origin stylesheet(s) could not be read')),
+    'fixture: served same-origin the imported sheet is READABLE — this cause appearing means the ' +
+    'test fell back to the blocked path and is measuring the file:// test over again');
+  assert.ok(!widths.has('0.5px'),
+    'a COLLECTED imported !important rule outranks the inline declaration — a 0.5px here is the ' +
+    'import walk never reaching CSSImportRule.styleSheet, with the blunt blocked-sheet refusal ' +
+    'ruled out by the assertion above');
+  assert.ok(widths.has('1px'), 'fixture: the imported rule actually renders at 1px');
+  assert.ok(m.warnings.some((w) => w.includes('Hairline caveat')), 'the refusal is disclosed');
+});
+
+test('hairlines: a FINISHED animation still filling forwards is unresolved, never recovered', async (t) => {
+  if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
+  // Round 4's gate skipped `playState === "finished"` on the reading that a
+  // finished animation contributes nothing. `animation-fill-mode: forwards`
+  // (and `both`) keeps applying the final keyframe value AFTER the animation
+  // ends, and an animation-origin value outranks every normal author
+  // declaration, inline included — so finished is not gone, and the probe
+  // handed back a confident 0.5px for an edge painted at 1px. A finished
+  // animation is skippable only when its RESOLVED fill cannot reach past the
+  // end (`none` or `backwards`); a fill this probe cannot read falls through
+  // and refuses, like every other unreadable thing here.
+  const html = '<!doctype html><title>finished-forwards</title>' +
+    '<style>@keyframes force-width { from, to { border-top-width: 1px } } ' +
+    '.anim { animation: force-width 0.01s linear forwards; }</style>' +
+    ANIM_ROWS('anim');
+  const m = await withFixture(html, (url) => measureGauntletPage(url));
+  const widths = new Set(m.borders.tally.map((e) => e.value.split(' ')[0]));
+  assert.ok(!widths.has('0.5px'),
+    'a finished-but-filling animation is not answered from the inline declaration — a 0.5px here is ' +
+    'EITHER the finished branch skipping a live fill, OR a fixture whose animation never applied, OR ' +
+    'a fixture whose keyframe declares the wrong width; the next assertion separates the first from ' +
+    'the other two');
+  assert.ok(widths.has('1px'), 'fixture: the filled final keyframe actually renders at 1px');
+  assert.ok(m.warnings.some((w) => w.includes('Hairline caveat')), 'the refusal is disclosed');
+});
+
+test('hairlines: a FALSE @supports branch is skipped — its rules are not on this render', async (t) => {
+  if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
+  // The conditional-group test asked `rule.media && rule.conditionText`, and a
+  // CSSSupportsRule has `conditionText` and NO `media` — so every @supports
+  // block was recursed into as though active, false ones included, and a
+  // declaration that is not on this render was collected as authored. Here that
+  // manufactures a false AMBIGUITY: the phantom `!important` rule outranks the
+  // inline width and the honest 0.5px is refused. Discriminate by rule TYPE,
+  // never by shape — a shape test also cannot separate @supports from
+  // @container, because `CSS.supports("(min-width:400px)")` answers TRUE about a
+  // DECLARATION while the identical text is a container query about a box.
+  const html = '<!doctype html><title>false-supports</title>' +
+    '<style>@supports (border-top-width: nonsense-value-zz) { ' +
+    '.row { border-top-width: 0.25px !important; } }</style>' +
+    HAIRLINE_ROWS(() => 'border-top:0.5px solid #123456;');
+  const m = await withFixture(html, (url) => measureGauntletPage(url));
+  const widths = new Set(m.borders.tally.map((e) => e.value.split(' ')[0]));
+  assert.ok(!widths.has('0.25px'), 'a rule inside a false @supports is never the authored width');
+  assert.ok(widths.has('0.5px'),
+    'the inline width is recovered — a miss here is the false-ambiguity direction: an inactive ' +
+    '@supports branch collected as though it applied');
+});
+
+test('hairlines: an @container block is UNRESOLVED — its condition is about a box this probe is not reading', async (t) => {
+  if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
+  // A container query's answer depends on a containing box, not on the document
+  // — `CSS.supports` cannot decide it and this probe does not measure it. The
+  // deliberate trade: the whole subtree is recorded as UNRESOLVED, so it can
+  // force an honest ambiguity and can never be handed back as a recovered
+  // answer. That costs a correct recovery here — the query DOES apply and 0.25px
+  // IS the authored width — and it is the survivable direction, because the same
+  // code path with a FALSE query would otherwise recover a width that is not on
+  // the render at all. Degrade to unresolved, never to a recovery.
+  const html = '<!doctype html><title>container-query</title>' +
+    '<style>body { container-type: inline-size; } ' +
+    '@container (min-width: 100px) { .row { border-top: 0.25px solid #123456; } }</style>' +
+    HAIRLINE_ROWS(() => '');
+  const m = await withFixture(html, (url) => measureGauntletPage(url));
+  const widths = new Set(m.borders.tally.map((e) => e.value.split(' ')[0]));
+  assert.ok(!widths.has('0.25px'),
+    'a width declared inside @container is not recovered — a 0.25px here is EITHER the unevaluable ' +
+    'FLAG not being set at the call site, OR the PUSH that honours it demoting nothing (two doors ' +
+    'on one rule, and this message names both because hand-grading found G58 and G59 failing on ' +
+    'this same assertion), OR a fixture whose query did not apply; the next assertion separates the ' +
+    'fixture reading from the two mechanism readings');
+  assert.ok(widths.has('1px'), 'fixture: the query applies and the engine paints the sub-pixel edge at 1px');
+  assert.ok(m.warnings.some((w) => w.includes('Hairline caveat')), 'the ambiguity is disclosed');
 });
 
 test('hairlines: a non-px length is unresolved — parseFloat is not a unit check', async (t) => {
