@@ -734,8 +734,16 @@ const MUTANTS = [
   // shadow fixture is a guard rather than a comment. Counting a shadow root
   // rather than a shadow BORDER RULE refuses every page that uses shadow DOM at
   // all, which on a component-based site is the whole recovery gone. A refusal
-  // that never lifts is an outage, not a refusal — and no assertion in the
-  // defect direction can see it, because refusing more is never a wrong ANSWER.
+  // that never lifts is an outage, not a refusal.
+  //
+  // CORRECTED after GLM round 7c (P3-2): this comment used to close with "no
+  // assertion in the defect direction can see it, because refusing more is never
+  // a wrong ANSWER", and that is FALSE. The benign fixture's SECOND assertion —
+  // that the shadow cause is not claimed — goes red the moment shadowBorderRules
+  // is non-zero, so G63 kills TWO assertions, not zero. The mutant was killed the
+  // whole time; only the reasoning was wrong. Left as a warning, because the SAME
+  // sentence pattern in G68 below produced a false PREDICTION rather than merely a
+  // false explanation, and that one cost a survivor.
   { id: 'G63-shadow-gate-fires-on-any-root', file: MODULE,
     find: '                    if (declaresBorderWidth(sheet.cssRules)) {\n                        shadowBorderRules++;',
     replace: '                    if (true) {\n                        shadowBorderRules++;' },
@@ -747,6 +755,16 @@ const MUTANTS = [
   // width on no render outranks the inline declaration and is handed back as a
   // recovery. Reddens the unknown-group test alone; @supports, @container,
   // @media and @layer all take earlier branches and are untouched.
+  //
+  // SURVIVED MATRIX v15, and the fixture was the reason. The unknown-group test
+  // authored its border INLINE, and an inline width plus a matching !important
+  // authored rule returns "unresolved" at the `inline && importantConflict`
+  // short-circuit — the SAME string the unevaluable-group path returns further
+  // down. Two mechanisms, one observable; all four assertions read identically in
+  // both arms. The fixture authors the border in the stylesheet now, which sends
+  // the mutant past that short-circuit into matched[], where TWO widths increment
+  // subPixelConflict, and a fifth assertion pins the caveat WORDING. Re-measured
+  // 2026-08-17: killed at radius 1, on the declared assertion by name.
   { id: 'G64-unknown-group-collected-as-authored', file: MODULE,
     find: '                if (!isNesting && !isMedia && !isLayer) {',
     replace: '                if (false) {' },
@@ -774,10 +792,18 @@ const MUTANTS = [
   // G68 — drops the `measured.has(root.host)` re-check, so a stashed closed root
   // whose host is not measured at all counts anyway. This is the OUTAGE
   // direction: a rule that cannot affect any border in the tally refuses the
-  // whole page's recovery, and no assertion in the defect direction can see it
-  // because refusing more is never a wrong ANSWER. Reddens the DETACHED test
-  // alone — every other closed-root fixture attaches to a measured host, which
-  // is exactly why that fixture had to exist before this mutant could be written.
+  // whole page's recovery.
+  //
+  // SURVIVED MATRIX v15, AND THIS COMMENT PREDICTED THE KILL IN WRITING — it read
+  // "Reddens the DETACHED test alone", and the run falsified it. The fixture built
+  // its detached root with `r.innerHTML = "<style>…</style>"`, and a DETACHED
+  // shadow root exposes ZERO entries in root.styleSheets (measured in Chromium by
+  // agent-output/probe-detached-sheet.mjs, not reasoned about), so
+  // declaresBorderWidth had nothing to find and the re-check this mutant deletes
+  // was never reached with anything to see. adoptedStyleSheets DOES populate on a
+  // detached root; the fixture uses a constructed sheet now. Re-measured
+  // 2026-08-17: killed at radius 1. A written prediction is a claim like any
+  // other, and this one sat green in the harness for three rounds.
   { id: 'G68-detached-closed-root-counted', file: MODULE,
     find: '                if (root && root.host && measured.has(root.host))',
     replace: '                if (root && root.host)' },

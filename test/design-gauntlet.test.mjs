@@ -1262,9 +1262,18 @@ test('hairlines: a DETACHED closed root is stashed but not counted — the re-ch
       '<div class="row" style="width:400px;height:40px;background:rgb(250,250,250);' +
       'border-top:0.5px solid #123456;">row</div>').join('') +
     '<script>' +
+    // MEASURED, not assumed: a DETACHED shadow root's innerHTML <style> yields
+    // ZERO entries in root.styleSheets (Chromium; probe-detached-sheet.mjs), so
+    // declaresBorderWidth could never fire and this test measured NOTHING about
+    // the re-check it names — G68 survived the whole v15 matrix against it.
+    // adoptedStyleSheets DOES populate on a detached root, which is what makes
+    // the guard's absence observable: drop measured.has(root.host) and the
+    // orphan's sheet is scanned, found, and the shadow cause falsely claimed.
     'const orphan = document.createElement("div");' +
     'const r = orphan.attachShadow({ mode: "closed" });' +
-    'r.innerHTML = "<style>:host { border-top-width: 1px !important }</style>";' +
+    'const s = new CSSStyleSheet();' +
+    's.replaceSync(":host { border-top-width: 1px !important }");' +
+    'r.adoptedStyleSheets = [s];' +
     '</scr' + 'ipt></body>';
   const m = await withFixture(html, (url) => measureGauntletPage(url));
   const widths = new Set(m.borders.tally.map((e) => e.value.split(' ')[0]));
@@ -1289,9 +1298,20 @@ test('hairlines: an UNKNOWN conditional group is unresolved, never collected as 
   // default: an at-rule group that is not on the known list degrades to
   // unresolved, so the platform's next conditional at-rule costs an ambiguity
   // rather than a wrong answer.
+  // THE INLINE DECLARATION MASKED THIS TEST'S OWN MUTANT. With an inline width
+  // present, collecting the @scope rule as AUTHORED makes it !important AND
+  // matching, so the recovery returns "unresolved" at the `inline &&
+  // importantConflict` short-circuit -- byte-identical to the answer the
+  // unevaluable-group path returns thirty lines further down. Two mechanisms,
+  // ONE observable, and G64 survived the entire v15 matrix against it.
+  // Authoring the border in the stylesheet instead sends the mutant past that
+  // short-circuit into the matched[] set, where it finds TWO widths and
+  // increments subPixelConflict -- the one observable the correct path cannot
+  // produce, because it returns from the unresolvedRules loop first.
   const html = '<!doctype html><title>unknown-group</title>' +
-    '<style>@scope (.absent) { .row { border-top-width: 0.25px !important } }</style>' +
-    HAIRLINE_ROWS(() => 'border-top:0.5px solid #123456;');
+    '<style>.row { border-top: 0.5px solid #123456; } ' +
+    '@scope (.absent) { .row { border-top-width: 0.25px !important } }</style>' +
+    HAIRLINE_ROWS(() => '');
   const m = await withFixture(html, (url) => measureGauntletPage(url));
   const widths = new Set(m.borders.tally.map((e) => e.value.split(' ')[0]));
   assert.ok(!widths.has('0.25px'),
@@ -1305,6 +1325,10 @@ test('hairlines: an UNKNOWN conditional group is unresolved, never collected as 
     'edge rather than being ignored; recovering 0.5px here would be the fix skipping unknown groups ' +
     'instead of degrading them');
   assert.ok(m.warnings.some((w) => w.includes('Hairline caveat')), 'the ambiguity is disclosed');
+  assert.ok(!m.warnings.some((w) => w.includes('matched more than one authored width')),
+    'and it is disclosed as an UNEVALUABLE GROUP, never as a specificity conflict -- ' +
+    'collecting @scope as authored yields the conflict wording instead (this is the ' +
+    'assertion G64 turns red; the three above it read identically in both arms)');
 });
 
 test('hairlines: a non-px length is unresolved — parseFloat is not a unit check', async (t) => {
