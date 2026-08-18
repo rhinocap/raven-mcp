@@ -685,8 +685,12 @@ test('hairlines: a specificity conflict is reported ambiguous, never guessed', a
   assert.ok(widths.has('1px'), 'the unresolved element keeps its computed reading');
   assert.ok(!widths.has('0.5px'), 'source order is NOT taken as the winner');
   assert.ok(
-    m.warnings.some((w) => w.includes('Hairline caveat') && w.includes('specificity')),
-    'the caveat names specificity as the reason the tally is provisional'
+    m.warnings.some((w) => w.includes('Hairline caveat') && w.includes('does not rank the cascade')),
+    'the caveat names the UNRANKED CASCADE as the reason the tally is provisional. It deliberately ' +
+    'does not say "specificity": this fixture happens to be a specificity conflict, but the ' +
+    'increment site fires on any pair of matched rules declaring different widths — including an ' +
+    'equal-specificity pair separated only by source order — and the probe ranks none of those ' +
+    'tie-breaks, so naming one of them would send a caller looking for the wrong collision'
   );
 });
 
@@ -710,7 +714,7 @@ test('hairlines: two SUB-PIXEL rules that disagree are unresolved, not last-wins
   assert.ok(!widths.has('0.25px'), 'specificity is NOT taken as the winner either — neither is computed');
   assert.ok(widths.has('1px'), 'the unresolved element keeps its computed reading');
   assert.ok(
-    m.warnings.some((w) => w.includes('Hairline caveat') && w.includes('specificity')),
+    m.warnings.some((w) => w.includes('Hairline caveat') && w.includes('does not rank the cascade')),
     'the caveat fires — this is a declared unknown, not a silent one'
   );
 });
@@ -1062,6 +1066,247 @@ test('hairlines: an @container block is UNRESOLVED — its condition is about a 
   assert.ok(m.warnings.some((w) => w.includes('Hairline caveat')), 'the ambiguity is disclosed');
 });
 
+// A shadow host carrying an inline sub-pixel width, whose own shadow root
+// declares an `!important` width that beats it. Built by script because
+// `attachShadow` has no markup form.
+// `mode` and `adopted` are parameters rather than three near-identical
+// helpers because they are the two axes the probe reaches the sheet through,
+// and each is separately breakable: a CLOSED root answers null on
+// `host.shadowRoot` (so it is only ever seen via the `attachShadow` wrapper
+// installed as an init script), and an ADOPTED sheet lives in a different
+// collection from a `<style>` element. Fixing one and leaving the other is a
+// half-state that compiles and passes, which this feature has now shipped
+// twice.
+const SHADOW_ROWS = (shadowCss, { mode = 'open', adopted = false } = {}) => '<body>' +
+  Array.from({ length: 24 }, () =>
+    '<div class="row" style="width:400px;height:40px;background:rgb(250,250,250);' +
+    'border-top:0.5px solid #123456;">row</div>').join('') +
+  '<script>' +
+  'for (const el of document.querySelectorAll(".row")) {' +
+  '  const r = el.attachShadow({ mode: ' + JSON.stringify(mode) + ' });' +
+  (adopted
+    ? '  const s = new CSSStyleSheet();' +
+      '  s.replaceSync(' + JSON.stringify(shadowCss) + ');' +
+      '  r.adoptedStyleSheets = [s];' +
+      '  r.innerHTML = "<slot></slot>";'
+    : '  r.innerHTML = ' + JSON.stringify('<style>' + shadowCss + '</style><slot></slot>') + ';') +
+  '}' +
+  '</scr' + 'ipt></body>';
+
+test('hairlines: a shadow root that declares a border width stops every recovery', async (t) => {
+  if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
+  // A FOURTH rule source. Both stylesheet loops read `document`, and CSSOM gives
+  // every DocumentOrShadowRoot its OWN `styleSheets` and `adoptedStyleSheets`, so
+  // a shadow sheet appears in neither — while `:host` matches the host element,
+  // which IS measured (`querySelectorAll("body *")` returns hosts; it just does
+  // not descend into them). So `:host { border-top-width: 1px !important }` beat
+  // the inline 0.5px invisibly and the inline fast path handed back 0.5px for an
+  // edge painted at 1px: the adopted-stylesheet defect through a fourth door.
+  //
+  // The fix COUNTS these rules rather than collecting them, because a shadow
+  // selector is not evaluable from outside its tree — `el.matches(":host")`
+  // answers false on the host and would silently drop the very rule that wins.
+  // So the refusal is document-wide, gated on a border width actually being
+  // declared, which is why the caveat gets its own cause sentence: a caller told
+  // a cascade conflict would go looking for a collision that is not on the page.
+  const m = await withFixture(
+    '<!doctype html><title>shadow-host</title>' +
+      SHADOW_ROWS(':host { border-top-width: 1px !important }'),
+    (url) => measureGauntletPage(url));
+  const widths = new Set(m.borders.tally.map((e) => e.value.split(' ')[0]));
+  assert.ok(!widths.has('0.5px'),
+    'the inline 0.5px is NOT recovered — a 0.5px here is EITHER the shadow scan never running, OR ' +
+    'its refusal gate missing (the counter incrementing and nothing reading it), OR a fixture whose ' +
+    'shadow roots never attached; the next assertion separates the fixture reading from the two ' +
+    'mechanism readings');
+  assert.ok(widths.has('1px'),
+    'fixture: the shadow !important rule actually wins and the edge renders at 1px');
+  assert.ok(
+    m.warnings.some((w) => w.includes('shadow root(s) declare a border width this probe cannot attribute')),
+    'the caveat names the SHADOW cause by its own wording — a bare "Hairline caveat" check would pass ' +
+    'on the conflict sentence and could not tell this refusal from any other');
+  // ABSENCE, not just presence. Every shadow refusal also increments the
+  // generic ambiguity counter, and that counter used to be narrated as a
+  // CONFLICT — so this exact fixture, which has no collected conflict anywhere
+  // on it, emitted BOTH sentences and sent a caller hunting for a rule
+  // collision that does not exist. Asserting only the shadow sentence's
+  // presence could never see it.
+  //
+  // The string this names is the CONFLICT sentence and nothing else. Round 9
+  // rewrote it (it used to claim the winner "depends on specificity", which the
+  // increment site never asked), and that rewrite silently turned this
+  // assertion into a tautology: a negative `!includes(...)` on a string no
+  // warning can ever contain cannot fail, and no run reports it. It is pinned
+  // to the current wording deliberately, and the positive control below is what
+  // keeps it falsifiable — if that control ever goes red because the sentence
+  // moved again, THIS assertion has stopped measuring at the same moment.
+  assert.ok(
+    !m.warnings.some((w) => w.includes('does not rank the cascade')),
+    'and does NOT also claim a cascade conflict — there is no collected conflict on this page, ' +
+    'so the conflict sentence here would be a fabricated mechanism');
+});
+
+test('hairlines: a CLOSED shadow root stops every recovery too', async (t) => {
+  if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
+  // `host.shadowRoot` is null BY DEFINITION for `{ mode: "closed" }`, so the
+  // scan above walks straight past a closed root and the inline 0.5px is
+  // recovered for an edge the closed `:host !important` rule paints at 1px —
+  // a CONFIDENT WRONG ANSWER, which is the one direction this probe is not
+  // allowed to fail in. The root object is reachable only at creation, so it
+  // is captured by wrapping `attachShadow` in an init script that runs before
+  // any page script. This fixture differs from the open one by ONE WORD.
+  const m = await withFixture(
+    '<!doctype html><title>shadow-closed</title>' +
+      SHADOW_ROWS(':host { border-top-width: 1px !important }', { mode: 'closed' }),
+    (url) => measureGauntletPage(url));
+  const widths = new Set(m.borders.tally.map((e) => e.value.split(' ')[0]));
+  assert.ok(!widths.has('0.5px'),
+    'the inline 0.5px is NOT recovered from a CLOSED root — a 0.5px here means the attachShadow ' +
+    'wrapper never installed, never recorded the closed root, or the scan never reads its stash');
+  assert.ok(widths.has('1px'),
+    'fixture: the closed shadow !important rule actually wins and the edge renders at 1px');
+  assert.ok(
+    m.warnings.some((w) => w.includes('shadow root(s) declare a border width this probe cannot attribute')),
+    'and the caveat names the shadow cause for a closed root exactly as it does for an open one');
+});
+
+test('hairlines: a shadow ADOPTED stylesheet stops every recovery too', async (t) => {
+  if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
+  // The scan spreads BOTH `styleSheets` and `adoptedStyleSheets`, and every
+  // other shadow fixture here delivers its CSS through a `<style>` element —
+  // so dropping the adopted half left all of them green while a constructed
+  // sheet, which is how every serious component library ships its styles,
+  // went unseen. Another compile-and-pass half-state; this is the assertion
+  // that separates the two collections.
+  const m = await withFixture(
+    '<!doctype html><title>shadow-adopted</title>' +
+      SHADOW_ROWS(':host { border-top-width: 1px !important }', { adopted: true }),
+    (url) => measureGauntletPage(url));
+  const widths = new Set(m.borders.tally.map((e) => e.value.split(' ')[0]));
+  assert.ok(!widths.has('0.5px'),
+    'the inline 0.5px is NOT recovered from an ADOPTED shadow sheet — a 0.5px here is the ' +
+    'adoptedStyleSheets half of the scan missing, which no <style>-delivered fixture can see');
+  assert.ok(widths.has('1px'),
+    'fixture: the adopted !important rule actually wins and the edge renders at 1px');
+});
+
+test('hairlines: a REAL cascade conflict is the one thing that fires the conflict sentence', async (t) => {
+  if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
+  // The positive control for the sentence the shadow test above asserts the
+  // ABSENCE of. Without it, deleting the conflict sentence outright would
+  // satisfy that absence assertion — a refusal-to-say-anything passing as a fix.
+  // Two rules match the same side with DIFFERENT sub-pixel widths, so the
+  // winner is decided by a cascade this probe does not implement; both round
+  // to 1px in the used value, which is what keeps the edge in the 1px branch
+  // where the recovery runs at all.
+  const html = '<!doctype html><title>specificity</title><style>' +
+    '.row { border-top: 0.5px solid #123456 }' +
+    'div.row { border-top-width: 0.75px }' +
+    '</style><body>' +
+    Array.from({ length: 24 }, () =>
+      '<div class="row" style="width:400px;height:40px;background:rgb(250,250,250);">row</div>').join('') +
+    '</body>';
+  const m = await withFixture(html, (url) => measureGauntletPage(url));
+  const widths = new Set(m.borders.tally.map((e) => e.value.split(' ')[0]));
+  assert.ok(widths.has('1px'),
+    'fixture: both widths are sub-pixel and the engine paints the winner at 1px, so the edge ' +
+    'reaches the recovery branch at all');
+  assert.ok(!widths.has('0.5px') && !widths.has('0.75px'),
+    'neither conflicting width is handed back as a confident recovery');
+  assert.ok(
+    m.warnings.some((w) => w.includes('does not rank the cascade')),
+    'and the CONFLICT sentence DOES fire here — this is what stops the absence assertion above ' +
+    'from passing vacuously, and it is the only assertion in the suite that pins the sentence\'s ' +
+    'current wording in the positive direction');
+});
+
+test('hairlines: an ordinary shadow root that declares NO border width costs nothing', async (t) => {
+  if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
+  // The other direction, and the reason the count is gated on a border-width
+  // declaration rather than on a shadow root existing at all: a page-wide
+  // refusal that fired on every shadow-DOM page would make the whole recovery
+  // useless on any component-based site. A refusal that never lifts is not a
+  // refusal, it is an outage — so this fixture is the control on the one above.
+  const m = await withFixture(
+    '<!doctype html><title>shadow-benign</title>' +
+      // No border width ANYWHERE in this sheet, `0` included: a `border-width: 0`
+      // is still a declaration that can outrank the inline one and delete the
+      // edge, so it counts like any other and is deliberately not used here.
+      SHADOW_ROWS(':host { color: #222222 } span { letter-spacing: 0.01px }'),
+    (url) => measureGauntletPage(url));
+  const widths = new Set(m.borders.tally.map((e) => e.value.split(' ')[0]));
+  assert.ok(widths.has('0.5px'),
+    'the inline 0.5px is still recovered — a miss here is the shadow gate firing on a root that ' +
+    'declares no width, i.e. refusing the whole page for the presence of shadow DOM');
+  assert.ok(
+    !m.warnings.some((w) => w.includes('shadow root(s) declare a border width')),
+    'and the shadow cause is not claimed');
+});
+
+test('hairlines: a DETACHED closed root is stashed but not counted — the re-check is the guard', async (t) => {
+  if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
+  // The `attachShadow` wrapper stashes EVERY closed root, including roots whose
+  // host is not measured at all — detached, or outside `body *`. Such a root
+  // cannot change any border in this tally, so counting it would be a page-wide
+  // refusal bought for nothing: the same outage the benign-shadow control above
+  // exists to prevent, arriving through the stash instead of through the gate.
+  // `measured.has(root.host)` is the clause that refuses it, and without this
+  // fixture that clause is guarded by nothing — every other closed-root fixture
+  // attaches to a measured host, so deleting the re-check leaves them all green.
+  //
+  // The detached host declares a `1px !important` border width, i.e. exactly the
+  // rule that WOULD stop every recovery if it were counted. That is what makes
+  // the assertion a measurement rather than a restatement.
+  const html = '<!doctype html><title>shadow-detached</title><body>' +
+    Array.from({ length: 24 }, () =>
+      '<div class="row" style="width:400px;height:40px;background:rgb(250,250,250);' +
+      'border-top:0.5px solid #123456;">row</div>').join('') +
+    '<script>' +
+    'const orphan = document.createElement("div");' +
+    'const r = orphan.attachShadow({ mode: "closed" });' +
+    'r.innerHTML = "<style>:host { border-top-width: 1px !important }</style>";' +
+    '</scr' + 'ipt></body>';
+  const m = await withFixture(html, (url) => measureGauntletPage(url));
+  const widths = new Set(m.borders.tally.map((e) => e.value.split(' ')[0]));
+  assert.ok(widths.has('0.5px'),
+    'the inline 0.5px is still recovered — a miss here is the closed-root stash being counted ' +
+    'without asking whether its host is measured, i.e. an unmeasurable rule refusing the whole page');
+  assert.ok(
+    !m.warnings.some((w) => w.includes('shadow root(s) declare a border width')),
+    'and the shadow cause is not claimed for a root that cannot affect any measured border');
+});
+
+test('hairlines: an UNKNOWN conditional group is unresolved, never collected as authored', async (t) => {
+  if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
+  // @supports, @container, @media and @layer were each decided by TYPE and
+  // everything else FELL THROUGH to the plain recursion — with `unevaluable`
+  // unchanged, i.e. collected as AUTHORED. A comment called that "a false
+  // ambiguity in the honest direction"; it was the opposite. `@scope (.absent)`
+  // never applies, the scope condition is dropped at collection, and only
+  // `r.selector` is ever tested with `el.matches()` — so `.row` matched and a
+  // 0.25px !important width that is on NO render outranked the inline
+  // declaration and was handed back as a confident recovery. The fix inverts the
+  // default: an at-rule group that is not on the known list degrades to
+  // unresolved, so the platform's next conditional at-rule costs an ambiguity
+  // rather than a wrong answer.
+  const html = '<!doctype html><title>unknown-group</title>' +
+    '<style>@scope (.absent) { .row { border-top-width: 0.25px !important } }</style>' +
+    HAIRLINE_ROWS(() => 'border-top:0.5px solid #123456;');
+  const m = await withFixture(html, (url) => measureGauntletPage(url));
+  const widths = new Set(m.borders.tally.map((e) => e.value.split(' ')[0]));
+  assert.ok(!widths.has('0.25px'),
+    'a width from a scope that does not exist is never the recovered answer');
+  assert.ok(widths.has('1px'),
+    'fixture: @scope PARSED (an engine that dropped the block would leave the inline 0.5px recovered ' +
+    'and this assertion is the only thing that would say so) and the row renders its rounded 0.5px ' +
+    'at 1px, so the honest answer here is an ambiguity');
+  assert.ok(!widths.has('0.5px'),
+    'and the inline width is not recovered either — the group is UNEVALUABLE, so its rule demotes the ' +
+    'edge rather than being ignored; recovering 0.5px here would be the fix skipping unknown groups ' +
+    'instead of degrading them');
+  assert.ok(m.warnings.some((w) => w.includes('Hairline caveat')), 'the ambiguity is disclosed');
+});
+
 test('hairlines: a non-px length is unresolved — parseFloat is not a unit check', async (t) => {
   if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
   // `parseFloat("0.5em")` is 0.5, so an edge authored .5em at a 2px font-size —
@@ -1085,6 +1330,299 @@ test('hairlines: a non-px length is unresolved — parseFloat is not a unit chec
 const SIDE_BASE = 'width:400px;height:40px;background:rgb(250,250,250);';
 const SIDE_ROWS = (n, style) =>
   Array.from({ length: n }, () => '<div class="row" style="' + SIDE_BASE + style + '">row</div>').join('');
+
+// ---------------------------------------------------------------------------
+// Round 9. Every mechanism below was measured with a standalone Playwright
+// probe BEFORE the product code was written (probe-r9-logical.mjs and
+// probe-r9-nesting-fix.mjs, .claude/gauntlet-2026-08-14/agent-output/), and
+// three of the five measurements changed the design. The fixtures here reuse
+// the measured shapes verbatim so the test and the probe cannot drift.
+// ---------------------------------------------------------------------------
+
+// Rows carrying an inline PHYSICAL hairline, for the fixtures whose subject is
+// a stylesheet rule rather than the inline declaration.
+const R9_ROWS = (n = 24) => Array.from({ length: n }, () =>
+  '<div class="row" style="width:400px;height:40px;background:rgb(250,250,250);' +
+  'border-top:0.5px solid #123456;">row</div>').join('');
+
+test('hairlines: a DECLARATIVE closed shadow root refuses every recovery', async (t) => {
+  if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
+  // The `attachShadow` wrapper that covers every OTHER closed-root fixture in
+  // this file structurally cannot see this one: a declarative root is built by
+  // the HTML parser running the internal algorithm, so `Element.prototype.
+  // attachShadow` is never called and the stash stays EMPTY. Measured:
+  // shadowRootIsNull true, stashLen 0, inline 0.5px, painted 1px — the
+  // confident false recovery the wrapper exists to prevent, arriving through a
+  // door the wrapper does not cover.
+  //
+  // This is why the fixture cannot use SHADOW_ROWS: that helper always creates
+  // its roots THROUGH the wrapped attachShadow, which is precisely the path
+  // this case does not take. The template markup is hand-written.
+  //
+  // It is also why the fixture must be served over http rather than file://.
+  // The only detector available is the main document's own RESPONSE BYTES, and
+  // Playwright returns a null response for a file:// navigation, so a file://
+  // version of this fixture would pass for the wrong reason on a build with no
+  // detector at all.
+  const rows = Array.from({ length: 24 }, () =>
+    '<div class="row" style="width:400px;height:40px;background:rgb(250,250,250);' +
+    'border-top:0.5px solid #123456;">' +
+    '<template shadowrootmode="closed">' +
+    '<style>:host { border-top-width: 1px !important }</style><slot></slot>' +
+    '</template>row</div>').join('');
+  const m = await withHttpFixture(
+    { 'page.html': '<!doctype html><title>decl-closed</title><body>' + rows + '</body>' },
+    (url) => measureGauntletPage(url));
+  const widths = new Set(m.borders.tally.map((e) => e.value.split(' ')[0]));
+  assert.ok(!widths.has('0.5px'),
+    'the inline 0.5px is NOT recovered past a DECLARATIVE closed root — a 0.5px here is the ' +
+    'response-byte detector missing, and it is a CONFIDENT WRONG width, not a missing one');
+  assert.ok(widths.has('1px'),
+    'fixture: the declarative closed root\'s :host !important rule actually wins and the edge ' +
+    'renders at 1px. Without this the case above would pass on a page where nothing happened');
+  assert.ok(
+    m.warnings.some((w) => w.includes('declarative closed shadow root(s) whose contents cannot be inspected')),
+    'and the caveat names the DECLARATIVE cause specifically. It cannot reuse the ordinary shadow ' +
+    'sentence: that one says a root DECLARES a border width, and a closed root\'s contents cannot ' +
+    'be inspected at all, so this probe does not know whether it declares one');
+});
+
+test('hairlines: a declarative closed root is caught even when it declares NOTHING', async (t) => {
+  if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
+  // The refusal is on PRESENCE, not on content, and that is the load-bearing
+  // half rather than a coarse approximation: a closed root cannot be opened, so
+  // there is no way to ask whether it declares a width. The test above alone
+  // would stay green under a detector that somehow inspected the root and
+  // refused only on a real declaration — this one is what pins presence.
+  const rows = Array.from({ length: 24 }, () =>
+    '<div class="row" style="width:400px;height:40px;background:rgb(250,250,250);' +
+    'border-top:0.5px solid #123456;">' +
+    '<template shadowrootmode="closed"><style>:host { color: red }</style><slot></slot></template>' +
+    'row</div>').join('');
+  const m = await withHttpFixture(
+    { 'page.html': '<!doctype html><title>decl-closed-empty</title><body>' + rows + '</body>' },
+    (url) => measureGauntletPage(url));
+  const widths = new Set(m.borders.tally.map((e) => e.value.split(' ')[0]));
+  assert.ok(widths.has('1px') && !widths.has('0.5px'),
+    'the recovery is refused for a closed root that declares no border width at all — the edge ' +
+    'paints at 1px from the inline 0.5px and stays 1px, unrecovered');
+  assert.ok(
+    m.warnings.some((w) => w.includes('declarative closed shadow root(s) whose contents cannot be inspected')),
+    'and it says so, rather than refusing silently');
+});
+
+test('hairlines: a CLOSED root delivering an ADOPTED sheet stops every recovery', async (t) => {
+  if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
+  // The two shadow dimensions are ORTHOGONAL and were covered only one at a
+  // time: `{ mode: "closed" }` with a <style>, and `{ adopted: true }` with an
+  // open root. Their composition — the shape a real closed web component
+  // actually ships — was reached by neither, so the stashed-root scan reading
+  // `adoptedStyleSheets` off a CLOSED root worked by accident and was guarded
+  // by nothing. This is the assertion that grades the composition.
+  const m = await withFixture(
+    '<!doctype html><title>shadow-closed-adopted</title>' +
+      SHADOW_ROWS(':host { border-top-width: 1px !important }', { mode: 'closed', adopted: true }),
+    (url) => measureGauntletPage(url));
+  const widths = new Set(m.borders.tally.map((e) => e.value.split(' ')[0]));
+  assert.ok(!widths.has('0.5px'),
+    'the inline 0.5px is NOT recovered from an adopted sheet on a CLOSED root — a 0.5px here is ' +
+    'the stash and the adoptedStyleSheets read failing to compose, which neither single-axis ' +
+    'fixture above can see');
+  assert.ok(widths.has('1px'),
+    'fixture: the adopted !important rule on the closed root actually wins');
+  assert.ok(
+    m.warnings.some((w) => w.includes('shadow root(s) declare a border width this probe cannot attribute')),
+    'and the ordinary shadow caveat fires — this root IS inspectable through the stash, so it is ' +
+    'the DECLARES sentence here, not the declarative-closed one');
+});
+
+test('hairlines: a LOGICAL border width in a rule is unresolved, never read as absent', async (t) => {
+  if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
+  // Measured on Chromium: every logical authoring form — `border-block-start`,
+  // `border-block`, `border-inline`, and the four longhands — expands in the
+  // CSSOM to LOGICAL longhands, and `rule.style.borderTopWidth` reads EMPTY for
+  // all of them. So a rule-scan that asks only the physical longhand does not
+  // see this rule at all: no authored width, no `!important` conflict, and the
+  // inline 0.5px is recovered for an edge the rule paints at 1px. A confident
+  // wrong answer, which is the one direction this probe may not fail in.
+  //
+  // The refusal covers all FOUR sides rather than mapping block-start to top,
+  // because that mapping needs the element's writing-mode and direction, which
+  // a rule-level scan is not reading.
+  const m = await withFixture(
+    '<!doctype html><title>logical-rule</title>' +
+      '<style>.row { border-block-start-width: 1px !important }</style>' +
+      '<body>' + R9_ROWS() + '</body>',
+    (url) => measureGauntletPage(url));
+  const widths = new Set(m.borders.tally.map((e) => e.value.split(' ')[0]));
+  assert.ok(!widths.has('0.5px'),
+    'the inline 0.5px is NOT recovered against a logical !important rule — a 0.5px here means the ' +
+    'rule scan asked borderTopWidth, got "", and concluded no rule touches this edge');
+  assert.ok(widths.has('1px'),
+    'fixture: the logical rule actually wins and the edge renders at 1px');
+});
+
+test('hairlines: a logical SHORTHAND is caught by the same four-name set', async (t) => {
+  if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
+  // `border-block-start: 1px solid` is the form a human actually writes, and it
+  // is the one a longhand-only detector would be most likely to miss. It does
+  // not: the measurement above established that the CSSOM expands EVERY logical
+  // shorthand to logical longhands, which is why the detector is a four-name
+  // SET and not a shorthand parser. This fixture is what makes that a
+  // measurement in the suite rather than a claim in a comment.
+  const m = await withFixture(
+    '<!doctype html><title>logical-shorthand</title>' +
+      '<style>.row { border-block-start: 1px solid #654321 !important }</style>' +
+      '<body>' + R9_ROWS() + '</body>',
+    (url) => measureGauntletPage(url));
+  const widths = new Set(m.borders.tally.map((e) => e.value.split(' ')[0]));
+  assert.ok(!widths.has('0.5px'),
+    'the shorthand is detected exactly as the longhand is — a 0.5px here means the enumeration ' +
+    'walked past a form that expands to the very names it is looking for');
+  assert.ok(widths.has('1px'), 'fixture: the shorthand rule actually wins');
+});
+
+test('hairlines: an INLINE logical width refuses — the third door, on the element itself', async (t) => {
+  if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
+  // The two rule-scan doors do nothing for a width sitting on the element's own
+  // style attribute in logical form: `el.style.borderLeftWidth` reads EMPTY
+  // while the engine paints the left edge, so the inline branch falls through,
+  // the stylesheet scan matches nothing, and the edge is answered as a
+  // CONFIDENT 1px with the real authored 0.5px unread on the element.
+  //
+  // The observable here is the WARNING, not the tally, and deliberately so: the
+  // old behaviour and the new one both leave 1px in the tally, and the whole
+  // difference is whether the caller is told that 1px is provisional. An
+  // assertion on the tally alone could not see this fix in either direction.
+  const rows = Array.from({ length: 24 }, () =>
+    '<div class="row" style="width:400px;height:40px;background:rgb(250,250,250);' +
+    'border-inline-start-width:0.5px;border-inline-start-style:solid;' +
+    'border-inline-start-color:#123456;">row</div>').join('');
+  const m = await withFixture(
+    '<!doctype html><title>logical-inline</title><body>' + rows + '</body>',
+    (url) => measureGauntletPage(url));
+  const widths = new Set(m.borders.tally.map((e) => e.value.split(' ')[0]));
+  assert.ok(widths.has('1px'),
+    'fixture: the logical inline width paints the LEFT edge at 1px, so the edge is in the ' +
+    'ambiguous branch at all — without this the assertion below could pass on an empty tally');
+  assert.ok(!widths.has('0.5px'),
+    'and it is not recovered: refusing is the only honest answer, since mapping inline-start to a ' +
+    'physical side needs writing-mode and direction this probe is not reading');
+  assert.ok(
+    m.warnings.some((w) => w.includes('Hairline caveat') && w.includes('could not resolve')),
+    'the 1px is DECLARED provisional. This is the only assertion that separates the third door ' +
+    'from no door at all — both leave 1px in the tally, and only one of them says so');
+});
+
+test('hairlines: a NESTED rule is resolved against its parent, not tested standalone', async (t) => {
+  if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
+  // Chromium serializes a nested rule's `selectorText` with a leading `&`, and
+  // `&` tested STANDALONE degrades to `:scope` — the element itself — so the
+  // collected selector answers a question about the wrong element in BOTH
+  // directions. Measured, all four arms: a rule that applies is silently MISSED
+  // (authoredMatch false), and an ORPHAN rule under an absent parent FALSELY
+  // matches (authoredMatch true). The second is the dangerous one.
+  //
+  // The fix substitutes `:is(<parent>)`, not a bare paste: measured, a parent
+  // selector LIST (`.a, .b`) pasted raw regroups the selector, and `:is()` also
+  // carries the parent's specificity the way `&` does.
+  //
+  // This is the APPLIES arm: the rule really does win, so a probe that missed
+  // it would recover the inline 0.5px for an edge painted at 1px.
+  const m = await withFixture(
+    '<!doctype html><title>nesting-applies</title>' +
+      '<style>.card { .row { border-top-width: 1px !important } }</style>' +
+      '<body><div class="card">' + R9_ROWS() + '</div></body>',
+    (url) => measureGauntletPage(url));
+  const widths = new Set(m.borders.tally.map((e) => e.value.split(' ')[0]));
+  assert.ok(!widths.has('0.5px'),
+    'a nested !important rule that APPLIES is seen — a 0.5px here means the collected selector ' +
+    'was the bare `&` form, which matched nothing, and the inline width was trusted against a ' +
+    'rule that outranks it');
+  assert.ok(widths.has('1px'), 'fixture: the nested rule actually wins and the edge renders at 1px');
+});
+
+test('hairlines: a nested rule under an ABSENT parent does not falsely match', async (t) => {
+  if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
+  // The other measured direction, and the one that produces a WRONG NUMBER
+  // rather than a missed refusal: `&.row` under `.absent` serializes as
+  // `&.row`, which standalone reads as `:scope.row` and matches every row on
+  // the page — so a rule that is not on this render at all forces a refusal.
+  // The applies-arm test above cannot see this: it grades whether a rule is
+  // FOUND, and this grades whether a rule that should not be found is absent.
+  const m = await withFixture(
+    '<!doctype html><title>nesting-orphan</title>' +
+      '<style>.absent { &.row { border-top-width: 0.25px !important } }</style>' +
+      '<body>' + R9_ROWS() + '</body>',
+    (url) => measureGauntletPage(url));
+  const widths = new Set(m.borders.tally.map((e) => e.value.split(' ')[0]));
+  assert.ok(widths.has('0.5px'),
+    'the orphan rule does NOT match, so the inline 0.5px is recovered normally — a missing 0.5px ' +
+    'here means a rule under a parent that is nowhere on the page silently suppressed a recovery ' +
+    'it has no bearing on');
+});
+
+test('hairlines: a nested rule this probe cannot resolve is unresolved, never dropped', async (t) => {
+  if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
+  // A guard cannot wait for a throw. Measured on Chromium:
+  // `el.matches(':is(main::before) .row')` returns FALSE and does NOT throw —
+  // a silently unmatchable rule, which is the FALSE-RECOVERY direction, since
+  // a `try/catch` around the match would never fire and the rule would be
+  // quietly discarded. So a parent carrying a pseudo-element is refused
+  // TEXTUALLY, before any selector is constructed.
+  //
+  // The observable is the refusal, and the fixture is built so that dropping
+  // the rule and refusing on it give OPPOSITE answers: the nested rule really
+  // does apply (through the real `.card` parent it is written under), so a
+  // silent drop recovers 0.5px and the refusal does not.
+  const m = await withFixture(
+    '<!doctype html><title>nesting-unresolvable</title>' +
+      '<style>.card::before { .row { border-top-width: 1px !important } }</style>' +
+      '<body><div class="card">' + R9_ROWS() + '</div></body>',
+    (url) => measureGauntletPage(url));
+  const widths = new Set(m.borders.tally.map((e) => e.value.split(' ')[0]));
+  assert.ok(!widths.has('0.5px'),
+    'an unresolvable nested parent forces a refusal rather than a silent drop — a 0.5px here is ' +
+    'the probe discarding a rule it could not construct a selector for and then answering ' +
+    'confidently, which is exactly the shape a try/catch would have shipped');
+  assert.ok(
+    m.warnings.some((w) => w.includes('Hairline caveat')),
+    'and the refusal is narrated rather than silent');
+});
+
+test('hairlines: the pseudo-element refusal holds on an engine with no CSS.supports', async (t) => {
+  if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }
+  // WHY THIS FIXTURE EXISTS, measured rather than argued.
+  //
+  // `resolveNested` refuses a parent carrying `::` TEXTUALLY, and on Chromium
+  // that clause has NO reachable trigger: `selectorParses` asks
+  // `CSS.supports('selector(:is(.card::before) .row)')`, which measures FALSE,
+  // so the selector is rejected one line later whether or not the textual guard
+  // is there. The test above therefore cannot kill a mutant on that clause.
+  //
+  // But `selectorParses` has a SECOND path, for an engine without
+  // `CSS.supports`, and on that path the clause is the only thing standing:
+  // the fallback returns true whenever `matches()` does not THROW, and
+  // `matches(':is(.card::before) .row')` returns FALSE WITHOUT THROWING
+  // (measured). So the selector is accepted, matches nothing, the rule is
+  // silently discarded, and the probe answers 0.5px confidently — the
+  // false-recovery direction the guard exists to prevent.
+  //
+  // A claim that a clause cannot be tested is itself a claim. The engine is
+  // simulated by deleting `CSS.supports` in the document's own first script,
+  // which runs before the probe evaluates anything.
+  const m = await withFixture(
+    '<!doctype html><title>nesting-no-css-supports</title>' +
+      '<script>delete CSS.supports;</script>' +
+      '<style>.card::before { .row { border-top-width: 1px !important } }</style>' +
+      '<body><div class="card">' + R9_ROWS() + '</div></body>',
+    (url) => measureGauntletPage(url));
+  assert.equal(typeof m.borders, 'object', 'the probe still ran with CSS.supports removed');
+  const widths = new Set(m.borders.tally.map((e) => e.value.split(' ')[0]));
+  assert.ok(!widths.has('0.5px'),
+    'with CSS.supports gone the DOM fallback accepts an unmatchable selector, so the TEXTUAL ' +
+    'refusal is the only guard left — a 0.5px here is the silent drop it exists to prevent');
+});
 
 test('borders: every edge is read, not just the top — a bottom-only divider is the common case', async (t) => {
   if (!gauntletChromiumOk) { t.skip('chromium probe failed: ' + gauntletProbeReason); return; }

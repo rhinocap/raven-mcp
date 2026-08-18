@@ -870,3 +870,969 @@ and 6, with round 6's own method claim — *a kill is not evidence the declared
 assertion fired* — offered up as claim 9 for falsification).
 
 **Nothing is committed or pushed and nothing is on npm.**
+
+---
+
+## Round 7 — Sol R6's two P1s fixed, guarded, and fanned out
+
+### Sol round 6 verdict: DOES NOT SURVIVE — 2 P1, 1 P2, 4 P3
+
+`SOL-EXIT=0`, 573,424 bytes, read from inside the file.
+
+| # | Pri | Finding | Disposition |
+|---|-----|---------|-------------|
+| 1 | P1 | Shadow-root sheets are an UNSCANNED FOURTH cascade source; `:host { border-top-width: 1px !important }` beats an inline `0.5px` invisibly and the fast path recovers `0.5px` for an edge painted at 1px | **FIXED** — scan + gate + caveat + 2 tests + G61/G62/G63 |
+| 2 | P1 | `@scope` / `@starting-style` recurse as AUTHORED; the scope condition is dropped at collection and only `r.selector` is tested with `el.matches()` | **FIXED** — type whitelist + 1 test + G64 |
+| 3 | P2 | Finished-animation test covers `forwards` only; `both` and a refuse-everything mutant stay green | OPEN — round 8 |
+| 4 | P3 | Brief claim 4 false: G55 is radius **2**, not 1; the "test line 959" citation is stale (real assertion at test:1055) and repeated at `gauntlet-mutants.mjs:17` | OPEN |
+| 5 | P3 | Container-fixture `!important` reasoning wrong — the early refusal needs BOTH inline and importantConflict (`src:1013`) | OPEN |
+| 6 | P3 | Container harm message names an impossible independent reading (`src:1065` precondition) | OPEN |
+| 7 | P3 | Round 6's method claim too strong — a static consistency check beats hand-grading, and `test:448` already said so | OPEN |
+
+Andrew's call, via AskUserQuestion: **"Fix both P1s, then ship."**
+
+### P1-1 — the shadow root as a fourth rule source
+
+Both stylesheet loops read `document`. CSSOM gives every DocumentOrShadowRoot its
+OWN `styleSheets` and `adoptedStyleSheets`, so a shadow sheet appears in neither
+— while `:host` matches the host element, which IS measured, because
+`querySelectorAll("body *")` returns hosts and simply does not descend into them.
+That is the whole defect: the element is in the measurement set and one of the
+rule sources that decides its border is not in the scan set.
+
+The fix **COUNTS rather than collects**, and that is the load-bearing decision. A
+shadow selector is not evaluable from outside its tree — `el.matches(":host")`
+answers false on the host — so recording the rule against an unmatchable selector
+would be no record at all, and recording it as authored would be a false
+recovery, which is the one direction this probe is forbidden to fail in. A
+non-zero count refuses every recovery document-wide, exactly as `sheetsBlocked`
+already does one rule source over.
+
+Six edits: `declaresBorderWidth()` (recursive, and an unreadable nested import
+counts as "might declare one"), the shadow scan, `let shadowBorderRules = 0`, the
+`shadowBorderRules > 0` refusal gate, a dedicated caveat cause sentence, and the
+internal `shadowRules` payload field.
+
+**The gate is keyed on a border-width DECLARATION being present, not on a shadow
+root existing** — a refusal that never lifts is an outage, not a refusal, and
+web-component pages would otherwise lose hairline provenance entirely.
+
+**The caveat needed its own cause sentence, and no test would have caught the
+wrong one.** With only the shadow refusal live, the existing wording said the
+winner "depends on specificity" — a rule this probe COLLECTED and could not rank.
+A shadow rule was never collectable at all. A caller reading "specificity" would
+go looking for a conflict that is not on the page. Both sentences appear when
+both causes are live.
+
+### P1-2 — an unknown conditional group collected as authored
+
+`@supports`, `@container`, `@media` and `@layer` were discriminated by type and
+**everything else fell through to the plain recursion with `unevaluable`
+unchanged**. The comment called that "a false ambiguity … in the honest
+direction"; it was exactly backwards. The fix inverts the default via an
+`isNesting`/`isMedia`/`isLayer` whitelist — an at-rule group off the list
+degrades to unresolved. `!!rule.selectorText` is what separates a CSS-nesting
+style rule (already collected above, applies as authored) from a real at-rule
+group.
+
+### The half-applied state — the reason G61 and G62 both exist
+
+For part of this round the fix shipped with `shadowBorderRules` declared and
+incremented and **nothing reading it**. It compiled clean and the entire repo
+suite passed while the defect was completely untouched. **A counter nobody reads
+is not a fix.** G61 (gate deleted) and G62 (scan never counts) are ONE RULE AT
+TWO DOORS in the sharpest form this matrix has carried, because the round
+actually shipped with exactly one of the two doors applied.
+
+### Three new tests — 51 → 54
+
+1. `hairlines: a shadow root that declares a border width stops every recovery` —
+   `:host { border-top-width: 1px !important }` over 24 inline-`0.5px` rows.
+   Asserts the `0.5px` is NOT recovered (harm message names all three readings:
+   scan never ran / gate missing / fixture never attached), asserts `1px` IS
+   present as a fixture precondition, and asserts the caveat carries the exact
+   string `shadow root(s) declare a border width this probe cannot attribute` —
+   deliberately NOT a bare "Hairline caveat" check, which would pass on the
+   specificity sentence and measure nothing.
+2. `hairlines: an ordinary shadow root that declares NO border width costs
+   nothing` — the opposite-direction control, and G63's only guard.
+3. `hairlines: an UNKNOWN conditional group is unresolved, never collected as
+   authored` — `@scope (.absent)`. Asserts `0.25px` absent, `1px` present (also
+   the only assertion that would report an engine dropping `@scope` entirely),
+   AND `0.5px` absent — that third one is what proves the group DEMOTES rather
+   than merely being skipped.
+
+**The benign control failed on its first run and the code was right.** The
+fixture declared `span { border-top-width: 0 }`, which IS a border-width
+declaration, so `declaresBorderWidth` correctly returned true and the page
+refused. A `0` outranks an inline width and DELETES the edge, so counting it is
+correct. Fixture replaced with `letter-spacing`, and the reasoning is now a
+comment beside it.
+
+Measured: **54 tests / 54 pass / 0 fail / 0 skipped, EXIT=0**
+(`agent-output/suite-r8.log`), 54 `✔` lines counted. The +3 over round 6's 51 is
+exactly the three new tests.
+
+### Matrix v13 — and an ABORT that was the harness working
+
+First launch died at pre-flight: `ABORT: G58-container-treated-as-plain
+find-string not unique`, `EXIT=1`, seconds in. `collectRules(rule.cssRules,
+true)` used to occur exactly once; the P1-2 fix added a SECOND site with a
+byte-identical body. **A find-string mutant dies the moment its target line is
+DUPLICATED, exactly as it dies when the line is edited** — a case this repo had
+not hit before, and the uniqueness check caught it rather than silently mutating
+whichever site it reached first. Re-anchored on the tail of the container
+comment, which no other site shares; G64 owns the other site. Relaunched, and the
+pre-flight now reads `66 mutants anchor uniquely and parse`.
+
+### Round 7 adverse pass — FANNED OUT (Andrew: "fan out with open weight model and 5.6 SOL")
+
+Three legs against `SOL-BRIEF-R7.md`, all detached to files, all reading their
+own `EXIT=` from inside the log:
+
+- `codex exec -m gpt-5.6-sol -c model_reasoning_effort=medium` → `SOL-R7.out`
+- `ow-run z-ai/glm-5.2 16000 high` → `OW-GLM-R7.json`
+- `ow-run moonshotai/kimi-k3 16000 high` → `OW-KIMI-R7.json`
+
+The two open-weight legs cannot read files, so their prompt is self-contained:
+the brief, the complete `src`+`test` diff, and the four new mutant definitions
+inlined. Eight claims under audit, the sharpest being **claim 1** — name a FIFTH
+author-origin rule source that outranks an inline width and appears in none of
+`document.styleSheets` (recursed), `document.adoptedStyleSheets`,
+`CSSImportRule.styleSheet.cssRules`, or a shadow root's own two collections — and
+**claim 8**, which asks for another half-applied state that still compiles and
+still passes.
+
+**Nothing is committed or pushed and nothing is on npm.**
+
+---
+
+## Round 8 — Sol R7 verdict, and the caveat defect was WIDER than reported
+
+### Sol R7: `SOL-EXIT=0`, 220,774 bytes — **DOES NOT SURVIVE (2 P1, 2 P2)**
+
+Sol reported honestly that `mutants-v13.log` "remained in flight and had reached
+only G6 when inspected; G61–G64 and both controls were unmeasured. No browser
+suite was rerun. No files were changed by this audit." An adverse pass that says
+what it did NOT measure is worth more than one that implies it measured
+everything.
+
+| # | Pri | Finding | Disposition |
+|---|-----|---------|-------------|
+| 1 | P1 | **Closed shadow roots are unscanned.** `host.shadowRoot` is null BY DEFINITION for `{mode:"closed"}`, so a closed `:host { border-top-width:1px !important }` beats an inline `0.5px` with nothing to count — a CONFIDENT 0.5px for an edge painted at 1px. | CONFIRMED by reading → **FIXED** |
+| 2 | P1 | **Shadow `adoptedStyleSheets` can regress with no test failing.** Both collections are scanned but `SHADOW_ROWS` delivered CSS only through an inline `<style>`. "Another compile-and-pass half-state." | CONFIRMED by reading → **FIXED** |
+| 3 | P2 | **`declaresBorderWidth` counts rules that cannot affect any measured element.** A `.internal { border:1px }` inside a shadow sheet styles a node that is never in `querySelectorAll("body *")`, yet it disables recovery document-wide. The benign control has NO border declaration at all, so it misses this false-refusal case entirely. | **OPEN** — the outage direction |
+| 4 | P2 | **The new caveat still falsely reports a specificity conflict.** Every shadow refusal increments the generic `subPixelAmbiguous`, which unconditionally emits the "winner depends on specificity" sentence. | CONFIRMED, found **WIDER** → **FIXED** |
+
+### The discovery: P2-4 is wrong SEVEN ways, not one
+
+Sol named the shadow cause. Reading `authoredSubPixel` end-to-end found it
+returns `"unresolved"` from **EIGHT** distinct causes:
+
+1. `sheetsBlocked > 0` (document-wide gate)
+2. `shadowBorderRules > 0` (document-wide gate)
+3. `ruleOverflow` (document-wide gate)
+4. `animatedSide(el, side)` — per-element, and it has **NO cause sentence of its own**
+5. an unreadable inline expression (`pxLength` → `"unresolved"`)
+6. `inline && importantConflict`
+7. an `unresolvedRules` entry matches
+8. `new Set(matched).size > 1` ← **the ONLY genuine specificity conflict**
+
+**A caveat sentence that names a MECHANISM is a claim about that mechanism.**
+Narrating the total as "the winner depends on specificity" told a caller with a
+shadow root, a blocked sheet or an animated border to go hunting for a rule
+collision that is not on their page. Wrong seven ways out of eight.
+
+Also noted and deliberately NOT changed: at `src:1177` the clause
+`authored === "unresolved" || sheetsBlocked > 0` has a **dead second disjunct** —
+`sheetsBlocked > 0` already forced `"unresolved"` at the first gate, so
+`typeof authored === "number"` is impossible there. Harmless.
+
+### Six edits to `src/design-gauntlet.ts`
+
+1. **Closed-root capture** — an `addInitScript` wrapper on `Element.prototype.attachShadow`
+   stashing every `{mode:"closed"}` root into a non-enumerable, non-writable
+   `window.__ravenClosedShadowRoots`. The root object is only ever reachable at
+   the moment it is created. Running as an init script is what makes the wrapper
+   win: it installs before any page script. Stated in the comment rather than
+   defended against: **this is a CORRECTNESS mechanism against ordinary pages,
+   NOT a security boundary** — a page that deletes the stash afterwards is back
+   to the silent false recovery, the same unclosable pre-injection class this
+   repo already documents for the Grab overlay.
+2. **The shadow scan reads both root kinds**, re-checking `measured.has(root.host)`
+   rather than assuming it — a stash entry whose host is not measured (detached,
+   or outside `body *`) cannot change any border this tally reports, and counting
+   it would be a page-wide refusal bought for nothing.
+3. **New `subPixelConflict` counter**, declared with the eight-cause enumeration
+   above as its comment.
+4. **Incremented at the ONE site that is a genuine conflict** (`new Set(matched).size > 1`).
+5. **Returned in the payload** alongside `subPixelAmbiguous`.
+6. **The caveat splits one sentence into two.** The specificity sentence now
+   fires only on `subPixelConflict`; the remainder gets a sentence that states
+   the refusal WITHOUT naming a mechanism it does not know. The generic sentence
+   is **load-bearing, not cosmetic**: without it a fixture with
+   `subPixelAmbiguous > 0`, `subPixelConflict === 0` and no document-wide cause
+   emits a malformed `"Hairline caveat: . A 1px entry..."`. The now-falsified
+   parenthetical `(Both sentences appear when both causes are live.)` was deleted
+   from the shadow comment.
+
+### Three new tests — 54 → **57**
+
+`SHADOW_ROWS` gained `mode` and `adopted` as PARAMETERS rather than becoming
+three near-identical helpers, because they are the two axes the probe reaches a
+shadow sheet through and each is separately breakable.
+
+1. `a CLOSED shadow root stops every recovery too` — differs from the open
+   fixture by ONE WORD.
+2. `a shadow ADOPTED stylesheet stops every recovery too` — every other shadow
+   fixture in the file delivers CSS via `<style>`, so dropping the adopted half
+   of the spread left them all green.
+3. `a REAL specificity conflict is the one thing that says "specificity"` — the
+   **positive control**. Three tests now assert the specificity sentence is
+   ABSENT, and **an absence assertion needs a positive control or it passes
+   vacuously**: deleting the sentence outright would satisfy all three. Both
+   widths in its fixture are deliberately sub-pixel (`0.5px` vs `0.75px`) so the
+   winner still paints at 1px and the edge reaches the recovery branch at all —
+   a 2px winner computes to 2px and `authoredSubPixel` is never called.
+
+### Measured
+
+- `npx tsc --noEmit` → TSC=0. `npm run build` → BUILD=0, `subPixelConflict`
+  appears 7× in `dist/design-gauntlet.js`.
+- Gauntlet suite `suite-r9.log`: **57 tests / 57 pass / 0 fail / 0 skipped**,
+  `EXIT=0`, all read from INSIDE the log. All three new tests confirmed RUN by
+  name at lines 48/49/50. **The `# tests` grep returned nothing and that was the
+  documented gotcha, not an absent summary** — `node --test` prefixes totals with
+  `ℹ `, so the silence was re-grepped rather than accepted.
+- `EXPECTED_BASELINE` in the harness bumped 54 → 57.
+
+### Matrix v13 was KILLED deliberately, not crashed
+
+It was at G25/66 measuring a `dist/` built from the round-7 tree, which the six
+new edits superseded. **`npm run build` is `clean && tsc`, so it DELETES `dist/`
+— never run it while a mutation harness is mid-run**; it would have wiped the
+directory under a running mutation and corrupted both the run and its restore.
+`pkill -f gauntlet-mutants.mjs` first, then rebuild. The rebuild regenerates
+`dist/` wholesale, so any mutant the kill left applied is gone — verified.
+
+### Still open
+
+- **Sol R7 P2-3** (unreachable shadow rules cause a document-wide false refusal).
+- The round-8 fixes are **unmeasured by any mutant**. A green build and a green
+  suite were exactly the state the half-applied P1-1 fix produced.
+- GLM 5.2 returned `finish_reason: length` with `content_len: 0` for the SECOND
+  time at 40000/medium — 40,000 completion tokens spent entirely on reasoning.
+  A failed run, never "no findings"; relaunched once at `low`. Kimi K3 in flight.
+
+**Nothing is committed or pushed and nothing is on npm.**
+
+---
+
+## Round 8 (cont.) — closing round 8's own coverage hole
+
+Round 8's `measured.has(root.host)` re-check shipped with **zero coverage**: every
+closed-root fixture attached to a measured host, so deleting the clause left them
+all green. Added a fourth test — *a DETACHED closed root is stashed but not
+counted* (57 → **58**) — whose orphan host declares `1px !important`, i.e. exactly
+the rule that WOULD stop every recovery if it were counted. That makes the
+assertion a measurement rather than a restatement.
+
+Six mutants added, `EXPECTED_BASELINE` 57 → 58:
+
+- **G65/G66** — the G61/G62 shape one layer out. The closed-root fix is ONE RULE
+  AT TWO DOORS: a wrapper that STASHES every closed root, and a scan that READS
+  the stash. A stash nobody reads and a reader with an empty stash are
+  byte-identical in every observable, both compile clean, and both pass the whole
+  repo suite — the half-applied state round 8 exists to make distinguishable.
+- **G67** — drops the ADOPTED half of the shadow sheet spread.
+- **G68** — drops `measured.has(root.host)`. The OUTAGE direction; reddens the
+  DETACHED test alone, which is why that fixture had to exist first.
+- **G69/G70** — the caveat's specificity sentence, pulling in OPPOSITE directions
+  on one mechanism. G69 reverts the sentence to the total (the shipped defect) and
+  reddens the three ABSENCE assertions; G70 stops the counter incrementing so the
+  sentence never fires, and reddens the POSITIVE CONTROL alone. **Without G70 the
+  three absence assertions would pass vacuously under a mutant deleting the
+  sentence outright — an absence assertion needs a positive control or it measures
+  nothing.**
+
+**G41 had to be RE-ANCHORED.** The `subPixelConflict++` insertion rewrote the exact
+two lines it was pinned to, and matrix v14 aborted at pre-flight in *seconds*
+rather than mis-measuring an hour in. Re-anchored onto the braced form, deliberately
+KEEPING the increment so it stays a mutation of the conflict RULE, not of the
+counter G70 owns. v14 relaunched: **pre-flight 72/72 anchor uniquely and parse,
+baseline tests=58 pass=58 fail=0 skipped=0 status=0.**
+
+## Round 9 setup — the open-weight fan-out earned its keep
+
+`ow-run moonshotai/kimi-k3 40000 medium` returned a **real** run —
+`finish_reason: stop`, 30,436 completion tokens, 12,689 bytes, $0.47, 877s —
+**VERDICT: DOES NOT SURVIVE, P1 ×3.** It independently re-found the closed-shadow-root
+P1 (already fixed in round 8) and named **two P1s Sol R7 never did**. Both were
+settled by MEASUREMENT rather than argument, in a probe that imports nothing from
+`dist/` because the matrix was rewriting it (`.claude/gauntlet-2026-08-14/agent-output/probe-r7b-*.mjs`,
+a gitignored `agent-output/` destination).
+
+### CONFIRMED P1 — logical border-width properties are invisible
+
+`border-inline-start-width: 1px !important` measures as
+`rule.style.borderLeftWidth === ""`, and the declaration block enumerates
+**only** `border-inline-start-width`, while the engine PAINTS `left: 1px`. The
+`SIDES` predicate reads the physical longhand at BOTH sites — `declaresBorderWidth`
+(`src:868`, the shadow gate) and `collectRules` (`src:894`, the document-level
+authored-rule collection). **Wider than Kimi framed it**: it is not only the shadow
+gate. A document rule `.row { border-inline-start-width: 1px !important }` over an
+inline `border-left: 0.5px` is invisible, and `0.5px` is recovered confidently for
+an edge painting `1px` — the round-6 defect class exactly.
+
+### CONFIRMED P1 — CSS nesting, and the combinator SPLITS it into two directions
+
+Kimi's mechanism is right and **its counterexample is backwards**. Chromium
+serializes every nested rule's `selectorText` with an `&` prefix — `.row` and
+`& .row` both come back as `& .row` — and standalone `&` behaves as `:scope`,
+which in `Element.matches()` is the element itself. Nothing throws. So:
+
+| authored | stored selectorText | `matches()` | rule applies? | painted | probe hands back |
+|---|---|---|---|---|---|
+| `.card { .row { 1px !important } }` | `& .row` | **false** | **YES** | `1px` | inline `0.5px` — silent MISS |
+| `.absent { &.row { 0.25px !important } }` | `&.row` | **true** | **NO** | `1px` | `0.25px` — FALSE MATCH |
+
+Kimi's descendant example is refuted (a non-applying descendant rule is correctly
+ignored); the compound form reproduces its claim exactly, and the descendant form
+is a *second*, opposite defect it did not name. The false-match direction is the
+worse one — it recovers a width that appears **nowhere on the render**.
+
+Both flow from one line, `const isNesting = !!rule.selectorText` (`src:964`),
+recursing with `unevaluable` UNCHANGED. **The comment "its nested rules apply
+exactly as authored" is the same safety claim the `@scope` fallthrough carried,
+one whitelist entry over.**
+
+### Measured REFUTATION of a Kimi P2
+
+Kimi doubted the G61/G62/G63 find-strings matched the shipped text and said the
+in-flight log was the only arbiter. It is, and it answered: v14 pre-flight reports
+**72 mutants anchor uniquely and parse**. The harness aborts on a dead anchor —
+it did exactly that for G41 this round — so a phantom kill was never possible.
+
+### Round 9 queue
+
+Three P1 fixes (logical properties at both sites; nesting split by combinator),
+plus Sol R7's still-open P2-3, plus Sol R8 when it lands — folded into ONE
+convergent round with tests in both directions and mutants per mechanism.
+
+**Nothing is committed or pushed and nothing is on npm. Shipping is not on the
+table while three confirmed wrong-answer P1s are open.**
+
+---
+
+## Round 8 adverse fan-out — all three legs RETURNED
+
+Three independent legs ran against the round-8 tree: **Sol R8** (`gpt-5.6-sol`,
+medium, detached, `SOL-EXIT=0`, 5316 lines), **GLM 5.2 R7c** (`ow-run`,
+`finish_reason: stop`, `content_len: 9283` — a REAL run, not a length-truncation),
+and **Kimi K3 R7b** (returned earlier this session). Two model families
+independently converged on the same P1, which is the strongest signal the round
+produced.
+
+### Sol R8 — VERDICT: DOES NOT SURVIVE (3 P1 + 2 P2)
+
+**P1-1 — declarative closed shadow roots bypass the `attachShadow` wrapper.**
+The round-8 wrapper (`src:579`) intercepts JS calls to
+`Element.prototype.attachShadow`. The HTML parser does not call it — it invokes
+the platform's internal "attach a shadow root" algorithm. Counterexample:
+
+```html
+<div class="row" style="border-top:0.5px solid #123456">
+  <template shadowrootmode="closed">
+    <style>:host { border-top-width:1px !important }</style><slot></slot>
+  </template>
+  row
+</div>
+```
+
+`host.shadowRoot` is null, the stash stays empty, the scan at `src:1033` sees
+nothing, and the probe confidently recovers the inline `0.5px` over an edge that
+paints `1px`. G65/G66 structurally cannot catch it — `SHADOW_ROWS`
+(`test:1082`) always creates roots through the wrapped method.
+
+**P1-2 — the four shadow tests miss the closed + adopted composition.** Fixtures
+cover open+`<style>`, closed+`<style>`, open+`adoptedStyleSheets` — never
+closed+`adoptedStyleSheets`. An implementation scanning both collections for open
+roots but only `styleSheets` for closed roots passes every test and still returns
+`0.5px`. The shared loop at `src:1054` happens to work; nothing guards it. This
+is the third half-applied state the brief asked for.
+
+**P1-3 — the planned round-9 selector filter can CREATE a false recovery.** A
+selector-only allowlist must carry nesting context:
+
+```css
+:host { & { border-top-width: 1px !important; } }
+```
+
+The declaration-bearing nested rule can expose `selectorText === "&"`. Testing
+that child independently for `:host` / `:host-context()` / `::slotted()` would
+discard it even though the parent makes it host-reaching — converting today's
+false REFUSAL into the forbidden false RECOVERY. Reachability must propagate
+through nested `CSSStyleRule` ancestors, handle functional forms such as
+`:is(:host)`, and fail closed on anything unclassifiable.
+
+**P2-1 — `subPixelConflict` falsely names specificity, and the sentences say the
+wrong unit.** The increment (`src:1226`) means only "two matched widths differ".
+`.row { border-top: 0.5px }` + `.row { border-top: 0.75px }` is equal
+specificity — **source order** decides — yet `src:691` reports "depends on
+specificity". Second half: the counters are per EDGE while both new sentences say
+"element(s)", so one element with conflicting top and bottom edges reports two.
+
+**P2-2 — G69/G70's declared radii are false and the new positive control is
+redundant.** G69 claims three absence assertions; only the open-shadow test has
+one (`test:1131`). G70 claims the new control alone; two older tests already
+require a specificity caveat (`test:688`, `test:713`). So the comment calling the
+new fixture "the only fixture in the suite with a collected conflict" is FALSE,
+and deleting the sentence was already guarded. Two sub-pixel widths are
+unnecessary — the existing `1px` vs `0.5px` fixture already enters recovery.
+
+**Claims that SURVIVED Sol R8:** `measured.has(root.host)` is correct against the
+slotted-content attack; the generic sentence is load-bearing; `animatedSide`
+lacking its own cause sentence is a diagnostic limitation, not dishonesty; and
+**no `src/`→`dist/` drift exists in the round-8 constructs** (all generated
+branches present; `git diff --check` zero).
+
+### GLM 5.2 R7c — VERDICT: DOES NOT SURVIVE (1 P1 + 2 P2 + 4 P3)
+
+- **P1-1 — `declaresBorderWidth` misses logical border-width properties.**
+  Independent confirmation of Kimi's P1 from a different model family.
+  Counterexample `SHADOW_ROWS(':host { border-block-start-width: 1px !important }')`.
+- **P2-1 — dropping `root.adoptedStyleSheets` from the shadow scan compiles clean
+  and passes the entire suite.** Same gap Sol calls the third half-applied state.
+- **P2-2 — the document-wide refusal is coarser than the scan already allows.**
+  The scan iterates per-host; a `Set<Element>` of offending hosts would refuse
+  only those elements. 24 `.row`s + one bordered `<my-widget>` loses 23 correct
+  recoveries.
+- **P3-1 — `@scope` with a matching root always applies**; the whitelist is
+  correct in both directions for the at-rules that exist today (GLM's own
+  conclusion, honest direction).
+- **P3-2 — G63's comment is wrong.** It claims no assertion in the defect
+  direction can see it; the benign test's shadow-cause absence assertion DOES
+  fail under G63. Mutant still caught, reasoning false.
+- **P3-3 — `declaresBorderWidth` counts non-`!important` declarations.**
+  `:host { border-top-width: 0 }` sets `"0px"` (truthy) and fires a document-wide
+  refusal though it cannot outrank inline. Honest direction, loss for nothing.
+- **P3-4 — UA/user-origin `!important` is not scanned.** Rare; the claim's
+  author-origin scoping excludes a real cascade source.
+
+## Round 9 — measurements taken BEFORE writing any fix
+
+`probe-r9-nesting-fix.mjs` and `probe-r9-logical.mjs`, both importing `playwright`
+ONLY (never `dist/`, which the matrix is rewriting).
+
+### The nesting fix: `&` → `:is(<parent selectorText>)`, recursively
+
+| fixture | resolved selector | painted | authored match | fixed match |
+|---|---|---|---|---|
+| applies | `:is(.card) .row` | 1px | false (silent miss) | **true** ✓ |
+| orphan | `:is(.absent).row` | 1px | true (false match) | **false** ✓ |
+| parent LIST | `:is(.a, .b) .row` | 2px | false | **true** ✓ |
+| two-deep | `:is(:is(.outer) .mid) .row` | 3px | false | **true** ✓ |
+
+`:is()` rather than a bare paste is **load-bearing**, and the parent-list arm is
+what proves it: pasting `.a, .b` raw would regroup the selector.
+
+### CSSOM enumeration — every logical authoring form expands to logical LONGHANDS
+
+| authored | enumerated property names | `style.borderTopWidth` |
+|---|---|---|
+| `border-block-start: 1px solid` | `border-block-start-{width,style,color}` | `""` |
+| `border-block: 1px solid` | both block `-width`/`-style`/`-color` | `""` |
+| `border-inline: 1px solid` | both inline `-width`/`-style`/`-color` | `""` |
+| `border-inline-start-width: 1px` | `border-inline-start-width` | `""` |
+| `border-block-start-width: 1px` | `border-block-start-width` | `""` |
+| `border-top-width: 1px` | `border-top-width` | `"1px"` |
+
+**No shorthand survives unexpanded**, so the detector is a four-name set —
+`border-{block,inline}-{start,end}-width` — and never needs to parse shorthands.
+An INLINE logical declaration behaves identically (`el.style.borderTopWidth` is
+`""`, enumeration shows `border-inline-start-width`), which is why the inline
+fast path at `src:1184` is a third defect site, not just the two rule sites.
+
+### Two guards the nesting fix cannot skip — both measured
+
+- `el.matches(':is(main::before) .row')` returns **false and does NOT throw.**
+  A pseudo-element in the parent makes the resolved selector silently
+  unmatchable, which is the false-recovery direction. The guard cannot wait for
+  a throw; it must detect `::` textually and refuse.
+- A nested selector carrying a quoted `&` serializes as `& [title="a&b"]`. A
+  naive `/&/g` replace corrupts the attribute value. Refuse on any quote.
+
+### Sol P1-1 confirmed and its detector measured
+
+Declarative closed root: `shadowRoot === null`, `__ravenClosedShadowRoots` empty,
+inline `0.5px`, **painted `1px`** — a confident wrong recovery, exactly as Sol
+described. And the main-document response body carries the attribute, so
+`/shadowrootmode\s*=\s*["']?closed/i` over `(await page.goto(...)).text()` is a
+working detector from outside the page. Narrowed to `closed` because
+`shadowrootmode="open"` is already scannable.
+
+### Round-9 fix roster (design decisions, not yet written)
+
+1. **Logical properties** — three sites: `declaresBorderWidth` (`:868`) returns
+   true; `collectRules` (`:894`) pushes an `unresolvedRules` entry for ALL FOUR
+   sides, since no logical→physical mapping exists without writing-mode; the
+   inline fast path (`:1184`) returns `"unresolved"`.
+2. **Nesting** — carry `parentSelector` through `collectRules`, store the
+   RESOLVED selector. Fail CLOSED on a quote in the child or `::` in the parent,
+   into a new document-wide refusal counter with its own gate and cause sentence
+   (following the `shadowBorderRules` pattern), because a silently dropped
+   `!important` rule is the false-recovery direction.
+3. **Declarative closed shadow roots** — response-body detector, page-level
+   fail-closed flag. Residuals: iframes, `setHTMLUnsafe` injection.
+4. **closed + adopted composition test** — test-only, guards `src:1054`.
+5. **Reachability propagation** — Fix 2's `:is(parent)` resolution is the same
+   mechanism that answers Sol P1-3.
+6. **`subPixelConflict` naming** — stop naming specificity; fix the edge/element
+   unit error in both sentences.
+7. **G69/G70 radii + redundant control** — correct to Sol's static expectations,
+   delete the false "only fixture" claim, drop the second sub-pixel width.
+
+Plus GLM P3-2 (G63's comment), P3-3 (non-`!important` refusal), P2-2 and P3-4 as
+stated residuals with reopen conditions, and Kimi's three suggested mutants.
+
+**Nothing is committed or pushed and nothing is on npm.** Six confirmed
+wrong-answer P1s are open across three independent adverse legs.
+
+---
+
+## Round 9 — product edits landed in `src/design-gauntlet.ts` (checkpoint)
+
+`npx tsc --noEmit` **EXIT 0**. Eleven edits; the file went from half-applied and
+incoherent to coherent and type-clean. Three NEW mechanisms, two CORRECTED
+warning sentences. **Zero test coverage and zero mutant coverage so far** — none
+of this is committed, pushed, or on npm.
+
+### The five measurements taken BEFORE any product edit
+
+Three of the five changed the design, which is why they were taken first.
+
+**(1) CSSOM enumeration — every logical border form expands to logical LONGHANDS.**
+So a four-NAME set suffices and no shorthand parser is needed. Measured, not assumed:
+
+| authored | enumerated | `style.borderTopWidth` |
+|---|---|---|
+| `border-block-start: 1px solid` | `border-block-start-{width,style,color}` | `""` |
+| `border-block: 1px solid` | both block `-width`/`-style`/`-color` | `""` |
+| `border-inline: 1px solid` | both inline `-width`/`-style`/`-color` | `""` |
+| `border-inline-start-width: 1px` | `border-inline-start-width` | `""` |
+| `border-block-start-width: 1px` | `border-block-start-width` | `""` |
+| `border-top-width: 1px` | `border-top-width` | `"1px"` |
+
+**(2) The INLINE case is the third door.** `enumerated:
+["border-inline-start-width","border-inline-start-style"]`, `borderTopWidth: ""`,
+`borderInlineStartWidth: "0.5px"`, **`paintedLeft: "1px"`**. The physical read on
+the element sees NOTHING, falls through to the stylesheet scan, and answers
+confidently for an edge whose authored width is sitting unread on the element
+itself.
+
+**(3) A guard cannot wait for a throw.** `el.matches(':is(main::before) .row')`
+returns **`false` with NO throw** — a silently unmatchable rule, which is the
+false-recovery direction. Textual detection is required, so the `::` parent guard
+is a string test rather than a try/catch.
+
+**(4) A naive `/&/g` corrupts attribute values.** A nested quoted `&` serializes
+as `& [title="a&b"]`, hence the quote guard.
+
+**(5) Sol R8 P1-1 CONFIRMED, and its detector measured.** A declarative closed
+shadow root gives `shadowRootIsNull: true`, `stashLen: 0`, `inline: "0.5px"`,
+**`painted: "1px"`** — the confident false recovery the `attachShadow` wrapper
+exists to prevent, arriving through a door the wrapper structurally cannot cover,
+because the HTML parser runs the internal algorithm and never calls
+`Element.prototype.attachShadow` at all. `responseCarriesAttr: true`, so the main
+document's own response BYTES are the one place it is still visible.
+
+**Nesting fix measured correct in all four arms** before it was written:
+
+| fixture | resolved | painted | authored match | fixed match |
+|---|---|---|---|---|
+| applies | `:is(.card) .row` | 1px | false (silent miss) | **true** ✓ |
+| orphan | `:is(.absent).row` | 1px | true (FALSE match) | **false** ✓ |
+| parent LIST | `:is(.a, .b) .row` | 2px | false | **true** ✓ |
+| two-deep | `:is(:is(.outer) .mid) .row` | 3px | false | **true** ✓ |
+
+The parent-selector-LIST arm is what makes `:is()` load-bearing rather than
+stylistic: a raw paste of `.a, .b` regroups the selector. `:is()` also carries the
+parent's specificity the way `&` does.
+
+### The eleven edits
+
+1. **`parentSelector` propagation through every `collectRules` recursion site.**
+   This is what made the inherited nesting fix LIVE rather than inert. `@supports`,
+   `@container` and the unknown-conditional-group site all pass the parent
+   through unchanged — a conditional group can itself be nested inside a style
+   rule, so dropping it there makes `.card { @supports(...) { .row { … } } }` read
+   as a top-level `& .row` again, which is the defect one layer in. `@media` and
+   `@layer` likewise introduce no new parent. A NESTING rule becomes the parent
+   for its subtree. The `@import` site deliberately passes NO parent — an
+   `@import` cannot be nested inside a style rule.
+2. **`isNesting && ownSelector === null` → `continue`, not recurse.** Recursing
+   with a null parent makes every descendant read as top-level `&`, the
+   false-match direction. Skipping costs nothing because the increment above has
+   already forced the document-wide refusal.
+3. **`nestingUnattributable` fully wired** — it was an assigned-only dead
+   counter. Now it has its own cause sentence AND its own gate immediately after
+   the `shadowBorderRules` gate. Same reasoning as the shadow sentence one rule
+   source over: a nested rule whose selector could not be reconstructed may carry
+   an `!important` width that wins on this edge, and there is no element it is
+   safe to answer for.
+4. **THE THIRD LOGICAL-PROPERTY DOOR — the inline fast path**, refusing before
+   the physical `style["border"+Side+"Width"]` read. Refusing is the only honest
+   answer available: mapping a logical side to a physical one needs the element's
+   writing-mode and direction, and even resolved it would still have to be
+   reconciled with whatever the physical longhand says.
+5. **Declarative closed shadow root detection — NEW MECHANISM (Sol R8 P1-1).**
+   `page.goto` now captures the response; `mainResponse.text()` is matched against
+   `/shadowrootmode\s*=\s*(?:"closed"|'closed'|closed\b)/gi`. Detected from
+   OUTSIDE the page because nothing inside it can see one. **Best effort by
+   construction and stated as such**: a root injected later via
+   `setHTMLUnsafe()`, or arriving in a subframe or a fetched fragment, is not in
+   these bytes and is not caught. Presence ALONE forces the refusal, because a
+   closed root's contents cannot be inspected at all — there is no way to ask
+   whether it declares a width.
+6. Its **gate** (document-wide) and its **cause sentence**, which gets its own
+   wording for the same reason the two above do: the reason it cannot be ranked
+   is that it cannot be READ, not that two collected rules collided.
+7. `probeInPage` signature + call site now carry `declarativeClosedRoots`.
+8. The `hairlines` object gained `nestingUnattributable` and
+   `declarativeClosedShadow`.
+9–11. **Sol R8 P2-1 — BOTH conflict cause sentences rewritten.** Two corrections
+   live in them: (a) the counter is incremented per **EDGE**, not per element —
+   `hairlineFor` runs once per side and one element can raise it four times — so
+   "element(s)" named the wrong unit and a caller reconciling the number against a
+   list of elements would find it did not add up; (b) it said the winner "depends
+   on specificity" and the increment site asks nothing of the kind — it fires when
+   two MATCHED rules declare DIFFERENT widths, which includes an equal-specificity
+   pair separated only by source order and an `!important` pair separated by
+   origin. Specificity is one of several tie-breaks and the probe ranks NONE of
+   them. New wording: `"edge(s) matched more than one authored width and this
+   probe does not rank the cascade"` and `"edge(s) render at 1px with an authored
+   width this probe could not resolve"`.
+
+### Sol R8 P1-3 — DISPOSITIONED NOT APPLICABLE
+
+The claim was that a selector filter could CREATE a false recovery
+(`:host { & { 1px !important } }` discarded). Verified by READING
+`declaresBorderWidth`: the shadow path asks only WHETHER a width is declared, it
+recurses into `rule.cssRules` and `rule.styleSheet`, and no selector filter was
+implemented there. `resolveNested` never runs on the shadow path. Nothing can be
+discarded.
+
+### The wording change broke two assertions — caught by grep, not by a run
+
+`test/design-gauntlet.test.mjs` still holds three references to the deleted
+string:
+
+- `:1126` — a comment
+- `:1131` — `!m.warnings.some((w) => w.includes('winner depends on specificity'))`,
+  a NEGATIVE assertion now **vacuously true**
+- `:1204` — the positive control, which will now go **RED**
+
+`:1131` is the dangerous one. It does not fail; it degrades silently into a
+tautology — precisely the "a check whose failure mode is indistinguishable from
+its success mode is not a check" class this repo documents repeatedly, arriving
+through a WARNING-STRING edit rather than through a logic edit. **The general
+entry to carry: changing a warning string silently converts every negative
+`!includes(...)` assertion that names it into a tautology, and no run reports
+it.** Editing the string back in is not enough — the negative direction has to be
+proven falsifiable again by the positive control at `:1204`.
+
+### Matrix v14 — STILL RUNNING at this checkpoint
+
+Grades the PRE-round-9 `dist/`, so it is a record of the OLD build only. Pre-flight
+and baseline GREEN (`72 mutants anchor uniquely and parse`, 58p baseline); killed
+through G40, 0 survivors, 0 false-fails, **no `EXIT=` line yet**. Observed radii:
+G13 r1, G14 r1, G15 r2, G16 r2, G17 r2, G18 r1, **G19 r18 (CONTROL)**, G20 r1,
+G21 r1, G22 r2, G23 r1, G24 r1, G25 r1, G26 r1, G27 r1, G28 r2, G29 r1, G30 r1,
+G31 r1, G32 r1, G33 r1, G34 r1, G35 r1, G38 r3, G39 r1, G40 r1.
+
+**`npm run build` is FORBIDDEN while it runs** — it is `clean && tsc` and would
+delete `dist/` under the harness. Editing `src/` alone is safe; mutants anchor on
+`dist/`.
+
+Its one repair so far: **G41's anchor died** on the `subPixelConflict++`
+insertion and was re-anchored onto the braced form, keeping the increment so G41
+stays a mutation of the conflict RULE and G70 owns the counter. Expect more of
+the same at v15 — the round-9 edits rewrite the exact lines several mutants
+anchor on, and a pre-flight abort there is the harness working, not a survivor.
+
+### Still owed for round 9
+
+Tests in both directions with one mutant per new mechanism: logical properties
+(all three doors), nesting (four arms), declarative closed root, closed+adopted
+(Sol P1-2), adoptedStyleSheets-dropped (GLM P2-1), the corrected conflict
+wording. Then v15 re-run WHOLE with a fresh header replacing the stale v12 block,
+radii diffed BY SET in both directions. Then the full suite. Open residuals: Sol
+R8 P2-2; GLM P2-2/P3-2/P3-3/P3-4; Kimi's three suggested mutants; Sol R6's
+P2-3/P3-5/P3-6/P3-7.
+
+## Round 9, part 2 — the test-side repair, and the nine new tests
+
+### The warning-string repair, and the general lesson it produced
+
+Round 9 rewrote the `subPixelConflict` cause sentence (Sol R8 P2-1: it named
+*specificity* for a mechanism whose increment site never asks about specificity —
+an equal-specificity pair separated only by source order fires it too). Changing
+that string touched **four live assertions across three tests**, and they split
+into two very different failure modes:
+
+- **Two would have gone RED** — the two `Hairline caveat` + `'winner depends on
+  specificity'` conjunctions, and the positive control. Those are caught by any
+  run.
+- **One would have gone SILENTLY VACUOUS** — the ABSENCE assertion
+  `!warnings.some(w => w.includes('winner depends on specificity'))`. A negative
+  `includes` on a string no warning can ever contain **cannot fail**, and no run
+  reports it.
+
+That is this repo's own *"a check whose failure mode is indistinguishable from
+its success mode is not a check"* arriving through a **string edit** rather than
+a logic edit. It is recorded here because nothing mechanical catches it: the
+suite stays green, the count stays 58, and the guard is gone.
+
+Two consequences, both now written into the test file itself:
+
+1. The absence assertion is pinned to `'does not rank the cascade'` and its
+   comment names the positive control at the bottom of the shadow block as the
+   only thing keeping it falsifiable — **if that control ever reddens because
+   the sentence moved again, the absence assertion stopped measuring at the same
+   moment.**
+2. **After changing a product string, grep the CONCEPT, not the literal you
+   replaced.** The first repair pass fixed only the two references already in
+   hand; a follow-up `grep -n "specificity"` exposed two more live assertions
+   (then at `:688` and `:713`) that pass 1 had walked straight past.
+
+Final state: `specificity` survives in the file only in comments, prose and one
+fixture `<title>`; the two live assertions on the new wording sit at **1140
+(negative)** and **1213 (positive)**.
+
+### Matrix v14 was discarded rather than read
+
+v14 was still running when the test edits landed, and its own log proves the
+contamination: **G41's printed radius names the OLD test title** (`…says
+"specificity"`) while **G44's names the NEW one** (`…fires the conflict
+sentence`). One run, two different suites. It was also grading a pre-round-9
+`dist/`. Killed at G47 and thrown away; **v15 is the only matrix that will mean
+anything**, and it must be re-run WHOLE with every anchor the round-9 edits
+destroyed re-anchored first.
+
+Killing it mid-run leaves a mutant in `dist/` — the exact hazard this ledger
+already documents. `npm run build` (`clean && tsc`) replaces the file wholesale,
+which is what was run next: **BUILD_EXIT=0**, and the round-9 constructs
+(`declarativeClosedRoots`, `LOGICAL_WIDTHS`, `resolveNested`) are present in
+`dist/design-gauntlet.js`.
+
+### Nine tests, 58 → 67
+
+Each fixture reuses the shape its standalone probe measured, so the test and the
+probe cannot drift.
+
+| test | mechanism | why the OBVIOUS fixture would have measured nothing |
+|---|---|---|
+| declarative closed root refuses | Sol R8 P1-1 | cannot use `SHADOW_ROWS` — that helper always builds roots **through** the wrapped `attachShadow`, which is precisely the path a declarative root does not take. Hand-written `<template shadowrootmode="closed">`, and served over **http**: the only detector is the main document's response bytes, and Playwright returns a **null response for `file://`**, so a `file://` version would pass on a build with no detector at all |
+| …caught when it declares NOTHING | same | pins the refusal to **PRESENCE**. The first test alone stays green under a detector that somehow inspected the root and refused only on a real declaration — which is impossible for a closed root, and that impossibility is the reason presence is the rule |
+| CLOSED + ADOPTED composition | Sol R8 P1-2 | the two shadow axes were covered one at a time (`closed`+`<style>`, `open`+adopted). Their composition — how a real closed component ships — was reached by neither, so the stashed-root `adoptedStyleSheets` read worked **by accident** |
+| LOGICAL width in a rule | GLM R7c P1-1 | `rule.style.borderTopWidth` reads `""` for every logical form, so the rule is not seen at all: no authored width, no `!important` conflict, inline 0.5px recovered against a rule painting 1px |
+| logical SHORTHAND | same | `border-block-start: 1px solid` is what a human writes and what a longhand-only detector would most likely miss. It does not, because the CSSOM expands it to logical **longhands** — which is why the detector is a four-name SET, not a shorthand parser. This fixture makes that a measurement rather than a comment |
+| INLINE logical width (third door) | GLM R7c P1-1 | **the observable is the WARNING, not the tally.** Old and new both leave `1px` in the tally; the entire difference is whether the caller is told it is provisional. An assertion on the tally could not see this fix in either direction |
+| nested rule APPLIES | round-9 nesting | `&` tested standalone degrades to `:scope`, so the rule is silently MISSED and the inline width is trusted against a rule that outranks it |
+| nested rule ORPHAN | same | the dangerous direction: `&.row` under an absent `.absent` standalone reads as `:scope.row` and **falsely matches every row**, suppressing a recovery it has no bearing on. The applies arm grades whether a rule is FOUND; this grades whether one that should not be found is ABSENT |
+| nested rule UNRESOLVABLE | round-9 guard | **a guard cannot wait for a throw.** Measured: `el.matches(':is(main::before) .row')` returns **false without throwing**, so a `try/catch` never fires and the rule is quietly discarded — the false-recovery direction. The refusal is TEXTUAL, before any selector is constructed, and the fixture is built so a silent drop and a refusal give OPPOSITE answers |
+
+**GLM R7c P2-1 is CLOSED as already-covered, not fixed** — `test/design-gauntlet.test.mjs:1173`
+(`a shadow ADOPTED stylesheet stops every recovery too`) already separates the
+`styleSheets` and `adoptedStyleSheets` halves of the scan. Verified by reading
+the test, not inferred.
+
+**Still owed after this:** every one of the nine is un-mutant-proven. A test that
+passes on its first run is worth nothing until a mutant proves it red — this file
+has recorded a test found *detecting rather than encoding* six times now.
+
+## Round 9 — suite verdict, a cwd-drift incident, and the tenth test
+
+### (a) The nine round-9 tests are measured green
+
+`.claude/gauntlet-2026-08-14/agent-output/r9-suite-1.log` — **67 tests / 67 pass / 0 fail / 0 skipped, `EXIT=0`**, the exit code read from INSIDE the log rather than from a wrapper notification.
+
+All nine new tests were confirmed to have RUN **by name**, at log lines 55–63, not inferred from the total:
+
+```
+55 ✔ hairlines: a DECLARATIVE closed shadow root refuses every recovery
+56 ✔ hairlines: a declarative closed root is caught even when it declares NOTHING
+57 ✔ hairlines: a CLOSED root delivering an ADOPTED sheet stops every recovery
+58 ✔ hairlines: a LOGICAL border width in a rule is unresolved, never read as absent
+59 ✔ hairlines: a logical SHORTHAND is caught by the same four-name set
+60 ✔ hairlines: an INLINE logical width refuses — the third door, on the element itself
+61 ✔ hairlines: a NESTED rule is resolved against its parent, not tested standalone
+62 ✔ hairlines: a nested rule under an ABSENT parent does not falsely match
+63 ✔ hairlines: a nested rule this probe cannot resolve is unresolved, never dropped
+```
+
+Read the parts, never the total: `ℹ tests 67` alone would be satisfied by a suite that registered nine
+tests and ran none of them. And the grep that gets there matters — `node --test` emits `✔`/`✖` and
+`ℹ tests/pass/fail`, **not** TAP `ok`/`not ok`, so a `^ok` pattern returns nothing and a wrong pattern
+returning nothing is indistinguishable from a clean run.
+
+All ten tests remain **un-mutant-proven** at this point. A test that passes on its first run is worth
+nothing until a mutant proves it red — this repo has recorded a test found *detecting rather than
+encoding* six times.
+
+### (b) A cwd-drift incident, and why it looked like deleted files
+
+`cd .claude/gauntlet-2026-08-14 && wc -l gauntlet-mutants.mjs` moved the **persistent shell cwd**. Every
+relative path after it resolved from the new directory, and the symptom was indistinguishable from
+deleted files, in this order:
+
+1. a second `cd .claude/gauntlet-2026-08-14` failed with "no such file or directory";
+2. `grep dist/design-gauntlet.js` reported the file missing;
+3. `ls dist` failed — at which point I momentarily concluded **`dist/` had been deleted**;
+4. I checked `ps` for a stray harness mid-restore (none);
+5. I then ran `npm run build` **from the wrong directory**, whose `clean` step is
+   `rmSync('dist')` **relative to CWD** — it silently targets the wrong `dist` (or nothing) and still
+   exits 0.
+
+What cracked it was a `MODULE_NOT_FOUND` **requireStack**, which printed the actual cwd:
+`/Users/accunliffe/projects/raven-mcp/.claude/gauntlet-2026-08-14/[eval]`. Recovered with an absolute
+`cd` + `pwd` + `ls dist/design-gauntlet.js`; root `dist/` was **intact**, 16 round-9 construct hits, no
+damage.
+
+Three lessons, in the order they bite:
+
+- **A `cd` inside a compound Bash command persists across tool calls.** Use absolute paths.
+- **A missing-file error is not evidence of a missing file** — it is evidence about a path, and a path
+  has two halves.
+- **`npm run build` is destructive and cwd-relative.** Running it to "recover" from a suspected
+  deletion is the one move that could have caused one.
+
+### (c) The `::` guard's reachability was MEASURED, and it produced a test rather than a comment
+
+I was about to write a mutant against the textual `if (parent.indexOf("::") !== -1) return null;` clause
+in `resolveNested`, on the assumption it was load-bearing. Measuring first
+(`.claude/gauntlet-2026-08-14/agent-output/probe-r9-guard-reach.mjs`) showed it is not, on Chromium:
+
+```
+:is(.card::before) .row   supports:false  matches:false
+:is(main::before) .row    supports:false  matches:false
+:is(.card::after).row     supports:false  matches:false
+:is(.card) .row           supports:true   matches:true     ← control
+```
+
+`selectorParses` has **two paths and they disagree**. The primary asks
+`CSS.supports('selector(<sel>)')`, which measures **false** — so the selector is rejected one line later
+whether or not the textual guard exists, and a mutant on that clause would have **SURVIVED**. The
+fallback, for an engine with no `CSS.supports`, returns true whenever `matches()` does not **throw** —
+and `matches(':is(.card::before) .row')` returns **false without throwing**. On that path the clause is
+the only thing standing between an unmatchable selector and a silently discarded rule, i.e. the
+false-recovery direction.
+
+The honest options were to document the clause as unreachable, or to make it reachable. **A claim that a
+clause cannot be tested is itself a claim, and it is falsifiable by writing the test.** So test 10 —
+`hairlines: the pseudo-element refusal holds on an engine with no CSS.supports` — simulates that engine
+with `<script>delete CSS.supports;</script>` as the document's own first script, which runs before the
+probe evaluates anything. Suite is now **68**; test 10 is un-run as of this entry.
+
+### (d) The round-9 mutant plan, G71–G79
+
+Nine mutants written into `.claude/gauntlet-2026-08-14/gauntlet-mutants.mjs`, `EXPECTED_BASELINE`
+raised 58 → **68**. All nine find-strings verified present-and-unique in `dist/design-gauntlet.js`
+before the matrix was launched — presence and uniqueness are answerable without launching anything.
+
+| id | mechanism | predicted red set |
+|---|---|---|
+| G71-declarative-closed-undetected | blinds the response-body detector | both declarative tests |
+| G72-declarative-gate-deleted | opens the gate the detector feeds | both declarative tests |
+| G73-logical-rule-unscanned | the logical rule-scan door | logical-rule + logical-shorthand |
+| G74-logical-set-block-only | narrows `LOGICAL_WIDTHS` to the block pair | inline-logical ONLY |
+| G75-inline-logical-door-deleted | the third door, on the element itself | inline/third-door ONLY |
+| G76-nested-rule-tested-standalone | the shipped defect: test nested rules standalone | nested-APPLIES + nested-ORPHAN |
+| G77-nesting-drop-instead-of-refuse | stops the unattributable counter | unresolvable-nesting |
+| G78-nesting-gate-deleted | opens the gate that counter feeds | unresolvable-nesting |
+| G79-pseudo-parent-refusal-deleted | the textual `::` refusal | **test 10 ONLY** |
+
+Two shapes are worth naming because both are easy to misread as coverage.
+
+**G71/G72, G77/G78 are TWO DOORS ON ONE MECHANISM, not two guards.** A detector and the gate it feeds
+redden the same set by construction. Reporting that as two independent guards is the radius error this
+ledger keeps recording: a radius is a fact about ONE mechanism, never evidence of N guards.
+
+**There is deliberately NO unique mutant for the CLOSED+ADOPTED composition test.** G66
+(`closed-stash-never-read`) and G67 (`shadow-adopted-sheets-dropped`) each widen by 1 and nothing
+reddens the composition alone, because the path is SHARED — which is precisely Sol R8 P1-2's point that
+the composition worked by accident. That is stated rather than papered over with an invented mutant.
+
+**G74 is the only thing that measures the SET's width.** Deleting the door (G73/G75) is a plausible
+mutant; halving the name list is the plausible *half-measure*, and only the inline fixture can see it.
+
+### (e) Three anchors died on the round-9 source edits, and the pre-flight found all three at once
+
+The first v15 launch aborted in under three minutes:
+
+```
+ABORT: G42-unresolved-width-dropped find-string not present
+EXIT=1
+```
+
+**The background task-notification for that run reported "exit code 0".** A notification describes the
+WRAPPER, not the harness verdict — the log's own `EXIT=` line is the only thing that says what the
+harness decided. This ledger has recorded that exact divergence before; it recurred here and was
+disregarded in favour of reading the log.
+
+The abort is the uniqueness check working, and it is also the harness failing LATE in one respect: it
+stops at the FIRST dead anchor, so a matrix with three of them costs three launches to discover. Rather
+than relaunch blind, every find-string in the file was checked against its target in one pass —
+presence and uniqueness are answerable without launching anything. **Three were dead, not one:**
+
+| mutant | why it died |
+|---|---|
+| G42-unresolved-width-dropped | round 9 replaced `rule.selectorText` with the nesting-resolved `ownSelector` on both unresolved pushes |
+| G58-container-treated-as-plain | `collectRules` gained a third parameter, the parent selector that travels down a nesting chain |
+| G69-specificity-sentence-on-the-total | the sentence it edits was itself rewritten by the round-8 P2 fix — it no longer claims the winner "depends on specificity" |
+
+All three are **third-, second- and second-time re-cuts** respectively, and the reason is always the
+same: a find-string mutant dies the moment its target line is edited. G42's re-cut keeps the `else if`
+line in the find, because the bare `unresolvedRules.push({ selector: ownSelector, … })` now appears
+twice — the logical-width arm added in round 9 is the sibling. G58's two comment lines are load-bearing
+in its find for the same reason: `collectRules(rule.cssRules, true, parentSelector)` appears twice.
+
+G69 keeps its id for continuity and its comment now says to read it as *"the conflict sentence counts
+the TOTAL"*, which is the defect it has always described. The `otherAmbiguous` subtraction below the
+mutated lines is deliberately left untouched, so the mutant double-counts exactly as it did before.
+
+Re-checked after the re-cuts: **81 mutants, 0 dead, 0 duplicate.** A duplicate would be worse than a
+dead one — it applies in a place nobody chose.
+
+### (f) The matrix-v15 timeout-kill incident — a wrapper timeout on a long background run
+
+Matrix v15 was launched `run_in_background` with `timeout: 600000` (10 minutes) on the Bash
+call. The matrix needs ~95 minutes (81 mutants against a 68-test suite). **A background Bash
+call carrying a timeout is KILLED and RESTARTED at that timeout**, and because the launch
+redirects with `>`, each relaunch TRUNCATED the log — so every restart was byte-for-byte
+indistinguishable from a slow first run.
+
+**How it was caught, and why the log could not catch it.** The log sat at one line
+(`pre-flight: 81 mutants anchor uniquely and parse`) for 30+ minutes. That is not, on its own,
+evidence of anything — a harness that buffers would look identical. Two measurements separated
+them:
+
+- `mutants-v12.log` prints `pre-flight:` → `baseline:` → **one line per mutant**, each carrying
+  failing test NAMES. So this harness DOES print incrementally, and a 1-line log after 30
+  minutes is a defect rather than buffering.
+- `ps -o pid,etime` on the matrix process reported an age of **59 seconds**. The log's own
+  `stat` mtime agreed. **Elapsed process age is what named the fault; log content never could.**
+
+**The lesson to carry: never pass a `timeout` to a `run_in_background` Bash call for a long
+run.** The wrapper kills and relaunches at that bound, and a `>` redirect erases the evidence on
+every relaunch. Background a long run with no timeout and poll by reading the log, confirming the
+worker's age with `ps` rather than trusting a quiet file.
+
+**Second-order consequence, handled rather than assumed away.** The run was finally killed by
+hand (`kill 24827`, then `pkill` on the suite, confirmed 0 remaining). This harness writes a
+mutant into `dist/` and restores it in a `finally` — a SIGTERM mid-mutant can leave a mutated
+`dist/` behind, which this repo has recorded happening before (the round-3 forget harness, whose
+next run backed up an already-mutated file and reported the same extra test red for every
+mutant). So `dist/` was NOT trusted after the kill: `npm run build` (`clean && tsc`, i.e.
+`rmSync('dist')` then a full compile) was re-run to exit 0 before the relaunch, which makes
+`dist/` provably a function of `src/` rather than of whatever the killed process left behind.

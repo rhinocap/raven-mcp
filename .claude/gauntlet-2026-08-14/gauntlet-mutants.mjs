@@ -14,7 +14,12 @@
  *   ROUND 6 FOUND NOTHING BY KILL COUNT AND TWO THINGS BY HAND-GRADING, and
  *   both were defects in CLAIMS rather than in shipped behaviour. No product
  *   code changed this round; every edit is test-side or harness-side.
- *   (a) G58 AND G59 FAIL ON THE IDENTICAL ASSERTION (test line 959). They are
+ *   (a) G58 AND G59 FAIL ON THE IDENTICAL ASSERTION (test:1055, inside the
+ *   @container test that opens at test:1039 — round 6 wrote "test line 959",
+ *   which is the OPENING LINE OF A DIFFERENT TEST entirely, the readable-@import
+ *   conflict-arm one. Caught by Sol R7 P3-4, and worth carrying as its own
+ *   entry: A LINE-NUMBER CITATION IS A CLAIM AND DECAYS EXACTLY LIKE A TEST
+ *   DOES, EXCEPT NOTHING EXECUTES IT. Re-derive it before quoting it.). They are
  *   one rule at two doors — G58 breaks the unevaluable FLAG at the @container
  *   call site, G59 breaks the PUSH that honours it — so they are separated by
  *   mutation SITE, not by message, and the harm message named only ONE of the
@@ -339,7 +344,7 @@ const SUITE = path.join(ROOT, 'test', 'design-gauntlet.test.mjs');
 // Declared, not derived. This was stale at 30 against a 37-test suite for a
 // whole round — a baseline that lags the suite makes the harness abort rather
 // than mis-measure, which is the guard working, but it also means nobody ran it.
-const EXPECTED_BASELINE = { tests: 51, pass: 51, fail: 0, skipped: 0 };
+const EXPECTED_BASELINE = { tests: 68, pass: 68, fail: 0, skipped: 0 };
 
 const MUTANTS = [
   { id: 'G1-vocab-boundary-exclusive', file: MODULE,
@@ -506,8 +511,14 @@ const MUTANTS = [
   // that test passes under both shapes, which is precisely why it could not
   // see this defect.
   { id: 'G41-conflict-mixed-only-last-wins', file: MODULE,
-    find: 'if (new Set(matched).size > 1)\n            return "unresolved";\n        const only = matched[0];',
-    replace: 'if (matched.some((w) => w >= 1))\n            return "unresolved";\n        const only = matched[matched.length - 1];' },
+    // RE-ANCHORED in round 8: the `subPixelConflict++` counter was inserted into
+    // the exact two lines this was pinned to, and the pre-flight aborted on the
+    // dead anchor in seconds rather than mis-measuring an hour in. The mutation
+    // is unchanged in meaning — the conflict test becomes a threshold test and
+    // the winner becomes last-wins — and it deliberately KEEPS the increment, so
+    // it stays a mutation of the conflict RULE and not of the counter G70 owns.
+    find: 'if (new Set(matched).size > 1) {\n            subPixelConflict++;\n            return "unresolved";\n        }\n        const only = matched[0];',
+    replace: 'if (matched.some((w) => w >= 1)) {\n            subPixelConflict++;\n            return "unresolved";\n        }\n        const only = matched[matched.length - 1];' },
   // G42 drops the unresolved-expression record. The row then matches no
   // collected rule, `authoredSubPixel` answers null, and the engine's own
   // rounded 1px is reported as measured with no caveat — the feature inverted
@@ -526,7 +537,11 @@ const MUTANTS = [
     // unresolved push — but its blast radius is now wider by construction,
     // because the same branch also carries the demotion G59 targets from the
     // other side. That is a fact about the branch, not a second guard.
-    find: '                    else if (n === "unresolved" || (unevaluable && typeof n === "number"))\n                        unresolvedRules.push({ selector: rule.selectorText, side, important });\n',
+    // ANCHOR RE-CUT FOR v15 (third time for this mutant): round 9 replaced
+    // `rule.selectorText` with the nesting-RESOLVED `ownSelector` on both
+    // unresolved pushes. The edit's intent is unchanged; the `else if` line is
+    // what keeps this find unique against the sibling push in the logical arm.
+    find: '                    else if (n === "unresolved" || (unevaluable && typeof n === "number"))\n                        unresolvedRules.push({ selector: ownSelector, side, important });\n',
     replace: '' },
   // G43 trusts the truncated table. The cap can stop MID-RULE, so what was
   // collected is not a prefix of the cascade; a kept 0.5px with the winning
@@ -663,9 +678,20 @@ const MUTANTS = [
   // call site (the block becomes ordinary nested rules); G59 breaks the PUSH
   // that honours it (widths under an unevaluable condition land in
   // authoredRules again). Either way the container width is recovered.
+  // RE-ANCHORED in round 7. `collectRules(rule.cssRules, true)` used to occur
+  // exactly once; the P1-2 unknown-group fix added a SECOND site with a
+  // byte-identical body, so the old find-string stopped being unique and the
+  // harness ABORTED at pre-flight rather than mutating whichever one it reached
+  // first. That abort is the uniqueness check working — a find-string mutant
+  // dies the moment its target line is duplicated, exactly as it dies when the
+  // line is edited. The anchor now carries the tail of the CONTAINER comment,
+  // which no other site shares. G64 owns the other site.
   { id: 'G58-container-treated-as-plain', file: MODULE,
-    find: '                    collectRules(rule.cssRules, true);\n                    continue;',
-    replace: '                    collectRules(rule.cssRules, unevaluable);\n                    continue;' },
+    find: '                    // unresolved, which degrades to a stated ambiguity and never to a\n                    // recovery.\n                    collectRules(rule.cssRules, true, parentSelector);\n                    continue;',
+    // ANCHOR RE-CUT FOR v15: round 9 gave collectRules a third parameter, the
+    // parent selector that travels down a nesting chain. The two comment lines
+    // are load-bearing in this find — the bare call is not unique.
+    replace: '                    // unresolved, which degrades to a stated ambiguity and never to a\n                    // recovery.\n                    collectRules(rule.cssRules, unevaluable, parentSelector);\n                    continue;' },
   { id: 'G59-unevaluable-push-ignored', file: MODULE,
     find: '                    if (typeof n === "number" && !unevaluable)',
     replace: '                    if (typeof n === "number")' },
@@ -690,6 +716,162 @@ const MUTANTS = [
   { id: 'G60-readable-import-forced-blocked', file: MODULE,
     find: '                try {\n                    collectRules(rule.styleSheet.cssRules, unevaluable);\n                }',
     replace: '                try {\n                    throw new Error("forced");\n                }' },
+  // G61/G62 — ROUND 7, and they are ONE RULE AT TWO DOORS in the sharpest form
+  // this matrix has carried, because the round shipped with exactly one of the
+  // two doors applied. The shadow scan COUNTS (G62's door) and the refusal gate
+  // READS that count (G61's door), and a counter nobody reads compiles clean,
+  // passes every test in the repo, and leaves the defect completely untouched.
+  // G61 deletes the gate while the scan still runs; G62 leaves the gate in place
+  // and stops the scan ever incrementing. Both redden the shadow test alone, and
+  // both must exist or the half-applied state is indistinguishable from the fix.
+  { id: 'G61-shadow-refusal-gate-deleted', file: MODULE,
+    find: '        if (shadowBorderRules > 0)\n            return "unresolved";',
+    replace: '        if (false)\n            return "unresolved";' },
+  { id: 'G62-shadow-scan-never-counts', file: MODULE,
+    find: '                    if (declaresBorderWidth(sheet.cssRules)) {\n                        shadowBorderRules++;',
+    replace: '                    if (false) {\n                        shadowBorderRules++;' },
+  // G63 — the OTHER direction on the same gate, and the reason the benign
+  // shadow fixture is a guard rather than a comment. Counting a shadow root
+  // rather than a shadow BORDER RULE refuses every page that uses shadow DOM at
+  // all, which on a component-based site is the whole recovery gone. A refusal
+  // that never lifts is an outage, not a refusal — and no assertion in the
+  // defect direction can see it, because refusing more is never a wrong ANSWER.
+  { id: 'G63-shadow-gate-fires-on-any-root', file: MODULE,
+    find: '                    if (declaresBorderWidth(sheet.cssRules)) {\n                        shadowBorderRules++;',
+    replace: '                    if (true) {\n                        shadowBorderRules++;' },
+  // G64 — reverts the unknown-conditional-group default. The pre-fix code fell
+  // through to the plain recursion with `unevaluable` UNCHANGED, so an at-rule
+  // group the probe cannot evaluate was collected as AUTHORED. This is the exact
+  // shipped defect: `@scope (.absent)` never applies, its condition is dropped
+  // at collection, and only `r.selector` is tested with el.matches() — so a
+  // width on no render outranks the inline declaration and is handed back as a
+  // recovery. Reddens the unknown-group test alone; @supports, @container,
+  // @media and @layer all take earlier branches and are untouched.
+  { id: 'G64-unknown-group-collected-as-authored', file: MODULE,
+    find: '                if (!isNesting && !isMedia && !isLayer) {',
+    replace: '                if (false) {' },
+  // G65/G66 — ROUND 8, and they are the G61/G62 shape one layer out: the closed
+  // shadow-root fix is ONE RULE AT TWO DOORS, an `attachShadow` wrapper that
+  // STASHES every `{mode:"closed"}` root (G65's door) and a scan that READS that
+  // stash (G66's door). A stash nobody reads and a reader with an empty stash are
+  // byte-identical in every observable, both compile clean, and both pass the
+  // whole repo suite — which is precisely the half-applied state round 7 shipped
+  // and round 8 was written to make distinguishable. Both redden the CLOSED test
+  // alone; the open-root path never touches either door.
+  { id: 'G65-closed-root-never-stashed', file: MODULE,
+    find: '                        if (init && init.mode === "closed")\n                            stash.push(root);',
+    replace: '                        if (false)\n                            stash.push(root);' },
+  { id: 'G66-closed-stash-never-read', file: MODULE,
+    find: '        if (closed && typeof closed.length === "number") {',
+    replace: '        if (false) {' },
+  // G67 — drops the ADOPTED half of the shadow sheet spread. A shadow root has
+  // TWO sheet collections and every other shadow fixture in the suite delivers
+  // its CSS through an inline `<style>`, so this half regressing left them all
+  // green. Reddens the shadow-ADOPTED test alone.
+  { id: 'G67-shadow-adopted-sheets-dropped', file: MODULE,
+    find: '                ...Array.from(root.adoptedStyleSheets || []),\n            ];',
+    replace: '            ];' },
+  // G68 — drops the `measured.has(root.host)` re-check, so a stashed closed root
+  // whose host is not measured at all counts anyway. This is the OUTAGE
+  // direction: a rule that cannot affect any border in the tally refuses the
+  // whole page's recovery, and no assertion in the defect direction can see it
+  // because refusing more is never a wrong ANSWER. Reddens the DETACHED test
+  // alone — every other closed-root fixture attaches to a measured host, which
+  // is exactly why that fixture had to exist before this mutant could be written.
+  { id: 'G68-detached-closed-root-counted', file: MODULE,
+    find: '                if (root && root.host && measured.has(root.host))',
+    replace: '                if (root && root.host)' },
+  // G69/G70 — the caveat's specificity sentence, and they pull in OPPOSITE
+  // directions on one mechanism, separated only by which set they redden.
+  // `subPixelAmbiguous` counts refusals from EIGHT causes and only ONE of them
+  // is a specificity conflict, so narrating the total as "the winner depends on
+  // specificity" is wrong seven ways out of eight.
+  //
+  // G69 reverts the sentence to the total — the shipped defect — and reddens the
+  // three ABSENCE assertions (open shadow, closed shadow, adopted shadow), which
+  // is the measurement that those three are guarding something.
+  // G70 stops the counter incrementing, so the sentence never fires at all, and
+  // reddens the POSITIVE CONTROL alone. Without G70 the three absence assertions
+  // would pass vacuously under a mutant that deletes the sentence outright — an
+  // absence assertion needs a positive control or it measures nothing.
+  { id: 'G69-specificity-sentence-on-the-total', file: MODULE,
+    // ANCHOR RE-CUT FOR v15: the sentence this mutant edits was itself rewritten
+    // — it no longer claims the winner "depends on specificity", because the
+    // increment site asks nothing of the kind. The id is kept for continuity;
+    // read it as "the conflict sentence counts the TOTAL", which is the defect
+    // it has always described. The `otherAmbiguous` subtraction below is left
+    // untouched on purpose, so the mutant double-counts exactly as before.
+    find: '            if (hairlines.subPixelConflict > 0) {\n                causes.push(hairlines.subPixelConflict + " edge(s) matched more than one authored width and this probe does not " +',
+    replace: '            if (hairlines.subPixelAmbiguous > 0) {\n                causes.push(hairlines.subPixelAmbiguous + " edge(s) matched more than one authored width and this probe does not " +' },
+  { id: 'G70-conflict-counter-never-increments', file: MODULE,
+    find: '            subPixelConflict++;\n            return "unresolved";',
+    replace: '            return "unresolved";' },
+  // ---- ROUND 9 ----------------------------------------------------------
+  // G71/G72 — the DECLARATIVE closed shadow root, two doors on one mechanism.
+  // A declarative root never calls Element.prototype.attachShadow, so the
+  // in-page wrapper cannot see it and `host.shadowRoot` is null: it is detected
+  // from OUTSIDE, in the main document's response bytes. G71 blinds the
+  // DETECTOR, G72 opens the GATE the detector feeds. Both redden the same two
+  // tests, which is the honest reading — they are two doors, not two rules.
+  { id: 'G71-declarative-closed-undetected', file: MODULE,
+    find: '            declarativeClosedRoots = hits ? hits.length : 0;',
+    replace: '            declarativeClosedRoots = 0;' },
+  { id: 'G72-declarative-gate-deleted', file: MODULE,
+    find: '        if (declarativeClosedRoots > 0)\n            return "unresolved";',
+    replace: '        if (false)\n            return "unresolved";' },
+  // G73 — the LOGICAL rule-scan door. `rule.style.borderTopWidth` reads "" for
+  // every logical authoring form, so without this branch the rule is not seen
+  // at all: no authored width, no !important conflict, and an inline 0.5px is
+  // recovered against a rule painting 1px. Reddens BOTH logical rule tests —
+  // the longhand and the shorthand are two authoring forms of ONE mechanism.
+  { id: 'G73-logical-rule-unscanned', file: MODULE,
+    find: '                if (declaresLogicalWidth(rule.style)) {',
+    replace: '                if (false) {' },
+  // G74 — narrows LOGICAL_WIDTHS to the BLOCK pair. This is what separates the
+  // four-name SET from a plausible half-measure: the block fixtures stay green
+  // and only the INLINE one reddens, so the set's width is measured rather than
+  // asserted.
+  { id: 'G74-logical-set-block-only', file: MODULE,
+    find: '        "border-block-start-width", "border-block-end-width",\n        "border-inline-start-width", "border-inline-end-width",',
+    replace: '        "border-block-start-width", "border-block-end-width",' },
+  // G75 — the THIRD logical door, the only one on the element itself. Its
+  // observable is the WARNING, not the tally: with no matched rules the
+  // recovery returns null either way, so `1px` sits in the tally under both the
+  // old behaviour and the new. An assertion on the tally alone could not see
+  // this fix in either direction, which is why its test asserts the caveat.
+  { id: 'G75-inline-logical-door-deleted', file: MODULE,
+    find: '        if (el.style && declaresLogicalWidth(el.style))\n            return "unresolved";',
+    replace: '        if (false)\n            return "unresolved";' },
+  // G76 — the shipped nesting defect: test a nested rule STANDALONE, where `&`
+  // degrades to `:scope`. It reddens the two nesting-resolution tests in
+  // OPPOSITE directions, which is why both fixtures had to exist. Under it the
+  // APPLIES arm misses a real rule (false recovery) while the ORPHAN arm
+  // falsely matches an absent parent (a suppressed recovery it has no bearing
+  // on). One mutant, two harms, and neither fixture can see the other's.
+  { id: 'G76-nested-rule-tested-standalone', file: MODULE,
+    find: '                ownSelector = parentSelector === null\n                    ? rule.selectorText\n                    : resolveNested(rule.selectorText, parentSelector);',
+    replace: '                ownSelector = rule.selectorText;' },
+  // G77/G78 — the unattributable-nesting refusal, counter and gate. Same
+  // two-door shape as G71/G72: G77 stops the count, G78 opens the gate it
+  // feeds. Both redden the unresolvable-parent test.
+  { id: 'G77-nesting-drop-instead-of-refuse', file: MODULE,
+    find: '                nestingUnattributable++;',
+    replace: '                ;' },
+  { id: 'G78-nesting-gate-deleted', file: MODULE,
+    find: '        if (nestingUnattributable > 0)\n            return "unresolved";',
+    replace: '        if (false)\n            return "unresolved";' },
+  // G79 — the TEXTUAL `::` refusal, and it is killable only by the fixture that
+  // removes CSS.supports. Measured: on Chromium
+  // `CSS.supports('selector(:is(.card::before) .row)')` is FALSE, so
+  // selectorParses rejects the selector one line later and this clause has no
+  // reachable trigger at all. On the DOM fallback — an engine with no
+  // CSS.supports — the same selector is ACCEPTED, because the fallback returns
+  // true whenever matches() does not throw and that call returns false without
+  // throwing. So the clause is load-bearing on exactly one path, and the mutant
+  // reddens exactly the test that constructs it.
+  { id: 'G79-pseudo-parent-refusal-deleted', file: MODULE,
+    find: '        if (parent.indexOf("::") !== -1)\n            return null;',
+    replace: '        if (false)\n            return null;' },
   // Controls — behaviour-neutral by CONSTRUCTION (object-literal key order and
   // declaration order carry no semantics), never merely unasserted.
   // Deliberately NOT a control: reordering SIDES. The previous session's log

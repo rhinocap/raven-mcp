@@ -561,7 +561,59 @@ export async function measureGauntletPage(
     // scale, so the factor has to ride along here or it is silently 1.
     const page = await browser.newPage({ viewport, deviceScaleFactor });
     await page.emulateMedia({ colorScheme });
-    await page.goto(url, { waitUntil: "load", timeout: timeoutMs });
+    // A CLOSED shadow root is invisible to the hairline probe's own scan:
+    // `host.shadowRoot` is null BY DEFINITION for `{ mode: "closed" }`, so a
+    // `:host { border-top-width: 1px !important }` inside one beats an inline
+    // 0.5px with nothing to count, and the probe hands back a CONFIDENT 0.5px
+    // for an edge painted at 1px. That is the false-recovery direction this
+    // whole feature exists to refuse. The root object is only ever reachable
+    // at the moment it is created, so `attachShadow` is wrapped here and every
+    // closed root is stashed for the scan to read. Running as an init script
+    // is what makes the wrapper win: it is installed before any page script.
+    //
+    // This is a CORRECTNESS mechanism against ordinary pages, NOT a security
+    // boundary. A page that deletes or replaces the stash afterwards is back
+    // to the silent false recovery — the same unclosable pre-injection class
+    // this repo already documents for the Grab overlay, stated here rather
+    // than defended against.
+    await page.addInitScript(() => {
+      try {
+        const proto = Element.prototype as any;
+        const native = proto.attachShadow;
+        if (typeof native !== "function") return;
+        const stash: any[] = [];
+        Object.defineProperty(window, "__ravenClosedShadowRoots", {
+          value: stash, writable: false, enumerable: false, configurable: false,
+        });
+        proto.attachShadow = function (this: Element, init: any) {
+          const root = native.call(this, init);
+          try { if (init && init.mode === "closed") stash.push(root); } catch { /* ignore */ }
+          return root;
+        };
+      } catch { /* engine without shadow DOM: nothing to wrap */ }
+    });
+    const mainResponse = await page.goto(url, { waitUntil: "load", timeout: timeoutMs });
+
+    // A DECLARATIVE closed shadow root never calls Element.prototype.attachShadow
+    // at all — the HTML parser runs the internal algorithm directly — so the
+    // wrapper installed above cannot see it and `host.shadowRoot` is null the
+    // same way. Measured: `<template shadowrootmode="closed">` carrying
+    // `:host { border-top-width: 1px !important }` over an inline 0.5px paints
+    // at 1px with an EMPTY stash, which is the confident false recovery the
+    // wrapper exists to prevent, arriving through a door the wrapper does not
+    // cover. Nothing inside the page can detect it, so it is detected from
+    // OUTSIDE, in the main document's own response bytes — the one place the
+    // attribute is still visible. Best effort by construction and stated as
+    // such: a root injected later via setHTMLUnsafe(), or arriving in a
+    // subframe or a fetched fragment, is not in these bytes and is not caught.
+    // Presence alone forces the refusal because a closed root's contents cannot
+    // be inspected at all — there is no way to ask whether it declares a width.
+    let declarativeClosedRoots = 0;
+    try {
+      const body = mainResponse ? await mainResponse.text() : "";
+      const hits = body.match(/shadowrootmode\s*=\s*(?:"closed"|'closed'|closed\b)/gi);
+      declarativeClosedRoots = hits ? hits.length : 0;
+    } catch { /* a response with no readable body: nothing to inspect */ }
 
     // Webfont trap: wait for fonts (bounded) so families/tracking are not the
     // fallback's. Status is reported either way.
@@ -595,7 +647,7 @@ export async function measureGauntletPage(
     // 2026-08-14). One rule, one function: the count the guard reads is the
     // count the tallies use. Retry once after a settle wait.
     const runProbe = () =>
-      page.evaluate(probeInPage, { vpW: viewport.width, vpH: viewport.height });
+      page.evaluate(probeInPage, { vpW: viewport.width, vpH: viewport.height, declarativeClosedRoots });
     let raw = await runProbe();
     if (raw.visibleCount < MIN_VISIBLE_ELEMENTS) {
       await page.waitForTimeout(2500);
@@ -636,9 +688,67 @@ export async function measureGauntletPage(
       if (hairlines.sheetsBlocked > 0) {
         causes.push(hairlines.sheetsBlocked + " cross-origin stylesheet(s) could not be read");
       }
+      // A shadow rule gets its OWN cause sentence rather than riding on the
+      // specificity one below. The specificity wording says the winner depends
+      // on a rule this probe COLLECTED and could not rank; a shadow rule was
+      // never collectable at all, because its selector is not evaluable from
+      // outside its tree. Two different reasons for the same refusal, and a
+      // caller reading "specificity" would go looking for a conflict that is
+      // not on the page.
+      if (hairlines.shadowRules > 0) {
+        causes.push(hairlines.shadowRules + " shadow root(s) declare a border width this probe cannot attribute");
+      }
+      // Same reasoning as the shadow sentence, one door over: a nested rule
+      // whose selector this probe could not turn back into a standalone
+      // selector was never rankable either, and naming specificity would send
+      // the caller looking for a collision that is not there.
+      if (hairlines.nestingUnattributable > 0) {
+        causes.push(
+          hairlines.nestingUnattributable + " nested rule(s) declare a border width whose selector this probe " +
+          "could not reconstruct"
+        );
+      }
+      // A closed root the wrapper never saw, because the HTML parser created it.
+      // It gets its own sentence for the same reason the two above do: the
+      // reason it cannot be ranked is that it cannot be READ, not that two
+      // collected rules collided.
+      if (hairlines.declarativeClosedShadow > 0) {
+        causes.push(
+          hairlines.declarativeClosedShadow + " declarative closed shadow root(s) whose contents cannot be inspected"
+        );
+      }
       if (hairlines.ruleOverflow) causes.push("the authored-rule scan hit its cap");
-      if (hairlines.subPixelAmbiguous > 0) {
-        causes.push(hairlines.subPixelAmbiguous + " element(s) matched conflicting widths whose winner depends on specificity");
+      // These two SPLIT what used to be one sentence, and the split is the
+      // fix. `subPixelAmbiguous` is the total refusal count across all eight
+      // reasons; only `subPixelConflict` is a specificity conflict. Narrating
+      // the total as "the winner depends on specificity" told a caller with a
+      // shadow root, a blocked sheet or an animated border to go hunting for a
+      // rule collision that is not on their page. The remainder gets a
+      // sentence that states the refusal WITHOUT naming a mechanism it does
+      // not know — the reason is usually one of the causes already listed
+      // above it. Both fire when both are live; neither is skipped to keep the
+      // list short, because an unlisted refusal is an unexplained number.
+      // TWO CORRECTIONS LIVE IN THESE TWO SENTENCES, both from Sol round 8.
+      // (a) The counter is incremented per EDGE, not per element — `hairlineFor`
+      //     runs once per side and a single element can raise it four times — so
+      //     "element(s)" overstated nothing but named the wrong unit, and a
+      //     caller reconciling the number against a list of elements would find
+      //     it did not add up.
+      // (b) It said the winner "depends on specificity", and the increment site
+      //     asks nothing of the kind: it fires when two MATCHED rules declare
+      //     DIFFERENT widths, which includes an equal-specificity pair separated
+      //     only by source order, and an `!important` pair separated by origin.
+      //     Specificity is one of several tie-breaks and the probe ranks none of
+      //     them. The sentence now says what the code measured.
+      if (hairlines.subPixelConflict > 0) {
+        causes.push(
+          hairlines.subPixelConflict + " edge(s) matched more than one authored width and this probe does not " +
+          "rank the cascade"
+        );
+      }
+      const otherAmbiguous = hairlines.subPixelAmbiguous - hairlines.subPixelConflict;
+      if (otherAmbiguous > 0) {
+        causes.push(otherAmbiguous + " edge(s) render at 1px with an authored width this probe could not resolve");
       }
       warnings.push(
         "Hairline caveat: " + causes.join("; ") + ". A 1px entry in this tally may therefore be an authored " +
@@ -671,7 +781,7 @@ export async function measureGauntletPage(
 
 // The nine-dimension probe. Runs inside page.evaluate, so it must be fully
 // self-contained — no closure over module scope.
-function probeInPage({ vpW, vpH }: { vpW: number; vpH: number }) {
+function probeInPage({ vpW, vpH, declarativeClosedRoots }: { vpW: number; vpH: number; declarativeClosedRoots: number }) {
   type Entry = { value: string; count: number };
 
   const tally = (values: string[]): Entry[] => {
@@ -768,8 +878,44 @@ function probeInPage({ vpW, vpH }: { vpW: number; vpH: number }) {
   const AUTHORED_RULE_CAP = 1200;
   let sheetsBlocked = 0;
   let ruleOverflow = false;
+  // Hosts whose shadow root declares a border width. See the scan below for
+  // why this counts rather than collects.
+  let shadowBorderRules = 0;
   type Side = "Top" | "Right" | "Bottom" | "Left";
   const SIDES: Side[] = ["Top", "Right", "Bottom", "Left"];
+  // Rules declaring a LOGICAL border width, which no physical read can see.
+  // Measured on Chromium: `border-inline-start-width: 1px` leaves
+  // style.borderLeftWidth === "" and enumerates only the logical longhand, while
+  // the engine PAINTS left: 1px. So the physical-longhand reads below are blind
+  // to it in both directions — a document `!important` logical rule outranked an
+  // inline `border-left: 0.5px` invisibly, and the fast path recovered 0.5px for
+  // an edge rendering at 1px. Confirmed independently by two adverse legs.
+  //
+  // The detection is a four-name SET rather than a shorthand parser because the
+  // CSSOM expands every logical authoring form to these longhands — measured:
+  // `border-block: 1px solid` enumerates border-block-{start,end}-{width,style,
+  // color}, `border-block-start: 1px solid` the start triple, and neither leaves
+  // an unexpanded shorthand behind. Enumeration is read rather than named
+  // properties so an engine storing a form this list does not name still trips
+  // the generic prefix test.
+  const LOGICAL_WIDTHS = [
+    "border-block-start-width", "border-block-end-width",
+    "border-inline-start-width", "border-inline-end-width",
+  ];
+  const declaresLogicalWidth = (style: any): boolean => {
+    if (!style) return false;
+    try {
+      for (const name of Array.from(style) as string[]) {
+        const n = String(name).toLowerCase();
+        if (LOGICAL_WIDTHS.indexOf(n) !== -1) return true;
+        // A form the list does not name (an unexpanded logical shorthand on
+        // some other engine) still has to refuse: it is the direction that
+        // costs a recovery rather than inventing one.
+        if (/^border-(block|inline)(-(start|end))?$/.test(n)) return true;
+      }
+    } catch { /* a shimmed declaration may not be iterable: fall through */ }
+    return false;
+  };
   const authoredRules: { selector: string; side: Side; width: number; important: boolean }[] = [];
   // A width the CSSOM hands back unresolved — var(), calc(), env() — parses to
   // NaN and is NOT a value this probe can compare. Dropping it silently is the
@@ -800,7 +946,83 @@ function probeInPage({ vpW, vpH }: { vpW: number; vpH: number }) {
   // decide (an @container query today). Its widths are recorded as UNRESOLVED
   // rather than authored, so they can force an honest ambiguity but can never
   // be handed back as a recovered answer.
-  const collectRules = (rules: CSSRuleList, unevaluable = false): void => {
+  // Does any rule in this tree declare a border width? Recursive, because a
+  // shadow sheet can nest its declaration inside @media/@layer/@supports just
+  // like any other. It asks only WHETHER, never how much: the value cannot be
+  // attributed to an element from outside the shadow tree, so the only thing
+  // worth knowing is that one exists.
+  const declaresBorderWidth = (rules: CSSRuleList): boolean => {
+    for (const rule of Array.from(rules) as any[]) {
+      if (rule.style && SIDES.some((side) => rule.style["border" + side + "Width"])) return true;
+      // A shadow rule declaring a LOGICAL width is exactly as unattributable as
+      // a physical one, and this predicate only ever asks WHETHER.
+      if (rule.style && declaresLogicalWidth(rule.style)) return true;
+      if (rule.styleSheet) {
+        // A cross-origin shadow import is unreadable, and unreadable is
+        // treated as "might declare one" — the refusing direction.
+        try { if (declaresBorderWidth(rule.styleSheet.cssRules)) return true; } catch { return true; }
+        continue;
+      }
+      if (rule.cssRules) {
+        try { if (declaresBorderWidth(rule.cssRules)) return true; } catch { return true; }
+      }
+    }
+    return false;
+  };
+  // A nested rule this probe could not turn back into a standalone selector.
+  // Counted rather than collected, and it forces a document-wide refusal for the
+  // same reason a shadow rule does: an unattributable `!important` width could
+  // win on any edge, so there is no element it is safe to answer for.
+  let nestingUnattributable = 0;
+  // Is this a selector the engine can parse at all? `CSS.supports("selector()")`
+  // asks the parser directly and costs a parse rather than a DOM walk, which
+  // matters because the check runs per nested rule up to the rule cap. A false
+  // answer is a refusal, never a drop: `el.matches` swallows a bad selector in a
+  // catch downstream, and a silently skipped `!important` rule is the
+  // false-recovery direction.
+  const selectorParses = (sel: string): boolean => {
+    try {
+      if (typeof CSS !== "undefined" && (CSS as any).supports) {
+        const ok = (CSS as any).supports("selector(" + sel + ")");
+        if (typeof ok === "boolean") return ok;
+      }
+    } catch { /* engine without selector(): fall through to the DOM test */ }
+    try { document.createElement("div").matches(sel); return true; } catch { return false; }
+  };
+  // CSS NESTING STORES A SELECTOR THAT CANNOT BE TESTED STANDALONE. Chromium
+  // serializes every nested rule `&`-prefixed, and a standalone `&` behaves as
+  // `:scope`, which in Element.matches() is the element itself. Measured, that
+  // splits into two opposite wrong answers:
+  //   `.card { .row { 1px !important } }`  -> stored `& .row`, matches() FALSE
+  //       on a row that the rule really styles => silent MISS, inline recovered
+  //       over a 1px edge.
+  //   `.absent { &.row { .25px !important } }` -> stored `&.row`, matches() TRUE
+  //       on a row the rule does NOT style => FALSE MATCH, recovering a width
+  //       that appears nowhere on the render.
+  // The fix reconstructs the real selector by substituting the parent, and
+  // `:is()` is load-bearing rather than cosmetic: a parent selector LIST pasted
+  // raw (`.a, .b` -> `.a, .b .row`) regroups the selector, and `:is()` also
+  // carries the parent's specificity the way `&` does. Measured correct in four
+  // arms — applies, orphan, parent list, two-deep.
+  //
+  // Both guards below refuse rather than substitute, and each was measured:
+  //   - a quote in the child selector means the `&` may live inside an attribute
+  //     value (`& [title="a&b"]`), where substitution corrupts the value;
+  //   - `::` in the parent means the resolved selector carries a pseudo-element
+  //     inside `:is()`, which measured as matches() returning FALSE WITHOUT
+  //     THROWING — a silent unmatchable rule, the false-recovery direction, so
+  //     the guard cannot wait for a throw.
+  const resolveNested = (authored: string, parent: string): string | null => {
+    if (authored.indexOf('"') !== -1 || authored.indexOf("'") !== -1) return null;
+    if (parent.indexOf("::") !== -1) return null;
+    const resolved = authored.indexOf("&") === -1
+      // A nested selector with no `&` is implicitly parent-descendant. Chromium
+      // always writes the `&`, so this arm is defensive rather than exercised.
+      ? ":is(" + parent + ") " + authored
+      : authored.replace(/&/g, ":is(" + parent + ")");
+    return selectorParses(resolved) ? resolved : null;
+  };
+  const collectRules = (rules: CSSRuleList, unevaluable = false, parentSelector: string | null = null): void => {
     for (const rule of Array.from(rules) as any[]) {
       // Both collections are bounded by the ONE cap — they are two halves of the
       // same scan, and counting only one of them lets the other grow unbounded.
@@ -809,7 +1031,37 @@ function probeInPage({ vpW, vpH }: { vpW: number; vpH: number }) {
       // CSS nesting gave CSSStyleRule its own .cssRules, so a group-first check
       // skips every plain style rule on a modern engine and the whole recovery
       // silently reads empty (measured: the stylesheet fixture stayed at 1px).
-      if (rule.selectorText && rule.style) {
+      // The selector this rule can be TESTED by, which is its own selectorText
+      // only at the top level. Computed once and reused for the nested recursion
+      // below, so a two-deep rule resolves against its already-resolved parent.
+      let ownSelector: string | null = null;
+      if (rule.selectorText) {
+        ownSelector = parentSelector === null
+          ? rule.selectorText
+          : resolveNested(rule.selectorText, parentSelector);
+      }
+      if (rule.selectorText && rule.style && ownSelector === null) {
+        // Unattributable: refuse document-wide rather than drop. Recorded once
+        // per rule, not per side — the rule is what could not be placed.
+        nestingUnattributable++;
+      }
+      if (rule.selectorText && rule.style && ownSelector !== null) {
+        // A LOGICAL width cannot be mapped to a physical side from here: the
+        // mapping depends on the matched element's writing-mode and direction,
+        // which this rule-level scan is not looking at. So it is recorded as
+        // unresolved on ALL FOUR sides — the rule really could be governing any
+        // one of them, and naming the wrong side would be a confident wrong
+        // attribution rather than an honest ambiguity.
+        if (declaresLogicalWidth(rule.style)) {
+          for (const side of SIDES) {
+            if (authoredRules.length + unresolvedRules.length >= AUTHORED_RULE_CAP) { ruleOverflow = true; break; }
+            let important = false;
+            try {
+              important = LOGICAL_WIDTHS.some((p) => rule.style.getPropertyPriority(p) === "important");
+            } catch { /* a shimmed declaration may not implement it: assume not */ }
+            unresolvedRules.push({ selector: ownSelector, side, important });
+          }
+        }
         // Populated by the `border` shorthand too — the CSSOM expands it.
         for (const side of SIDES) {
           if (authoredRules.length + unresolvedRules.length >= AUTHORED_RULE_CAP) { ruleOverflow = true; break; }
@@ -825,11 +1077,11 @@ function probeInPage({ vpW, vpH }: { vpW: number; vpH: number }) {
           // Keywords are engine-defined integers, never the sub-pixel case this
           // recovers, so they are dropped. Anything else that is not a px length
           // is an unresolved expression and is recorded as one.
-          if (typeof n === "number" && !unevaluable) authoredRules.push({ selector: rule.selectorText, side, width: n, important });
+          if (typeof n === "number" && !unevaluable) authoredRules.push({ selector: ownSelector, side, width: n, important });
           // A keyword stays DROPPED even under an unevaluable condition: it is
           // an engine-defined integer and can never be the sub-pixel case, so
           // demoting it would manufacture ambiguity out of nothing.
-          else if (n === "unresolved" || (unevaluable && typeof n === "number")) unresolvedRules.push({ selector: rule.selectorText, side, important });
+          else if (n === "unresolved" || (unevaluable && typeof n === "number")) unresolvedRules.push({ selector: ownSelector, side, important });
         }
       }
       // @import is a THIRD rule source and it is reached through a different
@@ -869,23 +1121,62 @@ function probeInPage({ vpW, vpH }: { vpW: number; vpH: number }) {
           let applies: boolean | null = null;
           try { applies = CSS.supports(rule.conditionText); } catch { applies = null; }
           if (applies === false) continue;
-          collectRules(rule.cssRules, unevaluable || applies === null);
+          // A conditional group can itself be NESTED inside a style rule, so the
+          // parent selector travels through it unchanged — dropping it here
+          // would make `.card { @supports(...) { .row { … } } }` read as a
+          // top-level `& .row` again, which is the defect one layer in.
+          collectRules(rule.cssRules, unevaluable || applies === null, parentSelector);
           continue;
         }
         if (isContainer) {
           // A container query's answer depends on a box this probe is not
           // looking at, so it is UNEVALUABLE rather than false — recorded as
           // unresolved, which degrades to a stated ambiguity and never to a
-          // recovery. Anything the platform adds next falls through to the
-          // plain recursion below and can produce a false ambiguity: a known,
-          // bounded residual in the honest direction.
-          collectRules(rule.cssRules, true);
+          // recovery.
+          collectRules(rule.cssRules, true, parentSelector);
           continue;
         }
-        if (rule.media && rule.conditionText) {
+        // A NESTING style rule is not a conditional group at all: CSS nesting
+        // gave CSSStyleRule its own .cssRules, it was already collected above,
+        // and its nested rules apply exactly as authored.
+        const isNesting = !!rule.selectorText;
+        const isMedia = typeof CSSMediaRule !== "undefined" && rule instanceof CSSMediaRule;
+        // @layer changes PRIORITY, never applicability — every rule inside one
+        // is on this render — so it recurses as authored.
+        const isLayer = typeof (window as any).CSSLayerBlockRule !== "undefined"
+          && rule instanceof (window as any).CSSLayerBlockRule;
+        if (!isNesting && !isMedia && !isLayer) {
+          // AN UNKNOWN CONDITIONAL GROUP IS UNEVALUABLE, NOT ACTIVE. This used
+          // to fall through to the plain recursion below, and the comment above
+          // called that "a false ambiguity: a known, bounded residual in the
+          // honest direction" — which was exactly backwards. The fallthrough
+          // recursed with `unevaluable` unchanged, i.e. as AUTHORED, so the
+          // rules of a group that does not apply were handed back as a
+          // confident recovery. `@scope (.absent) { .row { border-top-width:
+          // .25px } }` is the counterexample: the scope condition is dropped
+          // here and only `r.selector` is ever tested with el.matches(), so
+          // .25px is recovered for an edge that renders at 1px. Same defect for
+          // @starting-style. Discriminating by TYPE means the platform's NEXT
+          // conditional at-rule degrades to a stated ambiguity by default
+          // rather than to a wrong answer — the direction this probe is
+          // required to fail in. Widen this list only for a group whose rules
+          // genuinely always apply.
+          collectRules(rule.cssRules, true, parentSelector);
+          continue;
+        }
+        if (isMedia && rule.conditionText) {
           try { if (!matchMedia(rule.conditionText).matches) continue; } catch { /* unparsable: fall through */ }
         }
-        collectRules(rule.cssRules, unevaluable);
+        // A NESTING rule becomes the parent for everything inside it; @media and
+        // @layer are not style rules and introduce no new parent, so they pass
+        // the one they were handed straight through. When the nesting rule's own
+        // selector could NOT be reconstructed, the subtree is skipped rather than
+        // recursed with a null parent — recursing would make every descendant
+        // read as top-level `&`, which is the false-match direction. Skipping
+        // costs nothing, because the increment above has already forced the
+        // document-wide refusal.
+        if (isNesting && ownSelector === null) continue;
+        collectRules(rule.cssRules, unevaluable, isNesting ? ownSelector : parentSelector);
       }
     }
   };
@@ -906,9 +1197,72 @@ function probeInPage({ vpW, vpH }: { vpW: number; vpH: number }) {
       try { collectRules((sheet as CSSStyleSheet).cssRules); } catch { sheetsBlocked++; }
     }
   } catch { /* engine without adoptedStyleSheets: nothing to add */ }
+  // A SHADOW ROOT IS A FOURTH RULE SOURCE, and both loops above read
+  // `document`. CSSOM gives every DocumentOrShadowRoot its OWN `styleSheets`
+  // and `adoptedStyleSheets`, so a shadow sheet is in neither collection —
+  // while `:host` explicitly matches the host element, which IS measured
+  // (`querySelectorAll("body *")` returns hosts; it just does not descend into
+  // them). So `:host { border-top-width: 1px !important }` beat an inline
+  // 0.5px invisibly and the inline fast path recovered 0.5px for an edge
+  // rendering at 1px: the adopted-stylesheet defect through a FOURTH door.
+  //
+  // These rules are COUNTED rather than collected, and that is deliberate. A
+  // shadow rule's selector is not evaluable from outside its tree — `:host`
+  // and `::slotted()` are meaningless to `el.matches()` on the host, which
+  // answers false (or throws) and would silently drop the very rule that wins.
+  // Recording them as authored would be a false recovery and recording them as
+  // unresolved against an unmatchable selector would be no record at all, so
+  // the honest answer is the one `sheetsBlocked` already uses: refuse every
+  // recovery document-wide. The count is gated on a border-width declaration
+  // actually being present, so an ordinary shadow-DOM page with no hairline
+  // rules is unaffected — a page-wide refusal fires only where a shadow rule
+  // could really change a border.
+  try {
+    const measured = new Set(els);
+    const roots: any[] = [];
+    for (const host of els) {
+      const open = (host as any).shadowRoot;
+      if (open) roots.push(open);
+    }
+    // Closed roots come from the `attachShadow` wrapper installed as an init
+    // script before any page script ran. `host.shadowRoot` answers null for
+    // every one of them, so this stash is the ONLY way they are seen at all.
+    // Membership in `measured` is re-checked rather than assumed, so the
+    // closed path refuses exactly what the open path above refuses — a stash
+    // entry whose host is not measured (detached, or outside `body *`) cannot
+    // change any border this tally reports, and counting it would be a
+    // page-wide refusal bought for nothing.
+    const closed = (window as any).__ravenClosedShadowRoots;
+    if (closed && typeof closed.length === "number") {
+      for (const root of Array.from(closed) as any[]) {
+        if (root && root.host && measured.has(root.host)) roots.push(root);
+      }
+    }
+    for (const root of roots) {
+      const shadowSheets = [
+        ...Array.from(root.styleSheets || []),
+        ...Array.from(root.adoptedStyleSheets || []),
+      ] as CSSStyleSheet[];
+      for (const sheet of shadowSheets) {
+        try {
+          if (declaresBorderWidth(sheet.cssRules)) { shadowBorderRules++; break; }
+        } catch { shadowBorderRules++; break; }
+      }
+    }
+  } catch { /* engine without shadow DOM: nothing to add */ }
 
   let subPixelRecovered = 0;
   let subPixelAmbiguous = 0;
+  // `subPixelAmbiguous` counts every 1px edge this probe refused, and it is
+  // refused for EIGHT different reasons — a blocked sheet, a shadow rule, an
+  // overflowed scan, an active animation, an unreadable inline expression, an
+  // `!important` rule outranking an inline declaration, a matched rule whose
+  // own width would not parse, and a genuine specificity conflict. Only the
+  // LAST of those is what "the winner depends on specificity" describes, so
+  // the caveat cannot narrate that count as a specificity conflict without
+  // being wrong seven ways out of eight. This counter is incremented at the
+  // one site that IS one, and the caveat says "specificity" only about it.
+  let subPixelConflict = 0;
 
   // Is this side's border-width under an active animation or transition? The
   // property name is read from the effect's own keyframes (camelCase keys, per
@@ -981,6 +1335,21 @@ function probeInPage({ vpW, vpH }: { vpW: number; vpH: number }) {
     // counts every unrecovered 1px edge as ambiguous when sheetsBlocked > 0, so
     // this only stops the recovered ones from being the exception.
     if (sheetsBlocked > 0) return "unresolved";
+    // A shadow rule this scan could not attribute may be the one that wins on
+    // this very edge, and it can only be an unread `!important` away from
+    // beating the inline declaration below. Same reasoning as the line above,
+    // one rule source over.
+    if (shadowBorderRules > 0) return "unresolved";
+    // A nested rule whose selector could not be reconstructed is unattributable
+    // in exactly the same way: it may carry an `!important` width that wins on
+    // this edge, and there is no element it is safe to answer for. Same
+    // reasoning as the two lines above, one rule source over.
+    if (nestingUnattributable > 0) return "unresolved";
+    // A declarative closed shadow root, detected from the response bytes rather
+    // than from inside the page. Its contents cannot be read at ALL — not even
+    // to ask whether they declare a width — so presence is the whole signal and
+    // the refusal is document-wide.
+    if (declarativeClosedRoots > 0) return "unresolved";
     // An overflowed scan is not a partial answer, it is an untrustworthy one.
     // The cap can stop MID-RULE, so a later rule's 1px on this side can be
     // missing while an earlier rule's 0.5px on the same side was kept — and the
@@ -1010,6 +1379,17 @@ function probeInPage({ vpW, vpH }: { vpW: number; vpH: number }) {
       if (r.side !== side || !r.important) continue;
       try { if (el.matches(r.selector)) { importantConflict = true; break; } } catch { /* exotic selector */ }
     }
+    // THE THIRD LOGICAL-PROPERTY DOOR, and the only one on the element itself.
+    // Measured on Chromium: an inline `border-inline-start-width: 0.5px` leaves
+    // style.borderTopWidth/borderLeftWidth EMPTY and enumerates only the logical
+    // longhand, while the engine paints the left edge. So the physical read
+    // below sees nothing at all, falls through to the stylesheet scan, and can
+    // answer confidently for an edge whose real authored width is sitting on the
+    // element unread. Refusing is the only honest answer available here: mapping
+    // a logical side to a physical one needs the element's writing-mode and
+    // direction, and even resolved it would still have to be reconciled with
+    // whatever the physical longhand says.
+    if ((el as HTMLElement).style && declaresLogicalWidth((el as HTMLElement).style)) return "unresolved";
     const inline = (el as HTMLElement).style && ((el as HTMLElement).style as any)["border" + side + "Width"];
     if (inline && !importantConflict) {
       // With no important rule in play the inline declaration DOES win, so it
@@ -1047,7 +1427,11 @@ function probeInPage({ vpW, vpH }: { vpW: number; vpH: number }) {
     // rule tested only the mixed sub-pixel/full-pixel case, so two conflicting
     // SUB-PIXEL declarations were silently answered with whichever happened to
     // come last in the sheet.
-    if (new Set(matched).size > 1) return "unresolved";
+    // The ONE genuine specificity conflict: two or more rules matched this
+    // side with DIFFERENT widths, so the winner is decided by a cascade this
+    // probe does not implement. Counted separately because it is the only
+    // refusal the caveat's "winner depends on specificity" wording describes.
+    if (new Set(matched).size > 1) { subPixelConflict++; return "unresolved"; }
     const only = matched[0];
     return only > 0 && only < 1 ? only : null;
   };
@@ -1193,7 +1577,7 @@ function probeInPage({ vpW, vpH }: { vpW: number; vpH: number }) {
     truncated,
     surfaces: { canvas, tally: cap("surfaces", tally(surfaceValues)) },
     borders: { tally: cap("borders", tally(borderValues)) },
-    hairlines: { subPixelRecovered, subPixelAmbiguous, sheetsBlocked, ruleOverflow },
+    hairlines: { subPixelRecovered, subPixelAmbiguous, subPixelConflict, sheetsBlocked, ruleOverflow, shadowRules: shadowBorderRules, nestingUnattributable, declarativeClosedShadow: declarativeClosedRoots },
     text: { tally: cap("text colors", tally(textColors)) },
     tracking: { display: tally(displayTracking).slice(0, 4), body: tally(bodyTracking).slice(0, 4) },
     accent: { candidates: tally(accentValues).slice(0, 5), usesInFirstViewport: accentFirstViewport },
