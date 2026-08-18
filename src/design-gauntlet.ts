@@ -1195,10 +1195,21 @@ function probeInPage({ vpW, vpH, declarativeClosedRoots }: { vpW: number; vpH: n
   // headless Chromium, no persistent profile, no CDP attach, no extensions, and
   // no caller-supplied launch arguments — there is no parameter anywhere on
   // `design_gauntlet` that can point the probe at a context the tool does not
-  // own, so no input reaches this residual. Chromium's UA stylesheet declares
-  // no blanket `1px !important` border either. This file's own rule — a clause
-  // with no reachable trigger must SAY SO rather than pretend a test kills it —
-  // applies in the mirror direction to a residual.
+  // own. The REMOTE branch was checked too and does not weaken this: it adds
+  // @sparticuz args and an egress proxy, `acquireBrowserSlot` is a concurrency
+  // COUNTER rather than a pool, and every call still runs its own
+  // `chromium.launch` (`src/browser-launch.ts`), so "fresh" holds on both paths.
+  // STATED AT ITS REAL STRENGTH (Sol R12 P3) — the previous wording said "no
+  // input reaches this residual" full stop, and that is true of the USER origin
+  // and NOT established for the UA one. Owning the browser excludes a
+  // caller-installed user stylesheet outright. It does not by itself exclude
+  // Chromium's own UA origin; that half rests on the separate claim that no UA
+  // default declares a blanket `1px !important` border, which is believed from
+  // Chromium's html.css and has NOT been verified by inspection here (Sol's live
+  // UA-stylesheet probe was blocked by its host sandbox, and an unavailable
+  // measurement is not a clean one). Reopen on either half independently.
+  // This file's own rule — a clause with no reachable trigger must SAY SO rather
+  // than pretend a test kills it — applies in the mirror direction to a residual.
   // (b) A SECOND, NON-LOAD-BEARING observation, recorded because it is easy to
   // mistake for a reason: the user-visible hairline caveat only emits when an
   // edge was already AMBIGUOUS, whereas this residual's whole harm is that the

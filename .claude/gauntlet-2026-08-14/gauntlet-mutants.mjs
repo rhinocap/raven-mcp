@@ -29,10 +29,20 @@
  *     G59 1 -> 2 · G69 1 -> 2 (GAINED the rewritten unknown-group test)
  *     G45 7 -> 6 (LOST it)
  *   G45'S LOSS IS THE ONLY LOST RED-SET MEMBER ANYWHERE IN THE ROSTER, and it
- *   is the one cell that could have hidden the P1 harm. It did not: G45 is
- *   still killed, at radius 6, so the rewrite narrowed which tests catch it
+ *   is still killed at radius 6, so the rewrite narrowed which tests catch it
  *   without unmasking it. Every other one of the 79 either held its set
  *   byte-identical or gained a member. NOTHING became masked; 0 survived.
+ *   CORRECTED (Sol R11 P1, Kimi R12 F11): the sentence here used to call G45's
+ *   loss "the one cell that could have hidden the P1 harm", and that was FALSE
+ *   in exactly the direction this file keeps getting bitten in. A red set is a
+ *   set of TEST NAMES, and `assert` aborts at the first failure, so a mutant can
+ *   be killed in BOTH runs by a DIFFERENT assertion INSIDE the same test with
+ *   the recorded set byte-identical. The blind spot is therefore the mutants
+ *   carrying a REWRITTEN fixture in both runs, not the ones that lost a member.
+ *   Measured separately in `p1-assertion-differential.mjs` (G42/G48/G54 -- all
+ *   three fire the same message AND the same source line in both fixtures), and
+ *   the SECOND fixture a1a2384 rewrote is vacuous here: the detached-closed-root
+ *   test appears in ZERO v15 red sets and only in G68's GAINED v16 set.
  *   ALL FIVE MOVES ARE ONE FACT, NOT FOUR. The rewritten "UNKNOWN conditional
  *   group is unresolved, never collected as authored" test left G45's red set
  *   and joined G59, G64 and G69 — that is a fact about ONE fixture's reach, and
@@ -60,8 +70,24 @@
  *   own "a comment describing a measurement is a claim and decays exactly like
  *   a test does, except nothing executes it", landing on the paragraph that
  *   states it. Worse, v13 and v14 CARRY NO `summary:` LINE AND NO `EXIT=` LINE:
- *   the harness prints both only on a completed run, so neither is a
- *   measurement and no radius in either may be quoted as one. Both were renamed
+ *   and NEITHER IS A MEASUREMENT, but read the right marker: `summary:` is
+ *   written by THIS HARNESS off the same two counters `process.exitCode` comes
+ *   from, while `EXIT=` is appended by the INVOKING SHELL and a shell chaining
+ *   with `;` appends it even after an abort. So the absence of `summary:` is the
+ *   incompletion marker; the presence of `EXIT=0` proves only that the shell
+ *   reached its last line (Kimi R12 F11 -- the header said the harness printed
+ *   both, which is the very conflation this round's provenance comment fixes).
+ *   No radius in either log may be quoted as a measurement.
+ *
+ *   STATED RESIDUAL (Kimi R12 F4): the assertion differential scopes both arms
+ *   with `--test-name-pattern 'UNKNOWN conditional group'`, and that the pattern
+ *   selects exactly ONE test was verified for the CURRENT fixture (the driver
+ *   asserts `tests=1 pass=1` in both baselines, which would fail on 0 or 2). It
+ *   was NOT separately verified that the substring is unique across the whole
+ *   pre-rewrite fixture beyond that same `tests=1` assertion — which is in fact
+ *   the check, so the residual is that the evidence is the run rather than an
+ *   independent grep. Documented so a future reader does not mistake the baseline
+ *   assertion for a stronger uniqueness proof than it is. Both were renamed
  *   `-ABORTED-not-a-measurement` on 2026-08-17 to match the v16-abort
  *   precedent. A LOG THAT STOPS EARLY LOOKS EXACTLY LIKE A LOG THAT FINISHED
  *   UNLESS YOU CHECK FOR THE SUMMARY.
@@ -999,6 +1025,14 @@ function runSuite() {
     return m ? Number(m[1]) : null;
   };
   const names = new Set();
+  // STATED RESIDUAL (Kimi R12 F8): this pattern is anchored at line START, so it
+  // reads only TOP-LEVEL `✖` lines. `node --test` INDENTS a subtest's `✖`, so a
+  // failure inside a nested `t.test()` would yield `fail > 0` with an EMPTY name
+  // list — and the void-run guard below would then ABORT a legitimate kill. It is
+  // LATENT rather than live: `test/design-gauntlet.test.mjs` is flat today (grep
+  // for `t.test(` returns nothing), so no run in this matrix can produce it. The
+  // failure direction is safe — a loud abort, never a silently-scored kill — so
+  // it is recorded rather than fixed. Widen to /^\s*✖ / if a subtest is ever added.
   for (const m of out.matchAll(/^✖ (.+) \([\d.]+ms\)$/gm)) names.add(m[1].trim());
   return {
     tests: num('tests'), pass: num('pass'), fail: num('fail'), skipped: num('skipped'),
@@ -1044,26 +1078,42 @@ for (const m of MUTANTS) {
   writeFileSync(m.file, src);
   if (readFileSync(m.file, 'utf8') !== src) { console.error(`ABORT: restore of ${m.file} failed`); process.exit(1); }
 
-  // A NON-GREEN RUN IS NOT AUTOMATICALLY A KILL (Sol R11 P2, hardened 2026-08-18).
-  // The grading below used to classify ANY non-green result as `killed`, which
-  // folds three different events into one word: a genuine assertion failure, a
-  // child that died before `node --test` printed its totals, and a run whose
-  // summary could not be parsed at all. The last two say nothing about the
-  // mutant and must never be scored as evidence against it. Two facts separate
-  // them, and both are already in hand: unparsed totals (`tests === null`),
-  // and — the sharper one — a non-green run whose `names` list is EMPTY, since
-  // `names` is populated only from real `✖ <name> (Nms)` lines, so a red with
-  // no named test is a run that never got as far as failing an assertion.
+  // A NON-GREEN RUN IS NOT AUTOMATICALLY A KILL (Sol R11 P2; predicate WIDENED
+  // after Sol R12 P2 measured the first version answering the wrong question).
+  // Grading used to classify ANY non-green result as `killed`, folding three
+  // different events into one word: a genuine assertion failure, a child that
+  // died before `node --test` printed its totals, and a run whose summary could
+  // not be parsed. The last two say nothing about the mutant.
+  //
+  // The FIRST fix keyed the sharp half on `run.fail !== 0 && names.length === 0`,
+  // and that clause is unreachable for the case it was written for: a run with
+  // parsed totals, `fail === 0`, a NON-ZERO status and no names skips it
+  // entirely, fails `green`, and lands on `killed, radius 0` — the exact void
+  // row the guard exists to refuse (measured: tests=68 pass=68 fail=0 status=2
+  // names=[] graded as a kill). A guard whose predicate cannot see its own
+  // motivating case is decoration. It is keyed on NOT-GREEN now, not on `fail`.
+  //
+  // Second, a `✖` line is NOT proof an assertion ran. `node --test` prints
+  // `✖ <path> (Nms)` when a test FILE fails to load at all, so `names` can be
+  // non-empty on a run that never reached a single assertion (Sol's repro:
+  // a module whose top-level `before` throws prints `✖ /dev/fd/11` and
+  // `ℹ tests 1`). The discriminator the name list cannot give is the test
+  // COUNT: a genuine assertion failure runs the SAME number of tests as the
+  // baseline, while a load failure, a truncation or a crash does not.
+  //
   // This ABORTS rather than counting, because a matrix carrying one void row is
   // not a matrix with one bad cell — it is a measurement of unknown coverage.
-  const voidRun =
+  const unparsed =
     run.tests === null || run.pass === null || run.fail === null || run.skipped === null ||
-    run.status === null ||
-    (run.fail !== 0 && run.names.length === 0);
+    run.status === null;
+  const countMoved = !unparsed && run.tests !== EXPECTED_BASELINE.tests;
+  const notGreenRun = unparsed || run.status !== 0 || run.fail !== 0;
+  const voidRun = unparsed || countMoved || (notGreenRun && (run.fail === 0 || run.names.length === 0));
   if (voidRun) {
     console.error(`ABORT: ${m.id} produced a VOID run, not a verdict — ` +
       `tests=${run.tests} pass=${run.pass} fail=${run.fail} skipped=${run.skipped} ` +
-      `status=${run.status} namedFailures=${run.names.length}. ` +
+      `status=${run.status} namedFailures=${run.names.length} ` +
+      `(expected tests=${EXPECTED_BASELINE.tests}). ` +
       `Neither a kill nor a survival may be read from it.`);
     process.exit(1);
   }

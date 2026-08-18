@@ -2287,3 +2287,140 @@ or move a radius. The one real hazard of a comment edit is anchor drift, because
 `tsconfig` does NOT strip comments and the text reaches `dist/`; that was measured rather than
 assumed — clean `npm run build` (EXIT=0) then the isolated pre-flight, **81 mutants still
 anchor uniquely and parse**. The control run above also re-graded G1 identically post-change.
+
+**(z19) COMMIT AND POST-EDIT MEASUREMENT.** The R11 disposition landed as `2981f58`
+("Close Sol R11 on the gauntlet's hairline evidence") — 4 files changed, 495 insertions, creating
+`.claude/gauntlet-2026-08-14/p1-assertion-differential.mjs`. `test/no-private-paths.test.mjs`
+re-run AFTER staging (it scans the INDEX, not the worktree): **4 tests / 4 pass / 0 fail**.
+
+Full suite re-measured AFTER the P3/P2 edits — `.claude/gauntlet-2026-08-14/agent-output/full-suite-r12.log`:
+**1607 tests / 1604 pass / 0 fail / 3 skipped, EXIT=0.** The three skips read **individually** at
+output lines **109 / 782 / 783** — the same three this ledger has always carried (the file-URL
+fallback notice and the two removed-capability phase2 tests) — not inferred from the total. The
+gauntlet suite is confirmed to have RUN inside the full pass (36 `hairline` matches in the log).
+**The comment-only `src` change moves the count by ZERO**, identical to the pre-edit figure, which
+is the expected result and is recorded as a measurement rather than assumed.
+
+**`main` is 2 ahead of `origin/main` and UNPUSHED** (`git rev-list --left-right --count
+origin/main...main` → `0 2`): `d65fba6` and `2981f58`. Pushing `main` deploys the live MCP endpoint,
+and the v2.5.0 push approval was CONSUMED by `cebe332` — this needs its own fresh approval from
+Andrew and has not been requested yet.
+
+**Adverse round R12 launched** against `2981f58`, fanned out per Andrew's instruction: GPT-5.6-Sol
+(medium, `mcp_servers={}`, detached) plus TWO open-weight legs through `ow-run` (GLM 5.2 and
+Kimi K3). `ow-run` is a single-shot OpenRouter call with **no filesystem access**, so the
+open-weight legs were handed a 48KB inlined evidence bundle (the commit's two source diffs, the
+differential driver in full, the harness's `runSuite` and void-guard regions, the v16 and r12 log
+extracts, the `design_gauntlet` schema and the `launchAuditChromium` path) and told explicitly to
+mark anything unverifiable from it rather than guess. The brief is tracked at
+`.claude/gauntlet-2026-08-14/BRIEF-R12.md`; the raw outputs land in `agent-output/` (gitignored).
+
+**(z20) THE FIRST GLM LEG WAS A FAILED RUN WEARING A CLEAN BILL — CAUGHT, NOT DISPOSITIONED.**
+`glm-r12.json` returned `ok: true`, exit 0, `cost_usd 0.0586`, `wall_sec 116.04` — and
+**`finish_reason: "length"` with `content` of length ZERO**, the whole 9,000-token budget eaten by
+reasoning. This is the identical shape as the 2026-08-07 stored-generated-systems round-2 run and
+the round-5b Sol sandbox block, and this ledger's own standing rule applies: **an
+environment-blocked or budget-exhausted adverse output must NEVER be dispositioned as "no
+findings."** A zero-length answer alongside a green exit code is exactly the failure mode that reads
+as a pass. Re-run as `glm-r12b.json` with the reasoning budget CAPPED (`ow-run z-ai/glm-5.2 16000
+4000` — 16k total, 4k reasoning ceiling), which is what `ow-run`'s third argument exists for and
+what leaves tokens for an actual answer.
+
+---
+
+## R12 disposition — both P1s closed by instruments that reproduce (2026-08-18)
+
+**(z21) SOL R12's P1 IS CLOSED BY A REPRODUCIBLE MEASUREMENT, AND THE INSTRUMENT THAT CLOSED IT
+HAD TO BE REBUILT FIRST.** Sol's finding was not that the differential's ANSWER was wrong — it was
+that the differential FAILED OPEN and did not reproduce: Sol's own run of it came back
+`OLD: tests=undefined … status=1`, `VERDICT: ONE ARM GREEN — inspect`, and `DIFFERENTIAL_EXIT=0`.
+It also exited 0 when the fixture merely SKIPPED on a Chromium launch failure. **An instrument that
+exits 0 on its own non-measurement is the failure mode this repo has now recorded at every level —
+in the product, in the tests, in the mutation harness, and here in the harness's harness.**
+
+The rewrite makes three things structural rather than incidental: (1) the OLD fixture is
+materialised BY THE SCRIPT from `git show a1a2384^:test/design-gauntlet.test.mjs` and removed in a
+`finally`, at a path OUTSIDE the `test/**/*.test.mjs` glob, so `npm test` cannot pick it up and
+`auto-save-on-turn.sh`'s `git add -A` cannot stage it; (2) BOTH baselines are asserted at exactly
+`tests=1 pass=1 fail=0 skipped=0 status=0`, which is what closes the Chromium-skip hole, since a
+skip is `pass=0`; (3) every non-measurement verdict exits NONZERO.
+
+**Result — `DRIVER_EXIT=0`, log at `.claude/gauntlet-2026-08-14/agent-output/p1-differential-r12.log`:**
+
+| Mutant | NEW fixture | OLD fixture | Verdict |
+|---|---|---|---|
+| G42-unresolved-width-dropped | `:1319` `fixture: @scope PARSED …` / `assert.ok(widths.has('1px'),` | `:1299` same message, same source text | SAME ASSERTION |
+| G48-ambiguity-not-counted | `:1327` `the ambiguity is disclosed` | `:1307` same message, same source text | SAME ASSERTION |
+| G54-hairline-caveat-undisclosed | `:1327` `the ambiguity is disclosed` | `:1307` same message, same source text | SAME ASSERTION |
+
+`summary: 3 mutants compared, 0 non-SAME verdict(s)`. G42's message AND source line differ from
+G48/G54's, which is what proves the comparison DISCRIMINATES rather than defaulting to equal — the
+half that makes the table worth anything. Afterwards `dist/design-gauntlet.js` was verified sha256
+`d2dabc692f6a09d0c9d6dfc90870650184666aae8c0248c18f721cd70fc44b44`, **byte-identical to a fresh
+`npm run build`**, and the OLD fixture confirmed gone.
+
+**(z21a) KIMI F2 WAS REAL AND IS FIXED: MESSAGE EQUALITY IS WEAKER THAN ASSERTION IDENTITY.** The
+literal `the ambiguity is disclosed` occurs TWICE in the current fixture (`:1066` and `:1327`), so
+two arms can carry the same message string and still be DIFFERENT assertion sites. Line NUMBERS
+cannot be compared across the two fixtures — they differ in length above the test by construction —
+but the trimmed SOURCE TEXT at the failing line can, and it identifies the site exactly. A `SAME
+ASSERTION` verdict now requires message AND source text; `SAME MESSAGE, DIFFERENT ASSERTION SITE`
+is its own named verdict, because that case IS the masking the P1 was about.
+
+**(z21b) KIMI F1 IS CLOSED BY MEASUREMENT, NOT BY THE INTERSECTION ARGUMENT.** F1's point was that
+`a1a2384` rewrote TWO fixtures and the differential covered only one. Correct as stated, and the
+gap is EMPTY rather than unexamined: the second rewritten test — `hairlines: a DETACHED closed root
+is stashed but not counted — the re-check is the guard` (`test/design-gauntlet.test.mjs:1246`) —
+appears in **ZERO v15 red sets** and in **exactly one v16 line** (`mutants-v16.log:70`, G68 killed
+at radius 1, a GAINED member the set diff already sees). No v15 mutant was detected by it, so there
+is no "which assertion" to preserve. **An intersection blind spot can be closed by showing the
+intersection is empty — that is a measurement, not an argument.**
+
+**(z21c) KIMI F9's POOLING HALF IS REFUTED; ITS UA HALF IS REAL AND THE COMMENT NOW SAYS SO.**
+F9 questioned "fresh headless Chromium". Read directly: the local branch is
+`playwright.chromium.launch({ headless: true })`, and the remote branch calls `chromium.launch(...)`
+itself behind `acquireBrowserSlot` — which is a **concurrency GATE** (cap, waiter queue, 120s
+deadline), not a pool, with `wrapRemoteBrowser` adding a DNS cache and a slot release but **no
+instance reuse**. "Fresh" survives on both paths. What did NOT survive is the absolute:
+`src/design-gauntlet.ts` said "no input reaches this residual" full stop, and that is true of the
+USER origin (owning the browser excludes a caller-installed user stylesheet outright) and NOT
+established for the UA one. The UA half rests on the separate claim that no Chromium UA default
+declares a blanket `1px !important` border — believed from `html.css`, **not verified by inspection
+here**, because Sol's live UA probe was blocked by its host sandbox
+(`MachPortRendezvousServer … Permission denied`). **An unavailable measurement is not a clean one.**
+The comment now states each half at its real strength with independent reopen conditions.
+
+**(z21d) TWO STALE v16 HEADER CLAIMS CORRECTED (Sol P3 / Kimi F11).** (i) The header called G45's
+lost red-set member "the one cell that could have hidden the P1 harm" — FALSE in exactly the
+direction this file keeps getting bitten in, since a red set is a set of TEST NAMES and `assert`
+aborts at the first failure, so a mutant can be killed in BOTH runs by a DIFFERENT assertion inside
+the same test with the recorded set byte-identical. The blind spot is the mutants carrying a
+REWRITTEN fixture in both runs, not the ones that lost a member. (ii) The header said the harness
+prints `summary:` and `EXIT=` only on a completed run — the very conflation this round's provenance
+comment exists to fix. **`summary:` is harness-written off the same two counters `process.exitCode`
+comes from; `EXIT=` is appended by the INVOKING SHELL, and a shell chaining with `;` appends it even
+after an abort.** The absence of `summary:` is the incompletion marker; `EXIT=0` proves only that
+the shell reached its last line.
+
+**(z21e) TWO RESIDUALS RECORDED RATHER THAN CARRIED SILENTLY.** Kimi F8: the failing-name regex is
+anchored at line start and reads only TOP-LEVEL `✖` lines, so a failure inside a nested `t.test()`
+would give `fail > 0` with an EMPTY name list and the new void-run guard would ABORT a legitimate
+kill. **Latent, and measured so: `grep -c 't\.test(' test/design-gauntlet.test.mjs` returns 0** —
+the suite is flat, no run in this matrix can produce it, and the failure direction is a loud abort
+rather than a silently-scored kill. Kimi F4: `--test-name-pattern` uniqueness across the
+pre-rewrite fixture is evidenced by the driver's own `tests=1 pass=1` baseline assertion rather than
+by an independent grep; that IS the check, and the note exists so nobody mistakes it for a stronger
+proof than it is.
+
+**(z21f) BEHAVIOUR-NEUTRALITY RE-MEASURED, NOT ASSUMED.** `src` is comments-only; `npx tsc --noEmit`
+EXIT=0. This `tsconfig` does NOT strip comments, so the new text reaches `dist/` and the one real
+hazard is anchor drift — clean `npm run build` (EXIT=0, `dist/design-gauntlet.js` 92,632 B) then the
+isolated pre-flight: **81 mutants still anchor uniquely and parse.** The 79-mutant matrix is again
+deliberately NOT re-run whole, on the same stated judgement as (z18) and now independently
+corroborated by Kimi F10 — the void guard reads `run` fields and either passes or exits 1, mutating
+nothing, so it cannot flip a kill to a survival or move a radius.
+
+**Both R12 legs returned DOES NOT SURVIVE and every finding above is dispositioned. Nothing here is
+committed, and `main` is 2 ahead of `origin/main` and UNPUSHED — the v2.5.0 push approval was
+consumed by `cebe332`, and pushing `main` deploys the live MCP endpoint, so it needs its own fresh
+approval that has not been asked for or given.**
