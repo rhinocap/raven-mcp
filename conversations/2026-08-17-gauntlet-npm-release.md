@@ -1836,3 +1836,104 @@ next run backed up an already-mutated file and reported the same extra test red 
 mutant). So `dist/` was NOT trusted after the kill: `npm run build` (`clean && tsc`, i.e.
 `rmSync('dist')` then a full compile) was re-run to exit 0 before the relaunch, which makes
 `dist/` provably a function of `src/` rather than of whatever the killed process left behind.
+
+## Round 9 checkpoint, items (g)–(u) — written 2026-08-17, two compactions late
+
+The log stood at round-9 item (f) through two compactions. Everything below was carried in
+context rather than on disk, which is exactly the failure this file exists to prevent.
+
+**(g) npm is at 2.4.1, not 2.4.0.** CLAUDE.md's ground-truth block says 2.4.0 and is stale.
+Measured: `npm view raven-mcp version time.modified` → `2.4.1`, `2026-08-13T04:57:51.750Z`.
+Local `package.json` is also 2.4.1 — repo and npm agree on the version STRING while differing
+wildly in CONTENT. `npm pack raven-mcp@2.4.1` → 228 files, **zero** matching `gauntlet`.
+A version string is not a content claim; pull the tarball. `release.sh minor` cuts 2.4.1 → 2.5.0.
+
+**(i) A per-mutant CHILD process reads exactly like a harness restart.** A loose
+`pgrep -f "node .claude/gauntlet"` matches BOTH the harness and the `node --test` child it spawns
+per mutant, so `tail -1` surfaced a 05:28-old child against a 13:28-old harness and read as a
+restart. Discriminator: the PARENT pid's age plus a log that never resets to one line —
+`ps -eo pid,ppid,etime,command | grep gauntlet`, read the ppid column.
+
+**(k) Nothing needed committing at the "just commit it" moment** — the auto-save hook had already
+landed it as `b91224d`, `git status --short` was empty, ahead-count 11.
+
+**(l) Matrix v15 finished with TWO SURVIVORS and EXIT=1** — the first non-clean matrix in this
+feature's history. 81 mutants pre-flighted, 79 graded, 2 survived, 0 controls false-failed.
+
+**(n) cwd drift bit again.** A `cd .claude/gauntlet-2026-08-14` persisted into the next Bash call;
+`grep test/design-gauntlet.test.mjs` returned `ugrep: warning: … No such file or directory`, which
+is INDISTINGUISHABLE from "the fixture does not exist" — and believing that reading would have
+produced exactly the wrong diagnosis below. Prefix every call with the absolute cd.
+
+### (o)–(s) Both survivors diagnosed — NEITHER is a product defect
+
+The natural reading of a survivor is "the test is missing." Both tests EXISTED. Pre-flight had
+already proven both find-strings anchor uniquely, so both guards are present and correct in shipped
+source. What was absent was DETECTION. **A test that exists is not a test that measures** — eighth
+recorded instance in this repo, and the first where the harness's own comment stated a prediction
+the run falsified.
+
+**(p) G64's masking mechanism, read out of `dist/design-gauntlet.js:1404–1444`.** Line 1405 is
+`if (inline && importantConflict) return "unresolved";`. With the border authored INLINE, the mutant
+collects the `@scope` rule as authored; it carries `!important` and it matches, so `importantConflict`
+goes true and the function returns `"unresolved"` at 1405 — **the same string** the correct path
+returns thirty lines down from the `unresolvedRules` loop. Two mechanisms, ONE observable; all four
+assertions passed in both arms. Direction of harm is FALSE RECOVERY, the dangerous one: a 0.25px
+`!important` width inside a `@scope` that never applies would be handed back as a confident recovery
+for an edge that renders at 1px.
+Fix: author the border in the stylesheet (`HAIRLINE_ROWS(() => '')`) so the mutant falls past the
+short-circuit into `matched[]`, finds TWO widths, and increments `subPixelConflict` — the one
+observable the correct path cannot produce, because it returns from `unresolvedRules` first. A fifth
+assertion pins the caveat wording `"matched more than one authored width"` (dist:627).
+
+**(q) G68's masking mechanism, MEASURED not reasoned.** New probe
+`agent-output/probe-detached-sheet.mjs` returned
+`{"detached_styleSheets_len":0,"detached_rule_count":0,"detached_adopted_len":1,`
+`"detached_adopted_rules":1,"attached_styleSheets_len":1,"attached_rule_count":1}` —
+a DETACHED shadow root's `innerHTML` `<style>` yields **ZERO** stylesheets, so `declaresBorderWidth`
+had nothing to find and the `measured.has(root.host)` re-check was never reached with anything to
+see. `adoptedStyleSheets` DOES populate on a detached root; that is the lever. Direction of harm is
+OVER-REFUSAL (the safe direction) — but the harness comment read **"Reddens the DETACHED test
+alone"**, a written prediction that sat green for three rounds. *A written prediction is a claim and
+decays exactly like a test, except nothing executes it.*
+
+**(r)/(s) Verification, in order.** Baseline on both rewritten fixtures 2/2/0/**0 skipped** (the
+0-skip reading is load-bearing — a skipped browser test is indistinguishable from a pass in a summary
+line). G68 applied by perl to `dist/`, anchor count verified 1 → DETACHED test red. Rebuild. G64
+applied, anchor count 1 → UNKNOWN-group test red **on the declared assertion, by name**, message
+printed verbatim. Rebuild; both anchors verified restored. Full gauntlet suite
+**68 tests / 68 pass / 0 fail / 0 cancelled / 0 skipped / 0 todo, EXIT=0**, read from INSIDE
+`agent-output/r10-suite.log`; `grep -c "^✖"` = 0. No collateral.
+
+Neither was declared an "expected survivor." Both were constructible, so declaring them expected
+would have been exactly the falsehood this ledger keeps recording — unlike the genuine unreachable
+cases here (`isIpLiteral`, the local-cap TOCTOU race).
+
+**(h) GLM R7c P3 dispositions.** P3-2 CONFIRMED and FIXED — G63's comment claimed no assertion could
+see it; in fact the benign fixture's second assertion also goes red once `shadowBorderRules > 0`, so
+G63 kills TWO. Mutant was always killed; only the reasoning was wrong. P3-3 REFUTED as to the gate,
+CONFIRMED as to its comment, STILL UNAPPLIED — a non-`!important` `:host` rule cannot outrank an
+inline declaration, so the written justification is too narrow, but the gate's real reach is WIDER
+(`:host { border-top-width: 0.5px }` with nothing declared in the document decides that edge
+outright → false-recovery). Gate stays; comment gets the real reason. P3-4 ACCEPTED as a stated
+residual, STILL UNAPPLIED and deliberately deferred — `document.styleSheets` is author-origin only,
+so a user/UA `* { border-top-width: 1px !important }` is unreadable from inside the page; naming it
+changes a user-visible caveat string, which can move text/count assertions and wants its own matrix.
+
+**(t) COMMITTED as `a1a2384` "Make two hairline guards falsifiable"** — 2 files, +59/-9.
+`main` ahead of `origin/main` by **12**. Nothing pushed, nothing on npm.
+
+**(u) THE WHOLE-MATRIX RE-RUN IS OWED AND COLLIDES WITH THE RELEASE.** Standing rule: re-run WHOLE,
+never extend (~95 min). `release.sh` opens with `npm run build` = `rmSync('dist') && tsc`, so a live
+matrix and a release destroy each other. Deliberately NOT launched — Andrew is poised to fire the
+release, and the order is his call. Release-first is cleaner: `release.sh` leaves `dist/` freshly
+built from `src/`, which is the baseline the matrix wants.
+
+**Still owed before any completion claim:** whole-matrix v16 with the entire radius roster
+re-derived BY SET in both directions (already read: G19=18 — matching the v6 prediction exactly,
+since browser fixtures sit outside the rhythm comparison set — G23/24/25/26/27=1, G57/58/59/60=1,
+G73=2, G74=1, G75=1, G76=4, G77=2, G78=2, G79=1); full repo suite with the 3 skips read
+INDIVIDUALLY; GLM P3-3 and P3-4; done-gate; Sol falsification pass (launched, `sol-r10.txt`).
+Deliberately NO unique mutant for the CLOSED+ADOPTED composition test — G66 and G67 each widen by 1
+and the path is SHARED, which is precisely Sol R8 P1-2's point that it worked by accident. State
+that in the v16 header; do not invent a fake mutant.

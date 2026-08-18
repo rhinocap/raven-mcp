@@ -1206,6 +1206,20 @@ function probeInPage({ vpW, vpH, declarativeClosedRoots }: { vpW: number; vpH: n
   // 0.5px invisibly and the inline fast path recovered 0.5px for an edge
   // rendering at 1px: the adopted-stylesheet defect through a FOURTH door.
   //
+  // THAT EXAMPLE IS ONE INSTANCE AND THE GATE'S REACH IS WIDER (GLM R7c P3-3,
+  // 2026-08-17). The `!important` in it is doing real work -- a plain `:host`
+  // rule cannot outrank an inline declaration, so it is what the OVERRIDE case
+  // requires -- but reading the justification as "only `!important` matters"
+  // is too narrow in the direction that costs a wrong answer. With NOTHING
+  // declared on the element or in any document sheet, an ordinary
+  // `:host { border-top-width: 0.5px }` decides that edge outright: the scan
+  // above finds no authored sub-pixel width anywhere it can see, so the probe
+  // reports the edge as settled rather than refusing it. No importance is
+  // involved and no inline declaration is being beaten -- the shadow rule is
+  // simply the only declaration there is. Both shapes land in the same
+  // false-recovery direction, which is why the gate is a page-wide refusal
+  // rather than an importance test.
+  //
   // These rules are COUNTED rather than collected, and that is deliberate. A
   // shadow rule's selector is not evaluable from outside its tree — `:host`
   // and `::slotted()` are meaningless to `el.matches()` on the host, which
