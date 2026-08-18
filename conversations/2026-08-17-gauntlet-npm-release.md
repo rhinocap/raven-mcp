@@ -1937,3 +1937,77 @@ INDIVIDUALLY; GLM P3-3 and P3-4; done-gate; Sol falsification pass (launched, `s
 Deliberately NO unique mutant for the CLOSED+ADOPTED composition test — G66 and G67 each widen by 1
 and the path is SHARED, which is precisely Sol R8 P1-2's point that it worked by accident. State
 that in the v16 header; do not invent a fake mutant.
+
+---
+
+## Release v2.5.0 — shipped and verified across all four surfaces (2026-08-17)
+
+**(z1) COMMITTED `fba1d4e`** — GLM R7c P3-3 comment correction to `src/design-gauntlet.ts` +
+session log. 2 files / 115 insertions. `test/no-private-paths.test.mjs` green (4/4) against the
+STAGED INDEX before commit (that gate scans the index, not the worktree).
+
+**(z2) v16 MATRIX LAUNCHED, THEN KILLED AT G2 OF 81** by operator decision, to free `dist/` for
+`release.sh` (which opens with `rmSync('dist')` then `tsc`). Log renamed
+`mutants-v16-ABORTED-not-a-measurement.log` with an appended footer explaining why.
+**No `EXIT=` line — it is not a measurement and must never be read as one.** Two facts DID survive
+the abort and are worth keeping: `pre-flight: 81 mutants anchor uniquely and parse` (so no
+find-string went stale on the post-fix tree, including the rewritten G64/G68 fixtures) and
+`baseline: tests=68 pass=68 fail=0 skipped=0 status=0`. **Neither speaks to Sol R10 P1.**
+
+**A background watcher reporting "completed (exit code 0)" fired on MY KILL, not on the job.**
+Read the log, never the notification — a task-notification describes the WRAPPER.
+
+**(z3) Andrew ran `scripts/release.sh minor`** → commit `cebe332` "Release v2.5.0", tag `v2.5.0`
+published to origin, `main` 0/0 with origin.
+
+**(z4) FOUR-SURFACE VERDICT — 4/4 GREEN, each MEASURED against the live artifact.**
+
+| # | Surface | Evidence |
+|---|---------|----------|
+| 1 | npm | `raven-mcp@2.5.0`, **231 files** (228 at 2.4.1), ships `dist/design-gauntlet.{js,js.map,d.ts}`. Installed FRESH into a clean dir and BOOTED: **111 stdio tools, `design_gauntlet` present**; `remote:true` build **56 tools, absent**; gated set 67 entries incl. it. |
+| 2 | MCP Registry | `ai.ravenmcp/raven-mcp` @ **2.5.0** — the surface that silently failed on BOTH v2.2.9 and v2.3.0 via registry-JWT expiry. The `release.sh` mint-at-point-of-use fix held. |
+| 3 | git tag | `v2.5.0` on **remote** at `cebe332566d2cef…` = HEAD. A local tag proves nothing; `git ls-remote --tags` is the surface. |
+| 4 | apex `.mcpb` | Initially **STALE at 2.4.1 / 0 gauntlet** (5,366,365 B vs local 5,398,070 B). Andrew ran `cd web && vercel deploy --prod`. Re-measured: `https://ravenmcp.ai/raven.mcpb` sha256 `9cfe9b74080c7bbe6d256df64ede9b4beceebd2c3c97a4ec8ad8d15a8d8f320f`, **byte-identical to local**, and the manifest read OUT OF THE DOWNLOADED BYTES says version 2.5.0 / 111 tools / `design_gauntlet` present. |
+
+**(z5) THE FROZEN ANON HASH HELD THROUGH THE `main` PUBLISH.** Deployment
+`dpl_3rPccz3T1nHuGb2fxeqXVjKYz98b` (production, Ready, 43s build, aliased to `mcp.ravenmcp.ai`).
+Anonymous `tools/list` = **45 tools**, sha256
+`f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6` — exact match. An anonymous
+`tools/call` for `design_gauntlet` returns `MCP error -32602: Tool design_gauntlet not found` —
+**never registered, not merely refused**, which is the gate holding on the path that SHIPS rather
+than in local source.
+
+**Stated limit rather than a claim:** `vercel inspect` does NOT print commit metadata. Build
+identity rests on three converging facts — the `site-git-main-*` alias on the deployment, its
+8-minute age, and `main` 0/0 with origin at `cebe332` — not on a direct SHA read.
+
+**(z6) THREE ENVIRONMENT LESSONS.**
+- `npm pack` plus `tar xzf` gives **no `node_modules`**, so booting the extracted tree throws
+  `ERR_MODULE_NOT_FOUND`. Pivoted on the FIRST occurrence (the record is 7 identical retries) to a
+  real `npm install raven-mcp@2.5.0` in a fresh dir — which is also literally Andrew's stated use
+  case, a different machine.
+- The destructive-op guard blocks a recursive-delete-then-recreate of the same path under rule
+  `rm-rf-catastrophic`. Use `mktemp -d` and persist the path to a file for later shells.
+- **A KILLED MUTATION HARNESS LEAVES `dist/` IN A STATE NO TIMESTAMP CAN VOUCH FOR.** Post-release,
+  `dist/design-gauntlet.js` measured 89,230 B at one check and 89,428 B at the next with an
+  UNCHANGED mtime of 19:02 (release.sh's build). Both readings cannot be right, and the mtime
+  reasoning was the flawed half — a partial restore from the aborted v16 run does not move mtime.
+  A clean `npm run build` from committed source gives **89,428**, so 89,428 is true and the earlier
+  read was of leftover mutant residue. **A matrix run on a dist you cannot vouch for measures
+  nothing** — rebuild before any measurement, never reason from mtime.
+
+**(z7) v16 RELAUNCHED** on a `dist/` rebuilt from `cebe332`, overlay mirror re-confirmed
+`cmp`-identical. Log → `.claude/gauntlet-2026-08-14/agent-output/mutants-v16.log` with `EXIT=`
+appended IN the file. Diff every red-name set against v15 **BY SET in both directions** — v15 was
+79 graded / 2 survived (G64, G68) / 2 controls green.
+
+**Still owed before any completion claim on the GAUNTLET work** (the RELEASE itself is verified and
+closed): v16 read and diffed by set; the v16 header written from the measured roster, replacing the
+stale v12 block (60 mutants, 51p baseline) and stating that there is deliberately NO unique mutant
+for the CLOSED+ADOPTED composition (G66/G67 each widen by 1, the path is SHARED — Sol R8 P1-2's
+point that it worked by accident) plus the G63 radius-counts-TESTS-not-assertions note; GLM P3-4;
+full repo suite with the 3 skips read INDIVIDUALLY; done-gate; a Sol falsification pass.
+
+**Flagged to Andrew:** `9ec2560` ("Remove homepage tool ordinals") was deliberately left OFF this
+release — it conflicts with `origin/main`'s gradient commits `b342d0a`/`d13f00e` and is preserved
+on `feat/gauntlet-hairline-provenance`.
