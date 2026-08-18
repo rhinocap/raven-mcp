@@ -3,7 +3,7 @@
   "name": "ai.ravenmcp/raven-mcp",
   "title": "Raven",
   "description": "Design intelligence for coding agents: audits, design systems, and a taste profile agents consult.",
-  "version": "2.4.1",
+  "version": "2.5.0",
   "websiteUrl": "https://ravenmcp.ai",
   "repository": {
     "url": "https://github.com/rhinocap/raven-mcp",
@@ -14,7 +14,7 @@
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "raven-mcp",
-      "version": "2.4.1",
+      "version": "2.5.0",
       "transport": {
         "type": "stdio"
       }
