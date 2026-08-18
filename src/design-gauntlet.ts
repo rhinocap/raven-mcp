@@ -1180,6 +1180,36 @@ function probeInPage({ vpW, vpH, declarativeClosedRoots }: { vpW: number; vpH: n
       }
     }
   };
+  // ORIGIN LIMIT, STATED RATHER THAN GUARDED (GLM R7c P3-4, 2026-08-17).
+  // `document.styleSheets` is the AUTHOR-origin list. The cascade also has a
+  // USER origin and a UA origin, and neither is reachable from inside the page
+  // by any API — so a user stylesheet carrying
+  // `* { border-top-width: 1px !important }` would beat every authored rule
+  // this probe can read, and the probe would confidently resolve an edge the
+  // user had actually overridden. That is a false RECOVERY, the one outcome
+  // this probe exists to avoid, and it is UNCLOSABLE from here.
+  // It is documented rather than mechanised, and the load-bearing reason is (a).
+  // (a) IT CANNOT FIRE ON THE SHIPPING PATH, and that is a fact about
+  // REACHABILITY, not about cost. `measureGauntletPage` creates its own page in
+  // a browser this tool launches itself (`src/browser-launch.ts`): fresh
+  // headless Chromium, no persistent profile, no CDP attach, no extensions, and
+  // no caller-supplied launch arguments — there is no parameter anywhere on
+  // `design_gauntlet` that can point the probe at a context the tool does not
+  // own, so no input reaches this residual. Chromium's UA stylesheet declares
+  // no blanket `1px !important` border either. This file's own rule — a clause
+  // with no reachable trigger must SAY SO rather than pretend a test kills it —
+  // applies in the mirror direction to a residual.
+  // (b) A SECOND, NON-LOAD-BEARING observation, recorded because it is easy to
+  // mistake for a reason: the user-visible hairline caveat only emits when an
+  // edge was already AMBIGUOUS, whereas this residual's whole harm is that the
+  // probe reads CLEAN, so the caveat is the wrong surface for it regardless.
+  // What is explicitly NOT a reason is that changing the caveat would move
+  // assertions and cost a matrix re-run — an earlier version of this comment
+  // called that the load-bearing half, and it was backwards (Sol R11 P3,
+  // 2026-08-18). IF THE RESIDUAL WERE REACHABLE, THE MATRIX COST WOULD BE
+  // IRRELEVANT. Reopen on reachability alone: a profile, a CDP endpoint, a
+  // caller-supplied launch flag, or any path that lets a caller choose the
+  // browsing context this probe runs in.
   for (const sheet of Array.from(document.styleSheets)) {
     // A cross-origin sheet throws on .cssRules. Counted, never swallowed.
     try { collectRules(sheet.cssRules); } catch { sheetsBlocked++; }

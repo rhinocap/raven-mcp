@@ -2011,3 +2011,279 @@ full repo suite with the 3 skips read INDIVIDUALLY; done-gate; a Sol falsificati
 **Flagged to Andrew:** `9ec2560` ("Remove homepage tool ordinals") was deliberately left OFF this
 release — it conflicts with `origin/main`'s gradient commits `b342d0a`/`d13f00e` and is preserved
 on `feat/gauntlet-hairline-provenance`.
+
+---
+
+## v16 whole-matrix re-run — both Sol R10 findings closed (2026-08-17)
+
+**(z8) v16 COMPLETED AND READ FROM THE LOG.**
+`.claude/gauntlet-2026-08-14/agent-output/mutants-v16.log` (19,685 B):
+
+```
+pre-flight: 81 mutants anchor uniquely and parse
+baseline: tests=68 pass=68 fail=0 skipped=0 status=0
+CONTROL C1-control-key-order-swap: green (correct)
+CONTROL C2-control-decl-order-swap: green (correct)
+summary: 79 mutants, 0 survived, 0 controls false-failed
+EXIT=0
+```
+
+**79 mutants / 79 killed / 0 survived / 0 controls false-failed, 2 CONTROLS green.**
+**CORRECTED 2026-08-18 (Sol R11 P2) — the sentence that stood here was FALSE.** It said both the
+summary line and `EXIT=0` are written by the harness off one `results` array. They are not. The
+harness prints `summary:` and has no `results` array; `EXIT=` is appended by the INVOKING SHELL
+(`gauntlet-mutants.mjs:1039`), so it says only that the shell reached its last line. `survived` and
+`falseFails` are two counters incremented in the mutant loop and `process.exitCode` is set from
+them, and a throw does print no summary line — so reading `summary:` IS reading the predicate, but
+the `EXIT=` half of that argument was never the harness's own verdict and must not be quoted as
+one. Same class as everything else in this file: a comment describing a measurement is a claim, and
+this one decayed inside the round that wrote it. **No mutant entered the roster and no product code changed: v16 is a WHOLE re-run of the v15
+roster, and the re-run is the entire point.**
+
+A background task-notification reported "completed (exit code 0)". It was **disregarded in favour of
+the log** — a notification describes the WRAPPER, and one already fired on my own kill earlier this
+same session (z2).
+
+**(z9) BY-SET DIFF v15 → v16 CLOSES BOTH SOL R10 FINDINGS.** Diffed with a regex parse over both
+logs, in BOTH directions, by SET rather than by count. 79 graded in each; **no mutant only-in-one**.
+**74 held verdict AND red set byte-identical.** Five moved:
+
+| Mutant | v15 | v16 | Set change |
+|---|---|---|---|
+| `G64-unknown-group-collected-as-authored` | SURVIVED | **killed r1** | +unknown-group test |
+| `G68-detached-closed-root-counted` | SURVIVED | **killed r1** | +"a DETACHED closed root is stashed but not counted — the re-check is the guard" |
+| `G59-unevaluable-push-ignored` | killed r1 | killed r2 | +unknown-group test |
+| `G69-specificity-sentence-on-the-total` | killed r1 | killed r2 | +unknown-group test |
+| `G45-inline-wins-unconditionally` | killed r7 | **killed r6** | **−unknown-group test** |
+
+- **P2 CLOSED.** The two radius-1 kills claimed without raw output now exist as recorded kills on
+  their declared assertions, in a preserved log carrying `EXIT=0`.
+- **P1 CLOSED.** The finding was that nothing established the two rewritten fixtures had not MASKED
+  some other mutant. G45 is the **only** LOST red-set member anywhere in the roster — the single
+  cell that could have hidden that harm — and **G45 is still killed, at radius 6**. Nothing became
+  masked; 0 survived.
+- **All five moves are ONE fact, not four findings.** The rewritten "UNKNOWN conditional group"
+  fixture left G45's red set and joined G59/G64/G69. Reading the rows independently would invent
+  three findings out of one changed fixture's reach.
+
+**(z10) v13 AND v14 ARE NOT MEASUREMENTS.** Found by grepping `^summary:` rather than eyeballing the
+tails: **neither log carries a `summary:` line and neither carries an `EXIT=` line.** The harness
+prints both only on a completed run. Renamed
+`mutants-v13-ABORTED-not-a-measurement.log` / `mutants-v14-ABORTED-not-a-measurement.log`, each with
+an appended footer stating that no radius, kill or survival in it may be quoted as one — matching
+the v16-abort precedent from (z2). (v13 baseline 54 tests / 66 anchors; v14 58 tests / 72 anchors.)
+**A log that stops early looks exactly like a log that finished unless you check for the summary.**
+
+**(z11) v16 HEADER WRITTEN AND INSERTED.** 73 lines spliced at line 9 of
+`.claude/gauntlet-2026-08-14/gauntlet-mutants.mjs`, above the stale `MEASURED v12` block — which had
+claimed 60 mutants against a 51p baseline and was **three rounds out of date**, the header-decay
+class this repo documents repeatedly. Inserted with an anchor-guarded `node -e` splice (aborts with
+no write if the anchor moved or the preceding line is unexpected); `node --check` SYNTAX OK.
+
+Every cell of the 79-row radius table is **re-derived from the v16 log**, never transcribed from the
+previous table — this file's own rule, earned when v8 was transcribed and shipped wrong in two cells.
+
+Two structural claims recorded in the new block:
+- **There is deliberately NO unique mutant for the CLOSED+ADOPTED composition.** G66 (closed stash
+  never read) and G67 (shadow adopted sheets dropped) each redden their own single-mechanism test
+  PLUS the composed test, each at radius 2. No mutant reddens the composed test alone, because the
+  **path is SHARED** — the composition has no code of its own to break. That is Sol R8 P1-2's point
+  that it worked by accident before it worked by design. The header says **DO NOT INVENT A MUTANT TO
+  FILL THIS ROW.**
+- **G63 is the radius-counts-TESTS-not-assertions entry** — killed at radius 1 by a single test
+  carrying several assertions. `assert` aborts at the first failure, so a test that would have
+  failed three ways still counts once.
+
+**Uncommitted** as of this checkpoint.
+
+---
+
+## GLM P3-4 dispositioned · full suite · Sol R11 (2026-08-17 → 08-18)
+
+**(z12) GLM R7c P3-4 DISPOSITIONED AS A DOCUMENTED RESIDUAL.** 20-line comment-only insertion in
+`src/design-gauntlet.ts` immediately above the `document.styleSheets` loop, spliced with a Python
+edit carrying a uniqueness assertion on its anchor. `tsc --noEmit` EXIT=0; `git diff --stat` reads
+**20 insertions, 0 deletions**. The finding: `document.styleSheets` is the AUTHOR-origin list only,
+so a USER-origin or UA-origin `* { border-top-width: 1px !important }` is unreadable from inside the
+page and the probe would confidently RESOLVE an edge the user had overridden — a false RECOVERY,
+the one outcome this probe exists to avoid, and unclosable from inside the page.
+
+The user-visible `Hairline caveat:` string at `:754` is deliberately UNCHANGED. The caveat only
+emits when an edge was ALREADY ambiguous, whereas this residual's whole harm is that the probe
+reads CLEAN — so the caveat is the wrong vehicle regardless of what it would have cost.
+
+**(z13) v16 REMAINS VALID, AND THAT WAS MEASURED RATHER THAN ASSUMED.** `tsc` here does NOT strip
+comments (no `removeComments` in tsconfig), so the new comment DOES reach `dist/design-gauntlet.js`
+and could in principle have collided with a mutant find-string's uniqueness. Rebuilt from committed
+source, confirmed the comment is present in `dist/`, then isolated the harness's pre-flight by
+`head -n <preflight-line>` into a copy **at the same directory depth** as the original — the first
+attempt placed it in `agent-output/` and broke relative resolution with
+`ENOENT .../.claude/dist/design-gauntlet.js`, because paths resolve from the script's own location.
+Result: `pre-flight: 81 mutants anchor uniquely and parse`, EXIT=0.
+
+**(z14) FULL SUITE GREEN — 1607 tests / 1604 pass / 0 fail / 3 skipped, EXIT=0**
+(`.claude/gauntlet-2026-08-14/agent-output/full-suite-p34.log`, the exit code written INSIDE the
+file). **The 3 skips are the same three, read INDIVIDUALLY at output lines 109 / 782 / 783** — the
+file-URL fallback notice and the two removed-capability phase2 tests — shifted from 744/745 purely
+because the grown gauntlet suite's output now sits above them. **The +38 over the ledgered 1569 is
+exactly the gauntlet suite's own growth**: 68 tests now against 30 when 1569 was measured, across
+the R7c/R8/R10 rounds. The P3-4 comment moves the count by ZERO. The gauntlet suite was confirmed
+to have RUN inside the full pass by grepping its own test names out of the log (34 hairline names
+present) — an unchanged-looking total is exactly the shape that hides a suite silently not running.
+
+**(z15) SOL R11 — `DOES NOT SURVIVE`, THREE FINDINGS.**
+(`.claude/gauntlet-2026-08-14/agent-output/sol-r11.log`, 700,688 B, finished Aug 17 22:16.)
+
+- **P1 — the v16 set diff cannot rule out ASSERTION-level masking.** The harness records only
+  deduplicated failing TEST NAMES and discards assertion messages (`gauntlet-mutants.mjs:1001`).
+  The UNKNOWN-conditional-group fixture went from four assertions to five AND changed its
+  authored-border mechanism (`a1a2384`, "Make two hairline guards falsifiable"). So `0 survived`
+  proves every mutation site still trips SOME test; it does not prove the rewritten fixture
+  preserved WHICH harm detects it.
+- **P2 — `summary:` + `EXIT=0` is not independently sufficient, and my own recorded explanation of
+  the harness is FALSE.** Session log line 2031 says both lines are written by the harness off a
+  `results` array. In fact the harness prints `summary:` and never prints `EXIT=`; `EXIT=0` is
+  appended by the invoking shell (`gauntlet-mutants.mjs:1039`). Worse: a mutant run is graded green
+  or not-green, and ANY non-green outcome — `status:null`, unparsed totals, an infrastructure
+  failure — is classified as "killed" (`:1047`). A transient child-process failure with green
+  controls could therefore print zero survivors and exit zero while grading that mutant on no
+  assertion at all. Mitigating fact Sol concedes: the positive radii throughout v16 mean that
+  specific parser failure is not visible in THIS run.
+- **P3 — Claim 2's conclusion HOLDS; its rationale is backwards.** Sol verified the diff is exactly
+  `+20/−0` comments only, the warning unchanged at `:754`, local launch is fresh headless Chromium
+  with no persistent profile, no CDP attachment, no extensions and no caller launch arguments
+  (`browser-launch.ts:294`), `measureGauntletPage` creates its own page (`:530`), and the hosted
+  tool is gated off (`index.ts:1912`); Chromium's UA stylesheet supplied no `1px !important`
+  counterexample. But the comment calls matrix invalidation "load-bearing" (`:1191`) and it is
+  merely COST. The actual load-bearing fact is the absence of a reachable profile/CDP path — if one
+  ever became reachable, matrix cost could not justify retaining a false recovery. Sol's own live UA
+  inspection was blocked by the host sandbox (`MachPortRendezvousServer … Permission denied`).
+
+**PROCESS LESSON, and it cost hours.** A job launched with `nohup … &` is **NOT harness-tracked and
+produces NO task-notification** — only `run_in_background: true` on the Bash tool does. I launched
+Sol detached with `nohup` and then waited on a notification that could never fire, while the output
+file had been complete since 22:16. Poll the file, use Monitor, or launch with `run_in_background`.
+
+---
+
+## Sol R11 disposition — all three findings closed by measurement (2026-08-18)
+
+**(z16) P2's SECOND half is REFUTED for v16 by the artifact, not merely "not visible".**
+Sol's claim was that the harness classifies ANY non-green mutant result as `killed`
+(`gauntlet-mutants.mjs:1047`), so a `status:null`, an unparsed-totals run or an
+infrastructure failure would be scored as evidence against a mutant. **True of the code, and
+provably not what happened in v16.** Read directly out of `mutants-v16.log`: **79 graded
+lines, 79 of the form `killed, radius N — <names>`, ZERO at radius 0, zero SURVIVED, no line
+with an empty name list, minimum radius 1.** `run.names` is populated ONLY from real
+`✖ <name> (Nms)` lines emitted by `node --test`, so a void run would necessarily print
+`radius 0 — ` with an empty list. Every one of the 79 reddened at least one NAMED test, which
+requires a genuine assertion failure.
+
+Residual, stated rather than papered over: a child that crashed AFTER at least one `✖` had
+already printed would still be indistinguishable. Narrow, and now closed going forward — see
+(z18).
+
+**(z17) P1 IS CLOSED BY MEASUREMENT — and the first attempt at that measurement was an
+INSTRUMENT BUG of exactly the class this repo documents.**
+
+The finding: the v16 → v15 set diff records only deduplicated failing TEST NAMES
+(`gauntlet-mutants.mjs:1001`) and discards assertion messages. `assert` aborts at the first
+failure, so a test reports one message however many ways it would have broken — a mutant can
+be killed in BOTH runs by a DIFFERENT assertion inside the same test, and a red-set diff of
+test names is structurally blind to it. The "UNKNOWN conditional group" fixture went 4 → 5
+assertions AND changed its authored-border mechanism in `a1a2384`, so `0 survived` proves
+every site trips SOME test and does not prove the rewrite preserved WHICH harm detects it.
+
+**Scoped first.** Mutants carrying that test: **v16 → 6** (G42, G48, G54, G59, G64, G69);
+**v15 → 4** (G42, G45, G48, G54). Gained members (G59/G64/G69) and lost members (G45) are
+visible to the set diff and are therefore NOT the blind spot. The blind spot is exactly the
+**intersection — G42, G48, G54.** Sol's probe was precisely targeted.
+
+**The differential.** `.claude/gauntlet-2026-08-14/p1-assertion-differential.mjs` materialises
+the pre-rewrite fixture (`git show a1a2384^:test/design-gauntlet.test.mjs` — the test NAME is
+byte-identical in both, which is what makes a name-scoped run possible), applies each of the
+three mutants to `dist/design-gauntlet.js`, runs BOTH fixtures scoped with
+`--test-name-pattern 'UNKNOWN conditional group'`, restores with a `!==` verification, and
+compares the FIRST assertion message from each arm.
+
+**Its first run reported "IDENTICAL MESSAGE" three times and that was a FALSE POSITIVE.** The
+extractor looked for a YAML `message:` block, which `node --test` does not emit — so BOTH arms
+returned `(no assertion message parsed)` and the comparison found them equal. *A check whose
+failure mode is indistinguishable from its success mode is not a check*, arriving in the
+instrument built to grade the instrument. Diagnosed by applying G54 by hand and reading the raw
+output: the real format is
+`AssertionError [ERR_ASSERTION]: <message>` followed by `at TestContext.<anonymous> (file://…:LINE:COL)`.
+Two fixes: the parser is `/AssertionError \[ERR_ASSERTION\]: (.+)/` plus the `at …:LINE:COL`
+frame as assertion identity, and **an unparsed message is now `null` and ABORTS the comparison
+rather than comparing equal to another `null`.**
+
+**Result — baseline green in both arms (`tests=1 pass=1 fail=0 status=0`), then:**
+
+| Mutant | NEW fixture | OLD fixture | Verdict |
+|---|---|---|---|
+| G42-unresolved-width-dropped | `:1319` `fixture: @scope PARSED …` | `:1299` `fixture: @scope PARSED …` | SAME ASSERTION MESSAGE |
+| G48-ambiguity-not-counted | `:1327` `the ambiguity is disclosed` | `:1307` `the ambiguity is disclosed` | SAME ASSERTION MESSAGE |
+| G54-hairline-caveat-undisclosed | `:1327` `the ambiguity is disclosed` | `:1307` `the ambiguity is disclosed` | SAME ASSERTION MESSAGE |
+
+**All three fire the SAME harm in both fixtures. No assertion-level masking. P1 CLOSED.**
+
+**And the parser is proven DISCRIMINATING rather than constant** — G42 fires a different
+message from G48/G54, so "identical" is a measurement and not the driver's default. That is
+the half that makes the table worth anything; the first run had no such evidence.
+Line numbers differ (1319/1327 vs 1299/1307) purely because the two fixture files differ in
+length above the test; the comparison is on MESSAGE, with the line reported for context only.
+
+Afterwards: `dist/design-gauntlet.js` re-verified PRISTINE at all three anchor sites (90,743 B),
+and `test/design-gauntlet.OLDFIXTURE.test.mjs` **DELETED** — it was untracked, inside
+`npm test`'s `test/**/*.test.mjs` glob, and would have been staged by `auto-save-on-turn.sh`'s
+`git add -A`.
+
+**(z18) P2's FORWARD half and P3 are both fixed, and the new guard was proven falsifiable
+BEFORE it was trusted.**
+
+*P2 forward.* `gauntlet-mutants.mjs` now refuses to grade a **VOID run**: unparsed totals
+(`tests/pass/fail/skipped === null`), `status === null`, or — the sharper discriminator — a
+non-green run whose `names` list is EMPTY, since `names` comes only from real `✖` lines, so a
+red with no named test never got as far as failing an assertion. It **ABORTS** rather than
+counting, because a matrix carrying one void row is not a matrix with one bad cell; it is a
+measurement of unknown coverage.
+
+**Proven in BOTH directions with a fault-injected copy, not asserted.** Two copies were written
+at the SAME directory depth (relative paths resolve from the script's own location) with the
+roster trimmed to one mutant. The CONTROL — real runs — reached
+`summary: 1 mutants, 0 survived, 0 controls false-failed` with G1 killed at radius 1, no abort.
+The INJECTED copy left the void predicate untouched and replaced only `runSuite`'s spawn on the
+MUTANT call with a child that prints nothing (`node -e ''`, status 0, every total unparsed):
+`ABORT: G1-vocab-boundary-exclusive produced a VOID run, not a verdict — tests=null pass=null
+fail=null skipped=null status=0 namedFailures=0`, **exit 1**. `runSuite` is the ENVIRONMENT
+here and the predicate is the code under test, which is what makes that a legitimate injection
+seam rather than a reimplementation.
+
+*P2 provenance.* A comment above the summary line now records that **`summary:` is written by
+the harness off the same two counters `process.exitCode` is set from, while `EXIT=` is appended
+by the INVOKING SHELL** (`… ; echo "EXIT=$?"`) and says only that the shell reached its last
+line. Both land in the same log file, which is exactly what made them easy to conflate — and
+what produced the false sentence corrected in (z15). Grade on `summary:` plus the per-mutant
+lines; `EXIT=` is corroboration only.
+
+*P3.* Sol confirmed Claim 2's CONCLUSION and refuted its RATIONALE: the comment called the
+matrix-invalidation cost the load-bearing half, and it is backwards. The rewrite at
+`src/design-gauntlet.ts` puts reachability first and names the evidence —
+`measureGauntletPage` creates its own page in a browser this tool launches itself
+(`src/browser-launch.ts`): fresh headless Chromium, no persistent profile, no CDP attach, no
+extensions, no caller-supplied launch arguments, and **no parameter anywhere on
+`design_gauntlet` that can point the probe at a context the tool does not own**. The caveat-
+surface observation is demoted to explicitly NON-load-bearing, and the comment now states in
+capitals that **IF THE RESIDUAL WERE REACHABLE, THE MATRIX COST WOULD BE IRRELEVANT**, with the
+reopen condition expressed in reachability alone. Sol's own live UA-stylesheet inspection was
+blocked by the host sandbox (`MachPortRendezvousServer … Permission denied`), which is stated
+rather than counted as a clean result.
+
+**Matrix not re-run whole this round, stated as a JUDGEMENT rather than a measurement.** The
+standing rule is to re-run WHOLE after any fix round, and it is being consciously not applied
+here: both changes are behaviour-neutral to the product (`src` is comments-only, `tsc --noEmit`
+exit 0), and the harness change can only ever ABORT a run — it cannot flip a kill to a survival
+or move a radius. The one real hazard of a comment edit is anchor drift, because this
+`tsconfig` does NOT strip comments and the text reaches `dist/`; that was measured rather than
+assumed — clean `npm run build` (EXIT=0) then the isolated pre-flight, **81 mutants still
+anchor uniquely and parse**. The control run above also re-graded G1 identically post-change.

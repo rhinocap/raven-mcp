@@ -6,6 +6,79 @@
  * false-fails). Run with:  node .claude/gauntlet-2026-08-14/gauntlet-mutants.mjs
  * NEVER via `npm test` with a mutant applied — clean && tsc clobbers dist/.
  *
+ * MEASURED v16 (2026-08-17, agent-output/mutants-v16.log), 68p/0f/0s declared
+ * baseline: 79 mutants, 79 killed, 0 survived, 0 controls false-failed; 2
+ * CONTROLS green; EXIT=0 and the summary line both read from INSIDE the log.
+ * Pre-flight passed at 81 anchors. NO mutant entered and NO product code
+ * changed this round — v16 is a WHOLE re-run of the v15 roster, and the whole
+ * point of it is the re-run itself.
+ *   WHY IT EXISTS: v15 measured 79 mutants with TWO SURVIVORS (G64, G68) and
+ *   EXIT=1. Both survivals were FIXTURE defects, not product defects, and both
+ *   fixtures were rewritten. Sol R10 then returned DOES NOT SURVIVE on 1 P1 +
+ *   1 P2, and NEITHER finding was about correctness — both were about EVIDENCE.
+ *   P1: nothing established that the two rewritten fixtures had not MASKED some
+ *   other mutant, because the matrix was not re-run whole. P2: the claimed
+ *   radius-1 kills had no preserved raw output at all — mutants-v15.log:66 and
+ *   :70 still recorded G64 and G68 as SURVIVED, so the repo's only artifact
+ *   contradicted the claim. THIS LOG IS THE ANSWER TO BOTH, and the second one
+ *   is answered by the log EXISTING rather than by anything written here.
+ *   FIVE MUTANTS MOVED AND SEVENTY-FOUR DID NOT, CHECKED BY SET IN BOTH
+ *   DIRECTIONS rather than by count — a uniform-looking delta is exactly the
+ *   shape that hides one mechanism shrinking while another grows.
+ *     G64 SURVIVED -> killed r1 · G68 SURVIVED -> killed r1 (the two fixes)
+ *     G59 1 -> 2 · G69 1 -> 2 (GAINED the rewritten unknown-group test)
+ *     G45 7 -> 6 (LOST it)
+ *   G45'S LOSS IS THE ONLY LOST RED-SET MEMBER ANYWHERE IN THE ROSTER, and it
+ *   is the one cell that could have hidden the P1 harm. It did not: G45 is
+ *   still killed, at radius 6, so the rewrite narrowed which tests catch it
+ *   without unmasking it. Every other one of the 79 either held its set
+ *   byte-identical or gained a member. NOTHING became masked; 0 survived.
+ *   ALL FIVE MOVES ARE ONE FACT, NOT FOUR. The rewritten "UNKNOWN conditional
+ *   group is unresolved, never collected as authored" test left G45's red set
+ *   and joined G59, G64 and G69 — that is a fact about ONE fixture's reach, and
+ *   reading it as four independent changes would invent three findings.
+ *   THERE IS DELIBERATELY NO UNIQUE MUTANT FOR THE CLOSED+ADOPTED COMPOSITION,
+ *   and that is a measurement rather than a gap. G66 (closed stash never read)
+ *   and G67 (shadow adopted sheets dropped) each redden their OWN single-
+ *   mechanism test plus the composed "a CLOSED root delivering an ADOPTED sheet
+ *   stops every recovery" test — each at radius 2, neither alone. No mutant
+ *   reddens the composed test and nothing else, because THE PATH IS SHARED:
+ *   the composition has no code of its own to break. That is Sol R8 P1-2's
+ *   point — the composition worked by accident before it worked by design — and
+ *   the honest record is to say so. DO NOT INVENT A MUTANT TO FILL THIS ROW; a
+ *   mutant with no distinct mechanism behind it is a decoration that reports a
+ *   kill it never made.
+ *   G63 IS THE RADIUS-COUNTS-TESTS-NOT-ASSERTIONS ENTRY. It fires the shadow
+ *   gate on ANY root and is killed at radius 1 by "an ordinary shadow root that
+ *   declares NO border width costs nothing" — one TEST, which carries several
+ *   assertions. A radius is a count of reddened tests and says nothing about
+ *   how many claims inside them broke, nor about how many independent guards
+ *   exist; `assert` aborts at the first failure, so a test that would have
+ *   failed three ways still counts once. Read the NAMES, never the number.
+ *   THIS HEADER DECAYED FOR THREE ROUNDS — it still described v12 (60 mutants,
+ *   a 51p baseline) while v13, v14 and v15 came and went, which is this file's
+ *   own "a comment describing a measurement is a claim and decays exactly like
+ *   a test does, except nothing executes it", landing on the paragraph that
+ *   states it. Worse, v13 and v14 CARRY NO `summary:` LINE AND NO `EXIT=` LINE:
+ *   the harness prints both only on a completed run, so neither is a
+ *   measurement and no radius in either may be quoted as one. Both were renamed
+ *   `-ABORTED-not-a-measurement` on 2026-08-17 to match the v16-abort
+ *   precedent. A LOG THAT STOPS EARLY LOOKS EXACTLY LIKE A LOG THAT FINISHED
+ *   UNLESS YOU CHECK FOR THE SUMMARY.
+ *   THE TABLE BELOW IS DERIVED FROM mutants-v16.log. Re-derive every cell from
+ *   the CURRENT log each round — it was transcribed from v8 once and shipped
+ *   wrong in two cells, and a correctly-measured delta diff cannot catch an
+ *   error inherited from a stale table.
+ *   G1 1 · G2 1 · G3 1 · G4 6 · G5 2 · G6 2 · G7 3 · G8 2 · G9 2 ·
+ *   G10 3 · G11 1 · G12 2 · G13 1 · G14 1 · G15 2 · G16 2 · G17 2 · G18 1 ·
+ *   G19 18 · G20 1 · G21 1 · G22 2 · G23 1 · G24 1 · G25 1 · G26 1 · G27 1 ·
+ *   G28 2 · G29 1 · G30 1 · G31 1 · G32 1 · G33 1 · G34 1 · G35 1 · G36 1 ·
+ *   G37 1 · G38 4 · G39 1 · G40 1 · G41 2 · G42 4 · G43 1 · G44 2 · G45 6 ·
+ *   G46 1 · G47 1 · G48 20 · G49 1 · G50 2 · G51 1 · G52 2 · G53 1 · G54 23 ·
+ *   G55 2 · G56 1 · G57 1 · G58 1 · G59 2 · G60 1 · G61 4 · G62 4 · G63 1 ·
+ *   G64 1 · G65 2 · G66 2 · G67 2 · G68 1 · G69 2 · G70 3 · G71 2 · G72 2 ·
+ *   G73 2 · G74 1 · G75 1 · G76 4 · G77 2 · G78 2 · G79 1.
+ *
  * MEASURED v12 (2026-08-17, agent-output/mutants-v12.log), 51p/0f/0s declared
  * baseline: 60 mutants, 60 killed, 0 survived, 0 false-failed; 2 CONTROLS
  * green; EXIT=0 and the summary line both read from INSIDE the log — a
@@ -971,6 +1044,30 @@ for (const m of MUTANTS) {
   writeFileSync(m.file, src);
   if (readFileSync(m.file, 'utf8') !== src) { console.error(`ABORT: restore of ${m.file} failed`); process.exit(1); }
 
+  // A NON-GREEN RUN IS NOT AUTOMATICALLY A KILL (Sol R11 P2, hardened 2026-08-18).
+  // The grading below used to classify ANY non-green result as `killed`, which
+  // folds three different events into one word: a genuine assertion failure, a
+  // child that died before `node --test` printed its totals, and a run whose
+  // summary could not be parsed at all. The last two say nothing about the
+  // mutant and must never be scored as evidence against it. Two facts separate
+  // them, and both are already in hand: unparsed totals (`tests === null`),
+  // and — the sharper one — a non-green run whose `names` list is EMPTY, since
+  // `names` is populated only from real `✖ <name> (Nms)` lines, so a red with
+  // no named test is a run that never got as far as failing an assertion.
+  // This ABORTS rather than counting, because a matrix carrying one void row is
+  // not a matrix with one bad cell — it is a measurement of unknown coverage.
+  const voidRun =
+    run.tests === null || run.pass === null || run.fail === null || run.skipped === null ||
+    run.status === null ||
+    (run.fail !== 0 && run.names.length === 0);
+  if (voidRun) {
+    console.error(`ABORT: ${m.id} produced a VOID run, not a verdict — ` +
+      `tests=${run.tests} pass=${run.pass} fail=${run.fail} skipped=${run.skipped} ` +
+      `status=${run.status} namedFailures=${run.names.length}. ` +
+      `Neither a kill nor a survival may be read from it.`);
+    process.exit(1);
+  }
+
   const green = run.fail === 0 && run.status === 0 && run.pass === EXPECTED_BASELINE.pass && run.skipped === EXPECTED_BASELINE.skipped;
   if (m.expect === 'green') {
     if (green) console.log(`CONTROL ${m.id}: green (correct)`);
@@ -983,5 +1080,13 @@ for (const m of MUTANTS) {
   }
 }
 
+// PROVENANCE OF THE TWO LINES A READER GRADES THIS RUN BY (corrected 2026-08-18,
+// Sol R11 P2). `summary:` below is written by THIS harness off the same two
+// counters `process.exitCode` is set from, so reading it IS reading the
+// predicate. `EXIT=` is NOT written here — it is appended by the INVOKING SHELL
+// (`… ; echo "EXIT=$?"`), so it reports that the shell reached its last line and
+// nothing about the harness's verdict. Both lines land in the same log file,
+// which is what made them easy to conflate. Grade on `summary:` plus the
+// per-mutant lines; treat `EXIT=` as corroboration only.
 console.log(`\nsummary: ${MUTANTS.filter((m) => m.expect !== 'green').length} mutants, ${survived} survived, ${falseFails} controls false-failed`);
 if (survived > 0 || falseFails > 0) process.exitCode = 1;
