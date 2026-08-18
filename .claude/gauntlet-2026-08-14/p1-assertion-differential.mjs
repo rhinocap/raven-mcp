@@ -62,6 +62,21 @@ const MUTANTS = [
     replace: '        if (false) {' },
 ];
 
+// CLEANUP IS REGISTERED, NOT MERELY SCOPED (Sol R13 P1). The outer `finally` at
+// the bottom of this file is NOT sufficient: `die()` calls `process.exit(1)`,
+// which unwinds NOTHING — every `finally` on the stack is skipped — so an abort
+// on the expected failure path left `test/design-gauntlet.OLDFIXTURE.mjs` on
+// disk. That file is untracked and `auto-save-on-turn.sh` runs `git add -A`, so a
+// leak here is a leak into the INDEX of a public repo. `process.on('exit')` DOES
+// run on `process.exit()`, on a normal return and after an uncaught throw, and
+// the signal handlers cover the kill case; `rmSync(..., {force:true})` is
+// idempotent, so the outer `finally` stays as belt-and-braces rather than being
+// replaced by this.
+process.on('exit', () => { try { rmSync(OLD_ABS, { force: true }); } catch {} });
+for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+  process.on(sig, () => { try { rmSync(OLD_ABS, { force: true }); } catch {} process.exit(1); });
+}
+
 function die(msg) { console.error(`ABORT: ${msg}`); process.exit(1); }
 
 function num(out, label) {
@@ -108,6 +123,43 @@ function lineText(file, line) {
   } catch { return null; }
 }
 
+// SOL R13 P2 -- MESSAGE + LINE TEXT IS STILL NOT AN IDENTITY, AND THE COMMENT
+// ABOVE OVERSTATED IT. Those two identical `the ambiguity is disclosed` lines
+// (:1066 and :1327) are BYTE-IDENTICAL, so the pair (message, trimmed source
+// text) does not distinguish them from each other -- it only distinguishes them
+// from a DIFFERENT assertion. Today `--test-name-pattern` happens to separate
+// them into different tests, but the driver never PROVED that, so a future
+// fixture carrying the same line twice inside ONE test would be reported
+// `SAME ASSERTION` on no evidence.
+//
+// The line NUMBER cannot close it: the two fixture files differ in length above
+// the test by construction, so a number comparison is red-on-correct-code. What
+// CAN be asked is whether the pair is UNIQUE inside the test the run actually
+// selected -- if it occurs exactly once there in each fixture, then message plus
+// text does pin one site, and if it occurs twice the driver has no way to know
+// which one fired and must ABORT rather than claim identity. Fail closed.
+//
+// `^test(` is line-anchored and matches exactly 68 times in the current fixture,
+// which is the baseline test count, so a block runs from its own `test(` line to
+// the next one (or EOF). A nested `t.test(` is indented and therefore does not
+// split a block.
+function siteOccurrencesInEnclosingTest(file, line) {
+  if (line === null) return null;
+  try {
+    const src = readFileSync(resolve(ROOT, file), 'utf8').split('\n');
+    if (line < 1 || line > src.length) return null;
+    const target = src[line - 1].trim();
+    if (!target) return null;
+    let start = 0;
+    for (let i = line - 1; i >= 0; i--) if (src[i].startsWith('test(')) { start = i; break; }
+    let end = src.length;
+    for (let i = line; i < src.length; i++) if (src[i].startsWith('test(')) { end = i; break; }
+    let n = 0;
+    for (let i = start; i < end; i++) if (src[i].trim() === target) n++;
+    return n;
+  } catch { return null; }
+}
+
 let nonMeasurements = 0;
 
 try {
@@ -149,13 +201,18 @@ try {
     // A `✖` is not proof an assertion ran: node --test prints one for a FILE that
     // fails to load. The test COUNT is the discriminator a name list cannot give.
     const aText = lineText(NEW, a.line), bText = lineText(OLD, b.line);
+    const aOcc = siteOccurrencesInEnclosingTest(NEW, a.line);
+    const bOcc = siteOccurrencesInEnclosingTest(OLD, b.line);
     console.log(`  NEW source @${a.line}: ${aText}`);
     console.log(`  OLD source @${b.line}: ${bText}`);
+    console.log(`  site occurrences inside the selected test: NEW=${aOcc} OLD=${bOcc}`);
     const verdict =
         (a.tests !== 1 || b.tests !== 1) ? 'TEST COUNT MOVED — the run did not execute the fixture, not a measurement'
       : (!a.failed || !b.failed)         ? 'ONE ARM GREEN — the mutant was not detected in both arms, not a measurement'
       : (a.message === null || b.message === null) ? 'UNPARSED — not a measurement, fix the driver'
       : (aText === null || bText === null) ? 'NO SOURCE LINE — not a measurement, fix the driver'
+      : (aOcc === null || bOcc === null) ? 'NO SITE COUNT — not a measurement, fix the driver'
+      : (aOcc !== 1 || bOcc !== 1) ? `AMBIGUOUS SITE (${aOcc} in NEW, ${bOcc} in OLD) — that assertion line occurs more than once inside the selected test, so message+text cannot say which one fired`
       : (a.message !== b.message)        ? 'DIFFERENT ASSERTION MESSAGE — inspect whether the new one is weaker'
       : (aText !== bText)                ? 'SAME MESSAGE, DIFFERENT ASSERTION SITE — this IS assertion-level masking'
       :                                    'SAME ASSERTION — same message AND same source line text';

@@ -2424,3 +2424,192 @@ nothing, so it cannot flip a kill to a survival or move a radius.
 committed, and `main` is 2 ahead of `origin/main` and UNPUSHED — the v2.5.0 push approval was
 consumed by `cebe332`, and pushing `main` deploys the live MCP endpoint, so it needs its own fresh
 approval that has not been asked for or given.**
+
+---
+
+## (z22) R12 disposition committed; suite re-measured; Sol R13 in flight (2026-08-18)
+
+**COMMIT `5d87e2a` — "Close Sol R12 and Kimi R12 on the gauntlet's hairline evidence".**
+5 files changed, **424 insertions(+), 49 deletions(-)**, creating
+`.claude/gauntlet-2026-08-14/BRIEF-R12.md`. Staged as five EXPLICIT paths and graded by
+`test/no-private-paths.test.mjs` against the INDEX (4 pass / 0 fail) before the commit, since
+that gate reads the index and not the worktree.
+
+**All eight R12 findings dispositioned** — five fixed, one refuted-in-half, two recorded as
+measured residuals:
+
+| Finding | Source | Disposition |
+|---|---|---|
+| Differential fails open / unreproducible | Sol P1, Kimi F3+F4 | FIXED AND RUN — 3/3 SAME ASSERTION |
+| Void-guard predicate incomplete | Sol P2, Kimi F5 | FIXED, proven in 4 directions |
+| Second rewritten fixture never differentiated | Kimi F1 | CLOSED — intersection is EMPTY |
+| Verdict ignores assertion identity | Kimi F2 | FIXED — source-line-text comparison |
+| Two stale v16 header claims | Sol P3, Kimi F11 | FIXED, `node --check` SYNTAX OK |
+| `src` UA-origin comment overstates | Sol P3, Kimi F9 | FIXED; pooling half REFUTED |
+| Subtest-indentation regex landmine | Kimi F8 | RECORDED, measured latent |
+| `--test-name-pattern` uniqueness | Kimi F4 | RECORDED as a stated residual |
+
+**Kimi F9's pooling half was refuted by READING, not conceded.** `acquireBrowserSlot`
+(`src/browser-launch.ts:363`) is a concurrency GATE — a cap, a waiter queue and a 120s deadline —
+not a browser pool; the remote branch still calls `chromium.launch(...)` itself and
+`wrapRemoteBrowser` adds a DNS cache and a slot release and **no instance reuse**. So "fresh
+headless Chromium" survives and stays in the comment with its evidence named inline. What DID
+narrow is the UA half: the comment previously said "no input reaches this residual" full stop,
+which is true of the USER origin (owning the browser excludes a caller-installed user stylesheet)
+and **not established** for the UA one. That half is now marked believed-from-Chromium's-`html.css`
+and **explicitly NOT verified by inspection here** — Sol's live UA-stylesheet probe was blocked by
+its host sandbox (`MachPortRendezvousServer … Permission denied`), and **an unavailable
+measurement is not a clean one.** Each half carries its own reopen condition.
+
+**Anchor drift from a comment edit was MEASURED, not assumed.** This `tsconfig` does not strip
+comments, so source comments reach `dist/` and a comment edit is a behaviour-neutral change to the
+PRODUCT and a potentially breaking one to the HARNESS. Clean `npm run build` (EXIT=0,
+`dist/design-gauntlet.js` **92,632 B**), then the isolated pre-flight — extracted by truncating
+`gauntlet-mutants.mjs` above `const baseline = runSuite();` — reported **81 mutants anchor
+uniquely and parse, PREFLIGHT_EXIT=0**. `npx tsc --noEmit` EXIT=0.
+
+**Kimi F8 is recorded with the measurement that makes "latent" a fact rather than a hope.** The
+failing-name regex is anchored at line start, so a failure inside a nested `t.test()` would give
+`fail > 0` with an EMPTY name list and the void-run guard would then ABORT a legitimate kill.
+`grep -c 't\.test(' test/design-gauntlet.test.mjs` returns **0** — the suite is flat today, so no
+run in this matrix can produce it — and the failure direction is a loud abort, never a silently
+scored kill. Recorded rather than fixed, with the widening (`/^\s*✖ /`) named for whoever adds a
+subtest.
+
+**(z22a) FULL SUITE RE-MEASURED — `agent-output/full-suite-r13.log` (147,927 B).**
+**1607 tests / 1604 pass / 0 fail / 3 skipped, EXIT=0** — identical to the ledgered figure, which
+is the expected result for a comments-and-harness-only round. A background task notification
+reported "exit code 0" and was **disregarded in favour of the log**: the `&` forked the wrapper,
+so that notification fired while the suite was still running. Grade the file.
+
+**The 3 skips were read INDIVIDUALLY at output lines 109 / 782 / 783** — the same three this
+ledger has always carried, at the same line numbers — never inferred from an unchanged total:
+- 109 `file URL fallback marks reveal and settle checks as unavailable` — browser available
+- 782 `[phase2D fix B] … overlapping committed batches` — removed capability
+- 783 `[phase2C tray] overlapping committed batches …` — removed capability
+
+**And an unchanged total is exactly the shape that would hide a suite silently not running**, so
+the two REWRITTEN fixtures were confirmed by NAME out of the log: line 372
+`✔ hairlines: a DETACHED closed root is stashed but not counted — the re-check is the guard`
+(966.85ms) and line 373 `✔ hairlines: an UNKNOWN conditional group is unresolved, never collected
+as authored` (954.47ms). Those durations are real Chromium work; a fixture passing by absence
+costs microseconds.
+
+**(z22b) MATRIX DELIBERATELY NOT RE-RUN, and that judgement is now corroborated rather than
+merely stated.** The standing rule is to re-run WHOLE after any fix round. It is consciously not
+applied here: `src` is comments-only with `tsc --noEmit` clean, and the harness edit adds a guard
+that reads `run` fields and either passes or `process.exit(1)`s — it mutates nothing and cannot
+flip a kill to a survival or move a radius. Kimi F10 reached the same conclusion independently:
+*"No path from the edit to a flipped verdict or moved radius found."* The one real hazard, anchor
+drift, was measured (81/81 above).
+
+**(z22c) SOL R13 REPORT-ONLY FALSIFICATION PASS IN FLIGHT.**
+`codex exec -m gpt-5.6-sol -c model_reasoning_effort=medium -c 'mcp_servers={}'`, detached with
+`< /dev/null` to `agent-output/sol-r13.log`. Brief attacks four claims: (A) the differential
+reproduces and cannot fail open, and source-line-text is sufficient assertion identity;
+(B) Kimi F1 is closed by an EMPTY intersection; (C) "fresh headless Chromium" survives and the UA
+half is correctly narrowed; (D) the round is behaviour-neutral and the matrix need not re-run.
+
+**PUSH STATE — `main` is 3 AHEAD of `origin/main` and UNPUSHED** (`d65fba6`, `2981f58`,
+`5d87e2a`). The v2.5.0 push approval was **CONSUMED by `cebe332`**. Pushing `main` deploys the
+live MCP endpoint at `mcp.ravenmcp.ai`, so it needs its own fresh explicit approval — not
+requested, not granted. **The npm release goal itself is closed and unaffected: `raven-mcp@2.5.0`
+is live on all four surfaces and none of these three commits touches it.**
+
+---
+
+## Sol R13 disposition — four findings, four fixes, each PROVEN rather than asserted (2026-08-18)
+
+**(z23) R13 audited the R12 DISPOSITION (commit `5d87e2a`) and returned DOES NOT SURVIVE with
+1 × P1 + 2 × P2 + 1 × P3. All four are fixed in the working tree. Claim C SURVIVED.**
+
+| # | Finding | Sev | Status |
+|---|---|---|---|
+| P1 | `process.exit(1)` in `die()` bypasses the outer `finally`, leaking `test/design-gauntlet.OLDFIXTURE.mjs` | P1 | FIXED + two-arm proof |
+| P2a | message + trimmed line text is not assertion identity — `:1066` and `:1327` are byte-identical | P2 | FIXED + falsifiability proof |
+| P2b | the v16 header overstates an empty red-set intersection as "no assertion identity to preserve" | P2 | FIXED (comment narrowed) |
+| P3 | my own F8 residual states the wrong failure mode for a nested subtest | P3 | MEASURED, then FIXED |
+
+**P1 — A CLEANUP GUARANTEE WRITTEN AS AN OUTER `finally` IS VOID ON EVERY `die()` PATH.**
+`process.exit()` unwinds NOTHING; every `finally` on the stack is skipped. So the abort branch —
+which is the EXPECTED branch on a machine without Chromium — left the materialised pre-rewrite
+fixture on disk. **In THIS repo a leak into an untracked path is a leak into the INDEX**, because
+`auto-save-on-turn.sh` runs `git add -A`; it is the one R13 finding with a side effect outside the
+instrument. Fixed with a registered `process.on('exit')` plus SIGINT/SIGTERM/SIGHUP handlers above
+`die()`; `rmSync(..., {force:true})` is idempotent so the outer `finally` stays as belt-and-braces.
+
+**Proven in TWO ARMS on the real script, not a copy.** Sol's exact abort path was reproduced with
+`PLAYWRIGHT_BROWSERS_PATH=/nonexistent-browsers-for-abort-proof`, which makes the fixture SKIP
+(`NEW: tests=1 pass=0 fail=0 skipped=1 status=0`) and trips the baseline `die`. ARM 1 (fixed):
+`DIFF_EXIT=1`, fixture ABSENT. ARM 2 (`grep -v` removing exactly the one `process.on('exit', …)`
+line — `lines removed: 1`, `node --check` OK): exit 1, fixture **LEAKED**. Both artifacts deleted
+and absence verified. Note the fail-closed half was already correct — both arms exit 1; only the
+cleanup differed, which is why only a two-arm run separates them.
+
+**A PIPED COMMAND REPORTS THE PIPE'S EXIT STATUS.** The first reproduction was piped to `tail` and
+printed `DIFF_EXIT=0` for a run that really exited 1 — the mistake this ledger already documents,
+caught in the same breath and re-measured without the pipe.
+
+**P2a — MESSAGE + LINE TEXT IS NOT AN IDENTITY WHEN A FILE HOLDS THE SAME ASSERTION TWICE.**
+`test/design-gauntlet.test.mjs:1066` and `:1327` are BYTE-IDENTICAL
+(`assert.ok(m.warnings.some((w) => w.includes('Hairline caveat')), 'the ambiguity is disclosed');`),
+so the pair distinguishes those two from a DIFFERENT assertion and not from EACH OTHER. Today
+`--test-name-pattern` happens to separate them, but the driver never PROVED that — a future fixture
+carrying the line twice inside ONE test would be reported `SAME ASSERTION` on no evidence.
+
+**Line NUMBERS cannot close it** — the two fixture files differ in length above the test by
+construction, so comparing numbers is red-on-correct-code. What CAN be asked is UNIQUENESS INSIDE
+THE TEST THE RUN ACTUALLY SELECTED. `siteOccurrencesInEnclosingTest()` delimits the block from its
+own `test(` line to the next (`^test(` is line-anchored and matches exactly 68 times = the declared
+baseline count; a nested `t.test(` is indented and cannot split a block) and counts the trimmed
+line. Two verdict branches added — `NO SITE COUNT` and `AMBIGUOUS SITE` — and the rule is
+**FAIL CLOSED**: two occurrences means abort, never claim identity.
+
+**Proven falsifiable by DOCTORING THE FIXTURE, because a verdict branch that never fires is
+decoration.** With line 1327 duplicated inside its own test: `DIFF_EXIT=1`, G42 stayed
+`SAME ASSERTION` (NEW=1 OLD=1) while G48 and G54 both flipped to `AMBIGUOUS SITE (2 in NEW, 1 in
+OLD)` — `summary: 3 mutants compared, 2 non-SAME verdict(s)`. **G42 staying green is the
+load-bearing half**: it proves the guard DISCRIMINATES rather than refusing everything. Doctor,
+run and restore ran inside ONE Bash call so no doctored file could survive the turn; restore
+verified `cmp` byte-identical.
+
+**Clean-run measurement of record: `.claude/gauntlet-2026-08-14/agent-output/p1-differential-r13.log`.**
+`DIFF_EXIT=0`, baseline green in both arms, all three `SAME ASSERTION` at `NEW=1 OLD=1`, G42 firing
+a different message from G48/G54. **P1's original conclusion is unchanged — the fix hardens the
+instrument, it does not overturn the finding.**
+
+**P2b — AN EMPTY INTERSECTION PROVES NO OBSERVABLE IDENTITY, NOT THAT NONE EXISTS.** The v16 header
+called the detached-closed-root fixture's empty intersection "no assertion identity to preserve".
+Narrowed: an assertion inside that fixture which every one of the 79 mutants ALREADY PASSES is
+absent from every red set in BOTH runs, so a rewrite could have removed or weakened it and no set
+diff would show a thing. **The residual is ROSTER INCOMPLETENESS, and it is not closable by
+re-running the same roster** — only a mutant that reaches that assertion closes it.
+
+**P3 — MY OWN RECORDED RESIDUAL WAS FALSE IN BOTH HALVES, AND SOL WAS RIGHT.** I had written that a
+nested subtest failure yields an EMPTY name list and therefore a safe loud abort. **Measured**
+rather than argued, with the SHIPPED regex against a two-level fixture: `node --test` prints a
+nested failure THREE ways — an INDENTED `✖ inner` in the tree, then UNINDENTED `✖ outer` AND
+UNINDENTED `✖ inner` in the trailing `✖ failing tests:` block. A line-start-anchored regex therefore
+returns `["outer","inner"]` with `ℹ fail 2`. **The hazard is RADIUS INFLATION — one assertion scored
+as two reddened tests, with the void-run guard never firing — which is the DANGEROUS direction, not
+the safe one I had claimed.** Still LATENT (`grep -c '^test('` is 68 = the baseline; `t.test(`
+returns nothing), and the note now records that the fix when a subtest IS added is to **dedupe
+parent names out of the trailing block, not merely widen the anchor, which would double-count
+harder.**
+
+**Claim C SURVIVED R13.** Sol independently confirmed local and remote each call `chromium.launch`,
+that `wrapRemoteBrowser` reuses only the process-wide egress proxy, `tsc --noEmit` clean, pre-flight
+81 unique parseable anchors, and `dist/` matched before/after and after a clean build.
+
+**Round is behaviour-neutral and re-measured, not assumed.** No `src` change; both edited files
+`node --check` OK; the isolated pre-flight re-run after the comment edits still reports
+**81 mutants anchor uniquely and parse** — which had to be measured, since this `tsconfig` does not
+strip comments and harness text is where anchors live. `dist/design-gauntlet.js` unchanged.
+Full suite already green at R13: **1607 / 1604 / 0 fail / 3 skipped, EXIT=0**, skips read
+INDIVIDUALLY at 109/782/783, both rewritten gauntlet fixtures confirmed RUN by name at lines
+372/373 with ~950ms durations (real Chromium work; a fixture passing by absence costs microseconds).
+
+**Release state unchanged and CLOSED: npm `raven-mcp@2.5.0` carries `design_gauntlet`, all four
+surfaces green.** None of this round touches it. `main` is 3 ahead of `origin/main` and UNPUSHED —
+**the v2.5.0 push approval was CONSUMED by `cebe332`, and pushing `main` deploys the live MCP
+endpoint, so it needs its own fresh explicit approval, which has not been asked for or given.**

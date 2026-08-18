@@ -41,8 +41,17 @@
  *   carrying a REWRITTEN fixture in both runs, not the ones that lost a member.
  *   Measured separately in `p1-assertion-differential.mjs` (G42/G48/G54 -- all
  *   three fire the same message AND the same source line in both fixtures), and
- *   the SECOND fixture a1a2384 rewrote is vacuous here: the detached-closed-root
- *   test appears in ZERO v15 red sets and only in G68's GAINED v16 set.
+ *   the SECOND fixture a1a2384 rewrote has an EMPTY intersection here: the
+ *   detached-closed-root test appears in ZERO v15 red sets and only in G68's
+ *   GAINED v16 set. NARROWED after Sol R13 P2 — an earlier wording called that
+ *   "no assertion identity to preserve", which overstates it. What an empty
+ *   intersection establishes is that there is no identity OBSERVABLE TO THIS
+ *   ROSTER: an assertion inside that fixture which every one of the 79 mutants
+ *   already passes is absent from every red set in BOTH runs, so a rewrite could
+ *   have removed or weakened it and no set diff — and no differential built from
+ *   these mutants — would show a thing. The residual is ROSTER INCOMPLETENESS,
+ *   which is not closable by re-running the same roster; only a mutant that
+ *   reaches that assertion can close it.
  *   ALL FIVE MOVES ARE ONE FACT, NOT FOUR. The rewritten "UNKNOWN conditional
  *   group is unresolved, never collected as authored" test left G45's red set
  *   and joined G59, G64 and G69 — that is a fact about ONE fixture's reach, and
@@ -1025,14 +1034,28 @@ function runSuite() {
     return m ? Number(m[1]) : null;
   };
   const names = new Set();
-  // STATED RESIDUAL (Kimi R12 F8): this pattern is anchored at line START, so it
-  // reads only TOP-LEVEL `✖` lines. `node --test` INDENTS a subtest's `✖`, so a
-  // failure inside a nested `t.test()` would yield `fail > 0` with an EMPTY name
-  // list — and the void-run guard below would then ABORT a legitimate kill. It is
-  // LATENT rather than live: `test/design-gauntlet.test.mjs` is flat today (grep
-  // for `t.test(` returns nothing), so no run in this matrix can produce it. The
-  // failure direction is safe — a loud abort, never a silently-scored kill — so
-  // it is recorded rather than fixed. Widen to /^\s*✖ / if a subtest is ever added.
+  // STATED RESIDUAL (Kimi R12 F8, CORRECTED by Sol R13 P3 and re-measured here).
+  // The note that used to sit here said a nested `t.test()` failure would yield
+  // an EMPTY name list and therefore a loud ABORT, and called that a safe failure
+  // direction. BOTH HALVES WERE FALSE, and they were reasoned rather than run.
+  // Measured directly — `outer` → `t.test('inner')` → `assert.fail()` — because
+  // `node --test` prints a nested failure THREE times: an INDENTED `✖ inner` in
+  // the tree, then UNINDENTED `✖ outer` AND `✖ inner` in the trailing
+  // `✖ failing tests:` block. A line-START anchor therefore matches the last two
+  // and returns ["outer","inner"], with `ℹ fail 2`.
+  //
+  // So the real hazard is RADIUS INFLATION, not an abort: ONE failing assertion
+  // is scored as TWO reddened tests, the void-run guard never fires because the
+  // list is non-empty, and the inflated radius is silently believed. That is the
+  // dangerous direction, not the safe one — a wrong number that looks like a
+  // measurement, which is the exact class this file exists to catch.
+  //
+  // Still LATENT rather than live: `test/design-gauntlet.test.mjs` is flat today
+  // (`grep -c '^test('` is 68, matching the declared baseline, and `t.test(`
+  // returns nothing), so no run in this matrix can produce it. Recorded rather
+  // than fixed BECAUSE it cannot fire, not because the direction is benign — the
+  // moment a subtest is added, dedupe parent names out of the trailing block
+  // rather than merely widening the anchor, which would double-count harder.
   for (const m of out.matchAll(/^✖ (.+) \([\d.]+ms\)$/gm)) names.add(m[1].trim());
   return {
     tests: num('tests'), pass: num('pass'), fail: num('fail'), skipped: num('skipped'),
