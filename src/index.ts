@@ -1997,7 +1997,18 @@ const AUTHED_USER_TASTE_INTERVIEW_DESCRIPTION_SUFFIX =
 // principle-matching path is CPU-bounded and stays available when the screenshots
 // are omitted. A cap in diffScreenshots would also change the stdio path, so we
 // scope the block to remote via the guard rather than touch shared decode code.
+//
+// Also here, and for a DIFFERENT reason than every other entry: audit_url. Nothing
+// about it is unsafe -- it is simply too slow to finish. 95s at its cheapest
+// configuration and past 120s at its defaults is longer than any hosted MCP client
+// waits, so on the endpoint it produced timeouts rather than results, which is the
+// "did not produce correct results" half of OpenAI's 2026-08-19 rejection. `url` is
+// REQUIRED by its schema, so guarding that one param turns it into a tool that is
+// still REGISTERED (the anonymous 45-name surface is frozen) and always DECLINES,
+// with the two working routes named in the refusal. A decline in 200ms is a true
+// answer; a timeout at 120s is not an answer at all.
 const REMOTE_ARG_GUARDS: { [tool: string]: { params: string[]; message: string } } = {
+  audit_url: { params: ["url"], message: "audit_url is disabled on the hosted (remote) endpoint: one run drives a real browser through every requested viewport and theme, and was MEASURED at 95s in its cheapest single-viewport single-theme configuration and past 120s with defaults, which exceeds the per-call budget of the hosted clients that call it. Run it locally instead (npx raven-mcp) where there is no request deadline, or pass the page HTML to audit_page here for a static grade." },
   audit_page: { params: ["url"], message: "audit_page url-capture is disabled on the hosted (remote) endpoint. Pass the page HTML via the 'html' argument instead." },
   score_page: { params: ["url"], message: "score_page url-capture is disabled on the hosted (remote) endpoint. Pass the page HTML via the 'html' argument instead." },
   audit_typography: { params: ["url"], message: "audit_typography url-capture is disabled on the hosted (remote) endpoint. Pass a 'nodes' snapshot instead of 'url'." },
@@ -2010,6 +2021,11 @@ const REMOTE_ARG_GUARDS: { [tool: string]: { params: string[]; message: string }
 };
 
 const REMOTE_URL_GUARDED_TOOLS: { [tool: string]: string } = {
+  // UNREACHABLE on the hosted endpoint as of the audit_url arg-guard above, which
+  // runs first in the same wrapper and refuses every remote call. Kept as
+  // belt-and-braces so lifting that guard cannot silently reopen the private-URL
+  // path, and stated rather than left for a reader to discover: no input reaches
+  // this entry today. It is not dead on stdio -- the guard only runs when remote.
   audit_url: "url",
   audit_contrast: "url",
   audit_tap_targets: "url",
@@ -2039,6 +2055,14 @@ const REMOTE_URL_GUARDED_TOOLS: { [tool: string]: string } = {
 // 2026-08-19 rejection (see conversations/2026-08-19-openai-rejection.md); only the
 // second one answers its "annotations do not appear to match the tool's behavior" half.
 // Local stdio is UNCHANGED: a local caller drives their own pages deliberately.
+//
+// AS OF THE audit_url ARG-GUARD ABOVE THIS GUARD HAS NO REACHABLE TRIGGER on the
+// hosted endpoint: the arg guard runs first in the same wrapper and refuses every
+// remote call before an interaction list is ever inspected. It stays as
+// belt-and-braces for the day that guard is lifted, and this paragraph exists
+// because a clause with no reachable trigger must SAY SO rather than read as a
+// live defence. Nothing asserts the click refusal on the hosted build any more,
+// for the same reason: no test can construct an input that reaches it.
 const REMOTE_NO_CLICK_TOOLS: { [tool: string]: string } = {
   audit_url: "interactions"
 };
@@ -2225,7 +2249,9 @@ const TOOL_OPEN_WORLD: string[] = [
   "audit_typography",
   "audit_api_contract",
   "audit",
-  "design_gauntlet"
+  "design_gauntlet",
+  "bind_taste_surface",
+  "talon_scan"
 ];
 
 // True when the hosted endpoint blocks this tool's only route to the open web.
@@ -2308,10 +2334,18 @@ const TOOL_IDEMPOTENT: { [tool: string]: boolean } = {
 // audit_page accepts an interaction list too, but its interactions run only inside
 // the `url` branch (src/index.ts:4136) and the hosted build REJECTS `url` outright,
 // so remotely it cannot reach a browser at all while locally it can click.
+//
+// BOTH members are now derived from the SAME guard table, because both reach a
+// browser only through a `url` the hosted endpoint refuses. audit_url used to be
+// an unconditional true; once its url was guarded that made the endpoint publish
+// readOnly:false / destructive:true / idempotent:false for a tool that can only
+// decline -- the identical annotation-does-not-match-behaviour finding this whole
+// remediation exists to remove, reintroduced by the fix for it. Reading the guard
+// table means it cannot happen again: lift a guard and the hints follow it in the
+// same edit.
 function toolFiresCallerInteractions(toolName: string, remote: boolean): boolean {
-  if (toolName === "audit_url") return true;
-  if (toolName === "audit_page") return !remote;
-  return false;
+  if (toolName !== "audit_url" && toolName !== "audit_page") return false;
+  return !(remote && remoteBlocksNetwork(toolName));
 }
 
 // All FOUR hints are stated explicitly rather than left to their spec defaults.
@@ -2326,6 +2360,14 @@ function toolFiresCallerInteractions(toolName: string, remote: boolean): boolean
 // `remote` is load-bearing, not decoration: annotations are published per SURFACE and
 // the hosted endpoint is a strictly smaller machine than stdio. Pass the same flag the
 // registration wrapper gates on, or the endpoint advertises capabilities it refuses.
+// Tools classified readOnly whose ONLY write path is gated off on the hosted
+// endpoint. Membership alone is not the verdict - see the derivation below.
+// Keep this list to tools where the gate is enforced in the ENGINE (schema key
+// omitted AND the store refuses), never merely by description.
+const TOOL_LOCAL_ONLY_WRITE: string[] = [
+  "generate_design_system"   // save:true -> saveUserSystem(); key absent + store throws when remote
+];
+
 function toolAnnotations(toolName: string, remote: boolean): {
   title: string;
   readOnlyHint: boolean;
@@ -2337,6 +2379,10 @@ function toolAnnotations(toolName: string, remote: boolean): {
   if (!access) throw new Error("Missing MCP tool classification: " + toolName);
   var openWorld = TOOL_OPEN_WORLD.indexOf(toolName) !== -1
     && !(remote && remoteBlocksNetwork(toolName));
+  // Same gate the registration wrapper uses: !remote && !isRemoteRuntime().
+  // The latch is one-way per process, so both halves are load-bearing.
+  var writesLocally = TOOL_LOCAL_ONLY_WRITE.indexOf(toolName) !== -1
+    && !remote && !isRemoteRuntime();
   return access === "destructive"
     ? {
         title: toolTitle(toolName),
@@ -2366,8 +2412,15 @@ function toolAnnotations(toolName: string, remote: boolean): {
       }
     : {
         title: toolTitle(toolName),
-        readOnlyHint: true,
-        destructiveHint: false,
+        // DERIVED per surface, not written out as a second table, because two
+        // copies of one rule drift. `writesLocally` is true only where the write
+        // is actually reachable; on the hosted endpoint these tools genuinely are
+        // read-only. destructiveHint follows readOnlyHint because the reachable
+        // write is an OVERWRITE (saveUserSystem writeFileSync's an existing id),
+        // which is a destructive update. idempotentHint stays true either way:
+        // the same arguments write the same bytes, so the end state repeats.
+        readOnlyHint: !writesLocally,
+        destructiveHint: writesLocally,
         idempotentHint: true,
         openWorldHint: openWorld
       };
@@ -2438,12 +2491,15 @@ var originalTool: any = server.tool.bind(server);
   if (remote && hasUserStore && toolName === "get_taste_interview" && typeof args[1] === "string") {
     args[1] += AUTHED_USER_TASTE_INTERVIEW_DESCRIPTION_SUFFIX;
   }
-  // The remote description is DERIVED from REMOTE_NO_CLICK_TOOLS, never written out
-  // a second time: an annotation that says read-only while the description still
-  // advertises clicking is the drift this whole rejection was about. Lift the guard
-  // and this sentence goes with it in the same edit.
-  if (remote && REMOTE_NO_CLICK_TOOLS[toolName] && typeof args[1] === "string") {
-    args[1] += " On the hosted endpoint click interactions are refused; hover and focus still run and can fire handlers on the page, so this tool is published as neither read-only nor idempotent.";
+  // The remote description carries the guard's OWN message verbatim, never a second
+  // sentence written to describe it: a description that advertises what the wrapper
+  // refuses is the drift this whole rejection was about, and two strings saying one
+  // thing drift the moment one of them is edited. Lift a guard and its sentence goes
+  // with it in the same edit, because it IS the guard. The earlier version of this
+  // block keyed on REMOTE_NO_CLICK_TOOLS and described clicks; that sentence became
+  // false the moment audit_url stopped running remotely at all.
+  if (remote && REMOTE_ARG_GUARDS[toolName] && typeof args[1] === "string") {
+    args[1] += " " + REMOTE_ARG_GUARDS[toolName].message;
   }
   var handler = args[args.length - 1];
   if (typeof handler === "function") {
@@ -4652,6 +4708,17 @@ server.tool(
     file_paths: z.array(z.string())
   },
   async function({ contract_spec, file_paths }) {
+    // An empty contract over zero files is not a PASS. auditContract's verdict is
+    // computed from the tokens it FAILED to match, so nothing-against-nothing
+    // returns verdict:"PASS" — an affirmative claim about a contract nobody checked.
+    if (!Array.isArray(file_paths) || file_paths.length === 0) {
+      return refuseEmptyInput("No files to check. Provide a non-empty 'file_paths' array — a contract verified against zero source files cannot PASS.", { tool: "audit_contract" });
+    }
+    var specTokens = (contract_spec && Array.isArray(contract_spec.tokens)) ? contract_spec.tokens : [];
+    var specFields = (contract_spec && Array.isArray(contract_spec.fields)) ? contract_spec.fields : [];
+    if (specTokens.length === 0 && specFields.length === 0 && isBlankString(contract_spec && contract_spec.schemaVersionPattern)) {
+      return refuseEmptyInput("No contract to verify. Provide 'contract_spec.tokens', 'contract_spec.fields', or 'contract_spec.schemaVersionPattern' — an empty spec matches every file and PASSes vacuously.", { tool: "audit_contract" });
+    }
     var files: Array<{ path: string; content: string }> = [];
     var read_warnings: string[] = [];
 
@@ -4703,6 +4770,16 @@ server.tool(
   "Compare iOS vs Android element snapshots against a checklist of named spatial relationships (vertical centering, baseline/left alignment, equal gap/size, presence, truncation) and flag per-relation match/mismatch/uncertain — catches cross-platform layout drift like status text centered on one platform but top-aligned on the other. Provide ios+android {elements,viewport} snapshots and a checklist[].",
   { ios: z.object({ elements: z.array(z.object({ label: z.string().optional(), id: z.string().optional(), role: z.string().optional(), rect: z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() }) })), viewport: z.object({ w: z.number(), h: z.number() }) }), android: z.object({ elements: z.array(z.object({ label: z.string().optional(), id: z.string().optional(), role: z.string().optional(), rect: z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() }) })), viewport: z.object({ w: z.number(), h: z.number() }) }), checklist: z.array(z.object({ name: z.string(), a: z.string(), b: z.string().optional(), relation: z.enum(["present", "vertically-centered", "baseline-aligned", "left-aligned", "equal-gap", "equal-size", "same-truncation"]), tolerance: z.number().optional() })) },
   async function({ ios, android, checklist }) {
+    // mismatch_count is computed by walking the checklist, so two empty snapshots
+    // and an empty checklist return mismatch_count:0 — parity asserted over nothing.
+    var iosEls = (ios && Array.isArray(ios.elements)) ? ios.elements : [];
+    var androidEls = (android && Array.isArray(android.elements)) ? android.elements : [];
+    if (iosEls.length === 0 || androidEls.length === 0) {
+      return refuseEmptyInput("No elements to compare. Both 'ios.elements' and 'android.elements' must be non-empty — parity over an empty snapshot is not a match.", { tool: "audit_parity", ios_element_count: iosEls.length, android_element_count: androidEls.length });
+    }
+    if (!Array.isArray(checklist) || checklist.length === 0) {
+      return refuseEmptyInput("No checklist to evaluate. Provide a non-empty 'checklist' of named relations — zero relations checked is not zero mismatches.", { tool: "audit_parity" });
+    }
     var r = auditParity(ios, android, checklist || []);
     return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "audit_parity", ...r }, null, 2) }] };
   }
@@ -5784,6 +5861,10 @@ server.tool(
           }, null, 2)
         }]
       };
+    }
+
+    if (Array.isArray(elements) && elements.length === 0) {
+      return refuseEmptyInput("No elements to audit. 'elements' was present but empty — an empty snapshot cannot be scored, and a clean layout report over zero elements is a false all-clear. Re-run the DevTools snippet (call audit_layout with no arguments to get it) and pass the captured elements back.", { tool: "audit_layout" });
     }
 
     var result = auditLayoutSnapshot(elements, viewport);
@@ -8809,8 +8890,8 @@ server.tool(
         throw e;
       }
     }
-    if ((targetHtml === undefined || targetHtml === null) && (!elements || elements.length === 0)) {
-      return { isError: true, content: [{ type: "text" as const, text: "Provide html, url, or elements to scan." }] };
+    if (isBlankString(targetHtml) && (!Array.isArray(elements) || elements.length === 0)) {
+      return { isError: true, content: [{ type: "text" as const, text: "Provide html, url, or elements to scan. Blank or whitespace-only html with no elements cannot be scanned, and an empty findings list over it is not a pass." }] };
     }
     var binding: SurfaceBinding | null = null;
     if (typeof profile === "string" && profile.trim().length > 0 && (project || url)) {

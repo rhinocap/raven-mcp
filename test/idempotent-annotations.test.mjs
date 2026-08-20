@@ -127,3 +127,60 @@ for (const name of ['decision_get', 'decision_list']) {
     assert.equal(a.destructiveHint, true, 'conservative over-claim, justified in the submission text');
   });
 }
+
+// ── openWorldHint is DERIVED PER SURFACE, and both directions are asserted ──
+// R2's second half is that a hint must match behaviour. `openWorldHint` is
+// computed as membership in TOOL_OPEN_WORLD MINUS the tools whose only route to
+// the open web the hosted endpoint blocks (remoteBlocksNetwork reads the guard
+// table itself, so it cannot disagree with what the wrapper enforces).
+//
+// Two entries were missing from TOOL_OPEN_WORLD and are asserted here because a
+// membership list is exactly the shape that rots silently:
+//   bind_taste_surface -- its handler captures each caller-supplied reference
+//     url LIVE (src/index.ts, the capturedRefs loop), and it is NOT in
+//     REMOTE_ARG_GUARDS at all, so nothing blocks that fetch on any surface.
+//   talon_scan -- accepts `url` and renders it headless.
+const OPEN_WORLD_LOCAL = [
+  ['bind_taste_surface', 'captures every caller-supplied reference url live'],
+  ['talon_scan', 'accepts a url and renders it headless'],
+  ['audit_page', 'fetches the url it is handed']
+];
+
+for (const [name, why] of OPEN_WORLD_LOCAL) {
+  test(`${name} publishes openWorldHint true on the local build (${why})`, () => {
+    assert.equal(annotationsOf(local, name).openWorldHint, true,
+      `openWorldHint must be an explicit true: ${why}`);
+  });
+}
+
+// The negative direction. Without this, adding every tool to TOOL_OPEN_WORLD
+// would satisfy every assertion above.
+test('a tool that reaches no network publishes openWorldHint false', () => {
+  assert.equal(annotationsOf(local, 'get_principles').openWorldHint, false,
+    'get_principles answers out of the bundled corpus and opens no socket');
+});
+
+// And the per-surface half: audit_page's `url` param is arg-guarded off on the
+// hosted endpoint, so its open-world claim is FALSE there. Same tool, two
+// honest answers -- which is what makes this a derivation rather than a table.
+test('audit_page publishes openWorldHint false on the hosted build', () => {
+  assert.equal(annotationsOf(remote, 'audit_page').openWorldHint, false,
+    'the hosted wrapper refuses its url param, so it reaches no open web there');
+});
+
+// ── generate_design_system is not read-only where its write is reachable ────
+// save:true -> saveUserSystem() writeFileSync's ~/.raven/design-systems/<id>.json,
+// overwriting an existing id. On the hosted endpoint the `save` key is omitted
+// from the schema AND the store refuses, so there the read-only claim is true.
+test('generate_design_system is published as a writer on the local build', () => {
+  const a = annotationsOf(local, 'generate_design_system');
+  assert.equal(a.readOnlyHint, false, 'save:true reaches saveUserSystem() here');
+  assert.equal(a.destructiveHint, true, 'the reachable write OVERWRITES an existing id');
+  assert.equal(a.idempotentHint, true, 'the same arguments write the same bytes');
+});
+
+test('generate_design_system is published as read-only on the hosted build', () => {
+  const a = annotationsOf(remote, 'generate_design_system');
+  assert.equal(a.readOnlyHint, true, 'the save key is absent from the hosted schema');
+  assert.equal(a.destructiveHint, false, 'and the store refuses under isRemoteRuntime()');
+});

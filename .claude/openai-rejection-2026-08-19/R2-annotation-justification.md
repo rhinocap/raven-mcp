@@ -49,27 +49,69 @@ pure read. The hint describes what the call does to the server's state, and thes
 write. A client that treats them as retry-unsafe and requiring consent is behaving
 correctly for what actually happens.
 
-## 3b. Two tools drive a real browser against a caller-supplied page, and are annotated as destructive even though they read
+## 3b. Two tools drive a real browser against a caller-supplied page, and both are annotated PER SURFACE
 
-`audit_url` (always) and `audit_page` (local builds only) are classified read-only in the
-sense that they compute a report, but they **launch a browser and fire interactions —
-hovers, focus, and clicks — against an address the caller supplies.** A click on someone
-else's page is not a read: it can submit a form, follow a link, or trigger any action that
-page exposes. Both therefore publish `readOnlyHint: false`, `destructiveHint: true`,
-`idempotentHint: false`, since neither the remote page's state nor the result is
-guaranteed to repeat.
+`audit_url` and `audit_page` compute a report, but on a build that can actually run them
+they **launch a browser and fire interactions — hovers, focus, and clicks — against an
+address the caller supplies.** A click on someone else's page is not a read: it can submit
+a form, follow a link, or trigger any action that page exposes. A caller-named hover or
+focus is no safer in kind, because it runs that page's own handler and nothing here can
+know what the handler does. On a build that can run them, both therefore publish
+`readOnlyHint: false`, `destructiveHint: true`, `idempotentHint: false`.
 
-`audit_page` is conditional because the hosted build refuses click interactions outright,
-so the hosted surface does not carry the caller-interaction risk that the local one does.
-This is a dedicated branch in `toolAnnotations()`, not an entry in a table, precisely so
-the hint is computed from the surface rather than transcribed.
+**On the hosted endpoint neither of them can run at all, and the annotations say so.**
+Both take their target through a `url` argument that the hosted build rejects before the
+handler is entered, so on `mcp.ravenmcp.ai` they publish `readOnlyHint: true`,
+`destructiveHint: false`, `idempotentHint: true`, `openWorldHint: false` — a tool that can
+only decline is read-only, repeating a decline changes nothing, and a decline reaches no
+host.
+
+The verdict is **derived, not transcribed**:
+
+```
+toolFiresCallerInteractions(tool, remote)
+  = (tool === "audit_url" || tool === "audit_page")
+    && !(remote && remoteBlocksNetwork(tool))
+```
+
+`remoteBlocksNetwork` reads the same guard table the request wrapper enforces, so lifting a
+guard moves the annotation in the same edit. The first version of this fix hardcoded
+`audit_url` as unconditionally interaction-firing; once its `url` was guarded, that made the
+endpoint publish `readOnlyHint: false` / `destructiveHint: true` for a tool that can only
+decline — **the identical annotation-does-not-match-behaviour finding, reintroduced by the
+fix for it.** Reading the table is what makes that unrepeatable.
 
 ## 4. Read-only tools
 
-Every tool classified `readOnly` performs no writes of any kind and is safe to call
-repeatedly: `readOnlyHint: true`, `destructiveHint: false`, `idempotentHint: true`. This
-covers the audit family, the knowledge lookups, and the design-system generators, all of
-which are pure functions of their arguments plus bundled data.
+Almost every tool classified `readOnly` performs no writes of any kind and is safe to
+call repeatedly: `readOnlyHint: true`, `destructiveHint: false`, `idempotentHint: true`.
+This covers the audit family and the knowledge lookups, which are pure functions of their
+arguments plus bundled data.
+
+**One tool in that class is read-only on the hosted endpoint and NOT on a local stdio
+install, and its hint is derived per surface rather than asserted.** `generate_design_system`
+accepts `save: true`, which persists the generated token set to `~/.raven/design-systems`
+via `saveUserSystem()` (`src/user-systems.ts:139`, an unconditional `writeFileSync` — a
+re-save under the same id overwrites). That write is unreachable on `mcp.ravenmcp.ai`: the
+`save` key is omitted from the remote schema entirely, and `saveUserSystem` additionally
+throws when `isRemoteRuntime()` is set. So the annotation is computed with the same gate
+the registration wrapper uses:
+
+```
+writesLocally = TOOL_LOCAL_ONLY_WRITE.includes(tool) && !remote && !isRemoteRuntime()
+readOnlyHint    = !writesLocally
+destructiveHint =  writesLocally
+```
+
+Measured on all three builds: stdio publishes `readOnlyHint: false, destructiveHint: true`,
+and both the anonymous and authenticated hosted builds publish `readOnlyHint: true,
+destructiveHint: false`. `destructiveHint` follows `readOnlyHint` because the reachable
+write is an overwrite, which is a destructive update rather than an append.
+`idempotentHint` stays `true` on every surface: the same arguments write the same bytes,
+so calling twice leaves the same end state.
+
+A blanket reclassification would have been wrong in the other direction — it would publish
+`destructiveHint: true` on an endpoint that cannot write at all.
 
 ## 5. `openWorldHint` is derived PER SURFACE, and this is where the reviewed endpoint changed
 
@@ -77,19 +119,37 @@ which are pure functions of their arguments plus bundled data.
 explicit `false` on everything else: those tools read bundled knowledge, local state, or
 caller-pasted markup, and never reach an unpredictable host.
 
-Twelve tools take a caller-supplied URL and drive a real browser or fetch against it:
-`audit_url`, `audit_contrast`, `audit_tap_targets`, `audit_responsive_visibility`,
-`audit_video_playback`, `audit_taste`, `audit_page`, `score_page`, `audit_typography`,
-`audit_api_contract`, `audit` (a dispatcher over the same set), and `design_gauntlet`.
+Fourteen tools take a caller-supplied URL and drive a real browser or fetch against it.
+Measured off a built `remote:false` server rather than transcribed: `audit`,
+`audit_api_contract`, `audit_contrast`, `audit_page`, `audit_responsive_visibility`,
+`audit_tap_targets`, `audit_taste`, `audit_typography`, `audit_url`,
+`audit_video_playback`, `bind_taste_surface`, `design_gauntlet`, `score_page`,
+`talon_scan`.
+
+Two of those — `bind_taste_surface` and `talon_scan` — were published as
+`openWorldHint: false` and are corrected in this round. `bind_taste_surface` captures each
+`references[].url` live to derive page traits (`src/index.ts:8567`); `talon_scan` renders a
+caller-supplied `url`. Both genuinely leave the machine, so `false` was the same class of
+mismatch as the three below. `bind_taste_surface` is served on the AUTHENTICATED hosted
+surface and keeps `openWorldHint: true` there, because no `url` guard applies to it — that
+is a live fact about a hosted tool fetching caller-supplied addresses, and it is now
+annotated honestly rather than understated. `talon_scan` is not served on either hosted
+surface.
+
 `init_design_md` is deliberately absent — its fetch targets one fixed starter base URL, a
 closed set, not an open world.
 
-**That list is true of stdio and was FALSE on the hosted endpoint for three of its
-members, which is the annotation/behaviour mismatch.** `audit_page`, `score_page` and
-`audit_typography` reach the open web only through a `url` argument, and the hosted build
-rejects that argument before the handler ever runs. On `mcp.ravenmcp.ai` they cannot leave
-the machine at all — yet they were published as `openWorldHint: true`. An annotation that
-does not match the behaviour is exactly the finding.
+**That list is true of stdio and was FALSE on the hosted endpoint for four of its
+members, which is the annotation/behaviour mismatch.** `audit_page`, `score_page`,
+`audit_typography` and `audit_url` reach the open web only through a `url` argument, and
+the hosted build rejects that argument before the handler ever runs. On `mcp.ravenmcp.ai`
+they cannot leave the machine at all — yet they were published as `openWorldHint: true`.
+An annotation that does not match the behaviour is exactly the finding.
+
+(`audit_url` joins that set in this round: its `url` was not guarded when the first three
+were audited. See §7 — it was guarded for a latency reason, and the annotation followed
+automatically because it is derived from the guard rather than written out separately.
+That is the property this whole section is arguing for, observed working.)
 
 The hint is now computed as:
 
@@ -110,3 +170,35 @@ the sha256 of its newline-joined sorted tool names is unchanged at
 locally built `remote:true` server, an exact match to the frozen value. The `tools/list`
 payload does change, because the annotations inside it are what this round corrects; the
 tool SET does not.
+
+## 7. `audit_url` declines on the hosted endpoint, and the annotations describe the decline
+
+This is where R2 and R1 meet, so it is stated plainly rather than left implicit.
+
+`audit_url` drives a real browser through every requested viewport and theme. We measured
+it at **95 seconds in its cheapest possible configuration** — one viewport, one theme,
+`scroll_settle:false`, `compact:true` — and past 120 seconds with its defaults. That is
+beyond the per-call budget of the hosted clients that call it, so on the hosted endpoint
+every call to it was going to end as a timeout regardless of what the tool does.
+
+**A decline in 200ms is a true answer; a timeout at 120s is not an answer at all.** The
+hosted endpoint therefore rejects `audit_url`'s `url` argument outright and returns a
+refusal that names both routes out: run the tool locally (`npx raven-mcp`), where there is
+no request deadline, or pass the page's HTML to `audit_page` here for a static grade.
+
+The tool remains **registered** rather than removed. Removing it would have changed the
+tool set on an endpoint whose set is deliberately frozen; keeping it registered and always
+declining means a client discovers the limitation from the tool's own description and its
+own answer, rather than from a hang.
+
+Three consequences for the annotations, all derived rather than asserted:
+
+- `openWorldHint: false` on the hosted surface (§5) — it reaches no host.
+- `readOnlyHint: true`, `destructiveHint: false`, `idempotentHint: true` on the hosted
+  surface (§3b) — a decline reads nothing, writes nothing, and repeats identically.
+- The sentence appended to the hosted description **is the refusal string itself**, not a
+  paraphrase of it. One string, so the description and the behaviour cannot drift.
+
+On a local stdio install nothing about `audit_url` changed: it still runs, and it still
+publishes `readOnlyHint: false`, `destructiveHint: true`, `idempotentHint: false`,
+`openWorldHint: true`.

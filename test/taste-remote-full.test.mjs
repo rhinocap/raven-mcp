@@ -100,7 +100,23 @@ const ANONYMOUS_INSTRUCTIONS_HASH = '3ccce9cf2e9366439f0ffed251815176bb7ee7b78ac
 // pass corrected several PARAMETER descriptions. inputSchema is not in this
 // payload, so a parameter description can change without moving any pin here -
 // test/documented-categories.test.mjs is what guards those.
-const ANONYMOUS_INSTRUCTIONS_AND_TOOL_DESCRIPTIONS_HASH = '5181c14928e66bbd92340c62ef2174d56f368633423422de8e7a4e0ad88694d6';
+// REBASELINED 2026-08-20, deliberately, for the audit_url hosted decline. The remote
+// description append stopped being one sentence written ABOUT the click guard and
+// became the arg guard's OWN message, appended verbatim for every tool in
+// REMOTE_ARG_GUARDS -- one string instead of two that drift. MEASURED consequence,
+// not inferred: TEN of the anonymous 45 now carry a hosted-limitation sentence where
+// one did before (audit_ios_screen +172, audit_page +120, audit_rn +174,
+// audit_screen +168, audit_swiftui +169, audit_typography +116, audit_url +447,
+// evaluate_design +219, score_creative +172, score_page +120 chars over their stdio
+// text). That is the intended direction: this pin is a LEAK-GUARD against authed
+// tuning reaching an anon build, not a freeze on the description text, and every one
+// of those sentences states a limitation the endpoint actually enforces.
+// GOLDEN_45_HASH and ANONYMOUS_INSTRUCTIONS_HASH are both UNCHANGED and are asserted
+// immediately above this one in the same test -- the tool SET and the instructions
+// did not move, which is what the freeze actually covers. Sentence 1 of all ten is
+// byte-identical to stdio, so manifest.json does not move either (verified: the
+// regenerated manifest is unchanged).
+const ANONYMOUS_INSTRUCTIONS_AND_TOOL_DESCRIPTIONS_HASH = 'c901ab890f50f7d420045304374208a37f7fce79627ff91665a39e03edf94203';
 const AUTHED_STARTUP_INSTRUCTIONS = "AUTHENTICATED STARTUP: this remote endpoint is connected to a per-user taste store. At project kickoff or the first real design/copy/UI work for a project, call get_taste_interview for the connected user's taste profile and project name before choosing direction. Ask the returned questions, then persist the user's answers with bind_taste_surface before generating design work. If the profile name is not known yet, call list_taste_profiles first.";
 const AUTHED_INTERVIEW_DESCRIPTION = "AUTHENTICATED STARTUP: on the remote authed endpoint, use this as the first taste step for the connected user's per-user store at project kickoff; if you do not know the profile name, call list_taste_profiles first, then call get_taste_interview with that profile and project name before design/copy/UI decisions.";
 const ALL_TASTE = [

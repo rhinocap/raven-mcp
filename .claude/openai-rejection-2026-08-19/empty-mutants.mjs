@@ -37,13 +37,19 @@ const FILE = "dist/index.js";
 // ran only the refusal suite would print SURVIVED for every annotation mutant
 // and the flips would be guarded by nothing.
 const SUITE = ["test/empty-input-refusal.test.mjs", "test/idempotent-annotations.test.mjs"];
-// Re-DECLARED from a measurement this round (refusal 49 + annotations 13), not
-// carried forward: the refusal suite grew by 14 and the annotations suite is new.
-const EXPECTED_TESTS = 63, EXPECTED_PASS = 63, EXPECTED_SKIP = 0;
+// Re-DECLARED from a measurement this round (refusal 61 + annotations 20), not
+// carried forward: round 10 added 11 refusal tests for the Sol-r9 empty-input
+// guards and 6 annotation tests for the openWorldHint/read-only derivations.
+const EXPECTED_TESTS = 81, EXPECTED_PASS = 81, EXPECTED_SKIP = 0;
 
 const SWIFT_G = `if (typeof src !== "string" || src.trim() === "") {\n            return refuseEmptyInput("No SwiftUI source`;
 const RN_G = `if (typeof src !== "string" || src.trim() === "") {\n            return refuseEmptyInput("No React Native source`;
-const SCREEN_G = `if (Array.isArray(elements) && elements.length === 0) {`;
+// Round 10: audit_layout gained a guard with a BYTE-IDENTICAL predicate, so the
+// bare shape now matches twice and the uniqueness pre-flight (correctly) aborts.
+// The anchor reaches into the refusal message, which is what names the tool.
+const SCREEN_G_HEAD = `if (Array.isArray(elements) && elements.length === 0) {`;
+const SCREEN_G_TAIL = `\n            return refuseEmptyInput("No elements to audit. Provide a non-empty 'elements' array from `;
+const SCREEN_G = SCREEN_G_HEAD + SCREEN_G_TAIL;
 const PAGE_G = `if (html !== undefined && html !== null && isBlankString(html) && !url) {`;
 const CREATIVE_G = `if (isBlankString(params.creative_text)) {`;
 const GDS_G = `if (isBlankString(params.name)) {`;
@@ -83,13 +89,13 @@ const MUTANTS = [
   // ONE guard covers audit_screen AND audit_ios_screen (both platforms route
   // through auditScreenSnapshot), so E6's radius is a fact about that shared
   // mechanism and NOT evidence of three independent guards.
-  ["E6  audit_screen/ios_screen guard deleted", SCREEN_G, `if (false) {`, "red",
+  ["E6  audit_screen/ios_screen guard deleted", SCREEN_G, `if (false) {` + SCREEN_G_TAIL, "red",
    "audit_screen refuses empty elements array instead of producing an artifact about nothing"],
   // E7 is the separator that makes the shape-affordance control load-bearing:
   // `!elements` is FALSE for [], so a truthiness guard cannot tell a SUBMITTED
   // empty snapshot from a caller ASKING what shape a snapshot has. It keeps
   // every refusal green and breaks only the affordance.
-  ["E7  screen guard widened to truthiness", SCREEN_G, `if (!elements || (Array.isArray(elements) && elements.length === 0)) {`, "red",
+  ["E7  screen guard widened to truthiness", SCREEN_G, `if (!elements || (Array.isArray(elements) && elements.length === 0)) {` + SCREEN_G_TAIL, "red",
    "audit_screen with no elements still returns the snapshot-shape instructions, not an error"],
   ["E8  audit_page guard deleted", PAGE_G, `if (false) {`, "red",
    "audit_page refuses empty html string instead of producing an artifact about nothing"],
@@ -188,7 +194,104 @@ const MUTANTS = [
   ["E30 decision_get re-claimed as idempotent", IDEM_DG, `decision_get: true,`, "red",
    "decision_get is NOT published as idempotent"],
   // C1 CONTROL — .trim().length === 0 and .trim() === "" are the same predicate.
-  ["C1  CONTROL blank predicate rephrased", BLANK_FN, BLANK_FN.replace(`v.trim().length === 0`, `v.trim() === ""`), "green", null]
+  ["C1  CONTROL blank predicate rephrased", BLANK_FN, BLANK_FN.replace(`v.trim().length === 0`, `v.trim() === ""`), "green", null],
+
+  // ── Round 10: the four Sol-r9 empty-input guards, both directions ─────────
+  // Each pair is delete-the-guard vs refuse-everything, so a "fix" that simply
+  // refused every call could not pass both halves.
+  ["E33 audit_contract file_paths guard deleted",
+    `if (!Array.isArray(file_paths) || file_paths.length === 0) {`,
+    `if (false) {`, "red",
+    "audit_contract refuses a contract with zero files to check instead of asserting a verdict over nothing"],
+  ["E34 audit_contract file_paths guard refuses every call",
+    `if (!Array.isArray(file_paths) || file_paths.length === 0) {`,
+    `if (true) {`, "red",
+    "audit_contract still verifies a real contract against a real file"],
+
+  ["E35 audit_contract empty-spec guard deleted",
+    `if (specTokens.length === 0 && specFields.length === 0 &&`,
+    `if (false && specFields.length === 0 &&`, "red",
+    "audit_contract refuses an empty contract spec instead of asserting a verdict over nothing"],
+  // The spec guard is a THREE-way AND, so weakening it to tokens-only lets a
+  // spec carrying only fields through. This is the shape the guard exists for.
+  ["E36 audit_contract empty-spec guard narrowed to tokens alone",
+    `if (specTokens.length === 0 && specFields.length === 0 &&`,
+    `if (specTokens.length === 0 && specFields.length === -1 &&`, "red",
+    "audit_contract refuses an empty contract spec instead of asserting a verdict over nothing"],
+
+  ["E37 audit_parity empty-snapshot guard deleted",
+    `if (iosEls.length === 0 || androidEls.length === 0) {`,
+    `if (false) {`, "red",
+    "audit_parity refuses two empty platform snapshots instead of asserting a verdict over nothing"],
+  ["E38 audit_parity empty-snapshot guard refuses every call",
+    `if (iosEls.length === 0 || androidEls.length === 0) {`,
+    `if (true) {`, "red",
+    "audit_parity still compares two real snapshots"],
+
+  ["E39 audit_parity empty-checklist guard deleted",
+    `if (!Array.isArray(checklist) || checklist.length === 0) {`,
+    `if (false) {`, "red",
+    "audit_parity refuses an empty checklist instead of asserting a verdict over nothing"],
+
+  // audit_layout's predicate is byte-identical to the screen tools', and the
+  // refusal message opens with a string that appears THREE times in dist/. The
+  // anchor therefore has to reach into the message body -- which is exactly the
+  // harness's own rule that the anchor is what names the tool.
+  ["E40 audit_layout empty-elements guard deleted",
+    `elements.length === 0) {\n            return refuseEmptyInput("No elements to audit. 'elements' was present but empty`,
+    `elements.length === -1) {\n            return refuseEmptyInput("No elements to audit. 'elements' was present but empty`, "red",
+    "audit_layout refuses an elements array that is present but empty instead of asserting a verdict over nothing"],
+  // The other direction, and the one that proves the guard did not swallow the
+  // discovery affordance: refuse every snapshot and the positive control dies.
+  ["E41 audit_layout empty-elements guard refuses every snapshot",
+    `elements.length === 0) {\n            return refuseEmptyInput("No elements to audit. 'elements' was present but empty`,
+    `elements.length >= 0) {\n            return refuseEmptyInput("No elements to audit. 'elements' was present but empty`, "red",
+    "audit_layout still scores a real snapshot"],
+
+  ["E42 talon_scan blank-html guard deleted",
+    `if (isBlankString(targetHtml) && (!Array.isArray(elements) || elements.length === 0)) {`,
+    `if (false) {`, "red",
+    "talon_scan refuses whitespace-only html instead of reporting a clean scan"],
+  // isBlankString -> falsiness: "   \n  " is TRUTHY, so a blank scan sails past.
+  ["E43 talon_scan blankness weakened to falsiness",
+    `if (isBlankString(targetHtml) && (!Array.isArray(elements) || elements.length === 0)) {`,
+    `if (!targetHtml && (!Array.isArray(elements) || elements.length === 0)) {`, "red",
+    "talon_scan refuses whitespace-only html instead of reporting a clean scan"],
+
+  // ── Round 10: openWorldHint membership and its per-surface derivation ─────
+  // Neither bare quoted tool name is a usable anchor (bind_taste_surface
+  // matches 5x, talon_scan 4x), so both mutants anchor on the list TAIL.
+  ["E44 bind_taste_surface dropped from TOOL_OPEN_WORLD",
+    `    "bind_taste_surface",\n    "talon_scan"\n];`,
+    `    "talon_scan"\n];`, "red",
+    "bind_taste_surface publishes openWorldHint true on the local build (captures every caller-supplied reference url live)"],
+  ["E45 talon_scan dropped from TOOL_OPEN_WORLD",
+    `    "bind_taste_surface",\n    "talon_scan"\n];`,
+    `    "bind_taste_surface"\n];`, "red",
+    "talon_scan publishes openWorldHint true on the local build (accepts a url and renders it headless)"],
+  // The derivation itself. Without the subtraction, audit_page claims the open
+  // web on a surface whose wrapper refuses its url param.
+  ["E46 openWorld stops subtracting the hosted network block",
+    `        && !(remote && remoteBlocksNetwork(toolName));`,
+    `        && true;`, "red",
+    "audit_page publishes openWorldHint false on the hosted build"],
+
+  // ── Round 10: generate_design_system is a writer where its write lands ────
+  ["E47 generate_design_system dropped from TOOL_LOCAL_ONLY_WRITE",
+    `"generate_design_system" // save:true`,
+    `"generate_design_system__absent" // save:true`, "red",
+    "generate_design_system is published as a writer on the local build"],
+  ["E48 readOnly branch re-hardcodes readOnlyHint true",
+    `readOnlyHint: !writesLocally,`,
+    `readOnlyHint: true,`, "red",
+    "generate_design_system is published as a writer on the local build"],
+  // The surface gate. Drop it and the HOSTED endpoint advertises a destructive
+  // writer for a save key its schema does not even carry.
+  ["E49 local-write gate stops asking which surface this is",
+    `        && !remote && !isRemoteRuntime();`,
+    `        ;`, "red",
+    "generate_design_system is published as read-only on the hosted build"],
+
 ];
 
 function run() {
@@ -218,6 +321,17 @@ if (base.tests !== EXPECTED_TESTS || base.pass !== EXPECTED_PASS || base.fail !=
   process.exit(1);
 }
 console.log(`baseline: ${base.tests} tests / ${base.pass} pass / 0 fail / ${base.skipped} skipped, status 0`);
+
+// Round 10: a MISSING COMMA between two adjacent array literals is valid
+// JavaScript -- `[a][b]` is an index expression, not two elements -- so
+// `node --check` passes and the array silently loses entries. Assert the SHAPE
+// of every element before anything else; the tuple arity is 5.
+for (const [i, m] of MUTANTS.entries()) {
+  if (!Array.isArray(m) || m.length !== 5) {
+    console.error(`ABORT: MUTANTS[${i}] is not a 5-tuple (${JSON.stringify(m)}). A missing comma between entries reads as an index expression.`);
+    process.exit(1);
+  }
+}
 
 // Presence and uniqueness are answerable without launching anything — check
 // every mutant BEFORE spending a run, so a dead find-string aborts in seconds.

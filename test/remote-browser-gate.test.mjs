@@ -193,9 +193,26 @@ test('remote server registers the 5 browser tools and URL-guards them before lau
   }
   assert.equal(result.names.length, 45, 'remote tools/list should expose 45 tools after Phase 3 gate flip');
 
-  for (const call of result.calls) {
+  // audit_url is the one exception and it is asserted SEPARATELY rather than loosened
+  // into the loop: its `url` is in REMOTE_ARG_GUARDS, so the hosted build declines every
+  // call outright (it was measured at 95s at its cheapest configuration, past any hosted
+  // client's deadline) and the private-URL guard downstream is never reached. Reading
+  // this through a real MCP client is what says the decline is on the SHIPPING path, and
+  // asserting the URL-guard message is ABSENT here while REQUIRED for the other four is
+  // what says the guard is keyed per tool rather than blanket-refusing the browser set.
+  for (let i = 0; i < required.length; i++) {
+    const call = result.calls[i];
     assert.equal(call.isError, true);
-    assert.match(call.content[0].text, /hosted endpoint only audits public http\(s\) URLs/);
+    if (required[i] === 'audit_url') {
+      assert.match(call.content[0].text, /audit_url is disabled on the hosted \(remote\) endpoint/);
+      assert.match(call.content[0].text, /raven-mcp/, 'the decline must name the local route out');
+      assert.doesNotMatch(call.content[0].text, /hosted endpoint only audits public http\(s\) URLs/,
+        'the arg guard runs first, so the URL guard must never answer for audit_url');
+    } else {
+      assert.match(call.content[0].text, /hosted endpoint only audits public http\(s\) URLs/);
+      assert.doesNotMatch(call.content[0].text, /audit_url is disabled/,
+        'the audit_url decline must not leak onto another tool');
+    }
   }
 });
 

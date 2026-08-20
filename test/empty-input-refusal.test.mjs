@@ -360,3 +360,110 @@ test("evaluate_design refuses a call with neither description nor screenshots", 
       `the refusal must name what is missing: ${text.slice(0, 200)}`);
   }
 });
+
+// ── Sol round 9, P1-1: four more instances of the same class ────────
+// Found by an independent adversarial read of src/index.ts rather than by the
+// sweep, which was blind to all four (it builds only the authenticated hosted
+// surface, and probes one empty field at a time — none of these four is
+// reachable from a single empty field on that build). Measured pre-fix:
+//   audit_contract  {contract_spec:{}, file_paths:[]}  -> verdict "PASS"
+//   audit_parity    two empty snapshots, empty checklist -> mismatch_count 0
+//   audit_layout    {elements:[], viewport}            -> two PASSING findings
+//   talon_scan      {html:"   \n "}                    -> no findings, i.e. clean
+// Each is an affirmative verdict computed from nothing, which is the R1 defect.
+
+const PARITY_EL = { label: "Title", role: "text", rect: { x: 24, y: 100, w: 200, h: 24 } };
+
+const R9_EMPTY_CASES = [
+  ["audit_layout", { elements: [], viewport: VP }, "an elements array that is present but empty"],
+  ["audit_contract", { contract_spec: { tokens: ["schemaVersion"] }, file_paths: [] }, "a contract with zero files to check"],
+  ["audit_contract", { contract_spec: {}, file_paths: ["package.json"] }, "an empty contract spec"],
+  ["audit_parity", { ios: { elements: [], viewport: VP }, android: { elements: [], viewport: VP }, checklist: [{ name: "title present", a: "Title", relation: "present" }] }, "two empty platform snapshots"],
+  ["audit_parity", { ios: { elements: [PARITY_EL], viewport: VP }, android: { elements: [PARITY_EL], viewport: VP }, checklist: [] }, "an empty checklist"]
+];
+
+for (const [name, args, label] of R9_EMPTY_CASES) {
+  test(`${name} refuses ${label} instead of asserting a verdict over nothing`, async () => {
+    const { isError, text, json } = await call(name, args);
+    assert.equal(isError, true, `expected a refusal, got: ${text.slice(0, 300)}`);
+    assert.ok(json && typeof json.error === "string" && json.error.length > 0,
+      `refusal must carry an actionable error string, got: ${text.slice(0, 300)}`);
+    // The forbidden outcomes, named directly. `verdict` and `mismatch_count` are
+    // this round's equivalents of `score`/`grade`: an affirmative claim about
+    // work nobody did.
+    assert.equal(json.verdict, undefined, "an empty input must never carry a verdict");
+    assert.equal(json.mismatch_count, undefined, "an empty input must never report zero mismatches");
+    assert.equal(json.score, undefined, "an empty input must never carry a score");
+  });
+}
+
+// talon_scan's refusal is plain text rather than the refuseEmptyInput JSON
+// envelope, so it cannot ride the loop above.
+test("talon_scan refuses whitespace-only html instead of reporting a clean scan", async () => {
+  for (const args of [{ html: "   \n  " }, { html: "" }, { html: "  ", elements: [] }]) {
+    const { isError, text } = await call("talon_scan", args);
+    assert.equal(isError, true,
+      `whitespace-only html must be refused, not scanned clean: ${JSON.stringify(args)} -> ${text.slice(0, 300)}`);
+    assert.match(text, /provide html, url, or elements/i,
+      `the refusal must name what is missing: ${text.slice(0, 300)}`);
+  }
+});
+
+// ── Positive controls for the four above ────────────────────────────
+// Without these, a guard that refused every call would satisfy every assertion
+// in this section and the suite would report four dead tools as fixed.
+
+const LAYOUT_EL = (i) => ({ selector: `.row-${i}`, rect: { x: 24, y: 24 + i * 64, w: 320, h: 48 } });
+
+test("audit_layout still scores a real snapshot", async () => {
+  const { isError, json, text } = await call("audit_layout", {
+    elements: [LAYOUT_EL(0), LAYOUT_EL(1), LAYOUT_EL(2)],
+    viewport: VP
+  });
+  assert.equal(isError, false, `a real snapshot must not be refused: ${text.slice(0, 300)}`);
+  // audit_layout carries no `score` -- its observable is the element count it
+  // actually analysed plus the findings it derived from them. Asserting the
+  // exact count rather than `>= 0` is what makes this control able to fail:
+  // a guard that swallowed the snapshot would report 0.
+  assert.equal(json.elements_analyzed, 3, `expected the supplied elements to be analysed: ${text.slice(0, 300)}`);
+  assert.ok(Array.isArray(json.findings) && json.findings.length > 0,
+    `a real snapshot must produce findings: ${text.slice(0, 300)}`);
+});
+
+// The THIRD control, and the one the emptiness guard could most easily break:
+// calling audit_layout with NO arguments is the documented discovery affordance
+// and must still hand back the DevTools snippet, not an error. The guard is
+// therefore placed AFTER the `!elements || !viewport` branch and tests
+// `Array.isArray(elements) && elements.length === 0`, which is FALSE for
+// undefined. Collapsing the two into one check breaks this test (and mutant E7).
+test("audit_layout with no arguments still returns the snapshot affordance", async () => {
+  const { isError, text } = await call("audit_layout", {});
+  assert.equal(isError, false, `the discovery affordance must not be refused: ${text.slice(0, 300)}`);
+  assert.match(text, /DevTools/i, `expected the snippet, got: ${text.slice(0, 300)}`);
+});
+
+test("audit_contract still verifies a real contract against a real file", async () => {
+  const { isError, json, text } = await call("audit_contract", {
+    contract_spec: { tokens: ["raven-mcp"] },
+    file_paths: ["package.json"]
+  });
+  assert.equal(isError, false, `a real contract must not be refused: ${text.slice(0, 300)}`);
+  assert.equal(typeof json.verdict, "string", `a real contract must produce a verdict: ${text.slice(0, 300)}`);
+});
+
+test("audit_parity still compares two real snapshots", async () => {
+  const { isError, json, text } = await call("audit_parity", {
+    ios: { elements: [PARITY_EL], viewport: VP },
+    android: { elements: [{ ...PARITY_EL, rect: { x: 24, y: 140, w: 200, h: 24 } }], viewport: VP },
+    checklist: [{ name: "title present", a: "Title", relation: "present" }]
+  });
+  assert.equal(isError, false, `a real comparison must not be refused: ${text.slice(0, 300)}`);
+  assert.equal(typeof json.mismatch_count, "number", `a real comparison must report a count: ${text.slice(0, 300)}`);
+});
+
+test("talon_scan still scans real html", async () => {
+  const { isError, text } = await call("talon_scan", {
+    html: "<html><body><button style='width:20px;height:20px'>Go</button></body></html>"
+  });
+  assert.equal(isError, false, `real html must not be refused: ${text.slice(0, 300)}`);
+});
