@@ -180,3 +180,91 @@ against a declared 17/17/0/0 baseline, D9 at radius 1.
 `CLAUDE.md` still described the OpenAI submission as "in **Review**" — it was **REJECTED
 on 2026-08-19**. Corrected in the same commit, with both grounds (R1 captured-numbers,
 R2 annotation mismatch) and a pointer to this file and the remediation directory.
+
+## The push, the deploy, and what the live surface actually says
+
+`main` was pushed with fresh in-conversation approval: `cebe332..ba8f0b3`. Deployment
+`site-dhljii7m9-cunliffeandrewc-8712s-projects.vercel.app` went Queued → Building → Ready
+in about two minutes, and every number below was then read off
+`https://mcp.ravenmcp.ai/api/mcp` rather than off a local build.
+
+- 45 tools; sorted-name sha256 `f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6`
+  — **frozen hash intact**, re-verified a second time at the end of the session.
+- All four annotation hints present and boolean on **all 45** tools: 180/180 values,
+  0 absent, 0 non-boolean.
+- `audit_url` → `openWorldHint:false`; `audit_contrast` / `audit_tap_targets` →
+  `openWorldHint:true`. The `audit_url` description tail carries the guard table's own
+  message verbatim, which is the derivation being visible from outside.
+- Live `audit_url` call: **0.304 s**, `isError:true`, decline naming the 95.2 s
+  measurement, `npx raven-mcp` and `audit_page`.
+
+**The deployed before-state was narrower than the local reasoning assumed, and that is
+recorded rather than smoothed over.** The pre-push capture shows the hosted endpoint was
+already serving `audit_url` as `readOnlyHint:true, destructiveHint:false` — with **no
+`idempotentHint` key at all**. So the two real R2 deltas on the surface OpenAI reviewed
+were an `openWorldHint` of `true` on a tool that cannot reach any host, and a missing
+hint. §3b of the justification doc described the LOCAL before-state and has been
+corrected to say so.
+
+## The reviewed surface is simpler than the justification doc implied
+
+Reading all 45 tools back: **every one is `readOnlyHint:true`, `destructiveHint:false`,
+`idempotentHint:true`.** The only axis that varies is `openWorldHint`, 4 true / 41 false.
+
+That is not a blanket default — the writing and interaction-firing tools are *not
+registered* on the anonymous surface at all, so they are never annotated there. §3 and
+§3b of the doc are about the local `npx raven-mcp` surface, and now say which surface
+they describe. The four `openWorldHint:true` are exactly `audit_contrast`,
+`audit_responsive_visibility`, `audit_tap_targets`, `audit_video_playback`.
+
+## R1: the fix is structural, and a THIRD case was drifting unnoticed
+
+The submitted `audit_contrast` case expected "373 text elements" and reads 344. While
+re-measuring, `get_principles` came back **26** against a submitted **28** — the same
+defect, in a case nobody flagged. It was luck, not correctness.
+
+So the replacement cases do not re-capture; they change what an expectation *is*:
+
+- **P1/P2 supply their whole input inline** via `dom_snapshot` / `elements`, the tools'
+  documented pre-measured modes. The expected values are arithmetic on supplied
+  constants — `#111111` on `#ffffff` is 18.88, `#bbbbbb` on `#ffffff` is 1.92 — so there
+  is no input left to drift. **Both also stop rendering:** the old tap-target case took
+  40.9 s against a live URL; its replacement returns in **135 ms**.
+- **P3/P4/P5 state invariants**, with the exact counts explicitly marked as *not* the
+  expectation: `count === principles.length && count >= 20` and the presence of
+  `color-palette-discipline`; the id set including `stripe`/`linear`/`apple-hig`; Stripe
+  `color.primary` `#635BFF` (a tracked brand constant, safe to pin where counts are not);
+  `pattern_match: "matched"` with a non-empty `Landing Page` checklist.
+
+**One attempted route failed and the failure was better than the plan.** A pinned
+`fixtures/pinned-page.html` was written first, on the assumption the two audit tools take
+an `html` argument. They do not — the hosted schema is `url` *or* a pre-measured array —
+and the call returned a usage error in 317 ms. The array route is strictly better: it
+removes the render as well as the drift, and it needs no fixture file, so the html was
+deleted rather than kept as decoration a reviewer could not actually use.
+
+**N1/N2/N3 were rewritten and one of them was nearly written unverified.** The old
+negatives asserted DNS-level browser errors that the hosted surface no longer produces.
+N1 is now the `audit_url` decline (0.304 s against a 95.2 s floor). N3 is the
+schema-derived `-32602` on a missing required `id` (122 ms, measured). **N2 was drafted
+asserting that `audit_contrast` with a `url` is *not* swept up in the decline — which I
+had not measured.** That is exactly the R1 failure mode, in the dossier written to fix
+R1. Measured before it was allowed to stand: HTTP 200, 4.02 s, no `isError`, a real
+render of `example.com`. It is now phrased as an invariant (not declined; carries `url`
+and a tally) with the tallies explicitly excluded, because that page is not ours either.
+
+N2 also earns its place: it is the second direction. A "fix" that flipped every tool to
+`openWorldHint:false` would satisfy N1 and fail N2.
+
+## `verify-anon-hash.mjs` is spent, and says so now
+
+Re-running it reports 5 CHECKS FAILED. That is not a regression: it reverts descriptions
+to `git show HEAD:src/index.ts` and HEAD is now the post-fix commit, so "revert to HEAD"
+is a no-op and all four pins mismatch by construction. It carries a banner saying so, so
+its reds are not read as a live gate by whoever opens it next.
+
+## Still owed
+
+The appeal reply itself is Andrew's to send. Landing these files needs a commit and a
+**second push, which requires fresh approval** — the approval given covered one push and
+is spent.

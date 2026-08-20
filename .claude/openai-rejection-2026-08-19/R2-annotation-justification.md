@@ -66,6 +66,14 @@ handler is entered, so on `mcp.ravenmcp.ai` they publish `readOnlyHint: true`,
 only decline is read-only, repeating a decline changes nothing, and a decline reaches no
 host.
 
+**What actually changed on the DEPLOYED endpoint, measured rather than reasoned.** Before
+commit `ba8f0b3`, `mcp.ravenmcp.ai` served `audit_url` as
+`{ readOnlyHint: true, destructiveHint: false, openWorldHint: true }` with **no
+`idempotentHint` key at all**. So the deployed defect was narrower than the local
+reasoning above assumed: the read-only and destructive hints were already correct on the
+hosted surface, and the two real deltas were an `openWorldHint` of `true` on a tool that
+cannot reach any host, and a missing hint. Both are fixed; §8 is the measured proof.
+
 The verdict is **derived, not transcribed**:
 
 ```
@@ -202,3 +210,87 @@ Three consequences for the annotations, all derived rather than asserted:
 On a local stdio install nothing about `audit_url` changed: it still runs, and it still
 publishes `readOnlyHint: false`, `destructiveHint: true`, `idempotentHint: false`,
 `openWorldHint: true`.
+
+---
+
+## 8. Per-tool declaration — read off the DEPLOYED endpoint, 2026-08-20
+
+OpenAI's guidance asks for a justification for **each** tool. The sections above justify
+by class, because that is how the values are produced — no hint anywhere in this server is
+hand-written per tool. This section is the resulting per-tool surface, fetched from
+`https://mcp.ravenmcp.ai/api/mcp` via `tools/list` after commit `ba8f0b3`. It is a
+measurement of what a reviewer receives, not a transcription of source.
+
+**Three facts a reviewer can check in one pass:**
+
+1. **45 tools, and all four hints are present and boolean on every one of them.**
+   Measured: 0 absent, 0 non-boolean, across 45 × 4 = 180 values. This is the §1 claim
+   ("explicit boolean, by construction") stated as a number.
+2. **On this surface every tool is `readOnlyHint: true`, `destructiveHint: false`,
+   `idempotentHint: true` — all 45, no exceptions.** That is not a coincidence and not a
+   blanket default: the anonymous endpoint deliberately serves only the read-only subset
+   of the server. The tools that legitimately write, log, or fire browser interactions
+   (and are therefore annotated `readOnlyHint: false` / `destructiveHint: true`, per §3
+   and §3b) are **not registered on this surface at all** — they are gated, and a
+   `tools/call` for one answers "Tool not found" rather than being refused at runtime.
+   §3 and §3b describe the local `npx raven-mcp` surface; they are included because the
+   same package ships both, and the annotations differ between them by derivation.
+3. **`openWorldHint` is the only axis that varies here, and it splits 4 / 41.** The four
+   `true` are exactly the tools that fetch a caller-supplied address on this endpoint:
+   `audit_contrast`, `audit_responsive_visibility`, `audit_tap_targets`,
+   `audit_video_playback`. Test case N2 demonstrates one of them actually reaching the
+   open web from the hosted endpoint; test case N1 demonstrates `audit_url`, now
+   `openWorldHint: false`, declining without a network attempt in 0.304 s. **The two
+   directions are both evidenced** — a fix that flipped every tool to `false` would
+   satisfy N1 and fail N2.
+
+| Tool | `readOnlyHint` | `destructiveHint` | `idempotentHint` | `openWorldHint` |
+| --- | --- | --- | --- | --- |
+| `audit_consistency` | `true` | `false` | `true` | `false` |
+| `audit_content` | `true` | `false` | `true` | `false` |
+| `audit_contrast` | `true` | `false` | `true` | `true` |
+| `audit_ios_a11y` | `true` | `false` | `true` | `false` |
+| `audit_ios_privacy` | `true` | `false` | `true` | `false` |
+| `audit_ios_screen` | `true` | `false` | `true` | `false` |
+| `audit_layout` | `true` | `false` | `true` | `false` |
+| `audit_page` | `true` | `false` | `true` | `false` |
+| `audit_parity` | `true` | `false` | `true` | `false` |
+| `audit_responsive_visibility` | `true` | `false` | `true` | `true` |
+| `audit_rn` | `true` | `false` | `true` | `false` |
+| `audit_screen` | `true` | `false` | `true` | `false` |
+| `audit_swiftui` | `true` | `false` | `true` | `false` |
+| `audit_tap_targets` | `true` | `false` | `true` | `true` |
+| `audit_typography` | `true` | `false` | `true` | `false` |
+| `audit_url` | `true` | `false` | `true` | `false` |
+| `audit_video_playback` | `true` | `false` | `true` | `true` |
+| `compose_system` | `true` | `false` | `true` | `false` |
+| `evaluate_design` | `true` | `false` | `true` | `false` |
+| `generate_design_system` | `true` | `false` | `true` | `false` |
+| `generate_service_blueprint` | `true` | `false` | `true` | `false` |
+| `get_brand_principles` | `true` | `false` | `true` | `false` |
+| `get_brand_system` | `true` | `false` | `true` | `false` |
+| `get_brand_trends` | `true` | `false` | `true` | `false` |
+| `get_business_strategy` | `true` | `false` | `true` | `false` |
+| `get_checklist` | `true` | `false` | `true` | `false` |
+| `get_content_pattern` | `true` | `false` | `true` | `false` |
+| `get_content_principles` | `true` | `false` | `true` | `false` |
+| `get_content_system` | `true` | `false` | `true` | `false` |
+| `get_d4d_framework` | `true` | `false` | `true` | `false` |
+| `get_design_system` | `true` | `false` | `true` | `false` |
+| `get_metrics_framework` | `true` | `false` | `true` | `false` |
+| `get_pattern` | `true` | `false` | `true` | `false` |
+| `get_principles` | `true` | `false` | `true` | `false` |
+| `get_research_method` | `true` | `false` | `true` | `false` |
+| `get_service_pattern` | `true` | `false` | `true` | `false` |
+| `get_service_standard` | `true` | `false` | `true` | `false` |
+| `list_content_systems` | `true` | `false` | `true` | `false` |
+| `list_creative_models` | `true` | `false` | `true` | `false` |
+| `list_creative_presets` | `true` | `false` | `true` | `false` |
+| `list_design_systems` | `true` | `false` | `true` | `false` |
+| `score_creative` | `true` | `false` | `true` | `false` |
+| `score_page` | `true` | `false` | `true` | `false` |
+| `search_knowledge` | `true` | `false` | `true` | `false` |
+| `suggest_contrast_fix` | `true` | `false` | `true` | `false` |
+
+*(Generated by `tools/list` against the production alias; the tool set hashes to the
+frozen anonymous-surface digest `f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6`, unchanged by this remediation.)*

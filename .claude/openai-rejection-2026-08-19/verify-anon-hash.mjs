@@ -1,3 +1,15 @@
+// SPENT AS OF 2026-08-20 -- DO NOT READ ITS REDS AS A REGRESSION.
+// Every pin below was computed while HEAD was cebe332 (pre-fix). This script reverts
+// descriptions to `git show HEAD:src/index.ts`, and HEAD is now ba8f0b3, which CONTAINS
+// the fix -- so "revert to HEAD" is a no-op and all four pins mismatch by construction.
+// Re-run of 2026-08-20 reported 5 CHECKS FAILED for exactly that reason.
+//
+// The FROZEN invariant is a different, coarser thing and it is intact: the 45 sorted
+// anonymous tool NAMES hash to f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6,
+// verified LIVE against https://mcp.ravenmcp.ai/api/mcp on 2026-08-20 post-deploy.
+// This file pins the full payload (instructions + descriptions), which the remediation
+// deliberately moved for audit_url. Kept for its method, not its verdict.
+//
 // Proves WHICH anonymous top-level tool descriptions moved in the 2026-08-19
 // OpenAI-resubmission pass, rather than asserting it.
 //
