@@ -1171,7 +1171,7 @@ cd raven-mcp && npm install && npm run build`}</code></pre></div>
             <div className="rd-tool-list">
               <article className="rd-tool" id="tool-list_creative_models">
                 <h3 className="rd-tool-name"><a className="rd-tool-anchor" href="#tool-list_creative_models" aria-label="Link to list_creative_models">#</a><code>list_creative_models</code></h3>
-                <p className="rd-tool-desc">Browse Raven’s provider-agnostic creative model catalog. These are capability slots for image, video, 3D, audio, character consistency, and creative analysis. Use a configured RAVEN_CREATIVE_RUNNER to route jobs to any local CLI or API wrapper.</p>
+                <p className="rd-tool-desc">Browse Raven’s provider-agnostic creative model catalog. These are capability slots for image, video, 3D, audio, character consistency, and creative analysis. Each entry lists typical inputs and best-for guidance.</p>
                 <p className="rd-param-heading">Parameters</p>
                 <dl className="rd-params">
                   <div className="rd-param"><dt><code>media_type</code><span className="rd-optional">optional</span></dt><dd>Filter by media type. — “image” | “video” | “audio” | “3d” | “campaign” | “analysis”</dd></div>

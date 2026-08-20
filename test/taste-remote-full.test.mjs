@@ -29,7 +29,78 @@ const GOLDEN_45_HASH = 'f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7
 // block, and an anon build made AFTER an authed one is byte-identical to an
 // anon-first build. GOLDEN_45_HASH — the frozen wire contract — is unchanged.
 const ANONYMOUS_INSTRUCTIONS_HASH = '3ccce9cf2e9366439f0ffed251815176bb7ee7b78ace0f03252c6c7807090658';
-const ANONYMOUS_INSTRUCTIONS_AND_TOOL_DESCRIPTIONS_HASH = 'fda3c22dbacc65455d42401a89abf850a6b87d84aab23c5046869a1dbd961e2d';
+// Rebaselined again 2026-08-19 (OpenAI resubmission prep). SEVEN anonymous
+// top-level descriptions changed, and the chain from HEAD to this pin is
+// MEASURED end to end by .claude/openai-rejection-2026-08-19/verify-anon-hash.mjs,
+// which rebuilds this exact payload while substituting each tool's HEAD
+// description literal back in:
+//   HEAD (all seven reverted)
+//                           -> fda3c22dbacc65455d42401a89abf850a6b87d84aab23c5046869a1dbd961e2d
+//                              == the pin this file carried at HEAD, so NO other
+//                              description moved. That equality is the whole proof.
+//   list_design_systems + audit_url still HEAD
+//                           -> 36c46c94187dc34b1c9cab12bdc4622533ab350cc8faf160d0f4bd9c823c07a1
+//                              (the intermediate pin written mid-pass)
+//   audit_url ALONE reverted -> 1abc908c4d6bbb7ed6cda3de56754801f7ac02573a3d5ea1d0044ff4fd8024c7
+//                              == the pin this file carried before the click
+//                              guard landed, so the click-guard round moved that
+//                              ONE description and nothing else. Same argument,
+//                              one round later.
+//   none reverted           -> 5181c14928e66bbd92340c62ef2174d56f368633423422de8e7a4e0ad88694d6
+// Re-pinned a SECOND time the same day, after the Sol round-4 pass showed the
+// click-guard round had closed R2 in the wrong place. audit_url's derived
+// sentence moved AGAIN and nothing else did, which is not asserted here either:
+// reverting audit_url ALONE still reproduces 1abc908c above, so every other
+// description is byte-identical to the state that pin was taken in. The old
+// c914c26c... value is the pre-Sol-r4 state and is kept in the chain above only
+// as history.
+// The seven, and why each moved - in every case a hosted description promised
+// behaviour the hosted endpoint refuses, which is the scope collision the
+// rejection cited:
+//   audit_contrast     - url mode OMITS per-element passing rows; the old text
+//                        said "per element" unconditionally.
+//   score_page         - url is rejected by REMOTE_ARG_GUARDS remotely; the
+//                        remote branch no longer advertises it.
+//   audit_typography   - same, stated in the closing sentence.
+//   audit_page         - the THIRD url-hard-rejected tool, and the one this pass
+//                        initially missed: score_page and audit_typography were
+//                        corrected while audit_page still advertised url capture
+//                        unconditionally. Found by re-reading REMOTE_ARG_GUARDS
+//                        rather than by any test - the pin cannot tell a
+//                        description that SHOULD have moved from one that
+//                        correctly did not.
+//   list_design_systems- the documented category list contained "design-system",
+//                        which is not a category any system carries, so a caller
+//                        copying it got count:0.
+//   list_creative_models- dropped a sentence about a RAVEN_CREATIVE_RUNNER env
+//                        var that an anonymous caller can neither read nor set.
+//   audit_url          - the SEVENTH, added by the click-guard round. audit_url
+//                        carries readOnlyHint:true and idempotentHint:true, and a
+//                        click on a third-party page falsifies both, so remotely
+//                        the click interaction is now REFUSED at the shared
+//                        registration wrapper (REMOTE_NO_CLICK_TOOLS) and the
+//                        remote description says so. hover and focus are still
+//                        accepted, and the Sol round-4 pass established that they
+//                        do NOT leave the remote host untouched: Playwright
+//                        dispatches real events, so the page's own mouseenter /
+//                        focus handlers run (src/capture.ts:499) and can submit a
+//                        same-origin request or call .click() themselves. So this
+//                        is the R2 "annotations do not match behaviour" case
+//                        closed where an annotation belongs - audit_url now
+//                        publishes readOnlyHint:false and idempotentHint:false on
+//                        BOTH builds (toolFiresCallerInteractions, src/index.ts) -
+//                        and the derived sentence says exactly that. The earlier
+//                        wording here, "closed by changing the BEHAVIOUR rather
+//                        than the annotation", was the defect Sol found: narrowing
+//                        the blast radius is not the same as being read-only.
+// GOLDEN_45_HASH and ANONYMOUS_INSTRUCTIONS_HASH are both unchanged (asserted
+// immediately above this one in the same test). Sentence 1 of all six is
+// byte-identical on all seven, so manifest.json does not move.
+// NOT covered by this pin, and stated so it is not mistaken for guarded: the same
+// pass corrected several PARAMETER descriptions. inputSchema is not in this
+// payload, so a parameter description can change without moving any pin here -
+// test/documented-categories.test.mjs is what guards those.
+const ANONYMOUS_INSTRUCTIONS_AND_TOOL_DESCRIPTIONS_HASH = '5181c14928e66bbd92340c62ef2174d56f368633423422de8e7a4e0ad88694d6';
 const AUTHED_STARTUP_INSTRUCTIONS = "AUTHENTICATED STARTUP: this remote endpoint is connected to a per-user taste store. At project kickoff or the first real design/copy/UI work for a project, call get_taste_interview for the connected user's taste profile and project name before choosing direction. Ask the returned questions, then persist the user's answers with bind_taste_surface before generating design work. If the profile name is not known yet, call list_taste_profiles first.";
 const AUTHED_INTERVIEW_DESCRIPTION = "AUTHENTICATED STARTUP: on the remote authed endpoint, use this as the first taste step for the connected user's per-user store at project kickoff; if you do not know the profile name, call list_taste_profiles first, then call get_taste_interview with that profile and project name before design/copy/UI decisions.";
 const ALL_TASTE = [

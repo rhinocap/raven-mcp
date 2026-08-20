@@ -419,7 +419,16 @@ test('auditVideoPlaybackSnapshot: classifies observations without a browser and 
   assert.doesNotThrow(() => JSON.stringify(r));
 });
 
-test('auditVideoPlaybackSnapshot: empty input → 0 videos, valid shape', () => {
+// This is a SHAPE fact about the pure aggregator, NOT the tool's contract.
+// Sol round 5, P1-1: the previous name ("empty input → 0 videos, valid shape")
+// read as a blessing, and the tool seam did in fact hand that result straight
+// back — total_videos 0 plus the affirmative summary "No <video> elements
+// found.", indistinguishable from a page measured clean. The aggregator stays
+// empty-agnostic on purpose (the browser path legitimately observes zero videos
+// on a page that has none); the REFUSAL of a caller-submitted empty array lives
+// at the seam in src/index.ts and is guarded by test/empty-input-refusal.test.mjs.
+// Do not read the assertions below as "audit_video_playback accepts []".
+test('auditVideoPlaybackSnapshot: zero observations is a shape fact, not a tool-level pass', () => {
   const r = auditVideoPlaybackSnapshot([]);
   assert.equal(r.total_videos, 0);
   assert.equal(r.playing_count, 0);

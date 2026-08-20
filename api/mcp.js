@@ -112,6 +112,74 @@ export default async function handler(req, res) {
     return;
   }
 
+  // Accept-header normalization. The SDK's Streamable HTTP transport rejects any
+  // POST whose Accept header does not list BOTH application/json AND
+  // text/event-stream with a 406, BEFORE the body is parsed or the server is
+  // consulted - verified in the shipping path, not assumed: the Node transport is
+  // a thin wrapper (node_modules/@modelcontextprotocol/sdk/dist/esm/server/
+  // streamableHttp.js:52,60) that forwards every request to
+  // WebStandardStreamableHTTPServerTransport, whose handlePostRequest enforces the
+  // check unconditionally at webStandardStreamableHttp.js:375-380.
+  // enableJsonResponse below does NOT bypass it - _enableJsonResponse is read only
+  // at :474/:702/:722, all downstream of the rejection.
+  // A conformant MCP client sends both. A reviewer's client, a curl repro, or a
+  // mobile surface that sends `Accept: application/json` (or nothing) gets a bare
+  // 406 that reads as "the server is broken" rather than "your header is short" -
+  // which is exactly the shape of OpenAI's "did not produce correct results" /
+  // "must pass consistently on both web and mobile" finding. This endpoint is
+  // stateless and never opens an SSE stream (sessionIdGenerator: undefined,
+  // enableJsonResponse: true), so accepting text/event-stream on the client's
+  // behalf promises nothing we do not deliver: the response is always JSON.
+  //
+  // KNOWN, ACCEPTED behavior change, stated rather than discovered later: this
+  // normalization is unconditional, so a NON-MCP POST that used to be rejected with
+  // a 406 now reaches the transport and comes back as a JSON-RPC error instead
+  // (e.g. POST {} with Accept: */* was 406 Not Acceptable, and is now -32600 Invalid
+  // Request). That is accepted, not overlooked: 406 answers a question nobody asked
+  // about a body that is malformed for a different reason, and -32600 names the
+  // actual defect. Narrowing the normalization to bodies carrying a "jsonrpc" field
+  // was considered and refused - a client that omits jsonrpc is exactly a client
+  // that needs the accurate error, and gating on it would hand that caller the
+  // misleading 406 back.
+  //
+  // MEASURED 2026-08-19, and this is the half that was missing for a full pass:
+  // mutating req.headers ALONE is INERT. The SDK's node StreamableHTTPServerTransport
+  // (node_modules/@modelcontextprotocol/sdk/dist/esm/server/streamableHttp.js:9)
+  // converts the Node request through @hono/node-server's getRequestListener, and
+  // newHeadersFromIncoming (dist/listener.mjs:34-42) rebuilds the Headers object
+  // from incoming.rawHeaders - never from the .headers accessor - so the rewritten
+  // Accept never reached the transport and a client sending only
+  // "Accept: application/json" still got HTTP 406. rawHeaders is the wire order and
+  // is BOTH in-place-writable and settable on Node v26.5.0 (measured, not assumed:
+  // .claude/openai-rejection-2026-08-19/probe-rawheaders.mjs). Both surfaces are
+  // normalized here, and the rebuild collapses DUPLICATE Accept pairs to one -
+  // leaving a stale second pair behind would have hono append it back as
+  // "application/json, text/event-stream, application/json" and reintroduce nothing
+  // useful while making the header unreadable.
+  var CANONICAL_ACCEPT = "application/json, text/event-stream";
+  var acceptHeader = req.headers["accept"];
+  if (typeof acceptHeader !== "string" ||
+      acceptHeader.indexOf("application/json") === -1 ||
+      acceptHeader.indexOf("text/event-stream") === -1) {
+    req.headers["accept"] = CANONICAL_ACCEPT;
+    var raw = req.rawHeaders;
+    if (Array.isArray(raw)) {
+      var rebuilt = [];
+      var wrote = false;
+      for (var i = 0; i < raw.length; i += 2) {
+        if (String(raw[i]).toLowerCase() === "accept") {
+          if (wrote) continue;
+          rebuilt.push(raw[i], CANONICAL_ACCEPT);
+          wrote = true;
+          continue;
+        }
+        rebuilt.push(raw[i], raw[i + 1]);
+      }
+      if (!wrote) rebuilt.push("accept", CANONICAL_ACCEPT);
+      req.rawHeaders = rebuilt;
+    }
+  }
+
   // Fresh server + transport per request (one server <-> one transport).
   const server = buildServer({ remote: true });
   const transport = new StreamableHTTPServerTransport({

@@ -61,6 +61,9 @@ export function compactAuditUrl(result: any): any {
   if ("findings" in result) out.findings = result.findings;
   if ("counts" in result) out.counts = result.counts;
   if ("summary" in result) out.summary = result.summary;
+  // Coverage is the difference between a clean audit and one that only saw part of
+  // the grid; dropping it in compact mode reinstates the claim it exists to correct.
+  if ("coverage" in result) out.coverage = result.coverage;
   if ("warnings" in result) out.warnings = result.warnings;
   if ("capture_warnings" in result) out.capture_warnings = result.capture_warnings;
   if (Array.isArray(result.captures)) {

@@ -298,8 +298,15 @@ function flattenTokens(obj: any, prefix: string): Array<{ path: string; value: a
   return results;
 }
 
-function filterTokensByGroup(tokens: any, group: string) {
+// Returns null when the group name matches no token group. That case must FAIL
+// rather than yield an empty-but-successful token set: the $-prefixed metadata
+// keys always pass through, so an unmatched group otherwise returns an object
+// holding only $name/$description -- a wrong result reported as correct. The
+// rule lives HERE, in the one function both call sites share, rather than being
+// copied into each of them; the caller renders its own message.
+function filterTokensByGroup(tokens: any, group: string): Record<string, any> | null {
   var filtered: Record<string, any> = {};
+  var matched = 0;
   for (var key of Object.keys(tokens)) {
     if (key.startsWith("$")) {
       filtered[key] = tokens[key];
@@ -309,9 +316,14 @@ function filterTokensByGroup(tokens: any, group: string) {
     var lg = group.toLowerCase();
     if (lk === lg || lk.startsWith(lg + "-") || lk.startsWith(lg + "_")) {
       filtered[key] = tokens[key];
+      matched++;
     }
   }
-  return filtered;
+  return matched === 0 ? null : filtered;
+}
+
+function tokenGroupsAvailable(tokens: any): string[] {
+  return Object.keys(tokens).filter(k => !k.startsWith("$"));
 }
 
 function tokensToCSS(tokens: any, prefix: string): string {
@@ -581,6 +593,10 @@ function generateTokenSet(opts: GenerateOptions): any {
   if (opts.base_system) {
     var base = loadSystem(opts.base_system);
     if (!base) {
+      // Defensive only, and deliberately NOT the guard: the generate_design_system
+      // tool seam resolves base_system through this same loadSystem() and refuses
+      // an unknown id before reaching here, so no client input turns this branch
+      // on. It stays for any future in-process caller; no test pretends to kill it.
       tokens = {};
     } else {
       tokens = JSON.parse(JSON.stringify(base)); // deep clone
@@ -2005,6 +2021,44 @@ const REMOTE_URL_GUARDED_TOOLS: { [tool: string]: string } = {
   audit_taste: "url"
 };
 
+// Which tools accept a caller-supplied interaction list that DRIVES a real browser
+// against a third-party page. A CLICK can submit a form, place an order, or delete a
+// record on a host the caller does not own, which is a blast radius worth refusing on
+// an endpoint anyone can call anonymously — so this guard stays, and it refuses only
+// the click, since hover and focus are what the hover white-wash detection the tool
+// exists for is built on.
+//
+// What this guard is NOT is an annotation fix, and reading it as one was the defect.
+// The first version of this comment said every tool here is published readOnlyHint:true
+// and idempotentHint:true and that refusing the click "makes the annotation true BY
+// CONSTRUCTION". It does not: Playwright hover and focus dispatch real events, so the
+// page runs its own mouseenter/focus handlers (src/capture.ts:499) and those can mutate
+// state on the remote host too. The annotation is fixed where an annotation belongs —
+// toolFiresCallerInteractions() publishes audit_url as neither read-only nor idempotent
+// — and this guard is a separate, narrower safety decision. Both come out of OpenAI's
+// 2026-08-19 rejection (see conversations/2026-08-19-openai-rejection.md); only the
+// second one answers its "annotations do not appear to match the tool's behavior" half.
+// Local stdio is UNCHANGED: a local caller drives their own pages deliberately.
+const REMOTE_NO_CLICK_TOOLS: { [tool: string]: string } = {
+  audit_url: "interactions"
+};
+
+// An EMPTY or BLANK input is never a clean bill of health. A schema can only
+// say a field is present; it cannot say there is anything IN it, and every
+// tool below computes its grade from a denominator that is zero when the
+// input is empty — which is what manufactured 100/A on an empty snapshot,
+// 77/C on empty markup and 70/C on empty creative. Refusing is the only
+// answer that is not an affirmative false claim about work nobody did. This
+// is the "test cases did not produce correct results" half of OpenAI's
+// 2026-08-19 rejection (see conversations/2026-08-19-openai-rejection.md).
+// Whitespace counts as empty: {source:"   \n  "} was MEASURED at 100/A.
+function refuseEmptyInput(error: string, extra?: { [k: string]: any }) {
+  return { isError: true, content: [{ type: "text" as const, text: JSON.stringify({ error: error, ...(extra || {}) }, null, 2) }] };
+}
+function isBlankString(v: any) {
+  return typeof v !== "string" || v.trim().length === 0;
+}
+
 // MCP annotations are injected at the shared registration boundary below.
 // Classifications come from each handler and its called helpers, not name prefixes.
 const TOOL_ACCESS: Record<string, "readOnly" | "destructive"> = {
@@ -2142,12 +2196,23 @@ function toolTitle(toolName: string): string {
 }
 
 // openWorldHint defaults to TRUE in the MCP spec, so the interesting statement is
-// the explicit `false` on the other 99 tools: they read bundled knowledge, local
+// the explicit `false` on every other tool: they read bundled knowledge, local
 // ~/.raven state, or caller-pasted markup and never reach an unpredictable host.
 // These 12 take a caller-supplied URL/endpoint and drive a real browser or fetch
 // against it. `audit` is a dispatcher that fans out to this same set.
 // init_design_md is deliberately absent — its fetch targets one fixed starter
 // base URL, a closed set, not an open world.
+//
+// THIS LIST IS THE STDIO TRUTH AND IT IS FALSE ON THE HOSTED ENDPOINT for three of
+// its members. audit_page, score_page and audit_typography reach the open web only
+// through a `url` argument, and REMOTE_ARG_GUARDS rejects that argument pre-handler
+// when remote is true — so on mcp.ravenmcp.ai they cannot leave the machine at all.
+// Publishing `openWorldHint: true` there is an annotation that does not match the
+// behaviour, which is exactly what OpenAI's plugin review rejected Raven for on
+// 2026-08-19 (see conversations/2026-08-19-openai-rejection.md). The remote answer is
+// DERIVED from REMOTE_ARG_GUARDS rather than written out as a second list, because two
+// copies of one rule drift and this file already documents that failure four times over:
+// lift a guard and the annotation follows it in the same edit.
 const TOOL_OPEN_WORLD: string[] = [
   "audit_url",
   "audit_contrast",
@@ -2163,26 +2228,149 @@ const TOOL_OPEN_WORLD: string[] = [
   "design_gauntlet"
 ];
 
-// All three hints are stated explicitly rather than left to their spec defaults.
-// The MCP spec says destructiveHint only applies when readOnlyHint is false, so
-// omitting the inapplicable one is legal — but a consumer that reads the
-// annotations as a flat capability record (OpenAI's plugin scanner is one:
-// "Every MCP tool must set readOnlyHint, openWorldHint, destructiveHint to true
-// or false") sees an omission as unanswered rather than as the default. Both
-// added values are the honest ones: a readOnly tool destroys nothing, and a
-// destructive tool is not read-only.
-function toolAnnotations(toolName: string): {
+// True when the hosted endpoint blocks this tool's only route to the open web.
+// Reads the guard table itself, so it cannot disagree with what the wrapper enforces.
+function remoteBlocksNetwork(toolName: string): boolean {
+  var guard = REMOTE_ARG_GUARDS[toolName];
+  return !!guard && guard.params.indexOf("url") !== -1;
+}
+
+// Which of the 36 destructive tools are IDEMPOTENT — calling twice with identical
+// arguments leaves the same end state as calling once. The map is explicit and its
+// DEFAULT IS FALSE: under-claiming idempotency costs a client one retry it chose not
+// to make, while over-claiming is precisely the annotation-does-not-match-behaviour
+// finding this file now exists to prevent. A tool minting a fresh id, appending to a
+// log, draining a queue, or applying a RELATIVE change is not idempotent; one that
+// writes a value the caller supplied, or removes something by name, is.
+// None of these 36 is on the anonymous 45 — every one is in REMOTE_GATED_TOOLS — so
+// this table describes the stdio surface only.
+const TOOL_IDEMPOTENT: { [tool: string]: boolean } = {
+  configure_design_system_source: true,   // writes the config the caller passed
+  init_design_md: true,
+  update_design_md: true,
+  stop_grab_session: true,                // stopping a stopped session is stopped
+  set_template_slot: true,                // sets slots TO the given values
+  create_brand_profile: false,            // writeCreativeRecord rewrites updated_at on EVERY call, so a repeat differs
+  raven_register: false,                  // each call POSTs REGISTER_API - a repeat sends a SECOND welcome email
+  decision_commit: true,                  // updateNode to one fixed committed state
+  decision_get: false,                    // a read, but recordConsultation APPENDS a consultations.jsonl line per call
+  decision_list: false,                   // ditto - appends its own consultation trace on every call
+  bind_taste_surface: false,              // persists a FRESH bound_at timestamp on every bind (src/taste.ts)
+  delete_taste_data: true,                // deleting twice is deleted
+  forget_references: true,                // ditto
+  start_grab_session: false,              // mints a session
+  get_grabbed_elements: false,            // DRAINS the queue — second call differs
+  move_grab_layer: false,                 // relative move
+  get_grab_operation: false,              // mark/batch mutate as they read
+  register_creative_asset: false,
+  create_character_profile: false,
+  create_generation_job: false,
+  plan_creative_campaign: false,          // creates jobs per call
+  decision_add: false,
+  decision_evidence: false,
+  decision_draft: false,
+  decision_supersede: false,              // addEdge mints an id from Date.now + random
+  decision_contest: false,
+  decision_scope: false,                  // ditto
+  decision_import: false,
+  ingest_transcript: false,
+  ingest_transcript_results: false,
+  create_taste_profile: false,
+  record_taste_decision: false,           // appends a decision
+  generate_taste_portrait: false,
+  generate_mood_board: false,
+  label_finding: false,                   // appends a label
+  capture_reference: false                // each capture mints a fresh ref_id
+};
+
+// A tool that fires CALLER-SUPPLIED interactions at a live third-party URL is not
+// read-only and is not idempotent, whatever the rest of its behaviour looks like.
+// Playwright's hover and focus dispatch real events, so a page's own mouseenter /
+// focus handlers run — and those handlers can submit a same-origin request, call
+// .click() themselves, or otherwise mutate state on a host the caller does not own
+// (src/capture.ts:499 is where they execute). Refusing the literal `click` event on
+// the hosted endpoint narrows the blast radius; it does not make the remaining two
+// events side-effect-free, so publishing readOnlyHint:true was an annotation that
+// did not match behaviour - the exact half of OpenAI's 2026-08-19 rejection this
+// remediation is for. The hints are the honest ones now: NOT read-only, NOT
+// idempotent (firing an interaction twice need not land the same state), and NOT
+// destructive, because nothing here is destructive BY DESIGN - the side effect
+// belongs to the third-party page, not to the tool.
+//
+// The boundary is deliberately the caller-supplied INTERACTION LIST and not "renders
+// a URL". audit_contrast, audit_tap_targets, audit_responsive_visibility and
+// audit_video_playback navigate and read; a plain navigation is what a browser does
+// when anyone visits a page, and treating that as a write would make every fetching
+// tool non-read-only. Synthesising user events at a selector the caller chose is a
+// different act.
+//
+// It is per SURFACE for the same reason toolAnnotations takes `remote` at all:
+// audit_page accepts an interaction list too, but its interactions run only inside
+// the `url` branch (src/index.ts:4136) and the hosted build REJECTS `url` outright,
+// so remotely it cannot reach a browser at all while locally it can click.
+function toolFiresCallerInteractions(toolName: string, remote: boolean): boolean {
+  if (toolName === "audit_url") return true;
+  if (toolName === "audit_page") return !remote;
+  return false;
+}
+
+// All FOUR hints are stated explicitly rather than left to their spec defaults.
+// The MCP spec says destructiveHint and idempotentHint apply only when readOnlyHint
+// is false, so omitting the inapplicable ones is legal — but a consumer that reads
+// the annotations as a flat capability record (OpenAI's plugin scanner is one, and it
+// asks for every hint "explicitly set to true or false, not null") sees an omission as
+// unanswered rather than as the default. Every value is the honest one: a readOnly tool
+// destroys nothing and repeating it changes nothing, a destructive tool is not
+// read-only, and its idempotency comes from TOOL_IDEMPOTENT above.
+//
+// `remote` is load-bearing, not decoration: annotations are published per SURFACE and
+// the hosted endpoint is a strictly smaller machine than stdio. Pass the same flag the
+// registration wrapper gates on, or the endpoint advertises capabilities it refuses.
+function toolAnnotations(toolName: string, remote: boolean): {
   title: string;
   readOnlyHint: boolean;
   destructiveHint: boolean;
+  idempotentHint: boolean;
   openWorldHint: boolean;
 } {
   var access = TOOL_ACCESS[toolName];
   if (!access) throw new Error("Missing MCP tool classification: " + toolName);
-  var openWorld = TOOL_OPEN_WORLD.indexOf(toolName) !== -1;
+  var openWorld = TOOL_OPEN_WORLD.indexOf(toolName) !== -1
+    && !(remote && remoteBlocksNetwork(toolName));
   return access === "destructive"
-    ? { title: toolTitle(toolName), readOnlyHint: false, destructiveHint: true, openWorldHint: openWorld }
-    : { title: toolTitle(toolName), readOnlyHint: true, destructiveHint: false, openWorldHint: openWorld };
+    ? {
+        title: toolTitle(toolName),
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: TOOL_IDEMPOTENT[toolName] === true,
+        openWorldHint: openWorld
+      }
+    : toolFiresCallerInteractions(toolName, remote)
+    ? {
+        // destructiveHint is TRUE here, and the reason is the same one that makes
+        // readOnlyHint false (Sol round 5, P1-2 -- the first version published
+        // `false` on the grounds that "the side effect belongs to the page, not
+        // the tool", which is the exact argument already REFUSED one line up for
+        // readOnlyHint). A hover or focus dispatched at a caller-named selector
+        // runs the third-party page's own handler, and nothing here can know what
+        // that handler does -- a focus handler that deletes a record is a
+        // destructive update this tool caused. `false` is a positive claim that
+        // updates are only additive, which cannot be made about arbitrary
+        // third-party code; `true` is the spec's own default and the honest
+        // reading of "MAY perform destructive updates".
+        title: toolTitle(toolName),
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+        openWorldHint: openWorld
+      }
+    : {
+        title: toolTitle(toolName),
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: openWorld
+      };
 }
 
 // buildServer() returns a FRESH McpServer with all 111 local tools + the usage-log/
@@ -2250,6 +2438,13 @@ var originalTool: any = server.tool.bind(server);
   if (remote && hasUserStore && toolName === "get_taste_interview" && typeof args[1] === "string") {
     args[1] += AUTHED_USER_TASTE_INTERVIEW_DESCRIPTION_SUFFIX;
   }
+  // The remote description is DERIVED from REMOTE_NO_CLICK_TOOLS, never written out
+  // a second time: an annotation that says read-only while the description still
+  // advertises clicking is the drift this whole rejection was about. Lift the guard
+  // and this sentence goes with it in the same edit.
+  if (remote && REMOTE_NO_CLICK_TOOLS[toolName] && typeof args[1] === "string") {
+    args[1] += " On the hosted endpoint click interactions are refused; hover and focus still run and can fire handlers on the page, so this tool is published as neither read-only nor idempotent.";
+  }
   var handler = args[args.length - 1];
   if (typeof handler === "function") {
     args[args.length - 1] = async function () {
@@ -2266,6 +2461,24 @@ var originalTool: any = server.tool.bind(server);
             var gv = input[guard.params[gi]];
             if (gv !== undefined && gv !== null) {
               return { content: [{ type: "text" as const, text: guard.message }], isError: true };
+            }
+          }
+        }
+        // Click guard — see REMOTE_NO_CLICK_TOOLS. Runs at this one wrapper so it
+        // cannot be bypassed by a future second registration path, and so the
+        // annotation and the enforcement can never drift apart.
+        var clickParam = REMOTE_NO_CLICK_TOOLS[toolName];
+        if (clickParam && input && Array.isArray(input[clickParam])) {
+          var list = input[clickParam];
+          for (var ci = 0; ci < list.length; ci++) {
+            if (list[ci] && list[ci].event === "click") {
+              return {
+                content: [{
+                  type: "text" as const,
+                  text: "Click interactions are disabled on the hosted (remote) endpoint: a click can submit a form, place an order, or delete a record on a page you do not own. Hover and focus still run. Use event 'hover' or 'focus', or run the local server (npx raven-mcp) to drive clicks on pages you control."
+                }],
+                isError: true
+              };
             }
           }
         }
@@ -2307,7 +2520,7 @@ var originalTool: any = server.tool.bind(server);
       return result;
     };
   }
-  args.splice(args.length - 1, 0, toolAnnotations(toolName));
+  args.splice(args.length - 1, 0, toolAnnotations(toolName, remote));
   return originalTool.apply(null, args);
 };
 
@@ -2318,7 +2531,7 @@ server.tool(
   "Get design principles relevant to a UI context. Returns usability heuristics, laws of UX, Gestalt principles, accessibility requirements, typography rules, and color theory — matched to what you're designing.",
   {
     context: z.string().describe("What you're designing (e.g. 'signup form', 'pricing page', 'mobile nav', 'dark dashboard')"),
-    category: z.string().optional().describe("Filter to category: nielsen-heuristics, laws-of-ux, gestalt, accessibility, typography, color-theory, mobile-ux, d4d, color-systems, spacing-systems"),
+    category: z.string().optional().describe("Filter to category: accessibility, brand, color-systems, color-theory, component-architecture, d4d, gestalt, laws-of-ux, mobile-ux, nielsen-heuristics, research, responsive-layout, service-design, spacing-systems, typography, ux-writing"),
     platform: z.enum(["web", "ios", "react-native"]).optional().describe("Platform context. 'ios' returns Apple HIG principles (Dynamic Type, 44pt targets, SF Symbols, safe areas, dark-mode, haptics, App Review privacy); 'react-native' returns RN principles (44/48pt+hitSlop, accessibilityLabel/Role, font scaling, SafeAreaView, dark mode, iOS+Android parity, secrets). Both replace the web/CSS-oriented set. Default: web."),
     format: z.enum(["full", "checklist", "brief"]).optional().describe("Output format: full (all details), checklist (implications + violations), brief (just summary). Default: full")
   },
@@ -2354,6 +2567,25 @@ server.tool(
       };
     }
 
+    // A category naming no real category must FAIL. Every fallback below widens
+    // the search and DROPS the category filter, so an unknown value silently
+    // returned the entire principle bank -- the caller asked to narrow and got
+    // everything, reported as a success. The valid set is derived from the bank
+    // itself rather than transcribed, so it cannot drift from the data.
+    if (category) {
+      var knownCategories = Array.from(new Set(allPrinciples.map(p => p.category))).sort();
+      if (knownCategories.indexOf(category) === -1) {
+        return {
+          isError: true,
+          content: [{
+            type: "text" as const,
+            text: "Unknown principle category '" + category + "'. Available categories: " +
+              knownCategories.join(", ")
+          }]
+        };
+      }
+    }
+
     var results = allPrinciples.filter(p => {
       if (category && p.category !== category) return false;
       // Match on applies_to tags or text search across fields
@@ -2384,6 +2616,7 @@ server.tool(
         type: "text" as const,
         text: JSON.stringify({
           context,
+          category: category || null,
           count: formatted.length,
           principles: formatted
         }, null, 2)
@@ -2423,7 +2656,8 @@ server.tool(
             available_patterns: available,
             hint: "Try one of the available pattern IDs listed above."
           }, null, 2)
-        }]
+        }],
+        isError: true as const
       };
     }
 
@@ -2476,7 +2710,7 @@ server.tool(
 
     if (!strategy) {
       var available = allBusiness.map(b => b.id);
-      return {
+      return { isError: true,
         content: [{
           type: "text" as const,
           text: JSON.stringify({
@@ -2522,8 +2756,31 @@ server.tool(
     compact: z.boolean().optional().describe("Return only ids+names for matched principles/patterns (drop their full bodies) plus counts and any before/after diff. Default false. Use when the full principle library payload would blow the tool-result budget.")
   },
   async function({ description, before_screenshot, after_screenshot, goals, context, compact }) {
+    // A description that was SUPPLIED and is blank is a request to evaluate a
+    // design nobody described - the caller gets principles and patterns matched
+    // against "" and reads them as an evaluation. It is refused rather than
+    // treated as absent, because falling through would answer the same call
+    // with a generic plan and hide the mistake. A caller who genuinely has no
+    // description simply omits the field.
+    if (description !== undefined && description !== null && description.trim().length === 0) {
+      return refuseEmptyInput("description is blank \u2014 there is nothing to evaluate. Describe the design, or omit description and pass before_screenshot + after_screenshot for a pixel diff.", { tool: "evaluate_design" });
+    }
     var hasDescription = description !== undefined && description !== null;
     var hasBeforeAfterScreenshots = before_screenshot !== undefined && before_screenshot !== null && after_screenshot !== undefined && after_screenshot !== null;
+    // Neither a description nor a before+after pair is a call that can produce
+    // nothing by construction: principle/pattern matching is gated on
+    // hasDescription below, and the pixel diff on hasBeforeAfterScreenshots.
+    // Falling through returned a scaffold with zero principles, zero patterns
+    // and evaluation_guidance instructing the caller to "review the design
+    // against each principle" - guidance about an empty set, which reads as an
+    // evaluation that happened. Refused instead. This can never fire on a
+    // legitimate call, because every call that CAN produce output satisfies one
+    // of the two conditions. Note goals/context do NOT rescue it: they only
+    // widen the search text INSIDE the hasDescription branch, so a call with
+    // real goals and no description matches zero principles too (measured).
+    if (!hasDescription && !hasBeforeAfterScreenshots) {
+      return refuseEmptyInput("nothing to evaluate \u2014 no description and no before/after screenshot pair. Pass a description of the design, or pass before_screenshot + after_screenshot for a pixel diff. goals and context refine a description; they are not an evaluation on their own.", { tool: "evaluate_design" });
+    }
     var designDescription = description;
     var relevant: Principle[] = [];
     var relevantPatterns: Pattern[] = [];
@@ -2756,9 +3013,22 @@ server.tool(
       ]);
     }
 
+    // `type` is freeform ("signup form", "pricing page"), so a value matching no
+    // pattern is NOT an error -- the accessibility and platform checklists below
+    // are real, applicable output. What WOULD be wrong is returning an empty
+    // pattern_checklists with no statement that the type matched nothing, which
+    // reads as "this UI type has no pattern guidance" rather than "your term did
+    // not match". State it, and name what can be matched.
+    var patternMatched = checklists.length > 0;
     var result = {
       type,
       platform: platform || "responsive",
+      pattern_match: patternMatched ? "matched" : "none",
+      pattern_match_note: patternMatched
+        ? undefined
+        : "No UI pattern matched '" + type + "', so pattern_checklists is empty and only the " +
+          "universal accessibility and platform checks are returned. Pattern types available: " +
+          allPatterns.map(p => p.id).join(", "),
       pattern_checklists: checklists,
       accessibility_checklist: accessibilityChecklist,
       platform_checklist: platformChecklist.length > 0 ? platformChecklist : undefined,
@@ -2788,7 +3058,7 @@ server.tool(
     var d4dPrinciple = allPrinciples.find(p => p.id === "d4d-framework");
 
     if (!d4dPrinciple || !d4dPrinciple.templates) {
-      return {
+      return { isError: true,
         content: [{
           type: "text" as const,
           text: JSON.stringify({ error: "D4D framework data not found." }, null, 2)
@@ -2854,9 +3124,9 @@ server.tool(
 
 server.tool(
   "list_design_systems",
-  "Browse available design systems for tokens. Filter by category (fintech, productivity, developer, component-library, design-system) or search by name.",
+  "Browse available design systems for tokens. Filter by category (component-library, consumer, developer, fintech, framework, platform, productivity) or search by name.",
   {
-    category: z.string().optional().describe("Filter by category: fintech, productivity, developer, component-library, design-system"),
+    category: z.string().optional().describe("Filter by category: component-library, consumer, developer, fintech, framework, platform, productivity. Saved user systems list under 'user'."),
     search: z.string().optional().describe("Search by name or description")
   },
   async ({ category, search }) => {
@@ -2907,7 +3177,12 @@ server.tool(
       });
     var systems = registry.systems.concat(userEntries);
 
+    // The category set is derived from the entries themselves rather than
+    // transcribed from the description, so it cannot drift from the data.
+    var knownCategories = Array.from(new Set(systems.map((s: any) => s.category).filter(Boolean))).sort();
+    var categoryMatched = true;
     if (category) {
+      categoryMatched = knownCategories.indexOf(category) !== -1;
       systems = systems.filter((s: any) => s.category === category);
     }
     if (search) {
@@ -2936,8 +3211,17 @@ server.tool(
     // Naming the dir and the error is deliberate: this output is local-only
     // by construction (remote lists no user systems), and the path IS the fix
     // instruction — same stance as the per-entry unreadable description above.
+    // A category naming no real category returns an honest count: 0 and says
+    // NOTHING about why -- "no systems in this category" and "that category
+    // does not exist" read identically to a caller. State which it was, and
+    // name what can be asked for. A note rather than an isError, because a
+    // browse returning zero rows is a legitimate empty result; what would be
+    // wrong is leaving the caller unable to tell the two cases apart.
     var dirProblem = userSystemsDirProblem();
     var payload: any = { count: systems.length, systems };
+    if (category && !categoryMatched) {
+      payload.category_note = "No category named '" + category + "' exists, so nothing could match. Categories available: " + knownCategories.join(", ");
+    }
     if (dirProblem) {
       payload.user_systems_note = "Saved user design systems could not be listed (" + dirProblem + ") — fix " + userSystemsDir() + " to see them again.";
     }
@@ -2964,7 +3248,7 @@ server.tool(
   async ({ id, group, format }) => {
     var tokens = loadSystem(id);
     if (!tokens) {
-      return {
+      return { isError: true,
         content: [{
           type: "text" as const,
           text: "Design system '" + id + "' not found. Use list_design_systems to see available systems."
@@ -2974,7 +3258,18 @@ server.tool(
 
     var output = tokens;
     if (group) {
-      output = filterTokensByGroup(tokens, group);
+      var grouped = filterTokensByGroup(tokens, group);
+      if (!grouped) {
+        return {
+          isError: true,
+          content: [{
+            type: "text" as const,
+            text: "Token group '" + group + "' not found in system '" + id +
+              "'. Groups available: " + tokenGroupsAvailable(tokens).join(", ")
+          }]
+        };
+      }
+      output = grouped;
     }
 
     var fmt = format || "dtcg";
@@ -3829,6 +4124,9 @@ server.tool(
     format: z.enum(["dtcg", "css"]).optional().describe("Output format. Default: dtcg")
   },
   async ({ compositions, format }) => {
+    if (!Array.isArray(compositions) || compositions.length === 0) {
+      return refuseEmptyInput("Nothing to compose. Provide at least one {system, group} entry in 'compositions' — an empty composition yields a token set with no tokens in it.", { tool: "compose_system" });
+    }
     var composed: Record<string, any> = {
       "$name": "Custom Composition",
       "$description": "Composed from: " + compositions.map(c => c.system + "/" + c.group).join(", ")
@@ -3838,6 +4136,7 @@ server.tool(
       var tokens = loadSystem(comp.system);
       if (!tokens) {
         return {
+          isError: true,
           content: [{
             type: "text" as const,
             text: "System '" + comp.system + "' not found. Available: " + getAvailableSystemIds().join(", ")
@@ -3845,10 +4144,20 @@ server.tool(
         };
       }
       var filtered = filterTokensByGroup(tokens, comp.group);
+      if (!filtered) {
+        return {
+          isError: true,
+          content: [{
+            type: "text" as const,
+            text: "Token group '" + comp.group + "' not found in system '" + comp.system +
+              "'. Groups available in '" + comp.system + "': " +
+              tokenGroupsAvailable(tokens).join(", ")
+          }]
+        };
+      }
       for (var key of Object.keys(filtered)) {
-        if (!key.startsWith("$")) {
-          composed[key] = filtered[key];
-        }
+        if (key.startsWith("$")) continue;
+        composed[key] = filtered[key];
       }
     }
 
@@ -3874,10 +4183,10 @@ server.tool(
 
 server.tool(
   "audit_page",
-  "Audit HTML/CSS against Raven's design quality standards. Checks typography (min 13px, weight 400+, modular-scale heading ratios, line-height consistency), accessibility (WCAG touch targets, alt text, contrast), responsive patterns (flexbox over grid, clamp sizing, max-width containers), style guide compliance (CSS custom properties, no bare hex), and visual rhythm (4/8px spacing grid, tight spacing scale, palette size). Pass containerMaxWidth (your design system's canonical container token, in px) to make the max-width check token-aware — it then flags containers that diverge from your system (too narrow OR too wide) instead of a generic 1200px heuristic. Returns pass/fail per check with specific fix instructions.",
+  "Audit HTML/CSS against Raven's design quality standards. Checks typography (min 13px, weight 400+, modular-scale heading ratios, line-height consistency), accessibility (WCAG touch targets, alt text, contrast), responsive patterns (flexbox over grid, clamp sizing, max-width containers), style guide compliance (CSS custom properties, no bare hex), and visual rhythm (4/8px spacing grid, tight spacing scale, palette size). Pass containerMaxWidth (your design system's canonical container token, in px) to make the max-width check token-aware — it then flags containers that diverge from your system (too narrow OR too wide) instead of a generic 1200px heuristic. Returns pass/fail per check with specific fix instructions." + ((remote || isRemoteRuntime()) ? " NOTE: the url argument is REJECTED on this hosted (remote) endpoint - pass html instead." : ""),
   {
     html: z.string().optional().describe("The full HTML content of the page to audit"),
-    url: z.string().optional().describe("If set, Raven launches headless chromium, renders the page, and audits the RENDERED DOM."),
+    url: z.string().optional().describe((remote || isRemoteRuntime()) ? "REJECTED on this hosted (remote) endpoint; pass html instead. (Local/stdio: Raven launches headless chromium, renders the page, and audits the RENDERED DOM.)" : "If set, Raven launches headless chromium, renders the page, and audits the RENDERED DOM."),
     scroll_settle: z.boolean().optional().describe("Before capturing, step through the page with short pauses so IntersectionObserver/whileInView reveals fire, then return to the top and settle. Also plays preload=none videos. Prevents blank-section false positives."),
     interactions: z.array(z.object({
       selector: z.string(),
@@ -3891,6 +4200,12 @@ server.tool(
     compact: z.boolean().optional().describe("Return only the decision-grade signal — score, grade, summary, errors, warnings, fix_priority — and drop the embedded base64 screenshot and the passes list (replaced by passes_count). Default false. Use when the full payload would blow the tool-result budget.")
   },
   async function({ html, url, scroll_settle, interactions, viewport, strict, containerMaxWidth, adversarial_verify, compact }) {
+    // Blank markup is not a page. Most of the 13 checks pass VACUOUSLY on no
+    // content ("all font sizes >= 13px" over zero elements), so an empty
+    // string scored 77/C — a grade about nothing.
+    if (html !== undefined && html !== null && isBlankString(html) && !url) {
+      return refuseEmptyInput("No markup to audit. Provide non-empty 'html', or a 'url' to capture — blank markup cannot be scored, and is not a pass.", { tool: "audit_page" });
+    }
     var issues: Array<{ severity: "error" | "warning"; rule: string; message: string; fix: string }> = [];
     var passes: string[] = [];
     var capMeta: any = null;
@@ -3912,6 +4227,8 @@ server.tool(
               type: "text" as const,
               text: "Playwright chromium not available. Run: npx playwright install chromium"
             }]
+         ,
+            isError: true as const
           };
         }
         throw e;
@@ -3924,6 +4241,8 @@ server.tool(
           type: "text" as const,
           text: "Provide either html or url"
         }]
+     ,
+        isError: true as const
       };
     }
 
@@ -4097,16 +4416,17 @@ server.tool(
 
 server.tool(
   "score_page",
-  "Score an HTML/CSS page across 7 design categories (Structure, Typography, Color & palette, Spacing & rhythm, Accessibility, Responsive layout, Design tokens), each rated 0–10. Scores are derived deterministically from the same checks as audit_page — no browser required. Pass html directly, or pass url to have Raven launch headless chromium, render the page, and score the RENDERED DOM. Also returns the same overall 0–100 score and A–D grade audit_page produces, the weakest category, and the three categories Raven does not mechanically assess (brand, conversion, motion) with guidance on which tools to use for those.",
+  "Score an HTML/CSS page across 7 design categories (Structure, Typography, Color & palette, Spacing & rhythm, Accessibility, Responsive layout, Design tokens), each rated 0–10. Scores are derived deterministically from the same checks as audit_page — no browser required." + ((remote || isRemoteRuntime()) ? " Pass html directly; the url argument is REJECTED on this hosted (remote) endpoint." : " Pass html directly, or pass url to have Raven launch headless chromium, render the page, and score the RENDERED DOM.") + " Also returns the same overall 0–100 score and A–D grade audit_page produces, the weakest category, and the three categories Raven does not mechanically assess (brand, conversion, motion) with guidance on which tools to use for those.",
   {
     html: z.string().optional().describe("The full HTML content of the page to score."),
-    url: z.string().optional().describe("If set, Raven launches headless chromium, renders the page, and scores the RENDERED DOM."),
+    url: z.string().optional().describe((remote || isRemoteRuntime()) ? "REJECTED on this hosted (remote) endpoint; pass html instead. (Local/stdio: Raven launches headless chromium, renders the page, and scores the RENDERED DOM.)" : "If set, Raven launches headless chromium, renders the page, and scores the RENDERED DOM."),
     strict: z.boolean().optional().describe("Strict mode — count warnings as failures in the overall score. Default: false."),
     containerMaxWidth: z.number().optional().describe("Your design system's canonical content-container width in px (e.g. 1152). Forwarded to the responsive/max-width check.")
   },
   async function({ html, url, strict, containerMaxWidth }) {
     var captureWarnings: string[] = [];
     var scoreContrast: Awaited<ReturnType<typeof auditContrastUrl>> | undefined;
+    var contrastFailure: string | null = null;
     if (url !== undefined && url !== null) {
       try {
         var cap = await capturePage(url, {});
@@ -4115,9 +4435,29 @@ server.tool(
         try {
           scoreContrast = await auditContrastUrl(url);
         } catch (contrastError) {
-          if (!(contrastError instanceof CaptureUnavailableError)) throw contrastError;
-          // The rendered-DOM scorer can still return its existing result when a
-          // second browser launch for contrast is unavailable in constrained sandboxes.
+          // A programming error is NOT a degrade. TypeError/ReferenceError/RangeError
+          // out of the contrast path mean a bug in Raven, not an unavailable browser,
+          // and laundering one into a warning is how a real defect ships silently.
+          // Everything else (browser unavailable, capacity busy, navigation failure)
+          // degrades, per the reasoning below.
+          if (contrastError instanceof TypeError ||
+              contrastError instanceof ReferenceError ||
+              contrastError instanceof RangeError) {
+            throw contrastError;
+          }
+          // Contrast here is a supplementary enrichment: the rendered-DOM scorer
+          // already has everything it needs to answer. EVERY contrast failure
+          // degrades, not just CaptureUnavailableError. Narrowing this to one error
+          // class is what made "Hosted browser capacity busy" - which src/contrast.ts
+          // now deliberately stops laundering into CaptureUnavailableError - a hard
+          // failure of score_page (one of the anonymous 45, and reviewer positive
+          // case P4) under exactly the concurrency the reviewer's run produces.
+          // src/audit-url.ts:425 already degrades on any error; two callers of one
+          // rule disagreeing is the drift class this repo keeps paying for.
+          contrastFailure = contrastError instanceof Error ? contrastError.message : String(contrastError);
+          captureWarnings = captureWarnings.concat([
+            "contrast audit skipped: " + contrastFailure
+          ]);
         }
       } catch (e) {
         if (e instanceof CaptureUnavailableError) {
@@ -4126,6 +4466,8 @@ server.tool(
               type: "text" as const,
               text: "Playwright chromium not available. Run: npx playwright install chromium"
             }]
+         ,
+            isError: true as const
           };
         }
         throw e;
@@ -4138,6 +4480,8 @@ server.tool(
           type: "text" as const,
           text: "Provide either html or url"
         }]
+     ,
+        isError: true as const
       };
     }
     const result: any = scorePage(html, {
@@ -4145,6 +4489,34 @@ server.tool(
       containerMaxWidth,
       contrastRows: typeof scoreContrast === "undefined" ? undefined : scoreContrast.rows,
     });
+    if (result && typeof result.contrast === "object" && result.contrast !== null) {
+      // scorePage() is handed NO contrast rows when the contrast pass failed, and an
+      // empty row set is indistinguishable there from a page whose every row passed:
+      // it reports pass 0 / fail 0 / indeterminate 0 and the note "No contrast rows
+      // were indeterminate." That is a clean contrast result for a check that never
+      // ran - a false all-clear, and precisely the "did not produce correct results"
+      // shape. The scorer cannot tell the two apart (absent rows carry no reason), so
+      // the caller that KNOWS the pass failed says so, here, without changing
+      // scorePage()'s signature or what any other caller sees.
+      if (typeof scoreContrast === "undefined") {
+        // The reason differs, the falsehood does not: html mode never renders a page,
+        // so no contrast pass is attempted at all, and reporting 0/0/0 there is the
+        // same false all-clear as reporting it after a failed pass.
+        var contrastReason = contrastFailure !== null
+          ? contrastFailure
+          : "score_page assesses contrast only in url mode (it needs a rendered page with real backdrops); this call scored supplied html.";
+        result.contrast = {
+          assessed: false,
+          pass_count: null,
+          fail_count: null,
+          indeterminate_count: null,
+          note: "Contrast was NOT assessed for this page: " + contrastReason +
+            " The score above reflects the non-contrast checks only. Run audit_contrast for a contrast verdict.",
+        };
+      } else {
+        result.contrast.assessed = true;
+      }
+    }
     if (url !== undefined && url !== null) {
       result.capture_warnings = captureWarnings;
     }
@@ -4341,7 +4713,16 @@ server.tool(
   "Score an accessibility-enriched iOS element snapshot — missing accessibilityLabel/value/traits, sub-44pt tap targets, per-text WCAG contrast, Dynamic Type clipping, and VoiceOver reading order. Provide {elements:[{label,value,hint,traits,role,rect,fontPt,fgColor,bgColor,dynamicTypeClipped}],viewport}. Capture via the AccessibilitySnapshot XCUITest / ios-capture harness.",
   { elements: z.array(z.object({ label: z.string().optional(), value: z.string().optional(), hint: z.string().optional(), traits: z.array(z.string()).optional(), role: z.string().optional(), rect: z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() }), fontPt: z.number().optional(), fgColor: z.string().optional(), bgColor: z.string().optional(), dynamicTypeClipped: z.boolean().optional() })), viewport: z.object({ w: z.number(), h: z.number() }), options: z.object({ minTarget: z.number().optional() }).optional() },
   async function({ elements, viewport, options }) {
-    var r = auditIosA11y({ elements: elements || [], viewport, options });
+    // An EMPTY input is not a clean bill of health. Scoring 0 elements as
+    // 100/A "all clear" is an affirmative false claim about an app nobody
+    // audited - the reviewer's own fixture, submitted empty by accident,
+    // came back green. audit_ios_privacy already refuses this way; the three
+    // source/snapshot audits did not, and the grade formula's `total > 0 ?
+    // ... : 100` fallback is what manufactured the 100.
+    if (!Array.isArray(elements) || elements.length === 0) {
+      return refuseEmptyInput("No elements to audit. Provide a non-empty 'elements' array captured via the AccessibilitySnapshot XCUITest / ios-capture harness — an empty snapshot cannot be scored, and is not a pass.", { tool: "audit_ios_a11y" });
+    }
+    var r = auditIosA11y({ elements: elements, viewport, options });
     return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "audit_ios_a11y", ...r }, null, 2) }] };
   }
 );
@@ -4362,7 +4743,7 @@ server.tool(
       return { content: [{ type: "text" as const, text: JSON.stringify(rv, null, 2) }] };
     } catch (error) {
       if (error instanceof CaptureUnavailableError) {
-        return { content: [{ type: "text" as const, text: "audit_responsive_visibility needs headless chromium. Run: npx playwright install chromium" }] };
+        return { content: [{ type: "text" as const, text: "audit_responsive_visibility needs headless chromium. Run: npx playwright install chromium" }], isError: true as const };
       }
       throw error;
     }
@@ -4373,7 +4754,7 @@ server.tool(
 
 server.tool(
   "audit_contrast",
-  "Compute WCAG contrast ratios for every text element on a rendered page (pass url) or from a supplied dom_snapshot. Reports AA (4.5:1 normal, 3:1 large) and AAA pass/fail per element and surfaces failing pairs with selector, ratio, and delta-to-pass — replacing manual eyedropper + ratio math.",
+  "Compute WCAG contrast ratios for every text element on a rendered page (pass url) or from a supplied dom_snapshot. Reports AA (4.5:1 normal, 3:1 large) and AAA pass/fail and surfaces failing pairs with selector, ratio, and delta-to-pass — replacing manual eyedropper + ratio math. dom_snapshot mode returns a row per supplied element; url mode returns counts plus every row that needs action (aa_failures, indeterminate_bg_rows) and OMITS the per-element rows for passing elements, because a real page produces hundreds of thousands of characters of them.",
   {
     url: z.string().optional().describe("URL to render and measure (http/https or file://)"),
     dom_snapshot: z.array(z.object({
@@ -4390,19 +4771,64 @@ server.tool(
     if (url !== undefined && url !== null) {
       try {
         var ct = await auditContrastUrl(url);
-        return { content: [{ type: "text" as const, text: JSON.stringify(ct, null, 2) }] };
+        // The RESPONSE is trimmed; ContrastResult itself is unchanged. rows[] is the
+        // superset (every audited element, mostly passing) and dominates the payload —
+        // a real page produced 412,915 characters, most of it rows a caller cannot act
+        // on. aa_failures and indeterminate_bg_rows are the already-filtered subsets and
+        // are what an agent or reviewer actually needs. Pretty-printing is dropped for
+        // the same reason. Consumers were enumerated rather than assumed: audit_taste
+        // (src/index.ts:8220) and src/audit-url.ts:325 call auditContrastUrl() directly
+        // and read the OBJECT, so they still see rows[]. The `audit` dispatcher does
+        // NOT - it invokes this handler and JSON.parse()s this very string
+        // (src/index.ts:8500-8511), so findings.contrast IS the trimmed shape. That is
+        // checked, not incidental: audit-dispatch.ts reads aa_fail_count and
+        // indeterminate_bg_count (both kept) via severityCounts and contains zero
+        // `.rows` references, and the only tests pinning findings.contrast
+        // (test/audit-dispatch.test.mjs:183-184) read aa_fail_count and
+        // aa_failures[0]. An external caller of audit(url) does lose rows[] - which is
+        // the payload problem itself, since those rows were the bulk of it.
+        var ctResponse = {
+          url: ct.url,
+          total_text_elements: ct.total_text_elements,
+          aa_fail_count: ct.aa_fail_count,
+          aa_failures: ct.aa_failures,
+          indeterminate_bg_count: ct.indeterminate_bg_count,
+          indeterminate_bg_rows: ct.indeterminate_bg_rows,
+          indeterminate_bg_note: ct.indeterminate_bg_note,
+          mode_note: ct.mode_note,
+          rows_omitted_note: "Per-element rows are omitted from url-mode responses; aa_failures and indeterminate_bg_rows carry every row that needs action.",
+          warnings: ct.warnings,
+        };
+        return { content: [{ type: "text" as const, text: JSON.stringify(ctResponse) }] };
       } catch (error) {
         if (error instanceof CaptureUnavailableError) {
-          return { content: [{ type: "text" as const, text: "audit_contrast url mode needs headless chromium. Run: npx playwright install chromium — or pass a dom_snapshot instead." }] };
+          return { content: [{ type: "text" as const, text: "audit_contrast url mode needs headless chromium. Run: npx playwright install chromium — or pass a dom_snapshot instead." }], isError: true as const };
+        }
+        // Concurrency backpressure is a real failure, not a result. Reporting it as a
+        // normal text result is how it previously read as an intermittent wrong answer.
+        var contrastMessage = error instanceof Error ? error.message : String(error);
+        if (/capacity busy/i.test(contrastMessage)) {
+          return { isError: true, content: [{ type: "text" as const, text: "audit_contrast could not run: " + contrastMessage }] };
         }
         throw error;
       }
+    }
+    // An EMPTY dom_snapshot is not a page with nothing to score - it is a caller who
+    // supplied no elements. The distinction is load-bearing because the scorer answers
+    // an empty array with an affirmative all-clear: aa_fail_count 0 and the verdict
+    // "No background rows need review", which is byte-indistinguishable from a genuinely
+    // accessible page. That is precisely the manufactured pass this round exists to
+    // remove, and `dom_snapshot: []` is schema-valid, so zod cannot catch it - the
+    // `{}` and `elements: []` shapes were already refused while this one was not.
+    // In snapshot mode the CALLER owns the array, so empty means nothing was supplied.
+    if (Array.isArray(dom_snapshot) && dom_snapshot.length === 0) {
+      return refuseEmptyInput("dom_snapshot is empty - no elements to score. Pass at least one element { selector, color, bgColor, fontPx?, bold?, text? }, or pass url to render and measure a page.", { tool: "audit_contrast" });
     }
     if (dom_snapshot !== undefined && dom_snapshot !== null) {
       var ctSnap = auditContrastSnapshot(dom_snapshot);
       return { content: [{ type: "text" as const, text: JSON.stringify(ctSnap, null, 2) }] };
     }
-    return { content: [{ type: "text" as const, text: "Provide either url (render + measure) or dom_snapshot (score supplied elements). Each dom_snapshot element: { selector, color, bgColor, fontPx?, bold?, text? }." }] };
+    return { content: [{ type: "text" as const, text: "Provide either url (render + measure) or dom_snapshot (score supplied elements). Each dom_snapshot element: { selector, color, bgColor, fontPx?, bold?, text? }." }], isError: true as const };
   }
 );
 
@@ -4426,7 +4852,7 @@ server.tool(
   },
   async function({ pairs, level }) {
     if (pairs === undefined || pairs === null || pairs.length === 0) {
-      return { content: [{ type: "text" as const, text: "Provide pairs: [{ selector?, fg, bg, fontPx?, bold?, targetRatio? }]. Returns the minimal fg/bg change that clears the WCAG target for each pair. Set level to 'AA' (default) or 'AAA'." }] };
+      return { content: [{ type: "text" as const, text: "Provide pairs: [{ selector?, fg, bg, fontPx?, bold?, targetRatio? }]. Returns the minimal fg/bg change that clears the WCAG target for each pair. Set level to 'AA' (default) or 'AAA'." }], isError: true as const };
     }
     var lvl = level || "AA";
     var suggestiblePairs = filterSuggestibleContrastPairs(pairs);
@@ -4450,7 +4876,7 @@ server.tool(
 
 server.tool(
   "audit_url",
-  "Layer 0 render-and-capture audit: renders a LIVE URL at each viewport×theme, scroll-settles (fires whileInView/IntersectionObserver reveals; plays preload=none videos), fires hover/click/focus interactions, and captures real pixels + the rendered DOM. Then runs the existing audit_page rule engine, per-element WCAG contrast, responsive-visibility (desktop-shown/mobile-hidden), blank-media detection, sliced-image edge symmetry, and hover-state white-wash detection over the captures. Every finding is tagged confirmed | likely-artifact | inconclusive with its evidence, ranked by severity. This is the tool that catches real-world visual nits invisible to HTML-string/geometry audits: cropped images, blank videos, hover white-wash, sliced exports, and hidden-on-mobile content. Requires headless chromium.",
+  "Layer 0 render-and-capture audit: renders a LIVE URL at each viewport×theme, scroll-settles (fires whileInView/IntersectionObserver reveals; plays preload=none videos), optionally fires caller-supplied hover/focus/click interactions, and captures real pixels + the rendered DOM. Then runs the existing audit_page rule engine, per-element WCAG contrast, responsive-visibility (desktop-shown/mobile-hidden), blank-media detection, sliced-image edge symmetry, and hover-state white-wash detection over the captures. Every finding is tagged confirmed | likely-artifact | inconclusive with its evidence, ranked by severity. This is the tool that catches real-world visual nits invisible to HTML-string/geometry audits: cropped images, blank videos, hover white-wash, sliced exports, and hidden-on-mobile content. Requires headless chromium.",
   {
     url: z.string().describe("URL to render and audit (http/https or file://)"),
     viewports: z.array(z.object({
@@ -4482,10 +4908,27 @@ server.tool(
         timeoutMs: timeoutMs
       });
       const urlPayload = compact === true ? compactAuditUrl(result) : result;
-      return { content: [{ type: "text" as const, text: JSON.stringify(urlPayload, null, 2) }] };
+      // An audit that captured NOTHING is not a zero-finding pass. auditUrl()'s
+      // per-viewport catch (src/audit-url.ts:168-174) pushes a warning and
+      // continues, so an unreachable host walks every viewport/theme down that
+      // path and RETURNS NORMALLY with captures: [] and counts.total: 0 - a
+      // well-formed success saying nothing is wrong with a page that never
+      // loaded. That is the literal shape of "did not produce correct results"
+      // on a reviewer's negative test case.
+      // The predicate is captures.length, deliberately NOT warnings.length: this
+      // tool runs 3 viewports x 2 themes per call (src/audit-url.ts:93-99), so a
+      // partial failure with warnings is routine and MUST stay a success - the
+      // partial-result degrade at audit-url.ts:174 is the design, not the bug.
+      // A partial run is still a SUCCESS, but it no longer claims the coverage it
+      // did not get: result.coverage reports succeeded-vs-requested and the summary
+      // opens with PARTIAL COVERAGE (src/audit-url.ts).
+      const urlCaptured = Array.isArray((result as any).captures) ? (result as any).captures.length : 0;
+      return urlCaptured === 0
+        ? { content: [{ type: "text" as const, text: JSON.stringify(urlPayload, null, 2) }], isError: true as const }
+        : { content: [{ type: "text" as const, text: JSON.stringify(urlPayload, null, 2) }] };
     } catch (error) {
       if (error instanceof CaptureUnavailableError) {
-        return { content: [{ type: "text" as const, text: "audit_url needs headless chromium. Run: npx playwright install chromium" }] };
+        return { content: [{ type: "text" as const, text: "audit_url needs headless chromium. Run: npx playwright install chromium" }], isError: true as const };
       }
       throw error;
     }
@@ -4507,6 +4950,16 @@ server.tool(
     goals: z.array(z.string()).optional().describe("Optional content goals (e.g. ['clarity','conversion']); recorded for traceability.")
   },
   async function({ items, system, goals }) {
+    // MEASURED 2026-08-19: `{ items: [] }` satisfies the schema and returned
+    // summary { total: 0, pass: 0, warn: 0, fail: 0 } with the full principle
+    // library attached - an audit report over nothing, which reads as a clean
+    // pass. That is the R1 half of the OpenAI rejection ("test cases did not
+    // produce correct results") arriving through INPUT rather than metadata:
+    // a schema can say a field is present, it cannot say there is anything IN
+    // it, and `!items` is FALSE for []. Refuse rather than score.
+    if (Array.isArray(items) && items.length === 0) {
+      return refuseEmptyInput("items is empty \u2014 there is no content to audit. Pass at least one { type, text }. An empty batch is not content that passed.", { tool: "audit_content" });
+    }
     var result = auditContent(items || [], { system: system, goals: goals });
     return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "audit_content", ...result }, null, 2) }] };
   }
@@ -4516,9 +4969,9 @@ server.tool(
 
 server.tool(
   "audit_typography",
-  "Audit the typographic SCALE of a rendered page (pass url) or a pre-collected snapshot of text nodes. Emits a focused report: (a) MODULAR SCALE — detects the dominant ratio (~1.2/1.25/1.333/1.5) across distinct font sizes and flags off-scale outliers; (b) LINE-HEIGHT CONSISTENCY — unitless lh/fs ratio per node, identifies the body rhythm and flags outliers; (c) WEIGHT LADDER — distinct weights, flags >4 weights or non-standard CSS values. Returns scale, line_height, weight_ladder, nodes_analyzed, and findings[{rule,severity,selector,message,fix}]. Goes beyond audit_page's pass/fail typography checks. url mode requires headless chromium.",
+  "Audit the typographic SCALE of a rendered page (pass url) or a pre-collected snapshot of text nodes. Emits a focused report: (a) MODULAR SCALE — detects the dominant ratio (~1.2/1.25/1.333/1.5) across distinct font sizes and flags off-scale outliers; (b) LINE-HEIGHT CONSISTENCY — unitless lh/fs ratio per node, identifies the body rhythm and flags outliers; (c) WEIGHT LADDER — distinct weights, flags >4 weights or non-standard CSS values. Returns scale, line_height, weight_ladder, nodes_analyzed, and findings[{rule,severity,selector,message,fix}]. Goes beyond audit_page's pass/fail typography checks." + ((remote || isRemoteRuntime()) ? " NOTE: despite the mention of url above, url mode is DISABLED on this hosted (remote) endpoint - pass nodes instead." : " url mode requires headless chromium."),
   {
-    url: z.string().optional().describe("URL to render and measure (http/https or file://). Requires headless chromium."),
+    url: z.string().optional().describe((remote || isRemoteRuntime()) ? "REJECTED on this hosted (remote) endpoint; pass nodes instead. (Local/stdio: URL to render and measure, http/https or file://; requires headless chromium.)" : "URL to render and measure (http/https or file://). Requires headless chromium."),
     nodes: z.array(z.object({
       selector: z.string(),
       fontPx: z.number(),
@@ -4535,16 +4988,24 @@ server.tool(
         return { content: [{ type: "text" as const, text: JSON.stringify(typo, null, 2) }] };
       } catch (error) {
         if (error instanceof CaptureUnavailableError) {
-          return { content: [{ type: "text" as const, text: "audit_typography url mode needs headless chromium. Run: npx playwright install chromium — or pass a nodes snapshot instead." }] };
+          return { content: [{ type: "text" as const, text: "audit_typography url mode needs headless chromium. Run: npx playwright install chromium — or pass a nodes snapshot instead." }], isError: true as const };
         }
         throw error;
       }
     }
     if (nodes !== undefined && nodes !== null) {
+      // MEASURED 2026-08-19: `{ nodes: [] }` passed the presence check above and
+      // returned scale.sizes: [], detected_ratio: null, dominant_ratio: null,
+      // nodes_analyzed: 0 - a typographic analysis of nothing, presented in the
+      // same shape as a real one. Same defect as audit_tap_targets' empty array:
+      // presence is not content.
+      if (nodes.length === 0) {
+        return refuseEmptyInput("nodes is empty \u2014 there is no type to measure. Pass at least one { selector, fontPx, lineHeightPx?, fontWeight?, tag?, text? }, or pass url to render and measure. An empty snapshot is not a page with no typography.", { tool: "audit_typography" });
+      }
       var typoSnap = auditTypographySnapshot(nodes);
       return { content: [{ type: "text" as const, text: JSON.stringify(typoSnap, null, 2) }] };
     }
-    return { content: [{ type: "text" as const, text: "Provide either url (render + measure) or nodes (score supplied text nodes). Each node: { selector, fontPx, lineHeightPx?, fontWeight?, tag?, text? }." }] };
+    return { content: [{ type: "text" as const, text: "Provide either url (render + measure) or nodes (score supplied text nodes). Each node: { selector, fontPx, lineHeightPx?, fontWeight?, tag?, text? }." }], isError: true as const };
   }
 );
 
@@ -4573,16 +5034,24 @@ server.tool(
         return { content: [{ type: "text" as const, text: JSON.stringify(tt, null, 2) }] };
       } catch (error) {
         if (error instanceof CaptureUnavailableError) {
-          return { content: [{ type: "text" as const, text: "audit_tap_targets url mode needs headless chromium. Run: npx playwright install chromium — or pass an elements snapshot instead." }] };
+          return { content: [{ type: "text" as const, text: "audit_tap_targets url mode needs headless chromium. Run: npx playwright install chromium — or pass an elements snapshot instead." }], isError: true as const };
         }
         throw error;
       }
     }
     if (elements !== undefined && elements !== null) {
+      // An EMPTY array satisfies the presence check above and reaches the aggregator,
+      // which returns total: 0, failing: 0, warnings: [] — an affirmative computed from
+      // nothing. That is the annotation-does-not-match-behaviour half of the 2026-08-19
+      // rejection arriving through input rather than through metadata, so the refusal
+      // covers empty as well as missing.
+      if (elements.length === 0) {
+        return refuseEmptyInput("elements is empty \u2014 no tap targets to score. Pass at least one { selector, w, h, x?, y?, role?, text? }, or pass url to render and measure. An empty snapshot is not a page without tap targets, and is not a pass.", { tool: "audit_tap_targets" });
+      }
       var ttSnap = auditTapTargetsSnapshot(elements, minSize === undefined || minSize === null ? 44 : minSize);
       return { content: [{ type: "text" as const, text: JSON.stringify(ttSnap, null, 2) }] };
     }
-    return { content: [{ type: "text" as const, text: "Provide either url (render + measure) or elements (score supplied targets). Each element: { selector, w, h, x?, y?, role?, text? }." }] };
+    return { content: [{ type: "text" as const, text: "Provide either url (render + measure) or elements (score supplied targets). Each element: { selector, w, h, x?, y?, role?, text? }." }], isError: true as const };
   }
 );
 
@@ -4601,9 +5070,19 @@ server.tool(
     var fmt = format || "guide";
     var searchTerm = company.toLowerCase().trim();
 
+    // An EMPTY company is not a match, and it used to be the STRONGEST one.
+    // `"".split(/\s+/)` yields `[""]`, and `haystack.includes("")` is TRUE for
+    // every string (+2), as is `category.includes("")` (+3) - so a blank or
+    // whitespace-only company scored 5 on the FIRST registry system and strict
+    // `>` pinned it there, silently resolving to Apple HIG (measured). A
+    // genuinely unknown company correctly fell to bestScore === 0 and refused,
+    // so the behaviour was exactly inverted. ONE rule feeds BOTH match phases
+    // here rather than a check per loop, so the two can never disagree.
+    var candidates: any[] = searchTerm ? registry.systems : [];
+
     // Direct match first
     var matchedSystem: any = null;
-    for (var sys of registry.systems) {
+    for (var sys of candidates) {
       if (sys.id === searchTerm ||
           sys.name.toLowerCase() === searchTerm ||
           sys.name.toLowerCase().replace(/[^a-z0-9]/g, "") === searchTerm.replace(/[^a-z0-9]/g, "")) {
@@ -4615,7 +5094,7 @@ server.tool(
     // Fuzzy match by tags and description
     if (!matchedSystem) {
       var bestScore = 0;
-      for (var s of registry.systems) {
+      for (var s of candidates) {
         var score = 0;
         var haystack = (s.name + " " + s.description + " " + (s.tags || []).join(" ")).toLowerCase();
         var terms = searchTerm.split(/\s+/);
@@ -4636,11 +5115,13 @@ server.tool(
 
     if (!matchedSystem) {
       var available = registry.systems.map(function(s: any) { return s.name; });
-      return {
+      return { isError: true,
         content: [{
           type: "text" as const,
           text: JSON.stringify({
-            error: "No matching design system found for '" + company + "'",
+            error: searchTerm
+              ? "No matching design system found for '" + company + "'"
+              : "No company name provided. Pass 'company' as a non-empty name (e.g. 'Stripe', 'Linear', 'Spotify') - a blank or whitespace-only value cannot be matched, and is not a match.",
             suggestion: "Try one of the available systems, or describe the aesthetic you want (e.g. 'dark minimal developer tool', 'warm consumer marketplace')",
             available_systems: available,
             tip: "You can also use compose_system to mix tokens from multiple systems — e.g. Linear's colors + Stripe's typography"
@@ -4651,7 +5132,7 @@ server.tool(
 
     var tokens = loadSystem(matchedSystem.id);
     if (!tokens) {
-      return {
+      return { isError: true,
         content: [{
           type: "text" as const,
           text: "System matched (" + matchedSystem.name + ") but token file not found."
@@ -5158,6 +5639,21 @@ server.tool(
   "Generate a complete, custom design system with full token set. Provide a brand color to auto-generate a harmonious palette, pick a style preset, and export as visual HTML documentation, CSS variables, W3C DTCG JSON, Figma Variables, or SVG palette card. The HTML export is a beautiful, self-contained page suitable for sharing with stakeholders." + ((remote || isRemoteRuntime()) ? "" : " Pass save:true to store the system for reuse by id — this is how a taste-engine session's design system becomes durable."),
   generateDesignSystemSchema,
   async function(params: { name: string; base_system?: string; brand_color?: string; style?: string; dark_mode?: boolean; format?: string; save?: boolean }) {
+    if (isBlankString(params.name)) {
+      return refuseEmptyInput("No system name. Provide a non-empty 'name' — a generated system with a blank name cannot be identified, saved, or referenced.", { tool: "generate_design_system" });
+    }
+    // An UNKNOWN base_system used to be silently identical to passing no base at
+    // all: generateTokenSet() fell back to `tokens = {}` and emitted preset
+    // defaults with no notice, so a typo'd id produced a confident-looking
+    // system built on nothing the user asked for. Resolve it HERE, through the
+    // same loadSystem() the generator uses, and refuse rather than guess.
+    if (params.base_system && !loadSystem(params.base_system)) {
+      return { isError: true, content: [{ type: "text" as const, text: JSON.stringify({
+        error: "Unknown base_system '" + params.base_system + "'. No bundled or saved design system resolves to that id.",
+        suggestion: "Call list_design_systems to see the available ids, or omit base_system to generate from a style preset alone.",
+        base_system: params.base_system
+      }, null, 2) }] };
+    }
     var tokens = generateTokenSet({
       name: params.name,
       base_system: params.base_system,
@@ -5485,6 +5981,15 @@ server.tool(
   },
   async ({ source, accent_color_contents, strict, project, profile }) => {
     var src = Array.isArray(source) ? source.join("\n") : source;
+    // An EMPTY input is not a clean bill of health. Scoring 0 elements as
+    // 100/A "all clear" is an affirmative false claim about an app nobody
+    // audited - the reviewer's own fixture, submitted empty by accident,
+    // came back green. audit_ios_privacy already refuses this way; the three
+    // source/snapshot audits did not, and the grade formula's `total > 0 ?
+    // ... : 100` fallback is what manufactured the 100.
+    if (typeof src !== "string" || src.trim() === "") {
+      return refuseEmptyInput("No SwiftUI source to audit. Provide 'source' as a non-empty file string or array of file contents — empty source cannot be scored, and is not a pass.", { platform: "ios" });
+    }
     var isStrict = strict || false;
     var issues: Array<{ severity: "error" | "warning"; rule: string; message: string; fix: string }> = [];
     var passes: string[] = [];
@@ -5646,6 +6151,12 @@ async function auditScreenSnapshot(elements: any, viewport: any, screenshot: any
   var unit = isAndroid ? "dp" : "pt";
   var minTarget = isAndroid ? 48 : 44;
 
+  if (Array.isArray(elements) && elements.length === 0) {
+    return refuseEmptyInput(
+      "No elements to audit. Provide a non-empty 'elements' array from " + (isAndroid ? "UI Automator / Espresso or a Compose semantics tree" : "the Accessibility Inspector, an XCUITest accessibility-tree dump, or your own view-hierarchy walker") + " — an empty snapshot cannot be scored, and is not a pass.",
+      { platform: P }
+    );
+  }
   if (!elements || !viewport) {
     return {
       content: [{
@@ -5898,8 +6409,15 @@ server.tool(
     var policy = privacy_md || "";
     var ent = entitlements || "";
 
-    if (!info_plist && !app_json) {
-      return { content: [{ type: "text" as const, text: JSON.stringify({ error: "Provide either info_plist (native) or app_json (Expo).", platform: "ios" }, null, 2) }] };
+    // The string-side twin of the empty-array defect, and the worst instance
+    // measured in the 2026-08-19 sweep: `{ info_plist: "   \n  " }` is TRUTHY,
+    // so a whitespace-only plist walked past a `!info_plist` guard, found no
+    // secret-shaped keys in a document with no keys, and came back
+    // score: 100, grade: "A", "1/1 privacy checks passed - all clear".
+    // A blank document is not an app with nothing to declare. `!v` is the wrong
+    // question for a string; emptiness is v.trim().length === 0.
+    if (isBlankString(info_plist) && isBlankString(app_json)) {
+      return { isError: true, content: [{ type: "text" as const, text: JSON.stringify({ error: "Provide either info_plist (native) or app_json (Expo). A blank or whitespace-only document is not an audit subject and is not a pass.", platform: "ios" }, null, 2) }] };
     }
 
     // Build one plist-XML blob the existing checks run against. For Expo, we
@@ -5921,7 +6439,7 @@ server.tool(
         // where Expo secrets and Google API keys hide.
         if (expo) plistXml += objToPlistXml(expo);
       } catch (_e) {
-        return { content: [{ type: "text" as const, text: JSON.stringify({ error: "app_json is not valid JSON.", platform: "ios" }, null, 2) }] };
+        return { isError: true, content: [{ type: "text" as const, text: JSON.stringify({ error: "app_json is not valid JSON.", platform: "ios" }, null, 2) }] };
       }
     }
     var info_plist_text = plistXml; // alias used by the regex-based checks below
@@ -6141,6 +6659,15 @@ server.tool(
   },
   async ({ source, color_scheme, strict, project, profile }) => {
     var src = Array.isArray(source) ? source.join("\n") : source;
+    // An EMPTY input is not a clean bill of health. Scoring 0 elements as
+    // 100/A "all clear" is an affirmative false claim about an app nobody
+    // audited - the reviewer's own fixture, submitted empty by accident,
+    // came back green. audit_ios_privacy already refuses this way; the three
+    // source/snapshot audits did not, and the grade formula's `total > 0 ?
+    // ... : 100` fallback is what manufactured the 100.
+    if (typeof src !== "string" || src.trim() === "") {
+      return refuseEmptyInput("No React Native source to audit. Provide 'source' as a non-empty file string or array of file contents — empty source cannot be scored, and is not a pass.", { platform: "react-native" });
+    }
     var isStrict = strict || false;
     var issues: Array<{ severity: "error" | "warning"; rule: string; message: string; fix: string }> = [];
     var passes: string[] = [];
@@ -6245,7 +6772,7 @@ server.tool(
   "list_content_systems",
   "Browse available content design systems — brand voice and tone guides (Conversational Product Voice, GOV.UK, Shopify Polaris, Atlassian). Filter by category or search by name.",
   {
-    category: z.string().optional().describe("Filter by category: marketing-saas, government, commerce-saas, productivity-saas, fintech"),
+    category: z.string().optional().describe("Filter by category: commerce-saas, government, marketing-saas, productivity-saas"),
     search: z.string().optional().describe("Search by name, description, or tag")
   },
   async ({ category, search }) => {
@@ -6253,7 +6780,12 @@ server.tool(
     var systems = registry.systems;
     var available = getAvailableContentSystemIds();
 
+    // The category set is derived from the entries themselves rather than
+    // transcribed from the description, so it cannot drift from the data.
+    var knownCategories = Array.from(new Set(systems.map((s: any) => s.category).filter(Boolean))).sort();
+    var categoryMatched = true;
     if (category) {
+      categoryMatched = knownCategories.indexOf(category) !== -1;
       systems = systems.filter((s: any) => s.category === category);
     }
     if (search) {
@@ -6270,10 +6802,17 @@ server.tool(
       content_available: available.includes(s.id)
     }));
 
+    // Same rule as list_design_systems: an unknown category and an empty
+    // category are indistinguishable without this.
+    var contentPayload: any = { count: systems.length, systems };
+    if (category && !categoryMatched) {
+      contentPayload.category_note = "No category named '" + category + "' exists, so nothing could match. Categories available: " + knownCategories.join(", ");
+    }
+
     return {
       content: [{
         type: "text" as const,
-        text: JSON.stringify({ count: systems.length, systems }, null, 2)
+        text: JSON.stringify(contentPayload, null, 2)
       }]
     };
   }
@@ -6289,7 +6828,7 @@ server.tool(
   async ({ id, section }) => {
     var sys = loadContentSystem(id);
     if (!sys) {
-      return {
+      return { isError: true,
         content: [{
           type: "text" as const,
           text: "Content system '" + id + "' not found. Use list_content_systems to see available systems."
@@ -6329,13 +6868,22 @@ server.tool(
     var uxWriting = allPrinciples.filter(p => p.category === "ux-writing");
 
     var results = uxWriting;
+    var contextMatched = true;
     if (context) {
       results = uxWriting.filter(p => {
         var tagMatch = p.applies_to ? matchesTags(p.applies_to, context) : false;
         var textMatch = textSearch(p.name + " " + p.summary + " " + p.description, context);
         return tagMatch || textMatch;
       });
-      if (results.length === 0) results = uxWriting;
+      // An unmatched context must not silently widen to the whole bank while
+      // the payload still echoes the context -- the caller asked to narrow and
+      // was handed everything, reported as a successful filter. Returning all
+      // is still the useful answer, so the fallback stays; what changes is that
+      // it SAYS so, and the echoed context stops claiming the filter applied.
+      if (results.length === 0) {
+        results = uxWriting;
+        contextMatched = false;
+      }
     }
 
     var formatted = results.map(p => formatPrinciple(p, fmt));
@@ -6345,6 +6893,10 @@ server.tool(
         type: "text" as const,
         text: JSON.stringify({
           context: context || "all ux-writing principles",
+          context_match: !context ? "not requested" : (contextMatched ? "matched" : "none"),
+          context_match_note: (context && !contextMatched)
+            ? "No UX-writing principle matched context '" + context + "', so ALL ux-writing principles are returned rather than a filtered set."
+            : undefined,
           count: formatted.length,
           principles: formatted
         }, null, 2)
@@ -6362,7 +6914,7 @@ server.tool(
   async ({ type }) => {
     var pattern = allPatterns.find(p => p.id === type && p.category === "content");
     if (!pattern) {
-      return {
+      return { isError: true,
         content: [{
           type: "text" as const,
           text: "Content pattern '" + type + "' not found. Available: error-messages, empty-state-copy, notifications, form-validation."
@@ -6405,10 +6957,21 @@ server.tool(
         ))
       );
     }
+    // `category` is a closed enum, so an invalid one cannot arrive from a
+    // conformant client and needs no validation here. `search` is freeform,
+    // and a term matching nothing returns an honest count: 0 that says nothing
+    // about WHY -- indistinguishable from a family with no methods in it.
+    var methodPayload: any = { count: result.length, methods: result };
+    if (result.length === 0) {
+      methodPayload.no_match_note = "No research method matched" +
+        (search ? " search '" + search + "'" : "") +
+        (category && category !== "all" ? " within category '" + category + "'" : "") +
+        ". Categories: qualitative, quantitative, usability, all. Omit `search` to list every method in the category.";
+    }
     return {
       content: [{
         type: "text" as const,
-        text: JSON.stringify({ count: result.length, methods: result }, null, 2)
+        text: JSON.stringify(methodPayload, null, 2)
       }]
     };
   }
@@ -6430,7 +6993,7 @@ server.tool(
     if (id) {
       var match = flat.find(f => f.id === id);
       if (!match) {
-        return { content: [{ type: "text" as const, text: "Framework '" + id + "' not found. Available: " + flat.map(f => f.id).join(", ") }] };
+        return { isError: true, content: [{ type: "text" as const, text: "Framework '" + id + "' not found. Available: " + flat.map(f => f.id).join(", ") }] };
       }
       return { content: [{ type: "text" as const, text: JSON.stringify(match, null, 2) }] };
     }
@@ -6451,7 +7014,7 @@ server.tool(
   async ({ type }) => {
     var pattern = allPatterns.find(p => p.id === type && p.category === "service-design");
     if (!pattern) {
-      return {
+      return { isError: true,
         content: [{
           type: "text" as const,
           text: "Service pattern '" + type + "' not found. Available: service-blueprinting, human-handoff, signup-as-service, omnichannel-continuity, moments-of-truth."
@@ -6469,7 +7032,7 @@ server.tool(
     var frameworks = loadServiceFrameworks();
     var govuk = frameworks.find((f: any) => f.id === "gov-uk-service-standard");
     if (!govuk) {
-      return { content: [{ type: "text" as const, text: "GOV.UK service standard not found." }] };
+      return { isError: true, content: [{ type: "text" as const, text: "GOV.UK service standard not found." }] };
     }
     return { content: [{ type: "text" as const, text: JSON.stringify(govuk, null, 2) }] };
   }
@@ -6517,6 +7080,9 @@ server.tool(
     })).optional().describe("Optional ideal-state blueprint — if provided, output shows current AND ideal side-by-side")
   },
   async ({ service_name, subtitle, actors, current, ideal }) => {
+    if (isBlankString(service_name) || !Array.isArray(current) || current.length === 0) {
+      return refuseEmptyInput("No service to map. Provide a non-empty 'service_name' and at least one step in 'current' — a blueprint of zero steps is a document about nothing.", { tool: "generate_service_blueprint" });
+    }
     var html = generateServiceBlueprintHtml(
       { service_name, subtitle, steps: current as BlueprintStep[], actors: actors as BlueprintActors | undefined },
       ideal ? { service_name, steps: ideal as BlueprintStep[], actors: actors as BlueprintActors | undefined } : null
@@ -6536,6 +7102,7 @@ server.tool(
     var fmt = format || "full";
     var brand = allPrinciples.filter(p => p.category === "brand");
     var results = brand;
+    var topicMatched = true;
     if (topic) {
       var q = topic.toLowerCase();
       results = brand.filter(p => {
@@ -6545,13 +7112,26 @@ server.tool(
         var textMatch = textSearch(p.name + " " + p.summary + " " + p.description, topic);
         return idMatch || nameMatch || appliesMatch || textMatch;
       });
-      if (results.length === 0) results = brand;
+      // Same rule as get_content_principles: widening on no match is fine,
+      // silently claiming the topic filter applied is not.
+      if (results.length === 0) {
+        results = brand;
+        topicMatched = false;
+      }
     }
     var formatted = results.map(p => formatPrinciple(p, fmt));
     return {
       content: [{
         type: "text" as const,
-        text: JSON.stringify({ topic: topic || "all brand principles", count: formatted.length, principles: formatted }, null, 2)
+        text: JSON.stringify({
+          topic: topic || "all brand principles",
+          topic_match: !topic ? "not requested" : (topicMatched ? "matched" : "none"),
+          topic_match_note: (topic && !topicMatched)
+            ? "No brand principle matched topic '" + topic + "', so ALL brand principles are returned rather than a filtered set. Named topics: logo, gradient, imagery, hierarchy, system."
+            : undefined,
+          count: formatted.length,
+          principles: formatted
+        }, null, 2)
       }]
     };
   }
@@ -6570,7 +7150,7 @@ server.tool(
 
 server.tool(
   "list_creative_models",
-  "Browse Raven's provider-agnostic creative model catalog. These are capability slots for image, video, 3D, audio, character consistency, and creative analysis. Use a configured RAVEN_CREATIVE_RUNNER to route jobs to any local CLI or API wrapper.",
+  "Browse Raven's provider-agnostic creative model catalog. These are capability slots for image, video, 3D, audio, character consistency, and creative analysis. Each entry lists typical inputs and best-for guidance.",
   {
     media_type: z.enum(["image", "video", "audio", "3d", "campaign", "analysis"]).optional().describe("Filter by media type."),
     capability: z.string().optional().describe("Filter by capability, e.g. product-photoshoot, text-to-video, brand-kit, ugc-ad.")
@@ -6585,18 +7165,22 @@ server.tool(
           (m.best_for || []).some(function (b: string) { return b.toLowerCase().includes(q); });
       });
     }
+    var creativeModelsPayload: Record<string, unknown> = {
+      count: models.length,
+      models: models
+    };
+    if (!(remote || isRemoteRuntime())) {
+      // The runner contract is only actionable where create_generation_job exists.
+      creativeModelsPayload.execution = {
+        default: "draft payload only",
+        runner_env: "RAVEN_CREATIVE_RUNNER",
+        runner_contract: "Executable reads one job JSON object from stdin and returns JSON on stdout."
+      };
+    }
     return {
       content: [{
         type: "text" as const,
-        text: JSON.stringify({
-          count: models.length,
-          models: models,
-          execution: {
-            default: "draft payload only",
-            runner_env: "RAVEN_CREATIVE_RUNNER",
-            runner_contract: "Executable reads one job JSON object from stdin and returns JSON on stdout."
-          }
-        }, null, 2)
+        text: JSON.stringify(creativeModelsPayload, null, 2)
       }]
     };
   }
@@ -6662,7 +7246,7 @@ server.tool(
   async function (params: { id: string }) {
     var record = readCreativeRecord("brands", params.id, true);
     if (!record) {
-      return { content: [{ type: "text" as const, text: JSON.stringify({ error: "Brand profile not found", id: params.id }, null, 2) }] };
+      return { isError: true, content: [{ type: "text" as const, text: JSON.stringify({ error: "Brand profile not found", id: params.id }, null, 2) }] };
     }
     return { content: [{ type: "text" as const, text: JSON.stringify(record, null, 2) }] };
   }
@@ -6813,7 +7397,7 @@ server.tool(
   },
   async function (params: { id: string }) {
     var job = readCreativeRecord("jobs", params.id, true);
-    if (!job) return { content: [{ type: "text" as const, text: JSON.stringify({ error: "Generation job not found", id: params.id }, null, 2) }] };
+    if (!job) return { isError: true, content: [{ type: "text" as const, text: JSON.stringify({ error: "Generation job not found", id: params.id }, null, 2) }] };
     return { content: [{ type: "text" as const, text: JSON.stringify(job, null, 2) }] };
   }
 );
@@ -6949,6 +7533,9 @@ server.tool(
     audience: z.string().optional().describe("Target audience if not in a brand profile.")
   },
   async function (params: any) {
+    if (isBlankString(params.creative_text)) {
+      return refuseEmptyInput("No creative to score. Provide non-empty 'creative_text' — blank copy cannot be scored, and is not a 70/C.", { tool: "score_creative" });
+    }
     var brand = params.brand_profile_id ? readCreativeRecord("brands", params.brand_profile_id, true) : null;
     var audience = params.audience || (brand && brand.audience) || "";
     var result = scoreCreativeText(params.creative_text, params.channel, brand, audience);
@@ -6977,7 +7564,7 @@ server.tool(
   },
   async function(params: { pages: Array<{ name: string; html: string }>; container_token?: number; hero_token?: string }) {
     if (!params.pages || params.pages.length < 2) {
-      return {
+      return { isError: true,
         content: [{
           type: "text" as const,
           text: "Provide at least 2 pages ({name, html}) to compare for cross-page consistency."
@@ -7101,7 +7688,7 @@ server.tool(
 
       if (!response.ok) {
         var err = await response.json() as { error?: string };
-        return {
+        return { isError: true,
           content: [{
             type: "text" as const,
             text: "Registration failed: " + (err.error || "Unknown error")
@@ -7153,18 +7740,26 @@ server.tool(
         return { content: [{ type: "text" as const, text: JSON.stringify(vr, null, 2) }] };
       } catch (error) {
         if (error instanceof CaptureUnavailableError) {
-          return { content: [{ type: "text" as const, text: "audit_video_playback url mode needs headless chromium. Run: npx playwright install chromium — or pass a dom_snapshot instead." }] };
+          return { content: [{ type: "text" as const, text: "audit_video_playback url mode needs headless chromium. Run: npx playwright install chromium — or pass a dom_snapshot instead." }], isError: true as const };
         }
         throw error;
       }
     }
     if (dom_snapshot !== undefined && dom_snapshot !== null) {
+      if (Array.isArray(dom_snapshot) && dom_snapshot.length === 0) {
+        // An empty dom_snapshot is a caller who collected nothing, not a page
+        // with no <video>. The aggregator answers both identically ("No <video>
+        // elements found." at total_videos 0), so returning it would make an
+        // empty submission indistinguishable from a measured clean result — the
+        // same all-clear-from-empty defect closed on audit_contrast above.
+        return refuseEmptyInput("dom_snapshot is empty — no video observations to classify. Pass at least one { selector, hasSource, readyState, networkState, errorCode, paused, autoplayBlocked, currentTimeStart, currentTimeEnd }, or pass url to render and observe. An empty snapshot is not a page without videos, and is not a pass.", { tool: "audit_video_playback" });
+      }
       // Same aggregator the browser path uses → identical VideoPlaybackResult
       // shape (url is null since no page was rendered).
       var snapResult = auditVideoPlaybackSnapshot(dom_snapshot, null);
       return { content: [{ type: "text" as const, text: JSON.stringify(snapResult, null, 2) }] };
     }
-    return { content: [{ type: "text" as const, text: "Provide either url (render + observe) or dom_snapshot (classify supplied observations). See tool schema for dom_snapshot field shapes." }] };
+    return { content: [{ type: "text" as const, text: "Provide either url (render + observe) or dom_snapshot (classify supplied observations). See tool schema for dom_snapshot field shapes." }], isError: true as const };
   }
 );
 
@@ -8110,7 +8705,7 @@ server.tool(
     if (typeof url === "string" && url.trim() === "") url = undefined;
     var providedInputs = [html !== undefined, text !== undefined, url !== undefined].filter(Boolean).length;
     if (providedInputs !== 1) {
-      return { content: [{ type: "text" as const, text: "Provide exactly one of html, text, or url to judge (got " + providedInputs + ")." }] };
+      return { isError: true, content: [{ type: "text" as const, text: "Provide exactly one of html, text, or url to judge (got " + providedInputs + ")." }] };
     }
     var prof = await getTasteProfile(tasteStore, profile);
     var targetHtml = html;
@@ -8148,7 +8743,17 @@ server.tool(
         }
       } catch (error) {
         if (error instanceof CaptureUnavailableError) {
-          return { content: [{ type: "text" as const, text: "audit_taste url mode needs headless chromium. Run: npx playwright install chromium — or pass the page's html instead." }] };
+          return { content: [{ type: "text" as const, text: "audit_taste url mode needs headless chromium. Run: npx playwright install chromium — or pass the page's html instead." }], isError: true as const };
+        }
+        // Deliberately NOT the score_page treatment. There, contrast is a supplementary
+        // enrichment and degrading to a warning costs nothing. HERE the delegated
+        // contrast/tap-target rows feed pageIssues, which feed the BLOCK/WARN/PASS
+        // verdict - so swallowing a capacity-busy failure would report PASS on a page
+        // whose contrast was never measured. A false all-clear is this repo's one
+        // forbidden outcome, so backpressure is surfaced as a real error instead.
+        var tasteMessage = error instanceof Error ? error.message : String(error);
+        if (/capacity busy/i.test(tasteMessage)) {
+          return { isError: true, content: [{ type: "text" as const, text: "audit_taste could not run its delegated measurements: " + tasteMessage }] };
         }
         throw error;
       }
@@ -8199,13 +8804,13 @@ server.tool(
         captureWarnings = cap.capture_warnings;
       } catch (e) {
         if (e instanceof CaptureUnavailableError) {
-          return { content: [{ type: "text" as const, text: "Playwright chromium not available. Run: npx playwright install chromium" }] };
+          return { content: [{ type: "text" as const, text: "Playwright chromium not available. Run: npx playwright install chromium" }], isError: true as const };
         }
         throw e;
       }
     }
     if ((targetHtml === undefined || targetHtml === null) && (!elements || elements.length === 0)) {
-      return { content: [{ type: "text" as const, text: "Provide html, url, or elements to scan." }] };
+      return { isError: true, content: [{ type: "text" as const, text: "Provide html, url, or elements to scan." }] };
     }
     var binding: SurfaceBinding | null = null;
     if (typeof profile === "string" && profile.trim().length > 0 && (project || url)) {

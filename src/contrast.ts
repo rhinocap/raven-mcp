@@ -581,7 +581,19 @@ export async function auditContrastUrl(
   try {
     try {
       browser = await launchAuditChromium();
-    } catch {
+    } catch (launchError) {
+      // Only a genuinely absent/unlaunchable chromium is CaptureUnavailable.
+      // acquireBrowserSlot() (src/browser-launch.ts) throws "Hosted browser
+      // capacity busy - retry shortly" when the concurrency slot wait times out,
+      // and laundering THAT into CaptureUnavailableError makes the tool answer
+      // "audit_contrast url mode needs headless chromium" on a host where
+      // chromium is present and working. That message is false, unactionable,
+      // and — because it only appears under load — reads as an intermittent
+      // wrong result rather than as backpressure. Rethrow it unchanged.
+      var launchMessage = launchError instanceof Error ? launchError.message : String(launchError);
+      if (/capacity busy/i.test(launchMessage)) {
+        throw launchError;
+      }
       throw new CaptureUnavailableError(
         "Playwright chromium not available. Run: npx playwright install chromium"
       );

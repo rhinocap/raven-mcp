@@ -6,6 +6,26 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 
 ## [Unreleased]
 
+### Changed
+- **Every tool now states all four MCP annotation hints explicitly — `readOnlyHint`, `destructiveHint`, `idempotentHint` and `openWorldHint` — with no value left to a spec default.** A consumer that reads annotations as a flat capability record sees an omitted hint as unanswered rather than as the documented default, so each one is answered outright and each answer is derived from what the handler actually does.
+
+  Two of those answers are new statements rather than restatements. `idempotentHint` is a per-tool table whose default is **false**: a tool that mints an id, appends to a log, drains a queue, or applies a relative change is not idempotent, while one that writes a value the caller supplied or removes something by name is. Under-claiming costs a client a retry it chose not to make; over-claiming is an annotation that does not match behaviour, which is the thing this table exists to prevent. And `openWorldHint` is now derived per build instead of read from one fixed list — `audit_page`, `score_page` and `audit_typography` reach the open web only through a `url` argument, and the hosted endpoint rejects that argument before the handler runs, so on `mcp.ravenmcp.ai` they are published closed-world because they are closed-world there. The remote answer reads the guard table itself rather than being written out a second time, so lifting a guard moves the annotation in the same edit.
+
+- **`audit_url` is published as neither read-only nor idempotent.** It accepts a caller-supplied interaction list and drives a real browser against a third-party page; Playwright's hover and focus dispatch genuine events, so the page runs its own handlers and can change state on a host the caller does not own. `destructiveHint` follows from the same fact that makes `readOnlyHint` false.
+
+  On the hosted endpoint, `click` interactions are refused outright — a click can submit a form, place an order, or delete a record on somebody else's site, which is a blast radius worth refusing on an endpoint anyone can call anonymously. Hover and focus still run, because the hover white-wash detection the tool exists for is built on them. The hosted tool description says so. Local stdio is unchanged: a local caller drives their own pages deliberately.
+
+- **`audit_url` reports coverage, not just a count.** A viewport × theme combination that fails to render is dropped with a warning, so the number of captures alone never told a caller how much of what they asked for actually happened. The result now carries `coverage: { requested, succeeded, complete }`, and a partial run leads its summary with `PARTIAL COVERAGE` naming both numbers. Compact mode keeps the field — dropping it there would reinstate the exact claim it exists to correct.
+
+### Fixed
+- **Empty input is refused instead of scored.** Thirteen tools computed a grade from a denominator that is zero when the input is empty, which manufactured affirmative results about work nobody did — 100/A on an empty accessibility snapshot, 77/C on blank markup, 70/C on blank creative copy. `compose_system`, `audit_page`, `audit_ios_a11y`, `audit_contrast`, `audit_screen`, `audit_ios_screen`, `audit_swiftui`, `audit_rn`, `score_creative`, `generate_service_blueprint`, `generate_design_system`, `audit_video_playback` and `audit_tap_targets` now return an error naming what was missing and what to pass instead. Whitespace counts as empty: a source field holding only spaces and newlines was measured at 100/A. A schema can say a field is present; it cannot say there is anything in it.
+
+- **`base_system` with a token group that matches nothing now fails instead of returning an empty system.** The `$`-prefixed metadata keys always pass through, so an unmatched group previously produced an object holding only `$name` and `$description` — a wrong result reported as correct. The rule lives in the one function both call sites share.
+
+- **`audit_contrast` no longer reports browser backpressure as a missing browser.** When the hosted concurrency slot times out, the underlying "capacity busy — retry shortly" is passed through unchanged rather than being rewritten into "Playwright chromium not available". That message was false on a host where chromium is present and working, unactionable, and — because it appeared only under load — read as an intermittent wrong result rather than as something to retry.
+
+- The `list_creative_models` documentation described a runner-routing behaviour the tool does not have; it now describes what the tool returns.
+
 ## [2.5.0] - 2026-08-17
 
 One new tool takes the stdio surface from 110 to 111. It is gated out of the anonymous remote surface, which still serves the same 45 tools.

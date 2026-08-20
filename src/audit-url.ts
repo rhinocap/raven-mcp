@@ -75,6 +75,14 @@ export type AuditUrlResult = {
     warnings: number;
   };
   summary: string;
+  // A viewport x theme combination that failed to render is dropped with a warning
+  // (the per-viewport catch below), so captures.length alone never tells a caller
+  // how much of what it ASKED for actually happened. Say it explicitly.
+  coverage: {
+    requested: number;
+    succeeded: number;
+    complete: boolean;
+  };
   captures: AuditUrlCapture[];
   capture_warnings: string[];
   warnings: string[];
@@ -451,15 +459,21 @@ export async function auditUrl(url: string, opts: AuditUrlOptions = {}): Promise
   // Every capture failing (dead host, wrong port, auth wall) previously produced
   // "0 findings across N viewport(s)" — indistinguishable from a clean page, with
   // the real cause buried in warnings[]. Say it in the summary instead.
+  const requestedCombos = viewports.length * themes.length;
+  const partialCoverage = captures.length > 0 && captures.length < requestedCombos;
   const summary = captures.length === 0
     ? "AUDIT DID NOT RUN — every capture of " + url + " failed; see warnings. " +
       "No page was rendered, so this is not a clean result."
-    : findings.length +
+    : (partialCoverage
+        ? "PARTIAL COVERAGE — only " + captures.length + " of " + requestedCombos +
+          " requested viewport×theme combinations rendered; see capture_warnings. "
+        : "") +
+    findings.length +
     " findings across " +
-    viewports.length +
-    " viewport(s) × " +
-    themes.length +
-    " theme(s) — " +
+    captures.length +
+    " of " +
+    requestedCombos +
+    " requested viewport×theme combination(s) — " +
     counts.confirmed +
     " confirmed, " +
     counts.likely_artifact +
@@ -475,6 +489,11 @@ export async function auditUrl(url: string, opts: AuditUrlOptions = {}): Promise
     findings,
     counts,
     summary,
+    coverage: {
+      requested: requestedCombos,
+      succeeded: captures.length,
+      complete: requestedCombos > 0 && captures.length === requestedCombos
+    },
     captures,
     capture_warnings: captureWarnings,
     warnings
@@ -495,6 +514,7 @@ function unavailableResult(url: string, viewports: ViewportSpec[], themes: Theme
     findings: [],
     counts: { total: 0, confirmed: 0, likely_artifact: 0, inconclusive: 0, errors: 0, warnings: 0 },
     summary: "audit_url needs headless chromium. Run: npx playwright install chromium",
+    coverage: { requested: viewports.length * themes.length, succeeded: 0, complete: false },
     captures: [],
     capture_warnings: [],
     warnings: ["Playwright chromium not available. Run: npx playwright install chromium"]
