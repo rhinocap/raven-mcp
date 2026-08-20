@@ -1,0 +1,11 @@
+import { buildServer } from '../../dist/index.js';
+import { FsTasteStore } from '../../dist/taste-store.js';
+const which = process.argv[2];
+const signal = new AbortController().signal;
+const s = which === 'local' ? buildServer({ remote: false, tasteStore: new FsTasteStore() }) : buildServer({ remote: true });
+const t = s._registeredTools['audit_url'];
+const args = { url: 'http://127.0.0.1:9/nothing', interactions: [{ selector: '#a', event: process.argv[3] || 'hover', delay_ms: 0 }] };
+const p = t.inputSchema.safeParse(args);
+const r = await t.handler(p.data, { signal });
+console.log(which, process.argv[3], '->', String(r.content[0].text).slice(0, 80));
+setTimeout(() => { console.log('STILL ALIVE after 3s; handles:', process.getActiveResourcesInfo()); process.exit(9); }, 3000).unref?.();

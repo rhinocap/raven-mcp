@@ -1,0 +1,12 @@
+import { buildServer } from '../../dist/index.js';
+import { FsTasteStore } from '../../dist/taste-store.js';
+const s = buildServer({ remote: false, tasteStore: new FsTasteStore() });
+const t = s._registeredTools['audit_url'];
+const args = { url: 'http://127.0.0.1:9/nothing', interactions: [{ selector: '#a', event: 'click', delay_ms: 0 }] };
+const p = t.inputSchema.safeParse(args);
+console.log('schema ok:', p.success, p.success?'':JSON.stringify(p.error.issues));
+if(!p.success) process.exit(0);
+const t0 = Date.now();
+const r = await t.handler(p.data, { signal: new AbortController().signal });
+console.log('ms', Date.now() - t0, 'isError', r.isError);
+console.log(r.content.map(c => c.text).join('\n').slice(0, 300));
