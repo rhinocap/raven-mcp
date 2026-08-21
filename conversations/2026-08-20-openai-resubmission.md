@@ -335,3 +335,54 @@ blanket `false`.
 One correction the pass forced: the R2 fix landed with `ba8f0b3`, not `7a6ab0d`. Saying "the fix
 serves from production" alongside this push implied the push delivered it. It did not; it delivered
 the evidence documents.
+
+## Resubmission readiness check: replaying the eight cases against production (2026-08-21)
+
+Andrew asked "Are we good to resubmit?". Answering it meant replaying every case in
+`R1-test-cases.md` **verbatim against `https://mcp.ravenmcp.ai/api/mcp`** — the surface
+OpenAI reviews — rather than against a local build or against the document's own account
+of itself. That found **three defects in the document written to fix R1**, all of the
+same class OpenAI rejected on: a stored expected value that does not reproduce.
+
+**1. N3 was the serious one.** The doc read *"Expected: a JSON-RPC error `-32602`"* and
+claimed it had measured exactly that. The hosted Streamable-HTTP surface returns HTTP 200
+with a JSON-RPC **result** carrying `isError: true`, and the `-32602` text lives inside
+`content[0].text`. `response.error` is `undefined`. A reviewer scripting `response.error.code`
+gets nothing. **Transport shapes an error's form** — the old wording is true of the local
+stdio build, which is almost certainly where it came from. R1's own failure mode,
+reproduced inside R1's fix.
+
+**2. N1 quoted a number that is not on the wire.** The doc said the decline cites a
+**95.2 s** floor. The shipped sentence (`src/index.ts:2011`) says `MEASURED at 95s`. 95.2
+is the adverse-pass measurement (`agent-output/sol-r4.log:7491`), never the product
+string. The expectation now asserts three **verbatim substrings** of the live decline
+instead of paraphrasing it with a figure from a log.
+
+**3. The closing line claimed "the slowest is 322 ms"** while N2 deliberately renders a
+live external page and runs 0.7–4 s. Now stated as a bound with N2 named as the
+exception, plus: **latencies are context, never expectations** — network timing is the
+archetypal moving input, which is the whole R1 lesson.
+
+**The instrument is now tracked**: `.claude/openai-rejection-2026-08-19/replay-r1-cases.mjs`,
+no auth / no fixture / no checkout, exit 0 iff every case reproduces. A document asserting
+its own correctness is the R1 failure one level up, so the expectations execute.
+
+**Two traps hit while writing it, both recorded because both cost a wrong verdict.**
+(a) **The harness's own expected values are claims.** The first run reported P1 and P2 as
+FAILING and both were MY key names — `audit_contrast` nests under `rows` (not
+`results`/`elements`/`items`), and `audit_tap_targets` returns `minSize`/`passing`/`failing`,
+not snake_case. Two product defects that were not. Dump the raw payload before believing a
+red. (b) An earlier scratch run reported P1 at 1,261 chars against a documented 1,694 and
+P2 at 286 against 388 — that harness was truncating. Both figures re-measured exact.
+**A measurement disagreeing with the ledger is a claim about the instrument first.**
+
+**Final state, measured 2026-08-21, EXIT=0:** 8 cases / 9 calls / 0 failing. P1 1,694 chars,
+ratios 18.88 / 1.92, delta_to_aa 2.58, aa_fail_count 1. P2 388 chars, minSize 44, 2/1/1,
+deficit_w/h 24/24. P3 count 26 === principles.length, all four invariants. P4a count 12,
+ids in exact documented order. P4b 8,619 chars, `#635BFF`. P5 1,404 chars,
+matched/responsive. N1 declines sub-second (285/162/213 ms) with all three substrings.
+N2 not declined, renders live. N3 HTTP 200, `isError` true, `error` object absent
+(107/203/149/153 ms). Frozen anon surface re-verified unmoved: **45 tools,
+`f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6`** — exact.
+
+**No product code changed in this round. Doc + harness only, committed locally, NOT pushed.**

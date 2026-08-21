@@ -158,15 +158,25 @@ The replacements assert the decline and its scope explanation.
 
 **Call:** `{ "name": "audit_url", "arguments": { "url": "https://example.com" } }`
 
-**Expected:** HTTP 200 with a JSON-RPC *result* (not a protocol error) carrying
-`isError: true` and text that (a) states `audit_url` is unavailable on the hosted
-endpoint, (b) gives the measured reason — a full render-and-measure run was timed at
-**95.2 s**, far past a connector's tool-call budget — and (c) names the two routes that
-do work: `npx raven-mcp` locally, and `audit_page` for static markup.
+**Expected — asserted as substrings of the live decline, not as a paraphrase.** HTTP 200
+with a JSON-RPC *result* (not a protocol error) carrying `isError: true`, whose text
+contains, verbatim:
 
-**Measured 2026-08-20:** **0.304 s**, `isError: true`, decline text as above. The
-headline number for this case is the ratio: **0.304 s against a 95.2 s floor.** The tool
-does not attempt the work and time out; it refuses immediately and explains.
+- `audit_url is disabled on the hosted (remote) endpoint`
+- `MEASURED at 95s in its cheapest single-viewport single-theme configuration and past 120s with defaults`
+- `npx raven-mcp` and `audit_page` — the two routes that do work
+
+The response is sub-second in every observed run; the *ratio* is the point, not the
+millisecond figure. **Three consecutive runs on 2026-08-21: 285 / 162 / 213 ms**, each
+against a 95 s floor. The tool does not attempt the work and time out; it refuses
+immediately and explains.
+
+**Correction.** This block previously said the decline "gives the measured reason — a
+full render-and-measure run was timed at **95.2 s**". 95.2 s is the underlying
+measurement (it appears in the adverse-pass log, not in the product); the sentence Raven
+actually publishes rounds it to `95s`. A reviewer diffing this document against the wire
+would have found a number that is not there — the same R1 class as N3 below, in a
+smaller register. The expectation now quotes the shipped string.
 
 This is also the case that makes R2 checkable end to end: the same table entry that
 produces this decline is the single source both the declared annotations and the
@@ -196,14 +206,47 @@ a decline.
 
 **Call:** `{ "name": "get_design_system", "arguments": {} }`
 
-**Expected:** a JSON-RPC error `-32602`, "Input validation error", naming path `id` with
-`expected: "string", received: "undefined"`. Schema-derived, so stable.
+**Expected — note the transport shape, which is the whole point of this case.** The
+hosted Streamable-HTTP surface does **not** return a JSON-RPC `error` object here. It
+returns HTTP 200 with a JSON-RPC *result* carrying `isError: true`, whose
+`content[0].text` begins:
 
-**Measured 2026-08-20:** exactly that, **122 ms**.
+`MCP error -32602: Input validation error: Invalid arguments for tool get_design_system:`
+
+and whose JSON body names `"path": ["id"]` with `"expected": "string"`,
+`"received": "undefined"`, `"message": "Required"`. The validation content is
+schema-derived and therefore stable; only its envelope is transport-specific.
+
+A reviewer scripting this case must read `result.isError`, not `response.error.code` —
+the latter is `undefined` on this surface. Raven's stdio transport surfaces the same
+failure as a protocol-level error, which is where the earlier wording came from.
+
+**Measured 2026-08-21 against `https://mcp.ravenmcp.ai/api/mcp`:** HTTP 200,
+`result.isError === true`, `response.error` absent, text and paths exactly as above.
+Four consecutive runs: **107 / 203 / 149 / 153 ms**.
+
+**Correction, recorded rather than quietly patched.** This block previously read
+"Expected: a JSON-RPC error `-32602`" and claimed it had measured exactly that. It had
+not — that is the shape the *local stdio* build returns, and it does not reproduce on
+the endpoint under review. That is precisely the R1 failure class OpenAI rejected on
+(a stored expected value that does not reproduce), reintroduced inside the document
+written to fix it. Found by replaying all eight cases verbatim against production on
+2026-08-21. The lesson generalises past this case: **transport shapes an error's form,
+so an expected value must name the surface it was measured on.**
 
 ---
 
 ## What a reviewer needs to reproduce this
 
 Every case above is a single `tools/call` POST to `https://mcp.ravenmcp.ai/api/mcp`
-with no authentication, no fixture file and no local checkout. The slowest is 322 ms.
+with no authentication, no fixture file and no local checkout.
+
+Seven of the eight return in well under a second. **N2 is the exception**, ranging from
+~0.7 s to ~4 s across runs, because it is the one case that deliberately renders a live
+external page — that latency is the evidence for its `openWorldHint: true`, not an
+anomaly. (An earlier version of this line read "the slowest is 322 ms", which was false
+for exactly that reason.) **Latencies here are context, never expectations** — network
+timing is the archetypal moving input, which is what R1 was about.
+
+All eight were replayed verbatim against production on 2026-08-21 and reproduce as
+documented.
