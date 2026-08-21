@@ -439,3 +439,64 @@ before the fix it reverts against. It was kept for its method, not its verdict; 
 is what stopped that red from being read as a live defect.
 
 **No product code changed. Doc + probe only, committed locally, NOT pushed.**
+
+## 2026-08-21 — the submission text itself, authored
+
+`.claude/openai-rejection-2026-08-19/SUBMISSION.md` (291 lines). Every form field, the
+R1 and R2 responses, a short cover note for a constrained free-text field, a one-command
+reproduction, and the open items that gate an actual send. **Nothing has been submitted.**
+
+### Measured live before authoring, not carried over
+
+45 tools; frozen name hash `f64bb185…7bb0a6` exact; all four hints boolean on 45/45;
+`title` on 45/45; `openWorldHint: true` on exactly 4 (`audit_contrast`,
+`audit_tap_targets`, `audit_responsive_visibility`, `audit_video_playback`); the hosted
+decline sentence present in all four guarded descriptions; privacy 200; challenge 200 at
+43 bytes. Eight-case production replay: **8 cases / 9 calls / 0 failing, REPLAY_EXIT=0.**
+
+### The finding that made this worth doing carefully
+
+**`conversations/2026-07-25-submission-dossier.md` section B must not be pasted.** Its
+annotation table publishes `audit_url` as `readOnlyHint:false`, `destructiveHint:true`,
+`idempotentHint:false` and lists `openWorldHint:true` on five tools. Live measures the
+opposite on all four counts, and live is correct — the table predates the hosted decline.
+**Pasting it would reintroduce R2 verbatim**: a justification contradicting the surface
+under review. `R2-annotation-justification.md` is the source text; §0 of SUBMISSION.md
+says so in the document itself so a future reader cannot reach for the July file by habit.
+
+### Three claims I wrote from memory and then had to correct
+
+Caught by measuring the draft rather than by review, which is the R1 discipline turned on
+my own output:
+
+1. **"23 of the 36 destructive tools are marked non-idempotent" was wrong — it is 28.**
+   `TOOL_IDEMPOTENT` holds 36 entries, all 36 classified destructive, 8 `true` / 28
+   `false`, and **zero destructive tools fall through to the default**, which is a
+   stronger statement than the one I had drafted and is now the one in the file.
+2. **"its only outbound HTTP calls are a version check and two gated tools"** was
+   imprecise — there are five fetch sites (`api-contract`, `designmd`, two in
+   `grab-bridge`, the npm version check, `raven_register`). Replaced with a measured
+   claim: four runtime dependencies with no LLM SDK among them, and every fetch-bearing
+   tool verified **off** the live 45 one by one (`audit_api_contract`, `init_design_md`,
+   `update_design_md`, `raven_register`, `start_grab_session`, `get_grabbed_elements` —
+   all absent).
+3. **The "no write-shaped parameter in any of the 45 schemas" line was asserted.** Now
+   measured against the live payload: 45 tools, **0 hits** for
+   `save|persist|write|delete|overwrite|remove` across every property name.
+
+### Instrument note
+
+My first parser reported `TOOL_IDEMPOTENT` as having **0 entries** and `TOOL_OPEN_WORLD`
+as absent. The cause: the block extractor took the first `{` after the declaration, and
+`const TOOL_IDEMPOTENT: { [tool: string]: boolean } = {` puts the **type annotation's**
+brace there. `TOOL_ACCESS` parsed fine only because `Record<…>` has no brace — so the
+same extractor was right on one constant and silently empty on the next. **An extractor
+that returns an empty set looks identical to a constant that is empty**; the tell was
+`TOOL_OPEN_WORLD` reporting `0` when the annotation demonstrably uses it.
+
+### Open before a send — Andrew's, not an agent's
+
+1. **Support contact.** `andrew@ravenmcp.ai` was never confirmed to receive mail; a bounce
+   reads as an abandoned submission. §1 defaults to the Gmail address known to work.
+2. **OpenAI identity verification** in the Platform dashboard.
+3. **The send itself.**
