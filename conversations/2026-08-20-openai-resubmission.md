@@ -304,3 +304,34 @@ was that nothing moved, and the check is what makes that a measurement instead o
 
 Nothing moved, which is the correct outcome for a docs-only push, and it is now recorded rather
 than assumed.
+
+### Sol falsification pass on the verification itself (2026-08-20)
+
+Verdict: **partially supported**, and the split is worth carrying.
+
+**Survives.** The R2 remediation is externally present on production. Sol re-probed independently
+and got `audit_url` refusing in 138 ms, its listed description suffix byte-identical to the call
+result, hints `readOnly=true / destructive=false / idempotent=true / openWorld=false`, while
+`audit_contrast` and `audit_tap_targets` retain `openWorldHint:true`. Sol's own words: that is
+*"stronger evidence than the five-item set originally stated"* — the controls are what rule out a
+blanket `false`.
+
+**Does not survive as stated: "the push moved nothing on the anonymous surface."**
+- A 45-**name** hash checks MEMBERSHIP only. Two tool sets with identical names can differ in
+  schema, description or annotation — this ledger already says so, and I leaned on the name hash
+  anyway. Closed going forward by pinning the whole payload: **67,082 chars, sha256
+  `a390c69a733fbbfff8b10dbae528e537343e0cd8ab06b98dc3e2f2d4c7e1423f`**, recorded here as the
+  baseline the NEXT deploy can be diffed against.
+- "180 hints present and boolean" is a SHAPE check, not a VALUE check. It would have passed
+  unchanged before the fix. The value evidence is §8's per-tool table plus the `audit_url`
+  reading, not this count.
+- The remaining honest limit, stated rather than papered over: **no before/after wire diff exists**,
+  because no payload snapshot was taken before the push. What is measured instead is BUILD-INPUT
+  equality — `src/`, `api/`, `package.json`, `package-lock.json`, `vercel.json` and `tsconfig.json`
+  are all byte-identical between `ba8f0b3` and `7a6ab0d` (shasums re-run by Sol, not just by me).
+  That is a strong structural argument that the artifact cannot have changed; it is not the same
+  claim as having diffed it. **Capture the payload hash BEFORE the push next time.**
+
+One correction the pass forced: the R2 fix landed with `ba8f0b3`, not `7a6ab0d`. Saying "the fix
+serves from production" alongside this push implied the push delivered it. It did not; it delivered
+the evidence documents.
