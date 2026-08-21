@@ -386,3 +386,56 @@ N2 not declined, renders live. N3 HTTP 200, `isError` true, `error` object absen
 `f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6`** — exact.
 
 **No product code changed in this round. Doc + harness only, committed locally, NOT pushed.**
+
+## The one claim the crash interrupted: stdio's error shape (2026-08-21)
+
+The previous turn ended mid-sentence on "two things I just wrote: the 139 ms figure, and
+the claim about stdio's shape". The machine crashed there. The latency half had already
+landed — N1 285/162/213 ms and N3 107/203/149/153 ms are in the committed doc, and the
+139 was superseded by those measured figures. **The stdio half never ran**, and it was
+wrong.
+
+`R1-test-cases.md` said: *"Raven's stdio transport surfaces the same failure as a
+protocol-level error, which is where the earlier wording came from."* Measured against a
+clean `npm run build` — mandatory, since `dist/` is gitignored and can hold mutant residue
+no mtime vouches for — **stdio returns the identical shape to the hosted endpoint**: a
+JSON-RPC *result* with `isError: true`, no top-level `error` object, `-32602` inside
+`content[0].text`. Both failure modes do it: a missing required argument AND an unknown
+tool name.
+
+So there is **no Raven surface on which the original `-32602` envelope reproduces**. The
+correction paragraph written to fix R1's defect explained that defect with a causal story
+about a second surface, and never measured the second surface. **That is the R1 class one
+level deeper**: not a stale expected value this time but an invented provenance, which is
+worse, because a provenance sounds like evidence and reads as closing the question. The
+replacement says the origin is unestablished rather than guessing again, and the file's
+closing lesson gained its second half: *a correction that explains a defect by naming a
+different surface must measure that surface too, or the correction is the same defect
+wearing an explanation.*
+
+**The claim executes now.** `.claude/openai-rejection-2026-08-19/probe-stdio-shape.mjs`,
+2 cases / 0 failing, EXIT=0. It is deliberately a SEPARATE script from
+`replay-r1-cases.mjs` rather than a case added to it: that harness advertises no auth, no
+fixture and no checkout, and this one requires a checkout and a fresh build by its nature.
+Folding it in would have made that advertised property false — the doc-level version of
+the same defect this round is about. Proven falsifiable in both arms rather than trusted:
+pristine EXIT=0, and a copy demanding a protocol-level error reports FAIL on both cases at
+EXIT=1.
+
+**Two instrument errors of my own, recorded because each produced a wrong reading.**
+(a) The first falsification copy was written to the scratchpad, so its `dist/` path
+resolved relative to THAT directory, and it exited on "dist/index.js is missing" — a
+falsification arm that never ran, which is the dangerous direction, since it prints
+nothing alarming. (b) I read `EXIT=$?` after a pipe into `tail` twice, which reports
+`tail`'s status — the exact mistake this ledger already warns about, made while verifying
+a document about unverified claims. Both re-run with the status captured inside.
+
+**Gates re-measured after the doc change.** Production replay: **8 cases / 9 calls / 0
+failing, EXIT=0**. Frozen anonymous surface: **45 tools,
+`f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6`, exact**.
+`verify-anon-hash.mjs` reports 5 CHECKS FAILED and **that is not a regression** — its own
+header says it is SPENT, its four pins having been computed while HEAD was `cebe332`,
+before the fix it reverts against. It was kept for its method, not its verdict; the header
+is what stopped that red from being read as a live defect.
+
+**No product code changed. Doc + probe only, committed locally, NOT pushed.**

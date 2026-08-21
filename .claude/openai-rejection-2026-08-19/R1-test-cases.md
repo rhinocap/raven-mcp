@@ -218,8 +218,9 @@ and whose JSON body names `"path": ["id"]` with `"expected": "string"`,
 schema-derived and therefore stable; only its envelope is transport-specific.
 
 A reviewer scripting this case must read `result.isError`, not `response.error.code` —
-the latter is `undefined` on this surface. Raven's stdio transport surfaces the same
-failure as a protocol-level error, which is where the earlier wording came from.
+the latter is `undefined` on this surface. **The local stdio build returns the same shape**
+(measured below), so there is no Raven surface on which the original `-32602` envelope
+reproduces; where that wording came from is unestablished and is not guessed at here.
 
 **Measured 2026-08-21 against `https://mcp.ravenmcp.ai/api/mcp`:** HTTP 200,
 `result.isError === true`, `response.error` absent, text and paths exactly as above.
@@ -227,12 +228,20 @@ Four consecutive runs: **107 / 203 / 149 / 153 ms**.
 
 **Correction, recorded rather than quietly patched.** This block previously read
 "Expected: a JSON-RPC error `-32602`" and claimed it had measured exactly that. It had
-not — that is the shape the *local stdio* build returns, and it does not reproduce on
-the endpoint under review. That is precisely the R1 failure class OpenAI rejected on
+not. **The explanation first offered for it was also unmeasured**: this block claimed the
+`-32602` envelope "is the shape the local stdio build returns". It is not. Measured
+2026-08-21 against a clean `npm run build` of `dist/index.js` over stdio, both a missing
+required argument and an unknown tool name return HTTP-less JSON-RPC *results* carrying
+`isError: true` with no top-level `error` object — byte-identical in shape to the hosted
+surface. The `-32602` text lives inside `content[0].text` on **both** transports; only the
+prose about the envelope was wrong, on both surfaces. That is precisely the R1 failure
+class OpenAI rejected on
 (a stored expected value that does not reproduce), reintroduced inside the document
 written to fix it. Found by replaying all eight cases verbatim against production on
 2026-08-21. The lesson generalises past this case: **transport shapes an error's form,
-so an expected value must name the surface it was measured on.**
+so an expected value must name the surface it was measured on** — and a correction that
+explains a defect by naming a *different* surface must measure that surface too, or the
+correction is the same defect wearing an explanation.
 
 ---
 
