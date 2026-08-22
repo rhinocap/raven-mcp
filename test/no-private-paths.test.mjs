@@ -88,6 +88,27 @@ import { fileURLToPath } from 'node:url';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
+// The exclusion for this repo's OWN tooling directory cannot rest on the
+// checkout path alone, and round 21 is the round that measured it. `repoRoot`
+// is wherever this working copy happens to live; the 95 tracked files that
+// legitimately name this repo's `.claude` spell the AUTHORING checkout
+// ABSOLUTELY, so on any other machine those literals stop matching `repoRoot`,
+// every one of them is reported as a leak, and the gate fails red on a clean
+// tree. Measured rather than reasoned: release run 32604508519 failed exactly
+// this way under `/home/runner/work/raven-mcp/raven-mcp`, on content that had
+// been green here for twenty rounds. A gate that holds on one machine is not a
+// gate, and the direction it fails in is the one that gets a gate MUTED.
+//
+// So the repo's own roots are DECLARED and the running checkout is added to
+// them. This is not a quarantine of leaked content — that is KNOWN_PUBLISHED,
+// which stays frozen empty and must never gain an entry. It is the identity of
+// this repository, and it is deliberately the NARROWEST thing that fixes the
+// portability defect: a path into any OTHER project under the same home, or
+// into that home's own top-level tooling directory, is still a leak, and both
+// directions are asserted below.
+const AUTHORING_CHECKOUT = '/Us' + 'ers' + '/accunliffe/projects/raven-mcp';
+const OWN_CHECKOUTS = [repoRoot, AUTHORING_CHECKOUT];
+
 // An absolute path into one of the private agent-tooling directories. Tilde
 // forms are documentation and are deliberately not matched — see the header.
 //
@@ -375,7 +396,9 @@ function findPrivatePath(text) {
     if (nearest >= 0) {
       const hit = text.slice(nearest, end);
       const resolved = normalizeSegments(hit);
-      if (!resolved.startsWith(normalizeSegments(repoRoot) + '/')) return hit;
+      const own = OWN_CHECKOUTS.some(
+        (root) => resolved.startsWith(normalizeSegments(root) + '/'));
+      if (!own) return hit;
     }
   }
   return null;
@@ -546,6 +569,23 @@ test('the gate is falsifiable — its own pattern matches a synthetic leak', () 
     'the matcher flagged this repo\'s OWN project-scoped tooling directory');
   assert.equal(findPrivatePath(repoRoot + '/.cl' + 'aude'), null,
     'the matcher flagged this checkout root\'s own tooling directory');
+
+  // Round 21. The same negative, stated in the form that does NOT depend on
+  // where this working copy sits — this is the literal shape carried by 95
+  // tracked files, and it is what CI reported as 95 leaks.
+  assert.equal(findPrivatePath('see ' + AUTHORING_CHECKOUT + '/.cl' + 'aude/skills/release/SKILL.md'), null,
+    'the matcher flagged this repo\'s own tooling directory at its AUTHORING ' +
+    'path — the exclusion is still tied to the running checkout, so the gate ' +
+    'is red on every machine but one');
+
+  // …and the two directions that keep that declaration from being a blanket
+  // pardon for the home it names. Both must stay LEAKS.
+  assert.ok(findPrivatePath(AUTHORING_CHECKOUT.replace('raven-mcp', 'some-other-project') + DOT + 'claude/settings.json'),
+    'a DIFFERENT project under the same home was excluded — the declared root ' +
+    'is supposed to name this repository, not the whole home directory');
+  assert.ok(findPrivatePath(ROOT_MAC + '/accunliffe' + DOT + 'claude/settings.json'),
+    'the home directory\'s own top-level tooling directory was excluded — that ' +
+    'is the global config this gate exists to keep out of a public repo');
 
   // The two ways round 12's exclusion was bypassed, both demonstrated by an
   // adverse pass with literal strings rather than argued.

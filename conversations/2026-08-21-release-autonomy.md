@@ -1507,3 +1507,120 @@ the push, because a hash taken only once proves nothing about what the deploy di
    npmjs.com turns it KNOWN without touching a credential.
 
 Nothing is committed, pushed, or on npm at the time this paragraph was written.
+
+## Round 9 — the push landed, the release run failed, and the blocker was a latent portability defect
+
+### The push
+
+`8598d23` ("Prove the round-8 release fixes with three mutation matrices") went up as
+`a4efc9a..8598d23`. Pushing `main` IS the live-endpoint deploy, so the frozen surface was measured on
+both sides of it rather than once.
+
+- Deploy `site-rj7ld5kg4` reached READY carrying `mcp.ravenmcp.ai`.
+- Anonymous `tools/list` AFTER the push: **45 tools**, sha256
+  `f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6` — exact match to the frozen
+  hash, and to the pre-push baseline. The 9 commits touched no file under `src/` or `api/`, and the
+  measurement agrees with that prediction instead of merely being consistent with it.
+- The first post-push probe returned a curl error, not a hash: the endpoint answers SSE and the
+  probe was reading it as JSON. Fixed in the probe, not by retrying and hoping.
+
+### The dispatch, and what actually failed
+
+`gh workflow run release.yml -f bump=patch` under the standing approval. `patch` because the six
+`src/` files in scope are fixes, not features — `bump:auto` reads `feat(...)` and would have cut an
+unintended minor, which is the exact reason the Friday cron was removed.
+
+Run **32604508519** failed at `Run tests (release gate)` after 3m15s. Everything downstream —
+publish, Registry, tag, GitHub Release, apex deploy — is `-` (skipped). **Nothing was published, no
+surface moved, the version is still 2.5.0 everywhere.** That is the failure mode the preflight
+ordering was designed for: a release that stops before npm rather than stranding itself across four
+surfaces, which is what v2.2.9 and v2.3.0 both did.
+
+Two things that DID pass and are worth recording, because they were unknowns going in: both Vercel
+preflight steps (`vercel whoami --token` and `vercel pull`) went green inside GitHub Actions, so the
+CLI OAuth token authenticates from CI. It expires **today at 20:27:06**. The npm trusted-publisher
+status is still UNKNOWN — the run never reached the publish step, so nothing measured it.
+
+**The notification trap fired again and was not believed.** The background task notification for the
+watch reported "exit code 0"; `release-watch.log` ends `X release in 3m15s` and `EXIT=1`. A
+notification describes the WRAPPER, not the verdict. The log was read.
+
+### The diagnosis — measured in two directions, not reasoned
+
+The failing assertion listed **95** files, every one of the form
+`(N lines, e.g. /Users/accunliffe/projects/raven-mcp/.claude)`. An inverted grep for hits NOT of that
+shape returned **zero**.
+
+That single count is what settles the class. The gate is not finding a leak; **its self-exclusion is
+machine-dependent.** `repoRoot` is derived from `import.meta.url`, so a literal naming this repo's
+own `.claude` is "ours" on Andrew's Mac and is a foreign home-directory path under CI's
+`/home/runner/work/raven-mcp/raven-mcp`. Every one of the 95 files predates this session's commits:
+**this is a latent pre-existing defect, not something the push caused. The gate has never been able
+to pass in CI.**
+
+### The fix, and what it deliberately is not
+
+Three edits to `test/no-private-paths.test.mjs`:
+
+1. `AUTHORING_CHECKOUT` — a DECLARED, machine-independent identity for this repository's authoring
+   path, and `OWN_CHECKOUTS = [repoRoot, AUTHORING_CHECKOUT]`. The literal is split
+   (`'/Us' + 'ers' + …`) for the same reason every other fixture in the file is: **this file has no
+   self-exclusion**, so a spelled-out matching path would make the gate its own false positive.
+2. The exclusion tests membership of `OWN_CHECKOUTS` rather than `repoRoot` alone.
+3. Three assertions. One negative — the authoring path is excluded, which is the thing that was
+   broken. Two POSITIVE, and they are what stop the declaration degrading into a blanket pardon of
+   the home directory: a sibling project under the same parent
+   (`…/some-other-project/.claude/settings.json`) must still be a LEAK, and the global config
+   (the home directory's own tooling dir plus `settings.json` — not spelled out here, because
+   this log is a staged blob the gate scans) must still be a LEAK.
+
+**This is NOT a `KNOWN_PUBLISHED` entry.** That list stays frozen empty and exactly-asserted; adding
+95 entries to silence a red gate is the failure this file's own header warns about, and it would
+have made the gate blind to a real leak in any of those 95 files forever. The fix names the
+repository's identity instead, which is the narrowest thing that closes the portability defect.
+
+### Two-arm measurement — and the first reproduction was measuring the wrong thing
+
+Green locally proves nothing; it was green locally before the CI failure. So the CI condition was
+reproduced at a foreign checkout root, in two arms.
+
+**First attempt, at the scratchpad root `/private/tmp/…`:** Arm A reproduced 2 failures, Arm B fixed
+one and left `the gate is falsifiable — its own pattern matches a synthetic leak` red in BOTH arms.
+CI itself reported only ONE failing test, so the reproduction disagreed with the thing it was
+reproducing — and that disagreement was chased rather than explained away. The assertion message
+names it: a fixture built as `repoRoot + '/../private/.claude/…'` is expected to be a LEAK, and at
+`/private/tmp/…` there is no `/Users|/home` anchor anywhere in the resolved path, so it correctly
+returns null. **The failure was an artifact of my chosen clone path, not a defect.** A reproduction
+whose root has a different SHAPE from the real one is measuring a different question.
+
+**Second attempt, at a CI-shaped home root** (`/Users/accunliffe/projects/portcheck-<ts>/work/raven-mcp`
+— home-anchored with middle segments, the shape of `/home/runner/work/raven-mcp/raven-mcp`):
+
+```
+=== ARM A: pre-fix file (HEAD) at a CI-shaped home root ===
+✖ no staged file leaks a private home-directory path into this public repo
+✔ the gate is falsifiable — its own pattern matches a synthetic leak
+ℹ tests 4  ℹ pass 3  ℹ fail 1   —  95 "e.g." lines
+EXIT=1
+
+=== ARM B: fixed file at the same CI-shaped home root ===
+✔ all four
+ℹ tests 4  ℹ pass 4  ℹ fail 0  ℹ skipped 0
+EXIT=0
+```
+
+Arm A matches CI exactly — same single failing test, same 95. Arm B is 4/4 with `EXIT=0` read from
+INSIDE the log. The fix is proven at a foreign root and the second "failure" is disposed of as an
+instrument artifact.
+
+### Two harness faults recorded rather than smoothed over
+
+- **The destructive-op guard blocked the first harness** (rule `rm-rf-catastrophic`) because the
+  script opened with `rm -rf "$SP/portability-check"`. Fixed by deleting nothing and cloning into a
+  fresh timestamped directory instead, recording the path to a file for the second arm.
+- **My own harness violated this repo's standing exit-code rule.** I wrote
+  `node --test … || true` and then `echo "EXIT=$?"`, so `armA.log` records `EXIT=0` for a run that
+  failed two tests. The verdict was taken from the `ℹ fail 2` line read inside the log, never from
+  that EXIT line. Both CI-shaped arms were written correctly and their EXIT lines are node's own.
+
+Nothing is on npm. No release surface has moved. The version is 2.5.0 everywhere.
