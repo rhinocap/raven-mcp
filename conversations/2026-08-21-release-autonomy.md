@@ -887,3 +887,132 @@ unbounded network operations, so it cannot be called small either.
 Gates: **20 `run:` blocks** (19 + the new resume build), all `bash -n` clean walked
 out of the parsed YAML; 24 steps; `node --check` clean; `bash -n` clean on
 `release.sh`; workflow inputs still `['bump', 'resume_version']`.
+
+## The blocked-on-Andrew set, measured off the workflow rather than remembered
+
+*(Restored verbatim 2026-08-22. This section was written before the round-7 adverse
+pass and was DELETED from this file by that pass's own `codex exec` run, which had
+`sandbox_mode="workspace-write"` and self-reported "No audited files changed; final
+working tree is clean." It was not clean. The text below is recovered from Sol's own
+emitted diff. **An adverse pass with write access can revert uncommitted work while
+reporting the tree untouched — commit before launching one, or re-verify every
+uncommitted file afterwards.**)*
+
+`grep -n "secrets\." .github/workflows/release.yml` reads **six** secrets, not the
+four this session had been carrying: `RAVEN_REGISTRY_KEY`, `VERCEL_TOKEN`,
+`VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `RESEND_API_KEY`, `RESEND_AUDIENCE_ID`
+(`GITHUB_TOKEN` is supplied by Actions itself). `gh secret list` returns three
+names — `RAVEN_KNOWLEDGE_PR`, `RESEND_API_KEY`, `RESEND_AUDIENCE_ID` — so the
+Resend pair is already configured and the missing set is exactly the four. That
+happens to match what was carried, but it was carried as a memory and is now a
+measurement; the preflight's own RESEND branch would have failed a release if it
+were not.
+
+`web/.vercel/project.json` exists locally (393 B, `projectName: "web"`), so the
+preflight comment's instruction — read the two ids out of that file on a linked
+checkout — is verified against the real file and points at the right project. The
+two ids are NOT printed here.
+
+**One prerequisite is unverifiable from this session and is stated as such rather
+than assumed.** npm publishing runs over OIDC trusted publishing
+(`.github/workflows/release.yml:135,146` — `registry-url` plus a pinned
+`npm@11.17.0`, floor 11.5.1), which requires a trusted publisher configured for
+`raven-mcp` on npmjs.com naming this repo and this workflow file. `npm whoami`
+here returns **401** — this machine holds no npm auth — so nothing in this session
+can read that configuration. It is Andrew's item and it is UNKNOWN, not assumed
+present. `npm view raven-mcp version` reads **2.5.0**, matching the ledger.
+
+## Round 7 (Sol, medium) — DOES NOT SURVIVE, six findings, all six fixed
+
+Read from inside `.claude/openai-rejection-2026-08-19/agent-output/sol-round7.log`
+(4326 lines), never from the task notification. Claim grades: **C1 ✗, C2 ✓, C3 ✗,
+C4 ✗, C5 ✗, C6 ✓** — C6 being the mechanical one (zero `${{ }}` expressions inside
+any `run:` body; `node --check` and `bash -n` both clean).
+
+**F1 — P1 CODE, `detect-release-scope.mjs:81`. Presence was tested AFTER
+normalisation, and that ordering was the whole defect.** `resume_version: "v"`
+stripped to the empty string, which is falsy, so a malformed resume dispatch did not
+fail validation — it fell out of the resume branch entirely and ran the ORDINARY
+CUT. Measured, on the unfixed code with `bump=major`: `released=true, resume=false,
+version=3.0.0`. A dispatch asking to FINISH an existing release would have published
+a new npm version, a new Registry record, a new tag, a GitHub Release and an apex
+deploy. `--verify-tag` cannot catch it, because by the time anything reads a tag
+`release.sh` has created and pushed that tag itself. Fixed by testing `rawResume`
+for presence and normalising only afterwards, so any non-empty input that does not
+validate EXITS rather than falling through; the error message now reports the raw
+input rather than the stripped one, which is what the operator actually typed.
+
+Falsified rather than assumed. **M-R7A** reverts the ordering to `if
+(explicitResume)`: with input `"v"` it emits `released=true resume=false
+explicit_resume=false bump=major version=3.0.0` — Sol's P1 reproduced exactly — and
+the restore was verified byte-identical (`RESTORE_VERIFIED`). Input sweep on the
+fixed detector: `"v"` exit 1, `"V"` exit 1 (uppercase is not stripped, so it fails
+CLOSED), `" v "` exit 1, `"2.5.0junk"` exit 1, `"3.0.0"` exit 1 (no such tag),
+`"v2.5.0"` exit 0 → "Explicit resume of v2.5.0 — the tail runs, nothing is cut."
+
+**F2 — P2 CODE, `detect-release-scope.mjs:139`. A prefix test where only equality is
+correct.** `/^Update changelog for v/` matched a commit carrying REAL CHANGES under
+the subject `Update changelog for v2.4.9` — an older or hand-typed version — and
+classified it as the latest tag's own changelog commit, so genuine work was
+swallowed as a resume and no release was ever cut for it. Now an exact comparison
+against `` `Update changelog for ${lastTag}` ``.
+
+Measured in a throwaway repo (`/tmp/r7-clg`: `git init`, tag `v2.5.0`, one commit
+after it). Fixed code + the exact subject `Update changelog for v2.5.0` →
+`released=false resume=true resume_version=2.5.0`, so the positive control holds and
+the fix is not merely a refusal. Fixed code + the decoy subject `Update changelog
+for v2.4.9` → falls through to the cut path, which is the correct answer: real work
+gets released. **M-R7B** restores the prefix regex; with the decoy subject it emits
+`resume=true`, swallowing the work. P2 reproduced and killed.
+
+**F3 — P3 CODE, `release.yml:284`.** The resume worktree was deleted with `rm -rf`
+and no `git worktree remove`, leaving a stale registration that blocks a retry in a
+reused checkout; and the two tracked bundles were copied sequentially, so a failure
+between the two `cp`s leaves `site/raven.mcpb` and `web/public/raven.mcpb`
+mismatched — two files that are supposed to be byte-identical, with nothing
+downstream comparing them. Now: deregister-then-delete-then-prune before the add,
+stage both bundles to `/tmp` and `mv` both into place, `cmp` them, and deregister on
+the way out.
+
+**F4 — P3 CODE/CLAIM, `release.yml:279`.** The rebuild ran on EVERY resume,
+including automatic ones, adding a full `npm ci` to the one path whose entire job is
+recovering a tail that already failed once. It is gated to explicit resumes now, via
+a new `explicit_resume` output, and the exclusion is a correctness argument rather
+than a cost one: an automatic resume is detected precisely when main carries zero
+commits since the tag, or only that tag's own changelog commit, so main's tree and
+the tag's tree differ in `CHANGELOG.md` and nothing else — the tracked bundle
+already in the checkout IS the released one. C4's "behaviourally unchanged" claim is
+withdrawn in the same edit: ordinary cuts also gained `--verify-tag` and a body
+readback, so the round changed the ordinary path too.
+
+`explicit_resume` is emitted at ALL FOUR `resume` output sites, verified by reading
+the file rather than by trusting the patch script: lines 120/121 (`true`/`true`),
+177/178 (`true`/`false`), 186/187, 282/283.
+
+**F5 — P2 COMMENT, `detect-release-scope.mjs:69`.** It claimed an npm-published,
+pre-tag failure is unrecoverable by re-running and needs a human and a new patch
+version. `scripts/release.sh:170` explicitly resumes exactly that state, comparing
+`npm pack --dry-run`'s shasum to the published `dist.shasum` and continuing through
+the publish; a MISMATCH is the state that genuinely needs a new version, because npm
+will not replace those bytes. The comment sent operators to an unnecessary patch
+release over a perfectly good published version, and now points at the line that
+does the work.
+
+**F6 — P3 COMMENTS ×3.** `release.yml:19` and `:243` both said `release.sh` runs
+`git pull`; `scripts/release.sh:48` deliberately does NOT pull, because pulling
+would move the tree underneath an already-green test result. `release.yml:272` said
+the bundle is built only at `release.sh:117`, sitting immediately above a second
+build at `release.yml:289`. `release.yml:301` cited detector line 102 for PR-title
+construction, which now emits an output — the real site is line 246. All three
+corrected in place.
+
+Gates after the fixes: YAML parses; `release` job **20 steps / 18 `run:` blocks**,
+`notify` job **4 / 2** — **24 and 20 in total, IDENTICAL to `HEAD`**, which is the
+resolution of a 20-vs-24 discrepancy this log carried for a turn. The earlier figure
+counted both jobs and the later one counted only `release`; no step was ever lost,
+and `git diff --stat` shows the round touching two files for +77/−26. Every `run:`
+block `bash -n` clean (0 failures); inputs still `['bump', 'resume_version']`;
+`concurrency: {group: release, cancel-in-progress: false}` intact; the rebuild step
+correctly gated on `steps.release.outputs.explicit_resume == 'true'`.
+
+**Nothing here is committed, nothing is pushed, and nothing is on npm.**

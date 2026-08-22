@@ -66,9 +66,16 @@ function setOutput(key, value) {
 // the Registry publish and the atomic branch+tag push all live INSIDE it
 // (`scripts/release.sh:154`, `:182`, `:242`). So this finishes the workflow TAIL
 // — GitHub Release, changelog, apex deploy, apex verify — and nothing before it.
-// A run that died after npm published but before the tag was pushed is NOT
-// recoverable here and is not recoverable by re-running either, because the npm
-// version is already taken; that state needs a human and a new patch version.
+// A run that died after npm published but before the tag was pushed is not
+// recoverable HERE — but it IS recoverable, by re-running the ordinary cut, and
+// an earlier version of this comment said the opposite and sent operators to an
+// unnecessary patch release over a perfectly good published version.
+// `scripts/release.sh:170` detects that npm already serves the computed version,
+// verifies byte-identity by comparing `npm pack --dry-run`'s shasum to the
+// published `dist.shasum`, and resumes THROUGH the publish rather than dying on
+// it. A MISMATCH is fatal there, and that is the state that genuinely needs a
+// new version: npm will not replace those bytes, so the tree cannot be shipped
+// under that number by anyone.
 //
 // The version is validated ANCHORED and then checked to EXIST as a tag. Both
 // halves are load-bearing and the second is the one that matters: `gh release
@@ -78,11 +85,21 @@ function setOutput(key, value) {
 // Release pointing at whatever main happened to be. The workflow ALSO passes
 // `--verify-tag` — one rule, two doors, because this check reads a checkout
 // that could in principle be shallow while `--verify-tag` reads the remote.
-const explicitResume = (process.env.INPUT_RESUME_VERSION || "").trim().replace(/^v/, "");
-if (explicitResume) {
+//
+// PRESENCE IS TESTED ON THE RAW INPUT, NORMALISATION COMES AFTER, and the order
+// is the whole guard. Stripping first made `resume_version: "v"` normalise to
+// the empty string, which is falsy, so the malformed input did not fail — it
+// fell out of this branch entirely and ran the ORDINARY CUT, publishing a new
+// npm version, Registry record, tag, Release and apex deploy off a dispatch
+// that asked to finish an existing one. `--verify-tag` cannot catch it: by then
+// `release.sh` has created and pushed that tag itself. Any non-empty input that
+// does not validate must EXIT, never fall through.
+const rawResume = (process.env.INPUT_RESUME_VERSION || "").trim();
+const explicitResume = rawResume.replace(/^v/, "");
+if (rawResume) {
   if (!/^\d+\.\d+\.\d+$/.test(explicitResume)) {
     console.error(
-      `resume_version "${explicitResume}" is not a version number. ` +
+      `resume_version "${rawResume}" is not a version number. ` +
         `Expected exactly MAJOR.MINOR.PATCH (an optional leading "v" is stripped).`,
     );
     process.exit(1);
@@ -101,6 +118,7 @@ if (explicitResume) {
   console.log(`Explicit resume of v${explicitResume} — the tail runs, nothing is cut.`);
   setOutput("released", "false");
   setOutput("resume", "true");
+  setOutput("explicit_resume", "true");
   setOutput("resume_version", explicitResume);
   process.exit(0);
 }
@@ -142,7 +160,12 @@ const onlyChangelog =
   sh(`git log ${commitRange} --format=%s`)
     .split("\n")
     .filter(Boolean)
-    .every((subject) => /^Update changelog for v/.test(subject));
+    // EXACT equality against THIS tag's changelog subject, not a prefix test.
+    // `/^Update changelog for v/` matched a commit carrying real changes under
+    // the subject `Update changelog for v2.4.9` — an older or hand-typed
+    // version — and classified it as the latest tag's changelog, so genuine
+    // work was swallowed as a resume and no release was ever cut for it.
+    .every((subject) => subject === `Update changelog for ${lastTag}`);
 
 if (lastTag && (commits.length === 0 || onlyChangelog)) {
   console.log(
@@ -152,6 +175,7 @@ if (lastTag && (commits.length === 0 || onlyChangelog)) {
   );
   setOutput("released", "false");
   setOutput("resume", "true");
+  setOutput("explicit_resume", "false");
   setOutput("resume_version", resumeVersion);
   process.exit(0);
 }
@@ -160,6 +184,7 @@ if (commits.length === 0) {
   console.log("No commits and no release tag — nothing to release.");
   setOutput("released", "false");
   setOutput("resume", "false");
+  setOutput("explicit_resume", "false");
   process.exit(0);
 }
 
@@ -255,6 +280,7 @@ const notes = [
 console.log(`Releasing v${nextVersion} (${bump}) — ${mergedPRs.length} PRs, ${commits.length} commits.`);
 setOutput("released", "true");
 setOutput("resume", "false");
+setOutput("explicit_resume", "false");
 setOutput("bump", bump);
 setOutput("version", nextVersion);
 setOutput("notes", notes);

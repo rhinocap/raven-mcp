@@ -16,10 +16,12 @@ on:
         required: false
         default: ""
 
-# One release at a time. `detect release scope` reads the version BEFORE
-# release.sh runs its own `git pull`, so two overlapping dispatches can compute
-# a version against a tree that has already moved, and the loser then skips its
-# GitHub Release and apex deploy while npm has already published. Queue instead
+# One release at a time. `detect release scope` reads the version from the
+# checkout, and `release.sh` deliberately does NOT pull (`scripts/release.sh:48`
+# -- pulling would move the tree underneath an already-green test result), so
+# two overlapping dispatches can each compute the same next version, and the
+# loser then skips its GitHub Release and apex deploy while npm has already
+# published. Nothing inside a run reconciles that; only queueing does. Queue instead
 # of cancelling: a half-finished release must be allowed to reach its apex step.
 concurrency:
   group: release
@@ -241,8 +243,10 @@ jobs:
         run: |
           bash scripts/release.sh "$BUMP"
           # Read the version that was ACTUALLY shipped, rather than reusing the
-          # one `detect release scope` computed before `release.sh` ran its own
-          # `git pull`. If main moved in between, those two disagree, and every
+          # one `detect release scope` computed from the checkout. `release.sh`
+          # recomputes the bump from the same history and, on a partial release,
+          # resumes an already-published version (`scripts/release.sh:170`), so
+          # the two can disagree, and every
           # downstream step (tag, GitHub Release, changelog) would then name a
           # version npm never published.
           echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
@@ -267,29 +271,50 @@ jobs:
           echo "version=$v" >> "$GITHUB_OUTPUT"
           echo "operating on v$v"
 
-      # THE ARTIFACT A RESUME UPLOADS MUST BE THE RELEASED VERSION'S, and on a
-      # resume nothing had built one at all. The bundle is built at
-      # `scripts/release.sh:117` and nowhere else in this workflow, and both
-      # `site/raven.mcpb` and `web/public/raven.mcpb` are TRACKED -- so a resume
-      # skipping release.sh silently uploaded whatever bundle the `main`
-      # checkout carried, and deployed it to the apex. Whenever main has moved
-      # since the tag, that is structurally the wrong artifact, not merely a
-      # stale one. Build it from the TAG, in a worktree, so the checkout stays
+      # THE ARTIFACT A RESUME UPLOADS MUST BE THE RELEASED VERSION'S. The bundle
+      # is built in this workflow at `scripts/release.sh:117` and, on a resume,
+      # again below -- both `site/raven.mcpb` and `web/public/raven.mcpb` are
+      # TRACKED, so a resume skipping release.sh uploaded whatever bundle the
+      # `main` checkout carried and deployed it to the apex. Whenever main has
+      # moved since the tag, that is structurally the wrong artifact, not merely
+      # a stale one. Build it from the TAG, in a worktree, so the checkout stays
       # on main for the changelog commit that follows.
-      - name: Rebuild the released bundle from its tag (resume only)
-        if: steps.release.outputs.resume == 'true'
+      #
+      # EXPLICIT RESUMES ONLY, and the exclusion is a correctness argument, not
+      # a cost one. An AUTOMATIC resume is detected precisely when main carries
+      # zero commits since the tag, or only that tag's own changelog commit
+      # (`detect-release-scope.mjs:137`) -- so main's tree and the tag's tree
+      # differ in CHANGELOG.md and nothing else, and the tracked bundle already
+      # in the checkout IS the released one. Rebuilding it there buys nothing
+      # and adds a whole npm install to the one path whose entire job is to
+      # recover a tail that already failed once.
+      - name: Rebuild the released bundle from its tag (explicit resume only)
+        if: steps.release.outputs.explicit_resume == 'true'
         env:
           VERSION: ${{ steps.ver.outputs.version }}
         run: |
+          # Deregister before deleting, and prune, so a retry in a reused
+          # checkout is not blocked by the previous attempt's registration --
+          # `rm -rf` alone leaves the worktree recorded in .git/worktrees.
+          git worktree remove --force /tmp/resume-src 2>/dev/null || true
           rm -rf /tmp/resume-src
+          git worktree prune
           git worktree add --detach /tmp/resume-src "refs/tags/v$VERSION"
           # `npm ci` in the worktree rather than reusing the root node_modules:
           # the tag's package.json can differ from main's, and the whole point
           # of this step is that the tag is the source of truth.
           ( cd /tmp/resume-src && npm ci && npm run build && SKIP_BUILD=1 npm run build:mcpb )
-          cp /tmp/resume-src/site/raven.mcpb site/raven.mcpb
-          cp /tmp/resume-src/web/public/raven.mcpb web/public/raven.mcpb
+          # Stage BOTH bundles, then move both. A failure between two sequential
+          # `cp`s leaves the checkout carrying one tag-built bundle and one
+          # stale one -- two files that are supposed to be byte-identical, and
+          # nothing downstream compares them.
+          cp /tmp/resume-src/site/raven.mcpb /tmp/site.mcpb.new
+          cp /tmp/resume-src/web/public/raven.mcpb /tmp/web.mcpb.new
+          mv /tmp/site.mcpb.new site/raven.mcpb
+          mv /tmp/web.mcpb.new web/public/raven.mcpb
+          cmp site/raven.mcpb web/public/raven.mcpb
           sha256sum site/raven.mcpb web/public/raven.mcpb
+          git worktree remove --force /tmp/resume-src || true
 
       - name: Create GitHub Release
         if: steps.release.outputs.released == 'true' || steps.release.outputs.resume == 'true'
@@ -298,7 +323,7 @@ jobs:
           # NOTES and VERSION arrive as ENV, never as `${{ }}` inside the run
           # block. A `${{ }}` expression is substituted into the shell SOURCE
           # before bash parses it, and the notes are built verbatim from merged
-          # PR titles (`detect-release-scope.mjs:102`) — so a PR titled
+          # PR titles (`detect-release-scope.mjs:246`) — so a PR titled
           # `Fix docs $(whoami)` executed during `printf`, in a job holding
           # contents:write, OIDC, and the registry signing key on disk.
           NOTES: ${{ steps.release.outputs.notes }}
