@@ -689,3 +689,97 @@ ordinary path.
 every `run:` block extracted and `bash -n`-checked individually (19 blocks, 0
 failures), and the tail gates read `released || resume` on exactly the six steps
 that should carry it, with `Cut release` correctly left on `released` alone.
+
+## Sol round 5 — four findings, and two obvious fixes refuted before either was written
+
+Round-4 fixes landed as `0971afc` (5 files, 479/-57) behind a full suite read from
+inside the log: **1723 tests / 1720 pass / 0 fail / 3 skipped, EXIT=0**, the three
+skips read INDIVIDUALLY at output lines 121/861/862 (the file-URL fallback notice and
+the two `removed capability: overlapping committed batches` phase2 tests), not
+inferred from the total. A separate commit `109475e` corrected an inverted sentence in
+the CLAUDE.md ledger: it said the hosted half must KEEP `openWorldHint:true`, which is
+the INVERSE of what `test/remote-click-guard.test.mjs:237` asserts — read directly,
+the DIVERGENT set is `false` on the hosted build and `true` on stdio, with a
+`get_principles → false` local control whose stated purpose is that *"return true for
+everything satisfies every local assertion above."* Nothing wrong ever reached a
+submission document; the justification file had been written from the test.
+
+| Claim | Grade | Sev |
+|---|---|---|
+| C1 tail failures recoverable | **DOES NOT SURVIVE** | P1 |
+| C2 no unintended new version | **DOES NOT SURVIVE** | P1 |
+| C3 race can't strand a version | **DOES NOT SURVIVE** | P1 |
+| C4 registry retry | SURVIVES | — |
+| C5 no `${{ }}` shell injection | SURVIVES | — |
+| C6 apex verify no false all-clear | SURVIVES | — |
+| C7 credential validity preflight | **DOES NOT SURVIVE** | P2 |
+
+- **R5-1 (P1, C1/C2)** — resume is lost the moment any *ordinary* commit lands after
+  the release tag. `vX` tagged and pushed → apex deploy fails → a legitimate commit
+  lands on `main` → the rerun sees non-changelog commits, bypasses the resume branch,
+  computes `X+1` and cuts it. `vX`'s Release stays unfinished forever while a new
+  immutable npm version is cut. (`detect-release-scope.mjs:63,71,135`, `release.yml:226`.)
+- **R5-2 (P1, C3)** — the accepted post-check race is materially wider than the
+  "seconds" the comment claimed. Between the pre-publish ancestry re-check and the
+  atomic push sit npm's own network work, `mcp-publisher login`, up to three publish
+  attempts, registry read-backs, and **20s of explicit backoff** — none of it
+  network-bounded.
+- **R5-3 (P2, C1)** — a resumed GitHub Release can succeed with EMPTY notes: the
+  resume branch exits before the PR walk, so if the original run died before creating
+  the release, the rerun writes an empty notes file and `gh release create` returns 0.
+  The workflow goes green over an incomplete Release.
+- **R5-4 (P2, C7)** — the Vercel preflight (`whoami` + `pull`) proves identity and
+  project READ access, not production-DEPLOY permission. Vercel's
+  `FullProductionDeployment` is a separate RBAC grant, so npm and the Registry publish
+  before `deploy --prod` is rejected.
+
+Sol changed no files and ran no publish/tag/release/deploy/credential-mutating command.
+
+### The two obvious fixes for R5-1, both refused — one by measurement, one by reading
+
+**"Resume whenever the last tag has no GitHub Release."** Refused by MEASUREMENT, not
+by argument:
+
+```
+gh release list            → newest is v1.17.1 (then v1.17.0, v1.16.1, v1.14.1, …)
+git ls-remote --tags origin → newest is v2.5.0 (also v2.4.1, v2.4.0, v2.3.0, v2.2.9)
+```
+
+Every tag from v2.2.8 through v2.5.0 exists with no GitHub Release, so that rule
+deadlocks this repo permanently: the detector would forever try to resume v2.5.0 and
+never cut anything again.
+
+**"The changelog commit is the marker that the tail completed."** Refused by reading
+the step order: the changelog step is **16 of 19**, with the apex deploy and the apex
+verify after it. Its presence cannot mean the tail finished — and asserting so would
+directly contradict the `onlyChangelog → resume` rule already shipped in `0971afc`.
+
+### Chosen design: the operator names the version
+
+An explicit `resume_version` `workflow_dispatch` input, checked before anything else.
+When set, `Cut release` is skipped entirely and the tail runs against exactly that
+version. Precise, nothing to classify wrong, no deadlock. The automatic zero-commit /
+changelog-only detection stays as the convenience path for the common case.
+
+Measured in all three directions rather than reasoned:
+
+```
+INPUT_RESUME_VERSION=v2.5.0 → released=false resume=true resume_version=2.5.0
+INPUT_RESUME_VERSION=latest → "not a version number", EXIT=1
+INPUT_RESUME_VERSION=""     → released=true resume=false version=2.5.1 (unchanged)
+```
+
+Direction A resumes 2.5.0 even though the range holds 35 commits — which is the whole
+of R5-1: automatic detection cannot see that state, so the operator names it.
+
+The other three: R5-3 falls back to `--generate-notes` when the notes file is empty on
+the create branch (an empty `--notes-file` is accepted silently by `gh`, which is what
+made the green-over-incomplete outcome possible); R5-2 rewrites the window claim to say
+which half it closes — the re-check narrows only the PRE-NPM window, and the post-npm
+tail through login + three attempts + 20s backoff is the LARGER residual; R5-4 names
+`FullProductionDeployment` as uncovered and states that no cheap probe exists, since
+the only command that exercises it is a production deploy. Same style as the
+branch-protection limit already written beside it.
+
+Gates re-run after the edits: **19 steps**, all 19 `run:` blocks `bash -n` clean,
+`node --check` clean on the detector, `bash -n` clean on `release.sh`.

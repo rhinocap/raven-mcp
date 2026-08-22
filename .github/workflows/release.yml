@@ -11,6 +11,10 @@ on:
         description: "Version bump (auto | patch | minor | major)"
         required: false
         default: "auto"
+      resume_version:
+        description: "Finish a half-deployed release (e.g. 2.5.0). Skips the cut entirely and runs only the tail."
+        required: false
+        default: ""
 
 # One release at a time. `detect release scope` reads the version BEFORE
 # release.sh runs its own `git pull`, so two overlapping dispatches can compute
@@ -100,7 +104,12 @@ jobs:
       # than a proxy for it, and it runs in a throwaway directory so the tree is
       # not touched. NOT covered by this probe, stated rather than implied:
       # branch protection on main, which needs admin scope to read and is only
-      # observable at the push.
+      # observable at the push; and production-DEPLOY permission, which is a
+      # separate Vercel RBAC grant (`FullProductionDeployment`) from the project
+      # READ that `whoami` + `pull` exercise -- a token scoped to read can pass
+      # both probes here and still be rejected by `deploy --prod` after npm and
+      # the Registry have published. There is no cheap probe for it: the only
+      # command that exercises it is a production deploy.
       - name: Preflight Vercel credential validity
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -221,6 +230,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           INPUT_BUMP: ${{ inputs.bump }}
+          INPUT_RESUME_VERSION: ${{ inputs.resume_version }}
         run: node scripts/detect-release-scope.mjs
 
       - name: Cut release
@@ -284,10 +294,24 @@ jobs:
             echo "release v$VERSION already exists - re-uploading the bundle"
             gh release upload "v$VERSION" site/raven.mcpb --clobber
           else
-            gh release create "v$VERSION" \
-              --title "v$VERSION" \
-              --notes-file /tmp/release-notes.md \
-              site/raven.mcpb
+            # A resume never computes notes -- the detector exits before the PR
+            # walk -- so on a resume whose ORIGINAL run died before creating
+            # the release, $NOTES is empty and an unguarded --notes-file writes
+            # a Release with no body and returns 0. The workflow would go green
+            # over an incomplete Release. --generate-notes is the honest
+            # fallback: GitHub writes the commit/PR summary itself.
+            if [ -s /tmp/release-notes.md ]; then
+              gh release create "v$VERSION" \
+                --title "v$VERSION" \
+                --notes-file /tmp/release-notes.md \
+                site/raven.mcpb
+            else
+              echo "no notes were computed (this is a resume) - letting GitHub generate them"
+              gh release create "v$VERSION" \
+                --title "v$VERSION" \
+                --generate-notes \
+                site/raven.mcpb
+            fi
           fi
 
       - name: Rebuild changelog page

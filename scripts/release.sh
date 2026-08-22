@@ -123,7 +123,14 @@ SKIP_BUILD=1 npm run build:mcpb
 # push at the end of this script would REJECT, and the rerun recomputes the same
 # version number from different bytes, so the npm shasum guard below correctly
 # refuses to continue and that version can never acquire its tag or its apex
-# bundle. Re-asking here narrows the window from minutes to seconds.
+# bundle. Re-asking here narrows the PRE-NPM window from minutes to seconds.
+#
+# Be precise about which window this closes, because an earlier version of this
+# comment said "seconds" of the whole thing and that was wrong. Between this
+# check and the atomic push at the end sit: the npm publish itself, the registry
+# login, up to three registry publish attempts, the registry read-backs, and 20s
+# of explicit backoff -- none of it network-bounded. So the residual window is
+# not seconds; it is the entire post-npm tail, and it is the LARGER half.
 #
 # ACCEPTED RESIDUAL, stated rather than implied: this is a narrowing, not a
 # lock. A push landing between this check and the push at the end still strands

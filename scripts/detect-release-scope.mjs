@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Decide whether a release should be cut this run, and what the version bump
-// should be. Emits GitHub Actions outputs: released, bump, version, notes.
+// should be. Emits GitHub Actions outputs: released, resume, resume_version,
+// bump, version, notes.
 //
 // Bump rules:
 //   - INPUT_BUMP explicit (major|minor|patch)  → use that
@@ -8,7 +9,17 @@
 //   - Any merged PR labelled `feature` or `minor` → minor
 //   - Otherwise                                 → patch
 //
-// If no commits exist since the last tag, released=false.
+// Three outcomes, not two:
+//   - released=true            → cut a new version, then run the tail
+//   - resume=true              → cut NOTHING, run the tail against resume_version
+//   - released=false resume=false → nothing to do
+//
+// A resume exists because a release reaches four surfaces and npm versions are
+// immutable, so a tail failure (GitHub Release, changelog, apex deploy, apex
+// verify) must be finishable without cutting a new version. It is entered
+// either explicitly via the `resume_version` workflow input, or automatically
+// when the range since the last tag is empty or holds nothing but that tag's
+// changelog commit.
 
 import { execSync } from "node:child_process";
 import { readFileSync, appendFileSync } from "node:fs";
@@ -27,6 +38,39 @@ function setOutput(key, value) {
   } else {
     appendFileSync(out, `${key}=${safe}\n`);
   }
+}
+
+// EXPLICIT RESUME, checked before anything else. The automatic detection below
+// covers the two states a failed tail usually leaves (no commits since the tag,
+// or nothing but the changelog commit), and it is deliberately NOT the only
+// route, because it is defeated the moment an ordinary commit lands on main
+// after a failed deploy: the range is no longer changelog-only, a NEW version
+// is cut, and the earlier version's GitHub Release is stranded permanently.
+//
+// Detecting that state automatically was tried and refused, and the refusal was
+// a MEASUREMENT rather than a preference. "Resume whenever the last tag has no
+// GitHub Release" deadlocks on this repo today: the newest tag is v2.5.0 and
+// the newest GitHub Release is v1.17.1, so that rule would resume v2.5.0
+// forever and never cut anything again. "Resume whenever the changelog commit
+// for the last tag is missing" misclassifies in the other direction, since the
+// changelog step is 16 of 19 and its commit says nothing about the apex deploy
+// or the apex verify that follow it.
+//
+// So the operator names the version instead. `resume_version` on
+// workflow_dispatch runs the tail against exactly that release and skips the
+// cut entirely — precise, no classification to get wrong, and no state in which
+// a half-deployed release cannot be finished by the machine.
+const explicitResume = (process.env.INPUT_RESUME_VERSION || "").trim().replace(/^v/, "");
+if (explicitResume) {
+  if (!/^\d+\.\d+\.\d+/.test(explicitResume)) {
+    console.error(`resume_version "${explicitResume}" is not a version number.`);
+    process.exit(1);
+  }
+  console.log(`Explicit resume of v${explicitResume} — the tail runs, nothing is cut.`);
+  setOutput("released", "false");
+  setOutput("resume", "true");
+  setOutput("resume_version", explicitResume);
+  process.exit(0);
 }
 
 const inputBump = (process.env.INPUT_BUMP || "auto").toLowerCase();
