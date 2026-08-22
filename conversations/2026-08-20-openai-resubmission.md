@@ -704,3 +704,77 @@ Still unresolved and needing Andrew: the unblock route. Pushing `main` needs fre
 explicit approval in-conversation (main push = live endpoint deploy), even though these
 four commits touch only `.claude/` and `conversations/`. Alternatives are attaching
 `SUBMISSION.md` to the cowork thread, or inlining §1/§4/§5 into a self-contained prompt.
+
+## Checkpoint — 2026-08-21, wizard fill (MCP step, Prompts step, Testing step)
+
+Standing authorisation: "signed in, go ahead". Standing boundary unchanged — **fill every field, stop before Submit** (SUBMISSION.md §7: sending it is Andrew's call).
+
+### The wizard's real shape
+Steps are Info → MCP → Skills → Prompts → Testing → Global → Submit, addressed by a `?section=` param on
+`platform.openai.com/plugins/edit/asdk_app_6a66585c4de081918b6f4ce61eee463d/asdk_app_v_6a66585cda8c81918afa54426beb4f50`.
+Param values: `App%20Info`, `MCP%20Server`, `Skills`, `Screenshots` (renders the **Prompts** step, not screenshots), `Testing`.
+`Draft saved <1 minute ago` after **Continue** is what confirms persistence; Continue/Skip advance a step and are not submits.
+
+### The find that mattered: R2 was still live inside the submission artifact
+The MCP step held the **stale pre-remediation annotation scan** — 8 tools listed `Open World: True` while the live
+endpoint publishes **4** (`audit_responsive_visibility`, `audit_contrast`, `audit_tap_targets`, `audit_video_playback`,
+measured earlier this session at 45 tools / 0 missing hints). Resubmitting untouched would have refiled the exact
+defect OpenAI rejected. Clicking **Scan Tools** re-read the live server and rewrote the stored values to the live 4.
+
+Four justifications were then contradicted by their own scanned value and were rewritten (`audit_url`, `audit_page`,
+`score_page`, `audit_typography` — Open World: **False**). The text is derived from source, not inferred:
+`REMOTE_ARG_GUARDS` (src/index.ts:2010) shows exactly those four carry a `url` guard, and `remoteBlocksNetwork`
+(src/index.ts:2259) reads that table itself, so the published hint cannot disagree with what the wrapper enforces.
+Each justification names the `url` argument as the tool's only route to the open web, states that the hosted endpoint
+rejects it pre-handler, gives a one-call reviewer check, and notes the hint is published **per surface** (local stdio
+publishes True). `audit_url`'s Read Only and Destructive justifications were rewritten to match — on this surface the
+tool takes no action beyond declining a `url` it may not fetch; neither surface has a write path.
+The form asks for exactly three justifications per tool (Read Only / Open World / Destructive) — **there is no
+idempotentHint field**, so the ledger's idempotency material has no home in this artifact.
+
+Read-back after Continue: all four OW fields plus audit_url RO/DE persisted; **0 empty justification fields across all 135**.
+
+### Prompt 1 narrowed (same defect class as R1)
+Was "…for contrast, tap-target and typography problems…". `audit_typography`'s url path is refused on the hosted
+surface, so the prompt promised a demo that declines. Now:
+"@Raven Audit my landing page for contrast and tap-target problems and give me the exact fixes". Prompts 2 and 3 unchanged.
+
+### Testing step — the R1 defect, verbatim, still in the form
+"Please provide exactly 5 test cases." The five held were the rejected ones: cases 1 and 2 audit the live
+`https://ravenmcp.ai` (captured numbers off a page we redeploy) and case 4 pins "the 12 bundled systems".
+Replacement set chosen from SUBMISSION.md §2, covering both rejection grounds: **P1** (audit_contrast, inline-pinned),
+**P2** (audit_tap_targets, inline-pinned), **P3** (get_principles, invariant), **P4** (design systems, invariant +
+`#635BFF`), **N1** (audit_url declines and says why). N2/N3/P5 dropped for the 5-case cap.
+
+### Re-measured against production before pasting (2026-08-21)
+Expectations are read off the wire, not off the document. Two argument-shape corrections found in the process —
+`audit_contrast` takes `dom_snapshot: [{selector, color, bgColor, fontPx, bold}]` (not `elements`/`foreground`/`background`),
+and `audit_tap_targets` takes `w`/`h` (not `width`/`height`). Wrong shapes return a usage string and a -32602 respectively.
+
+- **P1** `total_text_elements` 2; `p.ok` pass ratio **18.88** aa true; `p.fail` fail ratio **1.92** `delta_to_aa` **2.58**; one `aa_failures` entry. Exact match.
+- **P2** `minSize` 44, `total` 2, `passing` 1, `failing` 1; `fix_table` holds exactly `button.small` with `deficit_w` **24**, `deficit_h` **24**. Exact match.
+- **N1** HTTP **200**, JSON-RPC **result** with `isError: true` and **no** top-level `error`; text opens with the verbatim
+  `audit_url is disabled on the hosted (remote) endpoint` and names both working routes.
+- **P3** keys `context,category,count,principles`; `count === principles.length`; every principle has id/name/category/summary;
+  set includes `color-palette-discipline`. **`count` measured 28 for "pricing page", not the 26 the doc parenthesises** —
+  which is the invariant earning its keep: the count is deliberately not the expectation, and the doc's own aside had already drifted.
+
+### State
+Nothing submitted. Nothing pushed (`origin/main...HEAD` = 0 / 11). Nothing on npm.
+Still open and Andrew's alone: identity verification, the support-contact choice, pressing Submit.
+Still open and mine: the Info step's empty Developer Identity, the Global step (never inspected).
+
+### Tail — Testing persisted, Global and Info verified (2026-08-21)
+
+Written after the checkpoint above, which stopped mid-Testing-step.
+
+- **Testing step persisted.** All 20 positive-case fields read back with **0 empty of 20**; the five cases and the three negative cases all showed green checks; header read `Draft saved <1 minute ago`. Step-level **Continue** clicked, which advanced the URL to `?section=Global`. Continue is a step-advance, not a submit.
+- **Global step: already complete, no change made.** English (US); Allow all countries.
+- **The carried pending-task note "Developer Identity is empty and must be re-selected" was WRONG.** Read back live: input 10 = `individual`, input 11 = `Andrew Cunliffe`. Populated. The earlier "empty" reading was almost certainly taken before the step hydrated — the same delay that produced the stale tool-scan reading. **An inherited status is a claim, not state**; this one cost nothing only because it was re-read before being acted on.
+- **Info step read in full and every field is populated:** Name `Raven`; Version `1.0.0`; Subtitle `Audit and fix UI design`; Description present; Category `developer tools`; Developer `individual` / `Andrew Cunliffe`; Website `https://ravenmcp.ai`; Support `https://github.com/rhinocap/raven-mcp/issues`; Privacy `https://ravenmcp.ai/privacy`; Terms `https://ravenmcp.ai/terms`; Demo `https://ravenmcp.ai/demo.mp4`. Both directory icons and both composer icons are uploaded.
+- **All five outbound URLs measured live rather than assumed** — 200 on every one: apex `text/html` 162,746 B, `/privacy` 28,544 B, `/terms` 30,918 B, `/demo.mp4` **`video/mp4` 1,202,547 B**, GitHub issues 247,188 B. The demo URL is the one worth having measured: a dead or mis-typed video is a rejection ground and nothing in the form validates it.
+- **"My plugin links or directs users out of ChatGPT to make purchases" is UNCHECKED**, which is correct — Raven's hosted surface is free with no purchase route.
+
+**One open question for Andrew, deliberately not decided here.** The Version field reads `1.0.0`, and its helper text says *"Choose a semantic version greater than the published version."* `1.0.0` is the version that was **rejected** on 2026-08-19, not a published one, so the form is not currently erroring — but a resubmission of a substantively changed artifact carrying the rejected version string is at best confusing to a reviewer. Bumping it changes a public listing identifier, so it is his call, alongside the other §7 items.
+
+**State: nothing submitted.** Every wizard step (Info · MCP · Skills · Prompts · Testing · Global) is now filled and saved as a draft. What remains is entirely §7 and entirely Andrew's: identity verification status, the support-contact choice, the version-string decision above, and pressing Submit. Repo unchanged at `origin/main...HEAD` = 0/11 — eleven commits ahead, unpushed, nothing on npm.
