@@ -45,8 +45,23 @@ if [[ ! -f "$REGISTRY_KEY" ]]; then
   exit 1
 fi
 
-echo "→ Pulling latest main"
-git pull --ff-only
+# NOT a pull. In CI the full suite has ALREADY run against the checked-out SHA by
+# the time this script starts, so pulling here would move the tree underneath a
+# green test result and publish bytes nothing tested — an ordinary push landing
+# during the ~10-minute test window is enough to do it. Locally the same applies
+# to whatever the operator ran before invoking this. So the currency requirement
+# is asserted rather than satisfied: if main has moved, stop and make the caller
+# re-run from the new head, tests included.
+echo "→ Checking main is current"
+git fetch origin "$BRANCH" --quiet
+LOCAL_HEAD=$(git rev-parse HEAD)
+REMOTE_HEAD=$(git rev-parse "origin/$BRANCH")
+if [[ "$LOCAL_HEAD" != "$REMOTE_HEAD" ]]; then
+  echo "✗ HEAD ($LOCAL_HEAD) is not origin/$BRANCH ($REMOTE_HEAD)."
+  echo "  Whatever was tested is not what would be published. Update and re-run"
+  echo "  the full suite from the new head before releasing."
+  exit 1
+fi
 
 CURRENT=$(node -p "require('./package.json').version")
 echo "→ Current version: $CURRENT"
@@ -92,7 +107,32 @@ echo "→ Rebuilding .mcpb"
 SKIP_BUILD=1 npm run build:mcpb
 
 echo "→ Publishing to npm"
-npm publish
+# npm publish is the first IRREVERSIBLE step and the Registry, the commit and the
+# tag all come after it, so any failure downstream leaves a rerun facing a version
+# npm already holds — and npm refuses to overwrite, so a naive rerun cannot
+# converge. Detect that state and resume through it instead of dying on it.
+#
+# The artifact is verified rather than assumed identical: `npm pack --dry-run`
+# was measured on npm 11.17.0 to produce a shasum that is stable across runs and
+# independent of file mtimes, so comparing it to the published `dist.shasum` is a
+# real byte-identity check of the tree about to be tagged. A MISMATCH is fatal on
+# purpose: npm will not let those bytes be replaced, so continuing would tag and
+# announce a release whose npm artifact is something else.
+if npm view "raven-mcp@$NEW" version >/dev/null 2>&1; then
+  echo "  raven-mcp@$NEW is already on npm — resuming a partial release."
+  LOCAL_SHASUM=$(npm pack --dry-run --json | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8"))[0].shasum')
+  PUBLISHED_SHASUM=$(npm view "raven-mcp@$NEW" dist.shasum)
+  if [[ "$LOCAL_SHASUM" != "$PUBLISHED_SHASUM" ]]; then
+    echo "✗ npm already serves $NEW with a DIFFERENT artifact."
+    echo "    published: $PUBLISHED_SHASUM"
+    echo "    local:     $LOCAL_SHASUM"
+    echo "  npm does not allow republishing a version. Cut the next version instead."
+    exit 1
+  fi
+  echo "  published artifact matches this tree ($LOCAL_SHASUM) — continuing."
+else
+  npm publish
+fi
 
 echo "→ Publishing to MCP Registry"
 # The registry JWT expires in MINUTES. Minting it right here — rather than in a
@@ -100,17 +140,46 @@ echo "→ Publishing to MCP Registry"
 # both published to npm and then died on an expired token, each leaving a
 # half-done release (npm shipped, registry stale, nothing committed or tagged).
 mcp-publisher login http --domain ravenmcp.ai --private-key "$(cat "$REGISTRY_KEY")"
-mcp-publisher publish
+# Resume-tolerant for the same reason npm is: on a rerun after a downstream
+# failure the Registry may already hold this version, and a publish that refuses
+# a duplicate would strand the tag/apex surfaces the rerun exists to reach. The
+# failure is not TRUSTED to mean "already published" — the registry is asked
+# directly, and only a version it actually reports lets the run continue.
+if ! mcp-publisher publish; then
+  echo "  registry publish failed — checking whether $NEW is already recorded"
+  if curl -s "https://registry.modelcontextprotocol.io/v0/servers/ai.ravenmcp%2Fraven-mcp/versions" \
+     | node -e 'let b="";process.stdin.on("data",d=>b+=d).on("end",()=>{let o;try{o=JSON.parse(b)}catch(e){process.exit(1)}const v=(o.servers||[]).map(x=>x.server&&x.server.version);process.exit(v.includes(process.argv[1])?0:1)})' "$NEW"; then
+    echo "  registry already records $NEW — resuming."
+  else
+    echo "✗ registry publish failed and $NEW is not recorded. Stopping."
+    exit 1
+  fi
+fi
 
 echo "→ Committing + tagging"
 # build:mcpb writes the bundle to BOTH site/ and web/public/. ravenmcp.ai is
 # served by the `web` project, so staging only site/ leaves the public download
 # one release behind — that gap is what the v2.2.6 hand-copy commit was.
 git add package.json package-lock.json manifest.json server.json site/raven.mcpb web/public/raven.mcpb
-git commit -m "Release v$NEW
+# Both of these are no-ops on a resume, and both used to be fatal there: `git
+# commit` exits 1 with nothing staged and `git tag` exits 1 on an existing name.
+# A tag that already exists is the exact state P1-2 describes — the tag landed
+# and something downstream (GitHub Release, changelog, Vercel, apex verify)
+# failed — and detect-release-scope.mjs then sees zero commits since that tag and
+# reports released=false, so the apex never gets deployed by any later run. The
+# resume path is what makes the remaining surfaces reachable.
+if git diff --cached --quiet; then
+  echo "  nothing to commit — release commit already exists, resuming."
+else
+  git commit -m "Release v$NEW
 
 Co-Authored-By: Codex Opus 4.6 <noreply@anthropic.com>"
-git tag "v$NEW"
+fi
+if git rev-parse -q --verify "refs/tags/v$NEW" >/dev/null; then
+  echo "  tag v$NEW already exists — resuming."
+else
+  git tag "v$NEW"
+fi
 
 echo "→ Pushing"
 # ATOMIC. Two separate pushes can half-succeed: the branch lands and the tag
@@ -118,7 +187,19 @@ echo "→ Pushing"
 # and the MCP Registry published against a `main` that carries no tag, no
 # GitHub Release, no changelog and no apex deploy — and the tag name is by then
 # already taken locally, so a retry does not converge. One ref update or none.
-git push --atomic origin "$BRANCH" "v$NEW"
+# `--atomic` still fails when BOTH refs are already published (a resume that got
+# this far last time), so an up-to-date push is not an error here. Anything else
+# is.
+if ! push_out=$(git push --atomic origin "$BRANCH" "v$NEW" 2>&1); then
+  if echo "$push_out" | grep -q "Everything up-to-date"; then
+    echo "  branch and tag already pushed — resuming."
+  else
+    echo "$push_out"
+    exit 1
+  fi
+else
+  echo "$push_out"
+fi
 
 echo ""
 echo "✓ Released v$NEW"

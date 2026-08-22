@@ -47,13 +47,25 @@ jobs:
       # a misconfigured repo costs seconds, not a full green build that then dies
       # one line into the release script.
       - name: Preflight release credentials
+        # A `${{ }}` expression is substituted into the shell SOURCE before bash
+        # parses it, so a secret whose value carried shell metacharacters would be
+        # executed by the `[ -z ... ]` test rather than tested by it. These are
+        # checked for PRESENCE only, so the values never need to reach the source:
+        # pass them through `env:` and read them as ordinary variables.
+        env:
+          RAVEN_REGISTRY_KEY: ${{ secrets.RAVEN_REGISTRY_KEY }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          RESEND_AUDIENCE_ID: ${{ secrets.RESEND_AUDIENCE_ID }}
         run: |
           missing=0
-          if [ -z "${{ secrets.RAVEN_REGISTRY_KEY }}" ]; then
+          if [ -z "$RAVEN_REGISTRY_KEY" ]; then
             echo "::error::secret RAVEN_REGISTRY_KEY is not set. The MCP Registry step (ai.ravenmcp/raven-mcp) cannot run without the ed25519 signing key for ravenmcp.ai domain auth."
             missing=1
           fi
-          if [ -z "${{ secrets.VERCEL_TOKEN }}" ]; then
+          if [ -z "$VERCEL_TOKEN" ]; then
             echo "::error::secret VERCEL_TOKEN is not set. The apex .mcpb at ravenmcp.ai is served by the web Vercel project, which has NO git integration, so nothing else in this workflow can move it."
             missing=1
           fi
@@ -62,8 +74,17 @@ jobs:
           # to deploy; without these two, `vercel deploy` either fails or links to
           # the wrong project and the apex silently stays stale — the exact failure
           # the verify step below exists to catch, arriving one step earlier.
-          if [ -z "${{ secrets.VERCEL_ORG_ID }}" ] || [ -z "${{ secrets.VERCEL_PROJECT_ID }}" ]; then
+          if [ -z "$VERCEL_ORG_ID" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
             echo "::error::secrets VERCEL_ORG_ID and VERCEL_PROJECT_ID must both be set. They are the web project's linkage (read from web/.vercel/project.json); the runner has no .vercel directory of its own."
+            missing=1
+          fi
+          # The notify job (minor/major only) exits 1 on a missing RESEND pair,
+          # and it runs AFTER npm, the Registry, the tag and the apex. Both are
+          # already configured in this repo; checking them here means a future
+          # rotation that drops one is reported before anything ships rather
+          # than as a red job hanging off a completed release.
+          if [ -z "$RESEND_API_KEY" ] || [ -z "$RESEND_AUDIENCE_ID" ]; then
+            echo "::error::secrets RESEND_API_KEY and RESEND_AUDIENCE_ID must both be set. scripts/notify-release.mjs hard-exits without them, in a job that runs after every irreversible step."
             missing=1
           fi
           [ "$missing" -eq 0 ] || exit 1
@@ -128,6 +149,17 @@ jobs:
           fi
           mcp-publisher login http --domain ravenmcp.ai --private-key "$RAVEN_REGISTRY_KEY"
           echo "registry key validated against ravenmcp.ai domain auth"
+
+          # Same class as the key probe above, and the same reason: the Registry
+          # publish runs AFTER `npm publish`, so a server.json the Registry
+          # refuses is discovered with npm already irreversibly shipped. The
+          # registry caps `description` at 100 characters and ours has been over
+          # it before (175, learned 2026-07-25); it sits at 98 today, which is two
+          # characters of headroom, not a margin. `validate` is schema-only and
+          # needs no auth, so it costs nothing to run here. The version field is
+          # rewritten later by release.sh and is not what this is checking.
+          mcp-publisher validate
+          echo "server.json validated against the registry schema"
 
       - name: Configure git identity
         run: |
