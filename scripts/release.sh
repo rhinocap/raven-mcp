@@ -116,6 +116,34 @@ node -e '
 echo "→ Rebuilding .mcpb"
 SKIP_BUILD=1 npm run build:mcpb
 
+# Re-checked immediately before the first irreversible write, NOT only at the
+# top of the script. The gate above runs, then the suite runs, then the build
+# runs -- minutes during which a second writer can land on origin/$BRANCH. The
+# harm is specific and unrecoverable rather than cosmetic: the atomic branch+tag
+# push at the end of this script would REJECT, and the rerun recomputes the same
+# version number from different bytes, so the npm shasum guard below correctly
+# refuses to continue and that version can never acquire its tag or its apex
+# bundle. Re-asking here narrows the window from minutes to seconds.
+#
+# ACCEPTED RESIDUAL, stated rather than implied: this is a narrowing, not a
+# lock. A push landing between this check and the push at the end still strands
+# the version, and nothing here can prevent that -- claiming the ref before
+# publishing would invert the npm-first ordering the block below reasons for and
+# leaves a tag with no package on the reverse failure. Accepted because main has
+# one human writer and releases are deliberate. REOPEN if main gains automated
+# pushes, a second release runner, or multiple regular committers.
+echo "→ Re-checking main is still current (last chance before npm)"
+git fetch origin "$BRANCH" --quiet
+REMOTE_HEAD_NOW=$(git rev-parse "origin/$BRANCH")
+if ! git merge-base --is-ancestor "$REMOTE_HEAD_NOW" "$(git rev-parse HEAD)"; then
+  echo "✗ origin/$BRANCH moved to $REMOTE_HEAD_NOW while this release was building."
+  echo "  Publishing now would strand v$NEW: the final branch+tag push would be"
+  echo "  rejected, and a rerun would compute the same version from different"
+  echo "  bytes, which npm will not let you republish. Nothing has been published"
+  echo "  yet. Integrate, re-run the full suite, and start again."
+  exit 1
+fi
+
 echo "→ Publishing to npm"
 # npm publish is the first IRREVERSIBLE step and the Registry, the commit and the
 # tag all come after it, so any failure downstream leaves a rerun facing a version
@@ -155,15 +183,53 @@ mcp-publisher login http --domain ravenmcp.ai --private-key "$(cat "$REGISTRY_KE
 # a duplicate would strand the tag/apex surfaces the rerun exists to reach. The
 # failure is not TRUSTED to mean "already published" — the registry is asked
 # directly, and only a version it actually reports lets the run continue.
-if ! mcp-publisher publish; then
-  echo "  registry publish failed — checking whether $NEW is already recorded"
-  if curl -s "https://registry.modelcontextprotocol.io/v0/servers/ai.ravenmcp%2Fraven-mcp/versions" \
-     | node -e 'let b="";process.stdin.on("data",d=>b+=d).on("end",()=>{let o;try{o=JSON.parse(b)}catch(e){process.exit(1)}const v=(o.servers||[]).map(x=>x.server&&x.server.version);process.exit(v.includes(process.argv[1])?0:1)})' "$NEW"; then
-    echo "  registry already records $NEW — resuming."
-  else
-    echo "✗ registry publish failed and $NEW is not recorded. Stopping."
-    exit 1
+#
+# RETRIED with bounded backoff, and the reason is the asymmetry of where this
+# step sits: npm has ALREADY published by the time control reaches here, and npm
+# versions are immutable, so a transient registry rejection that is not retried
+# leaves a release whose only recovery is a resume run. The workflow's
+# `mcp-publisher validate` preflight does not make that unlikely enough to
+# ignore — validate is schema and semantic only, while publish additionally
+# applies server-side package-ownership and namespace-authorization checks it
+# never sees, and either can fail on registry-side trouble with the manifest
+# perfectly well-formed. Three attempts, 5s then 15s apart: enough to ride out a
+# restart or a rate limit, short enough that a genuine authorization failure
+# still stops the run in under half a minute rather than looping.
+#
+# The registry is asked DIRECTLY before each retry rather than after the last
+# one, because a publish can succeed server-side and still report failure to the
+# client, and re-publishing an already-recorded version is the case this whole
+# block exists to survive.
+registry_records_new() {
+  curl -s "https://registry.modelcontextprotocol.io/v0/servers/ai.ravenmcp%2Fraven-mcp/versions" \
+    | node -e 'let b="";process.stdin.on("data",d=>b+=d).on("end",()=>{let o;try{o=JSON.parse(b)}catch(e){process.exit(1)}const v=(o.servers||[]).map(x=>x.server&&x.server.version);process.exit(v.includes(process.argv[1])?0:1)})' "$NEW"
+}
+
+REGISTRY_BACKOFF=(5 15)
+REGISTRY_DONE=0
+for attempt in 1 2 3; do
+  if mcp-publisher publish; then
+    REGISTRY_DONE=1
+    break
   fi
+  echo "  registry publish attempt $attempt failed — asking the registry whether $NEW is already recorded"
+  if registry_records_new; then
+    echo "  registry already records $NEW — resuming."
+    REGISTRY_DONE=1
+    break
+  fi
+  if [[ $attempt -lt 3 ]]; then
+    delay=${REGISTRY_BACKOFF[$((attempt - 1))]}
+    echo "  not recorded — retrying in ${delay}s"
+    sleep "$delay"
+  fi
+done
+if [[ $REGISTRY_DONE -ne 1 ]]; then
+  echo "✗ registry publish failed 3 times and $NEW is not recorded. Stopping."
+  echo "  npm already serves $NEW, so this is a resumable partial release:"
+  echo "  fix the registry-side cause and re-run scripts/release.sh — the npm"
+  echo "  step will resume on the shasum check rather than republish."
+  exit 1
 fi
 
 echo "→ Committing + tagging"
@@ -185,8 +251,31 @@ else
 
 Co-Authored-By: Codex Opus 4.6 <noreply@anthropic.com>"
 fi
+RELEASE_COMMIT=$(git rev-parse HEAD)
 if git rev-parse -q --verify "refs/tags/v$NEW" >/dev/null; then
-  echo "  tag v$NEW already exists — resuming."
+  # The name being taken is NOT evidence the release commit landed. A tag left
+  # by an aborted run, a hand-made tag, or one pointing at an unrelated commit
+  # all satisfy a bare --verify, and the script would then publish $NEW to npm
+  # and the Registry while the tag names something else entirely -- a release
+  # whose four surfaces disagree about which bytes it is. Ask what the tag
+  # POINTS AT, locally and on the remote, and refuse anything but this commit.
+  # `^{commit}` peels an annotated tag; the remote query peels with `^{}` and
+  # falls back to the unpeeled ref, since `git tag` here writes lightweight tags.
+  TAGGED=$(git rev-parse "v$NEW^{commit}")
+  if [[ "$TAGGED" != "$RELEASE_COMMIT" ]]; then
+    echo "✗ Local tag v$NEW points at $TAGGED, not the release commit $RELEASE_COMMIT."
+    echo "  This is not a resume of this release. Inspect the tag and delete it"
+    echo "  deliberately if it is stale, then re-run."
+    exit 1
+  fi
+  REMOTE_TAG=$(git ls-remote --tags origin "refs/tags/v$NEW^{}" "refs/tags/v$NEW" \
+    | awk '$2 ~ /\^\{\}$/ {peeled=$1} $2 !~ /\^\{\}$/ {plain=$1} END {print (peeled != "" ? peeled : plain)}')
+  if [[ -n "$REMOTE_TAG" && "$REMOTE_TAG" != "$RELEASE_COMMIT" ]]; then
+    echo "✗ origin already carries tag v$NEW at $REMOTE_TAG, not $RELEASE_COMMIT."
+    echo "  That version is published against different bytes. Bump and re-run."
+    exit 1
+  fi
+  echo "  tag v$NEW already exists and points at the release commit — resuming."
 else
   git tag "v$NEW"
 fi

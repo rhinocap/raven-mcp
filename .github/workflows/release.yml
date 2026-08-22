@@ -31,6 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       released: ${{ steps.release.outputs.released }}
+      resume: ${{ steps.release.outputs.resume }}
       version: ${{ steps.release.outputs.version }}
       bump: ${{ steps.release.outputs.bump }}
       notes: ${{ steps.release.outputs.notes }}
@@ -89,14 +90,54 @@ jobs:
           fi
           [ "$missing" -eq 0 ] || exit 1
 
+      # PRESENCE is not VALIDITY, and the Vercel credentials are not exercised
+      # until AFTER npm and the MCP Registry have published. A revoked token, an
+      # org id the token cannot reach, or a project id that is not in that org
+      # all read as "set" above and then surface as a half-done release with the
+      # apex stale. Same shape as the registry signing-key probe: exercise the
+      # credential cheaply, here, discard the result. `vercel pull` is the exact
+      # command the deploy step runs, so this validates the mechanism rather
+      # than a proxy for it, and it runs in a throwaway directory so the tree is
+      # not touched. NOT covered by this probe, stated rather than implied:
+      # branch protection on main, which needs admin scope to read and is only
+      # observable at the push.
+      - name: Preflight Vercel credential validity
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          set -o pipefail
+          probe=$(mktemp -d)
+          cd "$probe"
+          if ! npx --yes vercel@59.3.0 whoami --token "$VERCEL_TOKEN"; then
+            echo "::error::VERCEL_TOKEN is set but not valid (vercel whoami failed). The apex .mcpb deploy would fail AFTER npm and the MCP Registry have published."
+            exit 1
+          fi
+          if ! npx --yes vercel@59.3.0 pull --yes --environment=production --token "$VERCEL_TOKEN"; then
+            echo "::error::VERCEL_ORG_ID/VERCEL_PROJECT_ID do not resolve to a project this token can reach. Read them from web/.vercel/project.json on a linked checkout."
+            exit 1
+          fi
+
       - uses: actions/setup-node@v5
         with:
           node-version: "24"
           cache: "npm"
           registry-url: "https://registry.npmjs.org"
 
-      - name: Upgrade npm (OIDC trusted publishing requires 11.5.1+)
-        run: npm install -g npm@latest
+      # PINNED, not `@latest`, and the pin is a correctness requirement rather
+      # than a supply-chain preference. release.sh resumes a half-finished
+      # release by re-packing the tree and comparing the tarball shasum to the
+      # one npm already published; tarball byte layout is not stable across npm
+      # majors (npm/cli#7610), so a rerun on a newer npm can produce a different
+      # shasum from IDENTICAL contents and abort a resume that was correct. The
+      # floor is 11.5.1 for OIDC trusted publishing; 11.17.0 is the version the
+      # shasum determinism was measured on. Bump it deliberately, and re-measure
+      # `npm pack --dry-run --json` against a published version when you do.
+      - name: Install pinned npm (OIDC trusted publishing requires 11.5.1+)
+        run: |
+          npm install -g npm@11.17.0
+          npm -v
 
       - name: Install deps
         run: npm ci
@@ -158,6 +199,15 @@ jobs:
           # characters of headroom, not a margin. `validate` is schema-only and
           # needs no auth, so it costs nothing to run here. The version field is
           # rewritten later by release.sh and is not what this is checking.
+          #
+          # What this step does NOT establish, stated rather than implied: a
+          # green `validate` is a schema and semantic preflight, never a
+          # guarantee the publish is accepted. Publish additionally applies
+          # server-side checks this cannot see — package ownership on npm, and
+          # namespace authorization for ai.ravenmcp/* — so a rejection at
+          # publish time remains possible with this step green. release.sh
+          # retries that publish with bounded backoff and leaves the version
+          # resumable rather than half-released.
           mcp-publisher validate
           echo "server.json validated against the registry schema"
 
@@ -187,8 +237,28 @@ jobs:
           # version npm never published.
           echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
 
+      # ONE version for every tail step, whether this run cut the release or is
+      # resuming one a previous run left half-deployed. `Cut release` is skipped
+      # on a resume, so `steps.cut.outputs.version` is empty there and every step
+      # reading it would name `v` -- which is why the tail steps read THIS output
+      # and never `steps.cut` directly.
+      - name: Resolve the version the tail steps operate on
+        id: ver
+        if: steps.release.outputs.released == 'true' || steps.release.outputs.resume == 'true'
+        env:
+          CUT_VERSION: ${{ steps.cut.outputs.version }}
+          RESUME_VERSION: ${{ steps.release.outputs.resume_version }}
+        run: |
+          v="${CUT_VERSION:-$RESUME_VERSION}"
+          if [ -z "$v" ]; then
+            echo "::error::neither a cut version nor a resume version is set - refusing to run the tail steps against an unnamed release"
+            exit 1
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "operating on v$v"
+
       - name: Create GitHub Release
-        if: steps.release.outputs.released == 'true'
+        if: steps.release.outputs.released == 'true' || steps.release.outputs.resume == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # NOTES and VERSION arrive as ENV, never as `${{ }}` inside the run
@@ -198,24 +268,38 @@ jobs:
           # `Fix docs $(whoami)` executed during `printf`, in a job holding
           # contents:write, OIDC, and the registry signing key on disk.
           NOTES: ${{ steps.release.outputs.notes }}
-          VERSION: ${{ steps.cut.outputs.version }}
+          VERSION: ${{ steps.ver.outputs.version }}
         run: |
+          # QUERIED before it is created. `gh release create` is not
+          # duplicate-tolerant: on a resume the release usually already exists
+          # and an unconditional create fails the step, taking the changelog,
+          # the apex deploy and the apex verify down with it -- the same
+          # unfinishable release the resume path exists to fix. Asking first is
+          # the only thing that makes this step rerunnable. On an existing
+          # release the asset is re-uploaded with --clobber rather than skipped,
+          # because the half-finished state this recovers from includes "release
+          # created, asset upload failed".
           printf '%s\n' "$NOTES" > /tmp/release-notes.md
-          gh release create "v$VERSION" \
-            --title "v$VERSION" \
-            --notes-file /tmp/release-notes.md \
-            site/raven.mcpb
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            echo "release v$VERSION already exists - re-uploading the bundle"
+            gh release upload "v$VERSION" site/raven.mcpb --clobber
+          else
+            gh release create "v$VERSION" \
+              --title "v$VERSION" \
+              --notes-file /tmp/release-notes.md \
+              site/raven.mcpb
+          fi
 
       - name: Rebuild changelog page
-        if: steps.release.outputs.released == 'true'
+        if: steps.release.outputs.released == 'true' || steps.release.outputs.resume == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node scripts/build-changelog.mjs
 
       - name: Commit changelog + push
-        if: steps.release.outputs.released == 'true'
+        if: steps.release.outputs.released == 'true' || steps.release.outputs.resume == 'true'
         env:
-          VERSION: ${{ steps.cut.outputs.version }}
+          VERSION: ${{ steps.ver.outputs.version }}
         run: |
           git add site/changelog.html
           if ! git diff --cached --quiet; then
@@ -231,7 +315,7 @@ jobs:
       # 2026-08-17) for exactly this reason. release.sh prints a reminder; a
       # workflow has nobody to read one, so the step lives here.
       - name: Deploy apex marketing site (publishes the new .mcpb)
-        if: steps.release.outputs.released == 'true'
+        if: steps.release.outputs.released == 'true' || steps.release.outputs.resume == 'true'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           # The documented CI linkage mechanism. `vercel pull` was here first and
@@ -249,9 +333,20 @@ jobs:
       # own exit code: a green deploy of a stale tree is the exact failure this
       # step exists to catch. Compares the served bundle to the one just built.
       - name: Verify the apex .mcpb is the bundle we just built
-        if: steps.release.outputs.released == 'true'
+        if: steps.release.outputs.released == 'true' || steps.release.outputs.resume == 'true'
         run: |
+          # pipefail is load-bearing, not hygiene. Both sha reads are
+          # `sha256sum ... | cut`, and `cut` exits 0 on empty input, so without
+          # it a sha256sum that fails on BOTH sides leaves local_sha and
+          # live_sha empty and the equality test below reports the apex
+          # VERIFIED. A check whose failure mode is indistinguishable from its
+          # success mode is not a check.
+          set -o pipefail
           local_sha=$(sha256sum web/public/raven.mcpb | cut -d" " -f1)
+          if [ -z "$local_sha" ]; then
+            echo "::error::could not read the local bundle sha - refusing to verify"
+            exit 1
+          fi
           echo "local bundle: $local_sha"
           live_sha=""
           for i in 1 2 3 4 5 6; do

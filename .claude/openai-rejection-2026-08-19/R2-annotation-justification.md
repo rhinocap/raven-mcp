@@ -220,19 +220,14 @@ publishes `readOnlyHint: false`, `destructiveHint: true`, `idempotentHint: false
 
 ---
 
-## 8. Per-tool declaration — read off the DEPLOYED endpoint, 2026-08-20
+## 8. Per-tool declaration — read off the DEPLOYED endpoint, 2026-08-22
 
-> **STALE AS OF 2026-08-21 — DO NOT SUBMIT THIS SECTION AS WRITTEN.** The table below is an
-> honest measurement of what `mcp.ravenmcp.ai` served on 2026-08-20, and it is deliberately
-> left unedited: describing annotations that are not yet deployed is exactly the defect R1
-> was rejected for. The `openWorldHint` correction in §5 is committed but **not pushed and
-> not deployed**, and pushing `main` is the production deploy of this endpoint, which is a
-> human gate. When it lands, four rows change from `true` to `false` — `audit_contrast`,
-> `audit_responsive_visibility`, `audit_tap_targets`, `audit_video_playback` — the split in
-> fact 3 below becomes 0 / 45, and test case N2's role changes: it will still demonstrate a
-> hosted tool fetching a caller-supplied address, but that fetch is a READ and no longer
-> evidences an `openWorldHint: true`. **Re-fetch `tools/list` and rewrite fact 3 and the
-> table from the response before this document is used.**
+> **Re-measured 2026-08-22 against the live endpoint, after the `openWorldHint`
+> correction reached production.** The previous version of this section described the
+> 2026-08-20 surface and carried a do-not-submit banner, because describing annotations
+> that are not yet deployed is exactly the defect R1 was rejected for. It is replaced
+> rather than amended. Every number and every row below was read out of a `tools/list`
+> response from `https://mcp.ravenmcp.ai/api/mcp`; none of it is transcribed from source.
 
 OpenAI's guidance asks for a justification for **each** tool. The sections above justify
 by class, because that is how the values are produced — no hint anywhere in this server is
@@ -245,43 +240,57 @@ measurement of what a reviewer receives, not a transcription of source.
 1. **45 tools, and all four hints are present and boolean on every one of them.**
    Measured: 0 absent, 0 non-boolean, across 45 × 4 = 180 values. This is the §1 claim
    ("explicit boolean, by construction") stated as a number.
-2. **On this surface every tool is `readOnlyHint: true`, `destructiveHint: false`,
-   `idempotentHint: true` — all 45, no exceptions.** That is not a coincidence and not a
-   blanket default: the anonymous endpoint deliberately serves only the read-only subset
-   of the server. The tools that legitimately write, log, or fire browser interactions
-   (and are therefore annotated `readOnlyHint: false` / `destructiveHint: true`, per §3
-   and §3b) are **not registered on this surface at all** — they are gated, and a
-   `tools/call` for one answers "Tool not found" rather than being refused at runtime.
-   §3 and §3b describe the local `npx raven-mcp` surface; they are included because the
-   same package ships both, and the annotations differ between them by derivation.
-3. **`openWorldHint` is the only axis that varies here, and it splits 4 / 41.** The four
-   `true` are exactly the tools that fetch a caller-supplied address on this endpoint:
-   `audit_contrast`, `audit_responsive_visibility`, `audit_tap_targets`,
-   `audit_video_playback`. Test case N2 demonstrates one of them actually reaching the
-   open web from the hosted endpoint; test case N1 demonstrates `audit_url`, now
-   `openWorldHint: false`, declining without a network attempt in 0.304 s. **The two
-   directions are both evidenced** — a fix that flipped every tool to `false` would
-   satisfy N1 and fail N2.
+2. **Every one of the four axes is uniform on this surface — all 45 tools are
+   `readOnlyHint: true`, `destructiveHint: false`, `idempotentHint: true`,
+   `openWorldHint: false`.** A reviewer should treat a uniform column as suspicious, so
+   here is why it is not a blanket default. Uniformity here is a property of **which
+   tools are registered**, not of the annotation logic. The anonymous endpoint serves
+   only the read-only subset of the server; the tools that write, log, or drive a
+   browser — and are therefore annotated `readOnlyHint: false` / `destructiveHint: true`
+   per §3 and §3b — are **not registered on this surface at all**. A `tools/call` for one
+   answers "Tool not found" rather than being refused at runtime, so there is no tool
+   here for those axes to vary across. §3 and §3b describe the local `npx raven-mcp`
+   surface, which ships from the same package and does vary.
+3. **`openWorldHint` is `false` for all 45, and the evidence that this is derived rather
+   than defaulted is that the SAME package publishes `true` for some of the SAME tool
+   names on the other surface.** The two surfaces answer two different questions on
+   purpose. The hosted endpoint publishes OpenAI's **write-based** reading — does this
+   tool write to public internet state? No tool here does, so the honest answer is
+   `false` for all 45. Local stdio publishes the MCP specification's **reach-based**
+   reading — does this tool reach hosts outside the server? — so `audit_contrast`,
+   `audit_tap_targets`, `audit_responsive_visibility` and `audit_video_playback` are
+   `true` there. That divergence is pinned by a test on those exact four tools in
+   `test/remote-click-guard.test.mjs` ("openWorldHint is write-based on the hosted
+   surface and reach-based on stdio"), asserting **both** halves plus a local control,
+   because a single-surface assertion would be worthless: asserting only the hosted half
+   asserts a constant, and asserting only the local half misses a derivation that ignores
+   the surface entirely.
+
+   **This supersedes what test cases N1 and N2 were originally submitted to show.** N2
+   was written to demonstrate a hosted tool reaching the open web as evidence of an
+   `openWorldHint: true`. That fetch is a **read**, and on the hosted surface it no
+   longer evidences a `true` — it is now evidence for the write-based reading above.
+   N1 (hosted `audit_url` declining without a network attempt, 0.304 s) is unaffected.
 
 | Tool | `readOnlyHint` | `destructiveHint` | `idempotentHint` | `openWorldHint` |
 | --- | --- | --- | --- | --- |
 | `audit_consistency` | `true` | `false` | `true` | `false` |
 | `audit_content` | `true` | `false` | `true` | `false` |
-| `audit_contrast` | `true` | `false` | `true` | `true` |
+| `audit_contrast` | `true` | `false` | `true` | `false` |
 | `audit_ios_a11y` | `true` | `false` | `true` | `false` |
 | `audit_ios_privacy` | `true` | `false` | `true` | `false` |
 | `audit_ios_screen` | `true` | `false` | `true` | `false` |
 | `audit_layout` | `true` | `false` | `true` | `false` |
 | `audit_page` | `true` | `false` | `true` | `false` |
 | `audit_parity` | `true` | `false` | `true` | `false` |
-| `audit_responsive_visibility` | `true` | `false` | `true` | `true` |
+| `audit_responsive_visibility` | `true` | `false` | `true` | `false` |
 | `audit_rn` | `true` | `false` | `true` | `false` |
 | `audit_screen` | `true` | `false` | `true` | `false` |
 | `audit_swiftui` | `true` | `false` | `true` | `false` |
-| `audit_tap_targets` | `true` | `false` | `true` | `true` |
+| `audit_tap_targets` | `true` | `false` | `true` | `false` |
 | `audit_typography` | `true` | `false` | `true` | `false` |
 | `audit_url` | `true` | `false` | `true` | `false` |
-| `audit_video_playback` | `true` | `false` | `true` | `true` |
+| `audit_video_playback` | `true` | `false` | `true` | `false` |
 | `compose_system` | `true` | `false` | `true` | `false` |
 | `evaluate_design` | `true` | `false` | `true` | `false` |
 | `generate_design_system` | `true` | `false` | `true` | `false` |
@@ -311,5 +320,5 @@ measurement of what a reviewer receives, not a transcription of source.
 | `search_knowledge` | `true` | `false` | `true` | `false` |
 | `suggest_contrast_fix` | `true` | `false` | `true` | `false` |
 
-*(Generated by `tools/list` against the production alias; the tool set hashes to the
+*(Generated 2026-08-22 by `tools/list` against the production alias; the tool set hashes to the
 frozen anonymous-surface digest `f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6`, unchanged by this remediation.)*

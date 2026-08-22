@@ -495,3 +495,197 @@ linkage and a token says *who*, never *which project* — plus the fifth prerequ
 that is invisible from the repo entirely: a **trusted publisher configured on
 npmjs.com** for `raven-mcp`, pointing at this repo and this workflow file. Uploading
 his private ed25519 registry signing key into GitHub secrets is HIS call, not mine.
+
+## Sol round 4 — verdict DOES NOT SURVIVE (3 P1 + 4 P2)
+
+The pass on `e4b4f74` + `1fb58b0` came back with seven findings. Every one was
+verified first-hand against the source before being written down here — Sol's file
+and line citations were opened and read, not trusted. Claim verdicts as returned:
+claim 1 FAILS, claim 2 FAILS as an end-to-end guarantee, claim 3 SURVIVES, claim 4
+FAILS, claim 5 SURVIVES, claim 6 fails but safely in the common cases.
+
+**F1 — P1 — a tail failure is not resumable, and can silently trigger a NEW release.**
+`scripts/detect-release-scope.mjs:50` exits with `released=false` whenever
+`git log ${lastTag}..HEAD` is empty. Once the tag has pushed, that is exactly the
+state a rerun finds, so `.github/workflows/release.yml:178`/`:190` skip every
+remaining step and the GitHub Release, the changelog, the Vercel apex deploy and the
+apex verify are unreachable by any later run. Worse in the other direction: if the
+changelog commit DID push before the failure, it sits after the tag, so the next run
+sees one commit since the tag and cuts an unintended version. And `gh release create`
+is not duplicate-tolerant, so the one step a rerun would need to redo is the one that
+errors. Fix: explicit resume state keyed to the latest release version plus per-surface
+probes, tail steps gated on `released || resume`, release creation queried before
+created, and the generated changelog commit excluded from new-release detection.
+
+**F2 — P1 — a post-fetch race can strand a version permanently.**
+`scripts/release.sh:56` fetches and tests ancestry, then the whole test suite runs,
+then npm and the Registry publish at `:131`, then the atomic push at `:203`. A second
+writer pushing to `main` inside that window makes the atomic push reject; the rerun
+starts from the new head, computes the SAME version number from the same
+`package.json`, and packs DIFFERENT bytes — so the shasum guard at `:133` correctly
+refuses, and that version can never acquire its tag or its apex. Disposition: mitigate
+rather than restructure. A second ancestry re-check runs immediately before
+`npm publish` — the house "re-check immediately before the write" pattern, the same
+shape as `saveReference`'s blocklist re-check — which narrows the window from a full
+test run to seconds. The residual is ACCEPTED in writing, with its reopen condition
+named: multi-writer `main`, or automated pushes landing during a release. Sol's own
+proposal (claim the ref BEFORE publishing) is deliberately refused: it inverts the
+npm-first ordering the existing comment reasons for, and leaves a tag pointing at a
+version with no package on the reverse failure.
+
+**F3 — P1 — an existing tag is accepted as a resume without checking what it points at.**
+`scripts/release.sh:188` treats `git rev-parse -q --verify "refs/tags/v$NEW"`
+succeeding as proof the release commit already landed. It proves only that the NAME is
+taken. A tag left by an aborted run, a hand-made tag, or one pointing at an unrelated
+commit all satisfy it, and the script then publishes `$NEW` to npm and the Registry
+while the tag names something else entirely. Fix: require
+`git rev-parse "v$NEW^{commit}"` to equal the intended release commit, locally and on
+the remote, and fail otherwise.
+
+**F4 — P2 — the npm shasum resume test can reject identical contents.**
+`release.yml:99` installs the newest npm on every run, and `release.sh:133` compares a
+locally packed shasum to the published one. Tarball byte layout is not stable across
+npm majors (npm/cli#7610), so a rerun on a newer npm can produce a different shasum
+from the same tree and abort a resume that was correct. Fix: pin one exact npm version
+for both publish and resume. Sol also notes `npm publish` runs `prepublishOnly` where
+`npm pack` does not — benign here only because `dist/` is rebuilt before packing.
+
+**F5 — P2 — `mcp-publisher validate` is not a publish guarantee.**
+`release.yml:161` validates schema and semantics locally; publish additionally applies
+server-side package-ownership and namespace checks. Fix: keep the validate step,
+narrow its comment to "schema and semantic preflight, not a guarantee", and add a
+bounded-backoff retry around the Registry publish so a transient rejection leaves a
+resumable version rather than a half-release.
+
+**F6 — P2 — the apex verify can report a false all-clear.**
+`release.yml:254` and `:267` compute `sha256sum … | cut -d" " -f1` in a `run:` block
+with no `set -o pipefail`. If `sha256sum` fails on BOTH sides, `cut` still exits 0,
+both variables are empty, and `"$a" = "$b"` reports the apex verified. That is this
+repo's own forbidden class — a check whose failure mode is indistinguishable from its
+success mode. Fix: `set -o pipefail` at the top of that block. Sol explicitly confirms
+no other status-through-a-pipe defect exists in the workflow; the key-validation
+pipeline ends in `grep` on purpose.
+
+**F7 — P2 — post-publish credentials are checked for presence, not validity.**
+`release.yml:57` tests non-emptiness only, and the credentials it covers are not
+exercised until `:203` and `:244` — after npm and the Registry have published. A
+revoked Vercel token, an org or project id the token cannot reach, or branch
+protection on `main` all surface as a half-done release. Fix: a real validity probe in
+the preflight (`vercel whoami` plus project linkage), the same shape as the registry
+signing-key probe added in round 2.
+
+Sol changed no tracked file. The staged `.claude/linear-backlog-queue.jsonl` it
+observed is the other session's auto-save hook and stays out of every pathspec here.
+
+## The R2 justification document was rewritten against the deployed surface
+
+`.claude/openai-rejection-2026-08-19/R2-annotation-justification.md` — 324 lines now,
+every number read out of a live anonymous `tools/list` against
+`https://mcp.ravenmcp.ai/api/mcp`, none of it transcribed from source. **45 tools**,
+hash `f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6` (exact match
+to the frozen pin), **0 absent and 0 non-boolean across 45 × 4 = 180 annotation
+values**, and **0 of 45 publishing `openWorldHint: true`** — the four that did before
+the deploy (`audit_contrast`, `audit_tap_targets`, `audit_responsive_visibility`,
+`audit_video_playback`) now read false. The previous version carried a do-not-submit
+banner and described the 2026-08-20 surface; it was REPLACED rather than amended,
+because describing annotations that are not deployed is precisely the defect R1 was
+rejected for.
+
+Two arguments in it were rewritten rather than merely re-measured. Fact 2 no longer
+claims the uniformity is a property of the annotation logic — it is a property of
+WHICH tools are registered: everything that writes, logs, or drives a browser is not
+on the anonymous surface at all (a `tools/call` answers `Tool not found`), so there is
+nothing there for those axes to vary across. Fact 3 argues the 0/45 is DERIVED and not
+defaulted, and the evidence is that the same package publishes `true` for the same
+four tool names on stdio, pinned by `test/remote-click-guard.test.mjs`, which asserts
+both halves plus a local control — asserting only the hosted half would be asserting a
+constant.
+
+**A ledger correction owed to Andrew, surfaced rather than silently patched:** the
+CLAUDE.md 2026-08-20 override describes that test as asserting `audit_contrast` and
+`audit_tap_targets` "must KEEP `openWorldHint:true` on the hosted surface". That is
+inverted — the test asserts hosted `false` and stdio `true`, which is what the live
+endpoint returns and what Andrew chose. Nothing wrong reached any submission document,
+because the test was read directly rather than through the ledger.
+
+## Sol round 4 — all seven findings dispositioned, four fixes landed after the first three
+
+F3, F4, F6 and F7 were applied in the previous segment. This section records the
+remaining three, and each one was measured rather than reasoned about.
+
+**F5 — `mcp-publisher validate` is a preflight, not a guarantee.** Two edits.
+The workflow comment above `validate` used to say it "is schema-only and needs
+no auth, so it costs nothing to run here", which is true and reads as coverage
+it does not provide: publish additionally applies server-side package-ownership
+and namespace-authorization checks that `validate` never sees, so a green
+preflight and a rejected publish are compatible states. The comment now says so.
+The real fix is on the other side — `scripts/release.sh` wraps
+`mcp-publisher publish` in three attempts, 5s then 15s apart, asking the
+registry DIRECTLY between attempts rather than only after the last one, because
+a publish can succeed server-side and still report failure to the client. The
+asymmetry that justifies the retry: npm has already published by the time
+control reaches this line and npm versions are immutable, so an unretried
+transient rejection leaves a release whose only recovery is a resume run.
+
+The registry probe was measured in both directions before being trusted —
+`2.5.0 -> RECORDED`, `99.99.99 -> not recorded`. A probe that always answers
+"not recorded" would silently convert every retry into a hard stop.
+
+**F2 — the post-fetch race, narrowed and then written down as accepted.** The
+currency gate runs at the top of `release.sh`, then the suite runs, then the
+build runs, then npm publishes: minutes in which a second writer can land on
+`origin/main`. The consequence is not cosmetic — the atomic branch+tag push at
+the end rejects, the rerun recomputes the same version from different bytes, the
+npm shasum guard correctly refuses, and that version can never acquire its tag
+or its apex bundle. The ancestry check now runs again immediately before
+`npm publish`, which is the house "re-check immediately before the write"
+pattern (`saveReference`'s blocklist re-check is the same shape).
+
+**It is a narrowing, not a lock, and the residual is stated in the script rather
+than implied.** A push landing inside the remaining seconds still strands the
+version. Sol's alternative — claim the ref before publishing — is deliberately
+REFUSED: it inverts the npm-first ordering the surrounding comment reasons for,
+and leaves a tag with no package on the reverse failure. Accepted because `main`
+has one human writer and releases are deliberate; the comment names the reopen
+condition (automated pushes to main, a second release runner, or multiple
+regular committers).
+
+**F1 — a tail failure was unfinishable by the machine that started it.** This is
+the P1 with the widest blast radius. `detect-release-scope.mjs` exited
+`released=false` whenever `git log ${lastTag}..HEAD` was empty — which is
+exactly the state a tail failure leaves behind, since `release.sh` has by then
+committed, tagged and pushed. Every tail step in `release.yml` gated on
+`released == 'true'`, so the GitHub Release, the changelog, the Vercel apex
+deploy and the apex verify were skipped **forever**, on every later run. The
+fourth surface could never be reached again by any automated run.
+
+The changelog commit is the same state seen from the other side: it lands AFTER
+the tag, so a bare commit count reads it as new work and a rerun cuts an
+unintended NEW version over a release that merely failed to deploy.
+
+Both collapse to one concept. The detector now emits `resume=true` plus
+`resume_version` when the only thing since the tag is nothing, or is nothing but
+`Update changelog for v*` commits. The tail steps gate on
+`released || resume`. A new `Resolve the version the tail steps operate on` step
+owns the version for the whole tail, because `Cut release` is skipped on a
+resume and every step reading `steps.cut.outputs.version` would otherwise name
+`v` — it fails loudly on an empty version rather than operating on an unnamed
+release. And `gh release create`, which is not duplicate-tolerant, is now
+queried before it is created: on an existing release the bundle is re-uploaded
+with `--clobber`, because the half-finished state this recovers from includes
+"release created, asset upload failed".
+
+Measured on a throwaway git fixture in all three directions rather than
+reasoned: zero commits since the tag → `released=false resume=true
+resume_version=1.2.3`; only a changelog commit → the same; a real commit after
+the changelog commit → `released=true`, notes built. The real repo still reports
+`released=true resume=false version=2.5.1`, so the change is inert on the
+ordinary path.
+
+### Gates re-run after the three fixes
+
+`bash -n` clean on `scripts/release.sh`; `node --check` clean on
+`scripts/detect-release-scope.mjs`; the workflow re-parses to **19 steps** with
+every `run:` block extracted and `bash -n`-checked individually (19 blocks, 0
+failures), and the tail gates read `released || resume` on exactly the six steps
+that should carry it, with `Cut release` correctly left on `released` alone.

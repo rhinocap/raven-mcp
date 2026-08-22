@@ -47,9 +47,43 @@ const commits = commitRange
   ? sh(`git log ${commitRange} --oneline`).split("\n").filter(Boolean)
   : sh(`git log --oneline -20`).split("\n").filter(Boolean);
 
-if (commits.length === 0) {
-  console.log("No commits since last tag — nothing to release.");
+// RESUME, not "nothing to do". Zero commits since the last tag is the exact
+// state a tail failure leaves behind: release.sh published npm, published the
+// Registry, committed, tagged and pushed, and then something after it (the
+// GitHub Release, the changelog, the Vercel apex deploy, the apex verify) died.
+// Reporting released=false there gated every one of those steps off forever, so
+// the fourth surface could never be reached by any later run — a release that
+// is unfinishable by the machine that started it.
+//
+// The one-commit-that-is-the-changelog case is the same state seen from the
+// other side: the changelog commit lands AFTER the tag, so a bare commit count
+// reads it as new work and a rerun would cut an unintended NEW version over a
+// release that merely failed to deploy. Both collapse to resume.
+const resumeVersion = lastTag.replace(/^v/, "");
+const onlyChangelog =
+  commits.length > 0 &&
+  lastTag &&
+  sh(`git log ${commitRange} --format=%s`)
+    .split("\n")
+    .filter(Boolean)
+    .every((subject) => /^Update changelog for v/.test(subject));
+
+if (lastTag && (commits.length === 0 || onlyChangelog)) {
+  console.log(
+    commits.length === 0
+      ? `No commits since ${lastTag} — treating as a resume of ${lastTag}.`
+      : `Only the changelog commit since ${lastTag} — treating as a resume, not a new release.`,
+  );
   setOutput("released", "false");
+  setOutput("resume", "true");
+  setOutput("resume_version", resumeVersion);
+  process.exit(0);
+}
+
+if (commits.length === 0) {
+  console.log("No commits and no release tag — nothing to release.");
+  setOutput("released", "false");
+  setOutput("resume", "false");
   process.exit(0);
 }
 
@@ -144,6 +178,7 @@ const notes = [
 
 console.log(`Releasing v${nextVersion} (${bump}) — ${mergedPRs.length} PRs, ${commits.length} commits.`);
 setOutput("released", "true");
+setOutput("resume", "false");
 setOutput("bump", bump);
 setOutput("version", nextVersion);
 setOutput("notes", notes);
