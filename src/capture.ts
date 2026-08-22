@@ -374,6 +374,22 @@ export type CaptureResult = {
    * no `document.getAnimations` support (older engines / the file:// no-browser fallback).
    */
   animationsSettled: boolean;
+  /**
+   * Wall-clock milliseconds spent inside the VIEWPORT animation-settle wait, and
+   * nothing else — not launch, not navigation, not the screenshot. It exists so a
+   * test can assert "this page did not consume the settle cap" by measuring the
+   * settle itself; timing the whole `capturePage` call measures the runner's speed
+   * and reports a slow CI box as a settle-cap defect (it did, 2026-07-24: 3967ms
+   * total against a 2800ms bound with the settle wait almost certainly near zero).
+   *
+   * Deliberately NOT the total settle time: the scroll-phase settle inside
+   * `stepScrollAndSettle` is bounded by the scroll cap and already announces itself
+   * through `scroll-animation-settle-cap-reached`. Summing the two would produce a
+   * number no single cap explains.
+   *
+   * Absent on the file:// fallback, which never runs a settle wait at all.
+   */
+  viewportAnimationSettleMs?: number;
   /** Vertical scroll position at the moment the capture was taken. */
   captureScrollY: number;
   /** Capture-integrity warnings that can make downstream audit findings untrustworthy. */
@@ -524,11 +540,13 @@ export async function capturePage(url: string, opts?: CaptureOptions): Promise<C
       await page.waitForTimeout(delayMs);
     }
 
+    const viewportSettleStartedAt = Date.now();
     const viewportAnimationsSettled = await waitForAnimationsToSettle(
       page,
       warnings,
       animationSettleTimeoutMs
     );
+    const viewportAnimationSettleMs = Date.now() - viewportSettleStartedAt;
     const animationsSettled = scrollAnimationsSettled && viewportAnimationsSettled;
 
     const falseBlankWarning = await detectFalseBlankCapture(page, warnings, captureWarnings);
@@ -562,6 +580,7 @@ export async function capturePage(url: string, opts?: CaptureOptions): Promise<C
       theme: theme,
       scrolledToBottom: scrolledToBottom,
       animationsSettled: animationsSettled,
+      viewportAnimationSettleMs: viewportAnimationSettleMs,
       captureScrollY: captureScrollY,
       capture_warnings: captureWarnings,
       videoArtifacts: videoArtifacts,

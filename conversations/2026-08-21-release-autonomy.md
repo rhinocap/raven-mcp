@@ -77,11 +77,30 @@ commit+push · **apex deploy** · **apex verify**.
    since that push is the prod deploy of `mcp.ravenmcp.ai`.
 4. Authorisation to fire `gh workflow run release.yml` at all.
 
-## 6. Known flake in the release gate
+## 6. The flake in the release gate — fixed, and it was the instrument
 
-`test/capture.test.mjs:202` — `infinite spinner must not consume the 3s settle cap (elapsed 3967ms)`,
-the 2026-07-24 CI failure. A runner timing flake, not a publish-path defect, but it sits **in the
-release gate**, so it can fail a release for a reason unrelated to releasing. Not fixed here.
+`test/capture.test.mjs` — `infinite spinner must not consume the 3s settle cap (elapsed 3967ms)`, the
+2026-07-24 CI failure. Not a runner flake in the sense of "re-run it": **the assertion was measuring
+a different quantity from the one it named.** Three tests claimed a page does not consume the 3s
+animation-settle cap and graded it by timing the whole `capturePage()` call — launch, navigation,
+traits, `page.content()`, full-page screenshot — against a 2800ms bound. A cold runner exceeds that
+with the settle wait near zero, and the failure then reads as a settle-cap defect.
+
+It sits **in the release gate**, so it could fail a release for a reason unrelated to releasing.
+
+Fixed: `capturePage` now reports `viewportAnimationSettleMs` (the viewport settle wait and nothing
+else), and the three assertions grade that. The bound is measured rather than reasoned — the honest
+fixtures settle at 798/200/200ms and the capped one at 3002ms, so `SETTLE_FAST_BOUND_MS = 2000` sits
+2.5x above the slowest honest observation and 1002ms below the capped one. Note 798, not ~0: a bound
+picked off the 180ms quiescence window would have been red on correct code, and the old 2800 sits
+202ms from the capped observation — the same mistake in the other direction.
+
+Falsifiability proven, not assumed: `.claude/settle-instrument-2026-08-21/settle-mutants.mjs`,
+**2 mutants, 2 killed, 0 survived**, EXIT=0 read from inside the run, against a baseline graded on
+its declared shape (40 tests / 1 skip) as well as on being green. Full suite after the change:
+**1723 tests / 1720 pass / 0 fail / 3 skipped**, EXIT=0 — moved by zero, since no test was added or
+removed, with the three skips read individually at log lines 121/861/862. Details and the honest
+attribution limit on the second mutant are in that directory's `NOTES.md`.
 
 ## 7. Landmine paid for again
 

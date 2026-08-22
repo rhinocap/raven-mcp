@@ -421,6 +421,54 @@ test('unbounded-scroll-growth.html — reports the walk cap without claiming the
   });
 });
 
+// These three cases all claim the same thing: the page under test does NOT
+// consume the 3s animation-settle cap. They used to measure it by timing the
+// whole `capturePage` call against a 2800ms bound — which is browser launch,
+// navigation, traits, `page.content()` and a full-page screenshot as well as the
+// settle wait. On a slow CI runner that total exceeds 2800ms with the settle at
+// essentially zero, and the assertion then reports a slow box as a settle-cap
+// defect. It did exactly that on 2026-07-24 (elapsed 3967ms), failing a release.
+//
+// `viewportAnimationSettleMs` is the settle wait and nothing else, so the bound
+// is now on the quantity the claim is about.
+//
+// THE NUMBER IS MEASURED, NOT REASONED. Four fixtures, this machine, browser
+// path, `dist/capture.js` built from committed source:
+//
+//     entrance-animation.html          798ms   settled
+//     scroll-timeline-animation.html   200ms   settled
+//     permanently-hidden.html          200ms   settled
+//     long-entrance-animation.html    3002ms   NOT settled  ← consumed the cap
+//
+// 2000ms sits 2.5x above the slowest honest observation and 1002ms below the
+// capped one, so it separates the two populations with room on both sides. Note
+// 798 rather than ~0: `entrance-animation.html` runs a real finite animation, so
+// a bound picked off the quiescence window (180ms) would have been red on
+// correct code. A bound just under the cap (the old 2800) would sit 202ms from
+// the capped observation and is the same mistake in the other direction.
+//
+// `long-entrance-animation.html` is the standing proof this bound is reachable
+// at all — it is a separate test asserting `animationsSettled === false`, and it
+// measures 3002ms here. Without something in the suite landing above the bound,
+// an assertion this loose would be indistinguishable from no assertion.
+const SETTLE_FAST_BOUND_MS = 2000;
+
+function assertSettledFast(result, subject) {
+  const ms = result.viewportAnimationSettleMs;
+  // Not a no-op guard — `undefined < 2000` is false, so the bound below would
+  // fail either way. It is a DIAGNOSIS guard: without it, a product that stopped
+  // reporting the field and a page that genuinely consumed the cap fail with the
+  // same message, and the reader chases a settle bug that does not exist.
+  assert.strictEqual(
+    typeof ms, 'number',
+    `capturePage must report viewportAnimationSettleMs on the browser path; got ${JSON.stringify(ms)}`
+  );
+  assert.ok(
+    ms < SETTLE_FAST_BOUND_MS,
+    `${subject} must not consume the 3s settle cap (settle wait ${ms}ms, bound ${SETTLE_FAST_BOUND_MS}ms)`
+  );
+}
+
 // ── animation-settle ─────────────────────────────────────────────────────────
 
 test('entrance-animation.html — finite entrance animation settles before capture (animationsSettled true)', async (t) => {
@@ -445,18 +493,16 @@ test('entrance-animation.html — finite entrance animation settles before captu
 
 test('entrance-animation.html — infinite spinner does not block animation-settle', async (t) => {
   await runOrSkip(t, async () => {
-    const startedAt = Date.now();
     const result = await capturePage(fixtureUrl('entrance-animation.html'), {
       viewport: { w: 1440, h: 900 },
     });
-    const elapsedMs = Date.now() - startedAt;
 
     // The page also contains an `infinite` spinner animation; settle must still
     // report true (the spinner is excluded from the running/finite check) rather
     // than hanging for the full 3s cap.
     if (usedFileFallback(result)) { t.skip('browser unavailable — file:// fallback has no Animations API'); return; }
     assert.strictEqual(result.animationsSettled, true, 'an infinite-loop animation must not block animation-settle');
-    assert.ok(elapsedMs < 2800, `infinite spinner must not consume the 3s settle cap (elapsed ${elapsedMs}ms)`);
+    assertSettledFast(result, 'infinite spinner');
   });
 });
 
@@ -477,28 +523,24 @@ test('delayed-entrance-animation.html — an animation starting 150ms after load
 
 test('scroll-timeline-animation.html — scroll-driven animation does not consume the animation cap', async (t) => {
   await runOrSkip(t, async () => {
-    const startedAt = Date.now();
     const result = await capturePage(fixtureUrl('scroll-timeline-animation.html'), {
       viewport: { w: 1200, h: 800 },
     });
-    const elapsedMs = Date.now() - startedAt;
 
     if (usedFileFallback(result)) { t.skip('browser unavailable — file:// fallback has no Animations API'); return; }
     assert.strictEqual(result.animationsSettled, true, 'non-document timelines must not block settle');
-    assert.ok(elapsedMs < 2800, `scroll-driven animation must not consume the 3s cap (elapsed ${elapsedMs}ms)`);
+    assertSettledFast(result, 'scroll-driven animation');
   });
 });
 
 test('permanently-hidden.html — capture completes without waiting and emits a false-blank warning', async (t) => {
   await runOrSkip(t, async () => {
-    const startedAt = Date.now();
     const result = await capturePage(fixtureUrl('permanently-hidden.html'), {
       viewport: { w: 1200, h: 800 },
     });
-    const elapsedMs = Date.now() - startedAt;
 
     if (usedFileFallback(result)) { t.skip('browser unavailable — file:// fallback cannot inspect computed visibility'); return; }
-    assert.ok(elapsedMs < 2800, `permanently hidden content must not consume the settle cap (elapsed ${elapsedMs}ms)`);
+    assertSettledFast(result, 'permanently hidden content');
     assert.ok(Array.isArray(result.capture_warnings), 'capture_warnings must be an additive array field');
     assert.ok(
       result.capture_warnings.some((warning) => /^reveal-gate-false-blank: \d+% of text\/content nodes invisible at capture$/.test(warning)),
