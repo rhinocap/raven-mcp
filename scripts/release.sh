@@ -179,8 +179,13 @@ if npm view "raven-mcp@$NEW" version >/dev/null 2>&1; then
     exit 1
   fi
   echo "  published artifact matches this tree ($LOCAL_SHASUM) — continuing."
+  PUBLISHED_SHASUM_NOW="$PUBLISHED_SHASUM"
 else
   npm publish
+  # Recorded for the push-retry below: once npm holds these bytes, any later
+  # movement of the tree has to be checked against them, not against a memory of
+  # what was built.
+  PUBLISHED_SHASUM_NOW=$(npm view "raven-mcp@$NEW" dist.shasum 2>/dev/null || echo "")
 fi
 
 echo "→ Publishing to MCP Registry"
@@ -248,8 +253,11 @@ echo "→ Committing + tagging"
 # served by the `web` project, so staging only site/ leaves the public download
 # one release behind — that gap is what the v2.2.6 hand-copy commit was.
 git add package.json package-lock.json manifest.json server.json site/raven.mcpb web/public/raven.mcpb
-# Both of these are no-ops on a resume, and both used to be fatal there: `git
-# commit` exits 1 with nothing staged and `git tag` exits 1 on an existing name.
+# Both of these are no-ops on the resume that reaches here with the commit and
+# tag ALREADY made, and both used to be fatal there: `git commit` exits 1 with
+# nothing staged and `git tag` exits 1 on an existing name. They are NOT no-ops
+# on the other supported resume — npm published, process died before the commit
+# — which is exactly the path that must still commit and tag below.
 # A tag that already exists is the exact state P1-2 describes — the tag landed
 # and something downstream (GitHub Release, changelog, Vercel, apex verify)
 # failed — and detect-release-scope.mjs then sees zero commits since that tag and
@@ -300,16 +308,64 @@ echo "→ Pushing"
 # `--atomic` still fails when BOTH refs are already published (a resume that got
 # this far last time), so an up-to-date push is not an error here. Anything else
 # is.
-if ! push_out=$(git push --atomic origin "$BRANCH" "v$NEW" 2>&1); then
+#
+# A REJECTION HERE USED TO STRAND THE VERSION PERMANENTLY. The currency recheck
+# above closes the window before npm; it cannot close the one after, because npm
+# publish and the Registry publish are network work and main has to be allowed to
+# move during them. When it did, this push was rejected, and a later dispatch
+# computed the same version from different bytes and died on the shasum
+# comparison at :170 — npm holding a version that could never receive its tag,
+# Release or apex bundle without advancing the number.
+#
+# So a rejection is RETRIED, and the retry is gated on the one invariant that
+# makes it honest: the packed artifact after rebasing onto the moved main must
+# still be byte-identical to what npm already serves. If it is, the tag names a
+# tree that produces exactly the published tarball and nothing is being
+# misrepresented. If it is NOT, the retry stops and says so — that state
+# genuinely needs a new version, and pretending otherwise would tag a release
+# whose npm artifact is something else.
+push_attempt=0
+while :; do
+  if push_out=$(git push --atomic origin "$BRANCH" "v$NEW" 2>&1); then
+    echo "$push_out"
+    break
+  fi
   if echo "$push_out" | grep -q "Everything up-to-date"; then
     echo "  branch and tag already pushed — resuming."
-  else
+    break
+  fi
+  push_attempt=$((push_attempt + 1))
+  if [[ $push_attempt -gt 3 ]]; then
     echo "$push_out"
+    echo "✗ branch+tag push still rejected after $((push_attempt - 1)) rebase attempts."
+    echo "  npm already serves v$NEW. Do NOT cut a new version to escape this:"
+    echo "  rebase onto origin/$BRANCH by hand, confirm \`npm pack --dry-run\` still"
+    echo "  reports $PUBLISHED_SHASUM_NOW, then push $BRANCH and v$NEW atomically."
     exit 1
   fi
-else
-  echo "$push_out"
-fi
+  echo "  push rejected — origin/$BRANCH moved. Attempt $push_attempt: rebasing."
+  git fetch origin "$BRANCH" --quiet
+  if ! git rebase "origin/$BRANCH"; then
+    git rebase --abort >/dev/null 2>&1 || true
+    echo "$push_out"
+    echo "✗ could not rebase onto origin/$BRANCH — conflicting changes landed."
+    echo "  npm already serves v$NEW. Resolve by hand; do not cut a new version."
+    exit 1
+  fi
+  REBASED_SHASUM=$(npm pack --dry-run --json | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8"))[0].shasum')
+  if [[ -n "$PUBLISHED_SHASUM_NOW" && "$REBASED_SHASUM" != "$PUBLISHED_SHASUM_NOW" ]]; then
+    echo "✗ rebasing onto origin/$BRANCH changed the packed artifact."
+    echo "    npm serves: $PUBLISHED_SHASUM_NOW"
+    echo "    rebased:    $REBASED_SHASUM"
+    echo "  Tagging this tree would name a release whose npm artifact is different."
+    echo "  npm will not replace those bytes: cut the NEXT version instead."
+    exit 1
+  fi
+  # The tag has to follow the rebased commit. Delete and recreate rather than
+  # reusing the old object: it points at a sha that is no longer on the branch.
+  git tag -d "v$NEW" >/dev/null 2>&1 || true
+  git tag "v$NEW"
+done
 
 echo ""
 echo "✓ Released v$NEW"

@@ -1016,3 +1016,494 @@ block `bash -n` clean (0 failures); inputs still `['bump', 'resume_version']`;
 correctly gated on `steps.release.outputs.explicit_resume == 'true'`.
 
 **Nothing here is committed, nothing is pushed, and nothing is on npm.**
+
+## Round 8 (Sol, medium, `--sandbox read-only`) — DOES NOT SURVIVE: 3× P1, 1× P2, 1× P3
+
+Raw log: `.claude/openai-rejection-2026-08-19/agent-output/sol-round8.log` (5544 lines, read in full).
+`HEAD` stayed `7ccb18e739bf1a63dc3d6f4fe138aadecddfc164` and the tree stayed clean — the two
+mitigations from round 7 (commit first, launch `--sandbox read-only`) both held, so this round did
+not eat any uncommitted work the way round 7 did.
+
+Claim grades: **C1 ✗, C2 ✗, C3 ✗ (overall), C4 ✓, C5 ✗, C6 ✗.**
+
+### P1-1 — a whitespace-only resume input still cuts a whole new release
+
+`scripts/detect-release-scope.mjs:97`. Dispatch `resume_version: "   "` with `bump: major`.
+`trim()` ran BEFORE the presence test, so the input normalised to the empty string, the branch was
+never entered, and the ordinary cut ran. Measured at HEAD: `INPUT="   "` →
+`released=true resume=false explicit_resume=false version=3.0.0`; identical for `"\t"`.
+
+Harm: a malformed resume dispatch irreversibly publishes a new npm version, a Registry record, a
+tag, a GitHub Release and an apex bundle. `--verify-tag` cannot catch it — by then `release.sh` has
+created and pushed that tag itself.
+
+**This is the same class as round 7's F1, which I believed I had fixed.** Round 7 introduced a
+`rawResume` variable; it did not change the fact that trimming preceded the presence test.
+
+### P1-2 — automatic resume was classified by commit SUBJECT, not by content
+
+`detect-release-scope.mjs:157` + `release.yml:283`. With `v2.5.0` latest, a commit after that tag
+changing `src/index.ts` (or a tracked bundle), whose subject is exactly `Update changelog for
+v2.5.0`, set `onlyChangelog=true` → `resume=true, explicit_resume=false`. It also fired on multiple
+such commits, and on a merge commit carrying that subject.
+
+Harm: genuine work is silently never released; the explicit-only tag rebuild is skipped; and **a
+tracked bundle is uploaded and deployed to the apex under the old version number**.
+
+C3 is graded DOES NOT SURVIVE overall because the tree-equivalence correctness argument I wrote
+into that step's comment in round 7 was **FALSE** — no path comparison and no content comparison
+happened anywhere in the detector or the workflow.
+
+### P1-3 — the acknowledged post-npm race permanently strands a version
+
+`release.sh:139`, `:147`, `:303`. The currency recheck passes → npm publishes the immutable
+version → another writer pushes `main` during the npm/Registry network work → the atomic
+branch-and-tag push is rejected → a later dispatch checks out the moved `main`, computes the same
+version from different bytes, and fails the shasum comparison. npm holds the version and it can
+never receive its tag, Release or apex bundle without advancing the number.
+
+### P2 — an empty GitHub Release body is never repaired on retry
+
+`release.yml:342`, `:372`. `gh release create --generate-notes` can produce an empty body. A later
+dispatch found the Release already existing and ran only the clobbering `gh release upload`, never
+checking or regenerating the body.
+
+### P3 — a failed notification cannot be recovered by any later dispatch
+
+`release.yml:465`. Every resume emits `released=false`, and the notify job required
+`if: needs.release.outputs.released == 'true'`.
+
+### C5 — the eight false comments, in full
+
+1. `detect-release-scope.mjs:89` "PRESENCE IS TESTED ON THE RAW INPUT" — false; line 97 trimmed first.
+2. `release.yml:286` "main's tree and the tag's tree differ in CHANGELOG.md and nothing else" —
+   **false twice**: only subjects were examined, AND the workflow stages `site/changelog.html`, not
+   `CHANGELOG.md`.
+3. `detect-release-scope.mjs:3` output list omitted `explicit_resume`.
+4. `detect-release-scope.mjs:56` "the changelog step is 16 of 19" — stale; the release job has 20
+   steps and `Rebuild changelog page` is step 17.
+5. `detect-release-scope.mjs:67` cited `release.sh:154/:182/:242` — stale; the real lines are npm
+   183, Registry publish 222, atomic push 303.
+6. `release.yml:246` "release.sh recomputes the bump from the same history" — false; `release.sh`
+   takes the bump as `$1` at line 18 and hands it to `npm version` at line 88.
+7. `release.yml:307` "nothing downstream compares them" — contradicted by the `cmp` at line 315.
+8. `release.sh:251` "Both of these are no-ops on a resume" — false for the npm-published/pre-tag
+   resume, which must still commit and tag.
+
+### C6 — three unrecoverable death points
+
+Post-npm concurrent `main` movement; an empty GitHub Release body; the notify job dying. Everything
+else in the run is recoverable by another dispatch.
+
+## Round 8 — the fix plan, including what was rejected and why
+
+Six fixes, applied as ONE Python patch script with `count == 1` anchor assertions per pair, writing
+only after every anchor in a file resolves.
+
+Three rejected alternatives, recorded because they are load-bearing:
+
+- **A naive rebase-retry for P1-3 was REJECTED.** It would tag a tree whose bytes differ from what
+  npm already serves. The shasum comparison is the invariant that actually matters, so the retry
+  must be gated on byte-identity and must refuse rather than proceed when the rebase changes the
+  packed artifact.
+- **An automatic notify retry was REJECTED.** A duplicate release email to a real Resend audience is
+  an outward-facing side effect strictly worse than a missed notification. An opt-in dispatch input
+  instead.
+- **The vacuous `.every()` over an empty changed-path array is DELIBERATE and correct** — an empty
+  diff means the tree is identical to the tag, which genuinely is a resume — and it carries a
+  comment saying so, because this repo's own round-3 style-versions lesson is that vacuous truth is
+  normally the trap.
+
+## Round 8 — the fixes as applied
+
+Patch script: `scratchpad/r8fix.py`. Three `patch()` calls — 6 anchor pairs on the detector, 8 on
+the workflow, 3 on `release.sh`.
+
+### `scripts/detect-release-scope.mjs`
+
+**Fix 1 (P1-1)** — presence is now tested on the rawest value available:
+
+```js
+const rawInput = process.env.INPUT_RESUME_VERSION || "";
+const rawResume = rawInput.trim();
+const explicitResume = rawResume.replace(/^v/, "");
+if (rawInput) {
+  if (!/^\d+\.\d+\.\d+$/.test(explicitResume)) {
+    console.error(
+      `resume_version ${JSON.stringify(rawInput)} is not a version number. ` +
+        `Expected exactly MAJOR.MINOR.PATCH (an optional leading "v" is stripped).`,
+    );
+    process.exit(1);
+  }
+```
+
+The header carries: *"This has now been wrong TWICE, one normalisation apart, which is why the test
+is on the rawest value available rather than on a variable that is merely 'raw enough'."*
+
+**Fix 2 (P1-2)** — classify by what the commits CHANGED:
+
+```js
+const RESUME_SAFE_PATHS = new Set(["site/changelog.html", "CHANGELOG.md"]);
+const changedSinceTag = lastTag
+  ? sh(`git diff --name-only ${lastTag} HEAD`).split("\n").filter(Boolean)
+  : [];
+const onlyChangelog =
+  commits.length > 0 &&
+  Boolean(lastTag) &&
+  changedSinceTag.every((p) => RESUME_SAFE_PATHS.has(p));
+```
+
+Header: *"CLASSIFY BY WHAT THE COMMITS CHANGED, NEVER BY WHAT THEY SAY THEY CHANGED."* Plus C5
+comment corrections 3, 4 and 5.
+
+### `.github/workflows/release.yml`
+
+- new third dispatch input `resend_notification`, default `"false"`
+- new job output `resume_version`, so outputs are now
+  `released, resume, version, bump, notes, resume_version`
+- **Fix 5** — the notify gate:
+
+```yaml
+    if: >-
+      (needs.release.outputs.released == 'true' && needs.release.outputs.bump != 'patch')
+      || (github.event.inputs.resend_notification == 'true' && needs.release.outputs.resume == 'true')
+```
+
+- the notify step gained `GH_TOKEN`, `RELEASE_VERSION: ${{ needs.release.outputs.version ||
+  needs.release.outputs.resume_version }}`, and a prelude that fails loudly on an empty version,
+  reads the GitHub Release body back when `RELEASE_NOTES` is empty, and refuses to send with no
+  notes at all.
+- **Fix 4 (P2)** — the existing-release branch now reads `gh release view --json body --jq .body`
+  after the clobbering upload, runs `gh release edit --notes-file` (or `--generate-notes`) on a
+  whitespace-empty body, re-reads, and `exit 1`s if it is still empty.
+- C5 comment corrections 2, 6 and 7.
+
+### `scripts/release.sh`
+
+`PUBLISHED_SHASUM_NOW` is now set on BOTH branches — line 182 on the already-published resume, line
+188 via `npm view "raven-mcp@$NEW" dist.shasum` after a fresh publish.
+
+**Fix 3 (P1-3)** — the push retry at 327–369, bounded at 3 rebase attempts, refusing on any
+artifact change:
+
+```bash
+  REBASED_SHASUM=$(npm pack --dry-run --json | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8"))[0].shasum')
+  if [[ -n "$PUBLISHED_SHASUM_NOW" && "$REBASED_SHASUM" != "$PUBLISHED_SHASUM_NOW" ]]; then
+    echo "✗ rebasing onto origin/$BRANCH changed the packed artifact."
+    exit 1
+  fi
+  # The tag has to follow the rebased commit. Delete and recreate rather than
+  # reusing the old object: it points at a sha that is no longer on the branch.
+  git tag -d "v$NEW" >/dev/null 2>&1 || true
+  git tag "v$NEW"
+```
+
+The tag is deleted and recreated rather than overwritten in place, which also sidesteps the
+destructive-op guard that fires on a bare `-f` anywhere on a Bash line.
+
+Plus C5 comment correction 8.
+
+### Measurements taken on the applied patch
+
+- `node --check scripts/detect-release-scope.mjs` → OK; `bash -n scripts/release.sh` → OK; the YAML
+  parses (note `yaml.safe_load` reads the `on:` key as Python boolean `True`, not `"on"`).
+- Step counts unchanged: release 20 steps / 18 `run`s, notify 4 / 2 — nothing was lost.
+- Every `run:` body extracted and `bash -n`'d — **0 failures**.
+- **C4 re-verified mechanically: 0 `${{ }}` expansions inside any `run:` body.**
+- Fix 1 measured across seven inputs:
+
+| input | result |
+|---|---|
+| `""` | `released=true resume=false explicit_resume=false version=3.0.0` (correct ordinary cut) |
+| `"   "` | exit 1 |
+| `"\t"` | exit 1 |
+| `"v"` | exit 1 |
+| `"2.5.0"` | `released=false resume=true explicit_resume=true version=2.5.0` |
+| `"v2.5.0 "` | `released=false resume=true explicit_resume=true version=2.5.0` |
+| `"2.5.0junk"` | exit 1 |
+
+Error text read back verbatim: `resume_version "   " is not a version number. Expected exactly
+MAJOR.MINOR.PATCH (an optional leading "v" is stripped).` / `EXIT=1`.
+## Round 8 — the mutation matrices
+
+Under this repo's standing rule a fix is not proven until a mutant turns its own test red, and
+**nothing in `npm test` executes either the detector or `release.sh`** — so neither of these fixes
+had a test at all, and therefore no mutant could exist. Both harnesses are BOTH the suite and its
+matrix. Each implements the standing harness rules: a clean baseline first with abort-if-not-green,
+a DECLARED case count rather than a relative pin, a pre-flight that checks every mutant for anchor
+uniqueness (`count === 1`) and for parsing, failing case NAMES with their assertion reason rather
+than counts, CONTROLS expected green because a red-only matrix is structurally blind to a false
+fail, `process.exitCode = 1` on any unexpected survivor or false fail, and `EXIT=$?` written INSIDE
+the log.
+
+### Detector matrix — `.claude/release-autonomy-2026-08-21/r8-mutants.mjs`
+
+Seven declared cases against three real git-repo fixtures in a temp dir, with a failing `gh` stub on
+`PATH`. The fixtures are hermetic because every case passes `INPUT_BUMP`, and the detector's
+`gh pr list` catch only fails closed when the bump is `auto` — that was read out of the catch rather
+than assumed. Mutants are applied to COPIES, so the tracked file is never written.
+
+Log: `.claude/release-autonomy-2026-08-21/agent-output/r8-mutants-v2.log`.
+
+```
+pre-flight: 4 mutants anchor uniquely and parse
+baseline: 7/7 green
+
+✓ D1 killed, radius 2 — P1-1: revert the presence test to the TRIMMED value (round 7's incomplete fix)
+      a whitespace-only resume input is refused
+        expected exit 1, got 0 with {"released":"true","resume":"false","explicit_resume":"false","bump":"major","version":"3.0.0"}
+      a tab-only resume input is refused
+        expected exit 1, got 0 with {"released":"true","resume":"false","explicit_resume":"false","bump":"major","version":"3.0.0"}
+✓ D2 killed, radius 2 — P1-2: revert to classifying a resume by commit SUBJECT equality
+      an absent resume input still cuts a release
+        expected a 3.0.0 cut, got status 0 {"released":"false","resume":"true","explicit_resume":"false","resume_version":"2.5.0"}
+      work in src wearing the changelog subject is still a cut
+        a spoofed subject swallowed real work: status 0 {"released":"false","resume":"true","explicit_resume":"false","resume_version":"2.5.0"}
+✓ D3 CONTROL green
+✓ D4 CONTROL green
+
+2 mutants, 2 killed, 0 survived; 2 CONTROLS, 0 false-failed
+EXIT=0
+```
+
+**The baseline guard earned its keep on the first run.** Two cases returned `status 1 {}` and the
+harness refused to grade a single mutant. Reproduced directly against a stub `gh`:
+`Error: ENOENT: no such file or directory, open 'package.json'` at `detect-release-scope.mjs:268` —
+the fixture had no `package.json` for the current-version read. Adding
+`{name:"fixture",version:"2.5.0"}` to the fixture base commit fixed it. Had the harness graded
+anyway, every mutant would have printed SURVIVED on a suite that measured nothing.
+
+**A self-caught weakness, recorded because the first version understated the harm.** Cases 1 and 2
+originally ran against the EMPTY fixture, where a D1 fall-through only ever reaches a *resume* — so
+the mutant died for a weaker reason than P1-1 actually claims. Both were re-anchored onto the SPOOF
+fixture and the matrix was **re-run WHOLE rather than extended**, which is why the assertion message
+now carries the documented harm verbatim: `released=true … version=3.0.0`, an irreversible cut.
+
+**D2's second case is the only one that separates content-classification from
+subject-classification** — work in `src/index.ts` wearing the subject `Update changelog for v2.5.0`.
+Every other case passes under both readings.
+
+### `release.sh` push-loop matrix — `.claude/release-autonomy-2026-08-21/r8-push-mutants.mjs`
+
+The loop is sliced **VERBATIM** out of `scripts/release.sh` by line markers (the unique
+`push_attempt=0` to the first column-0 `done` after it — lines 327–368, 42 lines), the pattern
+`scripts/measure-spring-settle.mjs` already uses here, so the matrix grades the product's own code
+and not a reimplementation. The slice is shape-checked on four required tokens because the failure
+mode of a text-anchored extractor is silently grabbing the wrong span. `git` and `npm` are shims on
+`PATH` driven by per-scenario env vars; every unmodelled subcommand exits 97 loudly, so a slice that
+later grows a new git call fails here rather than being graded against a stub that lied.
+
+Log: `.claude/release-autonomy-2026-08-21/agent-output/r8-push-mutants-v1.log`.
+
+```
+slice: release.sh lines 327-368 (42 lines)
+pre-flight: 5 mutants anchor uniquely and parse
+baseline: 6/6 green
+
+✓ S1 killed, radius 1 — delete the shasum re-check, so a rebase that changes the bytes still tags
+      a rebase that changes the packed artifact refuses to tag
+        expected a refusal with no tag created, got 0 tags="deleted v2.5.0\ncreated v2.5.0\n"
+✓ S2 killed, radius 4 — revert to fail-fast, so the first rejection strands the version
+      a moved main is rebased onto and the tag follows
+      a rebase that changes the packed artifact refuses to tag
+      a conflicting rebase stops rather than cutting a new version
+      the retry is bounded and names the published shasum on exhaustion
+✓ S3 killed, radius 1 — skip the retag, so the tag keeps pointing at the pre-rebase sha
+      a moved main is rebased onto and the tag follows
+        expected a successful retry that recreates the tag, got 0 tags="deleted v2.5.0\n"
+✓ S4 CONTROL green
+✓ S5 CONTROL green
+
+3 mutants, 3 killed, 0 survived; 2 CONTROLS, 0 false-failed
+EXIT=0
+```
+
+Two readings worth carrying.
+
+**S1 is the invariant, and it is the whole reason the naive rebase-retry was rejected in the fix
+plan.** npm versions are IMMUTABLE, so a tag may only move onto a rebased tree when that tree still
+packs to the published shasum. Under S1 the loop cheerfully deletes and recreates `v2.5.0` over a
+tree that packs to something else — a tag naming bytes npm does not serve. Radius 1 says only that
+one case caught it; it is the only case in the suite whose rebase changes the artifact, which is a
+fact about the scenario set and not evidence of independent guards.
+
+**S2's radius of 4 is one mechanism, not four guards.** Turning the bound from `-gt 3` to `-gt 0`
+makes the first rejection fatal, and four of the six cases run through the retry at all — so they
+share the entry point. The two survivors are the clean push and the already-pushed resume, neither
+of which ever enters the loop body.
+
+**S3 is separated from S1 by which half of the retag it breaks.** S1 keeps the retag and removes the
+refusal; S3 keeps the refusal and removes `git tag "v$NEW"`, leaving the delete in place — so the
+tag is gone entirely and the push carries a ref that no longer exists. Two mutants on one mechanism
+separated by which set they redden, the pattern this repo's ledger already records four times over.
+
+### Workflow matrix — `.claude/release-autonomy-2026-08-21/r8-workflow-mutants.py`
+
+The last two round-8 fixes live in `.github/workflows/release.yml`, which no harness in this repo
+had ever executed. Both halves are graded VERBATIM rather than reimplemented, but by two different
+mechanisms, because they are two different languages.
+
+**Fix 4 is bash.** The `Create GitHub Release` step's `run:` body is pulled out of the parsed YAML by
+step name, shape-checked on five required tokens, and executed under bash against a `gh` shim on
+`PATH` — the `measure-spring-settle.mjs` pattern again. The shim exits 97 loudly on any unmodelled
+subcommand, so a step that later grows a new `gh` call fails here rather than being graded against a
+stub that lied.
+
+**Fix 5 is a GitHub Actions expression, which bash cannot run.** Rather than reimplement Actions
+semantics, the `if:` is sliced verbatim and evaluated by a translator restricted to a DECLARED token
+allowlist — context lookups, single-quoted strings, `== != && ||`, parens — that REFUSES anything
+else instead of guessing. That refusal is the only thing that makes a translated evaluation honest:
+if the gate ever grows a function call, the harness fails loudly rather than mis-grading it. Do not
+"improve" it into a permissive parser.
+
+Log: `.claude/release-autonomy-2026-08-21/agent-output/r8-workflow-mutants-v2.log`.
+
+```
+pre-flight: 9 mutants anchor uniquely and parse
+baseline: 14/14 green
+
+✓ W1 killed, radius 3 — P2: skip the empty-body repair on an existing release (the shipped defect)
+✓ W2 killed, radius 1 — P2: repair, then go green without reading the body back
+✓ W3 killed, radius 1 — P2: always pass --notes-file, so an empty notes file writes an empty body
+✓ W5 killed, radius 2 — P1: revert to the unguarded printf (see below)
+✓ W4 CONTROL green
+✓ N1 killed, radius 3 — P3: revert the gate to `released == true` alone
+✓ N2 killed, radius 1 — P3: make the resume retry automatic rather than opt-in
+✓ N3 CONTROL green
+✓ N4 CONTROL green
+
+6 mutants, 6 killed, 0 survived; 3 CONTROLS, 0 false-failed
+EXIT=0
+```
+
+**The baseline guard found a P1 in Fix 4 itself, and it is the exact path Fix 4 exists to serve.**
+Two cases were red on the FIRST run and the harness refused to grade a single mutant.
+`printf '%s\n' "$NOTES"` writes a NEWLINE when `$NOTES` is empty, so the file is 1 byte, `[ -s
+/tmp/release-notes.md ]` is TRUE, and **every `--generate-notes` fallback in the step is
+unreachable**. A resume never computes notes — the detector exits before the PR walk — so on every
+resume both branches took `--notes-file` with a whitespace-only file, GitHub wrote an empty body,
+and the readback exited 1: `::error::Release v2.5.0 was created with an empty body`. The step that
+was patched to make a half-finished release recoverable would have hard-failed on every recovery
+attempt.
+
+Both comment blocks describe that fallback at length. **Neither describes what the code does** —
+the third instance this round of a comment asserting a mechanism the surrounding code cannot reach.
+The fix keeps `-s` as the predicate at all four call sites and makes it mean what those comments
+claim, by writing the file only when `$NOTES` holds something other than whitespace. **Fix 6.**
+
+Three readings worth carrying.
+
+**W3 and W5 are two mutants on one mechanism, separated by which door they break.** W3 forces the
+create branch to always pass `--notes-file`; W5 restores the unguarded write that made `-s` lie.
+Both end at an empty body, and W5's radius of 2 is what shows the defect reached the EXISTING-release
+repair as well as the create — the fallback was unreachable at both doors, not just the one the
+finding was written about.
+
+**W1's radius of 3 is one mechanism, not three guards** — three of the seven release cases enter the
+existing-release branch at all. The four survivors never take it.
+
+**The seventh release case pulls the opposite way on purpose.** "An existing release with a good body
+is re-uploaded and left alone" asserts `edit` never appears in the `gh` log — without it, a repair
+that clobbers perfectly good shipped notes would pass the whole matrix, since every other case has an
+empty body to repair.
+
+### What is proven
+
+**All six round-8 fixes are now mutant-proven**, across three harnesses: the detector matrix (P1-1,
+P1-2), the `release.sh` push-loop matrix (P1-3), and this one (P2, P3, and the P1 it found in the P2
+fix). Nothing is committed, pushed, or on npm.
+
+## Pre-push gate — what was measured, in order
+
+### The four missing repository secrets are set
+
+`RAVEN_REGISTRY_KEY`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `VERCEL_TOKEN` are all present in
+`gh secret list`. Every one was uploaded by `gh secret set NAME < file` or `--body "$(...)"`, so no
+value entered the transcript; the registry key was characterised only as 65 bytes, mode `-rw-------`,
+and the Vercel CLI auth file only as `token = vca...60ch` / `refreshToken = vcr...60ch` /
+`userId = 71a...24ch`.
+
+**The Vercel token decision is load-bearing and is recorded rather than left implicit.** The only
+Vercel credential on this machine is the CLI's own OAuth token, and it carries
+`expiresAt = 2026-08-22 20:27:06` — roughly 4.4 hours after it was set. It authenticates
+(`vercel whoami` → `cunliffeandrewc-8712`), so it unblocks a release run TODAY and no future one.
+**Its expiry fails SAFE rather than half-shipping:** `.github/workflows/release.yml:129` runs
+`vercel whoami --token` and `:133` runs `vercel pull`, both of which `::error::` and stop the job
+BEFORE npm publishes and before the Registry record is written. So an expired token costs a failed
+run, never a release stranded across surfaces — which is the exact failure mode v2.2.9 and v2.3.0
+both hit for a different credential.
+
+**Minting a durable replacement was deliberately left to Andrew.** Creating a long-lived personal
+access token on his Vercel account is persistent-configuration creation, not an execution step, and
+the standing commitment was to NAME what genuinely needs his hands rather than quietly widen the
+mandate. It is one of the two named items.
+
+### Full suite, measured after the round-8 work
+
+`.claude/release-autonomy-2026-08-21/agent-output/full-suite-r8.log`:
+
+```
+ℹ tests 1723
+ℹ pass 1720
+ℹ fail 0
+ℹ skipped 3
+EXIT=0
+```
+
+`EXIT=0` is written INSIDE the log by the launcher, so it is the harness's own verdict and not a
+statement about whether the shell reached its last line. **The 3 skips were read INDIVIDUALLY at
+output lines 121, 861 and 862** — the file-URL fallback notice and the two removed-capability phase2
+tests — not inferred from the total.
+
+**The delta over the ledgered 1723 is ZERO, and that is the correct reading rather than a suite that
+silently did not run.** Round 8 touches only `.github/workflows/`, `scripts/`, `conversations/` and
+`.claude/`. Nothing under `test/` or `src/` changed, and `npm test` executes none of the four
+harnesses this round added. A count that did not move is evidence about scope, never about coverage.
+
+### The private-path gate was re-run against the NEW index
+
+The full suite ran BEFORE `git add`, and `test/no-private-paths.test.mjs` scans the INDEX rather than
+the worktree — so a green full-suite run says nothing whatsoever about blobs staged afterwards. It
+was re-run against the new index: **4 tests, 4 pass, 0 fail.**
+
+`git add -n` also confirmed the `.claude/**/agent-output/` rule held: only the three harnesses
+(`r8-mutants.mjs`, `r8-push-mutants.mjs`, `r8-workflow-mutants.py`) stage, and all six `.log` files —
+including `full-suite-r8.log` — are correctly excluded.
+
+### The v16 mutation-matrix gap was closed by COUNTING, not by arithmetic
+
+`.claude/gauntlet-2026-08-14/agent-output/mutants-v16.log` reports a pre-flight of **81** and a
+summary of **79 mutants**, and the plausible reading — 79 + 2 controls — was a guess carried in from
+an earlier segment. It was resolved by reading: `grep -c ": killed, radius"` returns **79**, and
+exactly **2** lines match `CONTROL … green (correct)` (`C1-control-key-order-swap`,
+`C2-control-decl-order-swap`). 81 = 79 + 2, measured. A third line containing the word CONTROL is a
+mutant DESCRIPTION string, which is exactly why the count had to be read rather than grepped for the
+word.
+
+### Blast radius of the push
+
+The 9 unpushed commits touch **no file under `src/` or `api/`**. Pushing `main` IS the live-endpoint
+deploy, so this is the thing that decides whether the frozen anonymous surface can move at all.
+
+### The frozen anonymous surface, measured BEFORE the push
+
+POST `tools/list` to `https://mcp.ravenmcp.ai/api/mcp`, sha256 of the newline-joined sorted tool
+names:
+
+```
+tools: 45
+sha256: f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6
+```
+
+Exact match to the frozen hash. This is the pre-push baseline; the same measurement is owed AFTER
+the push, because a hash taken only once proves nothing about what the deploy did.
+
+### The two items that genuinely need Andrew's hands
+
+1. **A durable Vercel personal access token** from vercel.com/account/tokens, to replace the CLI
+   token expiring today at 20:27. Declined above on purpose.
+2. **The npm trusted publisher for `raven-mcp`**, if it is absent. `npm whoami` returns 401 here, so
+   the status is UNKNOWN rather than assumed present — a read-only look at the package settings on
+   npmjs.com turns it KNOWN without touching a credential.
+
+Nothing is committed, pushed, or on npm at the time this paragraph was written.

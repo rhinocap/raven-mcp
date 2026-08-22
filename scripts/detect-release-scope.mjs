@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Decide whether a release should be cut this run, and what the version bump
-// should be. Emits GitHub Actions outputs: released, resume, resume_version,
-// bump, version, notes.
+// should be. Emits GitHub Actions outputs: released, resume, explicit_resume,
+// resume_version, bump, version, notes.
 //
 // Bump rules:
 //   - INPUT_BUMP explicit (major|minor|patch)  → use that
@@ -53,8 +53,9 @@ function setOutput(key, value) {
 // the newest GitHub Release is v1.17.1, so that rule would resume v2.5.0
 // forever and never cut anything again. "Resume whenever the changelog commit
 // for the last tag is missing" misclassifies in the other direction, since the
-// changelog step is 16 of 19 and its commit says nothing about the apex deploy
-// or the apex verify that follow it.
+// changelog step is 17 of the release job's 20 and its commit says nothing about
+// the apex deploy or the apex verify that follow it. (That ordinal is a claim
+// that decays: re-count it before quoting it.)
 //
 // So the operator names the version instead. `resume_version` on
 // workflow_dispatch runs the tail against exactly that release and skips the
@@ -64,7 +65,9 @@ function setOutput(key, value) {
 // version of this comment claimed there is no state it cannot finish and that
 // was false. `released=false` means `release.sh` does not run, and npm publish,
 // the Registry publish and the atomic branch+tag push all live INSIDE it
-// (`scripts/release.sh:154`, `:182`, `:242`). So this finishes the workflow TAIL
+// (`scripts/release.sh:183`, `:222`, `:303` — line numbers decay; grep for
+// `npm publish`, the Registry publish and `git push --atomic`). So this
+// finishes the workflow TAIL
 // — GitHub Release, changelog, apex deploy, apex verify — and nothing before it.
 // A run that died after npm published but before the tag was pushed is not
 // recoverable HERE — but it IS recoverable, by re-running the ordinary cut, and
@@ -86,20 +89,28 @@ function setOutput(key, value) {
 // `--verify-tag` — one rule, two doors, because this check reads a checkout
 // that could in principle be shallow while `--verify-tag` reads the remote.
 //
-// PRESENCE IS TESTED ON THE RAW INPUT, NORMALISATION COMES AFTER, and the order
-// is the whole guard. Stripping first made `resume_version: "v"` normalise to
-// the empty string, which is falsy, so the malformed input did not fail — it
-// fell out of this branch entirely and ran the ORDINARY CUT, publishing a new
-// npm version, Registry record, tag, Release and apex deploy off a dispatch
-// that asked to finish an existing one. `--verify-tag` cannot catch it: by then
-// `release.sh` has created and pushed that tag itself. Any non-empty input that
-// does not validate must EXIT, never fall through.
-const rawResume = (process.env.INPUT_RESUME_VERSION || "").trim();
+// PRESENCE IS TESTED ON THE UNTRIMMED INPUT, EVERY NORMALISATION COMES AFTER,
+// and the order is the whole guard. Any normalisation that runs before the
+// presence test can turn a malformed input into the empty string, which is
+// falsy, so the input does not FAIL — it falls out of this branch entirely and
+// runs the ORDINARY CUT, publishing a new npm version, Registry record, tag,
+// Release and apex deploy off a dispatch that asked to finish an existing one.
+// `--verify-tag` cannot catch it: by then `release.sh` has created and pushed
+// that tag itself. Any non-empty input that does not validate must EXIT.
+//
+// This has now been wrong TWICE, one normalisation apart, which is why the test
+// is on the rawest value available rather than on a variable that is merely
+// "raw enough". `.replace(/^v/, "")` ate `"v"`; moving the trim into its own
+// variable did not help, because the TRIM still ran before the test, so `"   "`
+// and `"\t"` normalised to "" and cut a new major (measured: released=true,
+// version=3.0.0). `rawInput` is the environment value with nothing done to it.
+const rawInput = process.env.INPUT_RESUME_VERSION || "";
+const rawResume = rawInput.trim();
 const explicitResume = rawResume.replace(/^v/, "");
-if (rawResume) {
+if (rawInput) {
   if (!/^\d+\.\d+\.\d+$/.test(explicitResume)) {
     console.error(
-      `resume_version "${rawResume}" is not a version number. ` +
+      `resume_version ${JSON.stringify(rawInput)} is not a version number. ` +
         `Expected exactly MAJOR.MINOR.PATCH (an optional leading "v" is stripped).`,
     );
     process.exit(1);
@@ -154,18 +165,38 @@ const commits = commitRange
 // reads it as new work and a rerun would cut an unintended NEW version over a
 // release that merely failed to deploy. Both collapse to resume.
 const resumeVersion = lastTag.replace(/^v/, "");
+
+// CLASSIFY BY WHAT THE COMMITS CHANGED, NEVER BY WHAT THEY SAY THEY CHANGED.
+// A commit SUBJECT is operator-supplied text with no relationship to its diff,
+// so every subject-based form of this test — the prefix `/^Update changelog for
+// v/`, and the exact equality that replaced it — is spoofable by writing that
+// subject over arbitrary work. Both were shipped and both were wrong in the
+// same direction: genuine changes to `src/`, or to a TRACKED bundle, classified
+// as this tag's changelog commit, swallowed as a resume, never released — and,
+// because a tracked bundle is uploaded and deployed by the tail, potentially
+// SHIPPED to the apex under the old version.
+//
+// The question the resume actually turns on is whether main's tree differs from
+// the tag's tree in anything releasable, and `git diff --name-only` answers
+// exactly that, for any number of commits and for merge commits alike.
+// `site/changelog.html` is the only path the tail itself writes after the tag
+// (`.github/workflows/release.yml`, "Commit changelog + push"), and CHANGELOG.md
+// is written by `release.sh` BEFORE the tag so it never appears in this range —
+// it is listed anyway so a reordering upstream degrades to a resume rather than
+// to a spurious cut.
+//
+// An EMPTY changed-path set with a non-empty commit range (an empty commit, or
+// commits that cancel out) is vacuously true here, and that is correct rather
+// than an oversight: the tree is identical to the tag's, which is the resume
+// state seen at its most unambiguous.
+const RESUME_SAFE_PATHS = new Set(["site/changelog.html", "CHANGELOG.md"]);
+const changedSinceTag = lastTag
+  ? sh(`git diff --name-only ${lastTag} HEAD`).split("\n").filter(Boolean)
+  : [];
 const onlyChangelog =
   commits.length > 0 &&
-  lastTag &&
-  sh(`git log ${commitRange} --format=%s`)
-    .split("\n")
-    .filter(Boolean)
-    // EXACT equality against THIS tag's changelog subject, not a prefix test.
-    // `/^Update changelog for v/` matched a commit carrying real changes under
-    // the subject `Update changelog for v2.4.9` — an older or hand-typed
-    // version — and classified it as the latest tag's changelog, so genuine
-    // work was swallowed as a resume and no release was ever cut for it.
-    .every((subject) => subject === `Update changelog for ${lastTag}`);
+  Boolean(lastTag) &&
+  changedSinceTag.every((p) => RESUME_SAFE_PATHS.has(p));
 
 if (lastTag && (commits.length === 0 || onlyChangelog)) {
   console.log(

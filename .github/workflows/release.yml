@@ -15,6 +15,10 @@ on:
         description: "Finish a half-deployed release (e.g. 2.5.0). Skips the cut entirely and runs only the tail."
         required: false
         default: ""
+      resend_notification:
+        description: "Re-send the release email for resume_version. Use only when the original notify job failed."
+        required: false
+        default: "false"
 
 # One release at a time. `detect release scope` reads the version from the
 # checkout, and `release.sh` deliberately does NOT pull (`scripts/release.sh:48`
@@ -41,6 +45,7 @@ jobs:
       version: ${{ steps.release.outputs.version }}
       bump: ${{ steps.release.outputs.bump }}
       notes: ${{ steps.release.outputs.notes }}
+      resume_version: ${{ steps.release.outputs.resume_version }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -244,9 +249,10 @@ jobs:
           bash scripts/release.sh "$BUMP"
           # Read the version that was ACTUALLY shipped, rather than reusing the
           # one `detect release scope` computed from the checkout. `release.sh`
-          # recomputes the bump from the same history and, on a partial release,
-          # resumes an already-published version (`scripts/release.sh:170`), so
-          # the two can disagree, and every
+          # takes the bump as `$1` and hands it to `npm version`, so the version
+          # is computed there against package.json as it stands when the script
+          # runs, and on a partial release it resumes an already-published
+          # version (`scripts/release.sh:170`); the two can disagree, and every
           # downstream step (tag, GitHub Release, changelog) would then name a
           # version npm never published.
           echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
@@ -280,14 +286,18 @@ jobs:
       # a stale one. Build it from the TAG, in a worktree, so the checkout stays
       # on main for the changelog commit that follows.
       #
-      # EXPLICIT RESUMES ONLY, and the exclusion is a correctness argument, not
-      # a cost one. An AUTOMATIC resume is detected precisely when main carries
-      # zero commits since the tag, or only that tag's own changelog commit
-      # (`detect-release-scope.mjs:137`) -- so main's tree and the tag's tree
-      # differ in CHANGELOG.md and nothing else, and the tracked bundle already
-      # in the checkout IS the released one. Rebuilding it there buys nothing
-      # and adds a whole npm install to the one path whose entire job is to
-      # recover a tail that already failed once.
+      # EXPLICIT RESUMES ONLY, and the exclusion is a correctness argument that
+      # is only as good as the detector's classification. An AUTOMATIC resume is
+      # entered when main carries zero commits since the tag, or when
+      # `git diff --name-only <tag> HEAD` shows nothing outside
+      # `site/changelog.html` / `CHANGELOG.md` -- a CONTENT comparison, so the
+      # tracked bundle in this checkout provably IS the released one and
+      # rebuilding it buys nothing. That argument was FALSE for one round while
+      # the detector classified by commit SUBJECT: a commit titled
+      # `Update changelog for <tag>` carrying a rebuilt bundle took this path,
+      # and the stale-artifact upload this step exists to prevent was reachable
+      # through the very condition that skips it. If the detector ever goes back
+      # to reading subjects, this exclusion has to go with it.
       - name: Rebuild the released bundle from its tag (explicit resume only)
         if: steps.release.outputs.explicit_resume == 'true'
         env:
@@ -306,8 +316,9 @@ jobs:
           ( cd /tmp/resume-src && npm ci && npm run build && SKIP_BUILD=1 npm run build:mcpb )
           # Stage BOTH bundles, then move both. A failure between two sequential
           # `cp`s leaves the checkout carrying one tag-built bundle and one
-          # stale one -- two files that are supposed to be byte-identical, and
-          # nothing downstream compares them.
+          # stale one -- two files that are supposed to be byte-identical. The
+          # `cmp` below is what catches that, and it is the only thing that
+          # does; nothing further downstream compares them.
           cp /tmp/resume-src/site/raven.mcpb /tmp/site.mcpb.new
           cp /tmp/resume-src/web/public/raven.mcpb /tmp/web.mcpb.new
           mv /tmp/site.mcpb.new site/raven.mcpb
@@ -338,10 +349,42 @@ jobs:
           # release the asset is re-uploaded with --clobber rather than skipped,
           # because the half-finished state this recovers from includes "release
           # created, asset upload failed".
-          printf '%s\n' "$NOTES" > /tmp/release-notes.md
+          # `printf '%s\n' ""` writes a NEWLINE, so `[ -s ]` on the result is
+          # TRUE for EMPTY notes and every `--generate-notes` fallback below is
+          # unreachable. A resume never computes notes, so the step failed on
+          # the exact path the fallback exists to serve -- both branches took
+          # --notes-file with a whitespace-only file, GitHub wrote an empty
+          # body, and the readback exited 1. `-s` stays the predicate at all
+          # four call sites; this makes it mean what those comments claim.
+          if [ -n "$(printf '%s' "$NOTES" | tr -d '[:space:]')" ]; then
+            printf '%s\n' "$NOTES" > /tmp/release-notes.md
+          else
+            : > /tmp/release-notes.md
+          fi
           if gh release view "v$VERSION" >/dev/null 2>&1; then
             echo "release v$VERSION already exists - re-uploading the bundle"
             gh release upload "v$VERSION" site/raven.mcpb --clobber
+            # AN EXISTING RELEASE IS NOT A COMPLETE ONE. The branch below can
+            # leave a Release with an EMPTY BODY behind -- `--generate-notes`
+            # returns 0 having written nothing, and the run can also die between
+            # creation and the readback. A later dispatch then took this branch,
+            # re-uploaded the asset, and went green over a public Release with no
+            # notes, permanently: nothing here ever looked at the body. Repair is
+            # the same question the create branch asks, asked at the other door.
+            body=$(gh release view "v$VERSION" --json body --jq .body)
+            if [ -z "$(printf '%s' "$body" | tr -d '[:space:]')" ]; then
+              echo "release v$VERSION has an empty body - regenerating"
+              if [ -s /tmp/release-notes.md ]; then
+                gh release edit "v$VERSION" --notes-file /tmp/release-notes.md
+              else
+                gh release edit "v$VERSION" --generate-notes
+              fi
+              body=$(gh release view "v$VERSION" --json body --jq .body)
+              if [ -z "$(printf '%s' "$body" | tr -d '[:space:]')" ]; then
+                echo "::error::Release v$VERSION still has an empty body after regeneration"
+                exit 1
+              fi
+            fi
           else
             # A resume never computes notes -- the detector exits before the PR
             # walk -- so on a resume whose ORIGINAL run died before creating
@@ -464,7 +507,16 @@ jobs:
 
   notify:
     needs: release
-    if: needs.release.outputs.released == 'true' && needs.release.outputs.bump != 'patch'
+    # Two entry conditions, and the second is OPT-IN on purpose. Every resume
+    # emits released=false, so a job gated on `released` alone can never retry a
+    # failed notification — the release reaches all four surfaces and the email
+    # is lost permanently. But an AUTOMATIC retry would have to fire on every
+    # resume, including the ones whose original notify succeeded, and mailing
+    # the audience a second time is an outward-facing side effect that cannot be
+    # withdrawn. So the operator asks for it by name.
+    if: >-
+      (needs.release.outputs.released == 'true' && needs.release.outputs.bump != 'patch')
+      || (github.event.inputs.resend_notification == 'true' && needs.release.outputs.resume == 'true')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -477,7 +529,28 @@ jobs:
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           RESEND_AUDIENCE_ID: ${{ secrets.RESEND_AUDIENCE_ID }}
-          RELEASE_VERSION: ${{ needs.release.outputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_VERSION: ${{ needs.release.outputs.version || needs.release.outputs.resume_version }}
           RELEASE_NOTES: ${{ needs.release.outputs.notes }}
           RELEASE_BUMP: ${{ needs.release.outputs.bump }}
-        run: node scripts/notify-release.mjs
+        run: |
+          # A resume never computes notes -- the detector exits before the PR
+          # walk -- so a resend would otherwise mail a release announcement with
+          # an empty body. The GitHub Release created by the original run is the
+          # authoritative text at that point, so read it back rather than
+          # sending nothing. Fail loudly if neither source has content: an email
+          # with no notes is worse than a job that says why it refused.
+          if [ -z "$RELEASE_VERSION" ]; then
+            echo "::error::no version to announce"
+            exit 1
+          fi
+          if [ -z "$RELEASE_NOTES" ]; then
+            echo "no notes on the job output - reading the GitHub Release body"
+            RELEASE_NOTES=$(gh release view "v$RELEASE_VERSION" --json body --jq .body)
+            export RELEASE_NOTES
+          fi
+          if [ -z "$(printf '%s' "$RELEASE_NOTES" | tr -d '[:space:]')" ]; then
+            echo "::error::no release notes available for v$RELEASE_VERSION"
+            exit 1
+          fi
+          node scripts/notify-release.mjs
