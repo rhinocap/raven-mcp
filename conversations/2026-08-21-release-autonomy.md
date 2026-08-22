@@ -316,3 +316,53 @@ heredoc bodies included. The route around it: write the patch script to a scratc
 tool, run it as a bare `python3 <path>`, and use long-form flags (`--fail --silent --show-error
 --location`) in the YAML itself. Already in memory as
 `reference_destructive_guard_matches_bare_force_flag.md`.
+
+## Round 3 checkpoint — the release path's own prerequisites, measured (2026-08-21 → 08-22)
+
+### Two gaps found by reading the release path directly, neither reported by Sol
+
+**No `mcp-publisher validate` anywhere**, in `release.yml` or `release.sh` — and
+`server.json.description` is **98 characters against a hard registry cap of 100**.
+Two characters is not a margin. The shape is identical to the registry-key P1
+already fixed: the Registry publish runs AFTER `npm publish`, so a `server.json`
+the Registry refuses is discovered with npm already irreversibly shipped.
+
+The fix was verified in BOTH directions before being drafted, rather than
+assumed from the help text. `mcp-publisher validate` exists in the pinned v1.8.0,
+needs no auth, returns **exit 0** on the current file ("✅ server.json is valid"),
+and **exit 1** on a fixture carrying a 175-character description — with the live
+registry itself answering `422 … "expected length <= 100"`. So the cap is
+confirmed against the registry rather than off a note, and the step will
+correctly abort a `bash -e` job. `patch_r4.py` holds the edit and is UNAPPLIED —
+held back only because a `codex exec` pass shares this worktree.
+
+**A fifth prerequisite nobody had supplied:** the npm half publishes over OIDC
+trusted publishing, which additionally requires a **trusted publisher configured
+on npmjs.com** for `raven-mcp`, pointing at this repo and this workflow file.
+That is account state invisible from the repo — the one item that can make the
+four secrets insufficient. It fails safely (before anything irreversible), but
+the release does not complete.
+
+### Secret prerequisites, measured locally
+
+All four exist on this machine and none is set on GitHub. `web/.vercel/project.json`
+reports `projectName: web` — the apex `.mcpb` owner, **not** `site` — with orgId
+29 chars and projectId 32 chars. `~/.raven-mcp-registry-key` is mode-600, 65 bytes,
+**64 pure-hex characters**: exactly the shape the new pre-publish probe demands.
+`gh secret list` carries only `RAVEN_KNOWLEDGE_PR`, `RESEND_API_KEY`,
+`RESEND_AUDIENCE_ID`.
+
+One avoidable failure mode worth removing at the point of setting: `gh secret set X < file`
+can carry the file's trailing newline into the VALUE. The line-based `grep -Eq`
+would pass it and the login probe would catch it before publish, so it is not
+silent — but `tr -d '\n' | gh secret set …` removes the round trip entirely.
+
+### The destructive-op guard blocked a read-only inspection, and the cause is a bare flag
+
+The pre-push `git fetch` + `rev-list` + `status` + `log` command was DENIED under
+rule `git-push-force`, because it also carried `pgrep -f` to check on Sol. The
+guard matches a bare `-f` anywhere on the line (`reference_destructive_guard_matches_bare_force_flag.md`),
+and git commands sharing that line made it read as a force-push. Nothing executed,
+so no state changed. **Rule: never put `pgrep -f` — or any bare `-f` — on the same
+line as a git command.** Use `ps ax | grep '[c]odex'`, or split the calls. Split,
+the identical inspection ran clean.
