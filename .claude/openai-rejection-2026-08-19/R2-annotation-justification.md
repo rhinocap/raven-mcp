@@ -121,55 +121,60 @@ so calling twice leaves the same end state.
 A blanket reclassification would have been wrong in the other direction — it would publish
 `destructiveHint: true` on an endpoint that cannot write at all.
 
-## 5. `openWorldHint` is derived PER SURFACE, and this is where the reviewed endpoint changed
+## 5. `openWorldHint` answers OpenAI's definition on the hosted surface, and the MCP spec's on stdio
 
-`openWorldHint` defaults to `true` in the MCP spec, so the load-bearing statement is the
-explicit `false` on everything else: those tools read bundled knowledge, local state, or
-caller-pasted markup, and never reach an unpredictable host.
+**This section was rewritten on 2026-08-21 because the August round answered the wrong
+question, and that is the likeliest reason R2 was not actually closed.**
 
-Fourteen tools take a caller-supplied URL and drive a real browser or fetch against it.
-Measured off a built `remote:false` server rather than transcribed: `audit`,
+The two definitions are not the same. OpenAI's app-review page says to set `openWorldHint`
+to `true` "if it can write to or change publicly visible internet state (for example,
+posting to social media, blogs, or forums; sending emails, SMS, or messages to external
+recipients; creating public tickets or issues; publishing pages; pushing code or content to
+public endpoints; submitting forms to third parties; or otherwise affecting systems outside
+a private or first-party context)". Every example is a WRITE. The MCP specification instead
+describes *interaction with* an external, unpredictable world, and defaults the hint to
+`true`.
+
+The August remediation fixed the *derivation* — remote versus local, read off the same
+guard table the wrapper enforces — while keeping the spec's reach-based *semantics*, which
+is the half this review disagreed with. The result was visible in the deployed payload:
+four tools on `mcp.ravenmcp.ai` carried `readOnlyHint: true` and `openWorldHint: true`
+**together** — `audit_contrast`, `audit_tap_targets`, `audit_responsive_visibility`,
+`audit_video_playback`. Under the definitions above those two statements contradict each
+other in the same object: read-only says the tool cannot write, open-world says it can. A
+scanner reading the annotations as a flat capability record sees an internal contradiction,
+and that is a fair reading of what we published.
+
+**The correction.** The hosted surface now answers OpenAI's question directly:
+`openWorldHint` is `true` only for a tool that can write to or change publicly visible
+internet state. **No tool on the hosted endpoint can.** Every one of the 45 fetches,
+renders, parses and measures; not one posts, publishes, sends, files or submits anything
+anywhere. So `openWorldHint` is `false` across the hosted surface, and it agrees with the
+`readOnlyHint: true` sitting beside it.
+
+That answer is a *rule*, not a hard-coded constant. `src/index.ts` carries an explicit
+`TOOL_WRITES_PUBLIC_STATE` list which is currently empty, with a comment saying so and
+saying where a future write-capable tool must be registered. A reader who believes some
+Raven tool writes to the public internet has one place to add it, and the annotation
+follows in the same edit.
+
+**The stdio build is deliberately different, and we are stating that rather than hiding
+it.** A local `raven-mcp` install is not the reviewed surface; it answers to the MCP
+specification, where `openWorldHint` describes reaching an unpredictable host. Fourteen
+tools there take a caller-supplied URL and drive a real browser or fetch against it —
+measured off a built `remote:false` server rather than transcribed: `audit`,
 `audit_api_contract`, `audit_contrast`, `audit_page`, `audit_responsive_visibility`,
 `audit_tap_targets`, `audit_taste`, `audit_typography`, `audit_url`,
 `audit_video_playback`, `bind_taste_surface`, `design_gauntlet`, `score_page`,
-`talon_scan`.
+`talon_scan`. `init_design_md` is deliberately absent — its fetch targets one fixed starter
+base URL, a closed set, not an open world.
 
-Two of those — `bind_taste_surface` and `talon_scan` — were published as
-`openWorldHint: false` and are corrected in this round. `bind_taste_surface` captures each
-`references[].url` live to derive page traits (`src/index.ts:8567`); `talon_scan` renders a
-caller-supplied `url`. Both genuinely leave the machine, so `false` was the same class of
-mismatch as the three below. `bind_taste_surface` is served on the AUTHENTICATED hosted
-surface and keeps `openWorldHint: true` there, because no `url` guard applies to it — that
-is a live fact about a hosted tool fetching caller-supplied addresses, and it is now
-annotated honestly rather than understated. `talon_scan` is not served on either hosted
-surface.
-
-`init_design_md` is deliberately absent — its fetch targets one fixed starter base URL, a
-closed set, not an open world.
-
-**That list is true of stdio and was FALSE on the hosted endpoint for four of its
-members, which is the annotation/behaviour mismatch.** `audit_page`, `score_page`,
-`audit_typography` and `audit_url` reach the open web only through a `url` argument, and
-the hosted build rejects that argument before the handler ever runs. On `mcp.ravenmcp.ai`
-they cannot leave the machine at all — yet they were published as `openWorldHint: true`.
-An annotation that does not match the behaviour is exactly the finding.
-
-(`audit_url` joins that set in this round: its `url` was not guarded when the first three
-were audited. See §7 — it was guarded for a latency reason, and the annotation followed
-automatically because it is derived from the guard rather than written out separately.
-That is the property this whole section is arguing for, observed working.)
-
-The hint is now computed as:
-
-```
-openWorld = TOOL_OPEN_WORLD.includes(tool) && !(remote && remoteBlocksNetwork(tool))
-```
-
-where `remoteBlocksNetwork` reads the guard table that the request wrapper itself
-enforces. The remote answer is **derived from the guard rather than written out as a
-second list**, so lifting a guard moves the annotation in the same edit and the two cannot
-drift apart.
-
+The divergence is pinned by a test that asserts BOTH halves on the same four tools
+(`test/remote-click-guard.test.mjs`), plus a control, so neither half can quietly become a
+constant: point the hosted branch back at the reach-based list and the hosted half fails;
+make the write-based rule apply everywhere and the stdio half fails; return `true`
+unconditionally and the control fails. All three were run as mutations against the built
+output and each turned that test red.
 ## 6. What did not change
 
 No tool was added or removed. The anonymous endpoint still serves exactly 45 tools, and

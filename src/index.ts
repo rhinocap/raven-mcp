@@ -2227,16 +2227,28 @@ function toolTitle(toolName: string): string {
 // init_design_md is deliberately absent — its fetch targets one fixed starter
 // base URL, a closed set, not an open world.
 //
-// THIS LIST IS THE STDIO TRUTH AND IT IS FALSE ON THE HOSTED ENDPOINT for three of
-// its members. audit_page, score_page and audit_typography reach the open web only
-// through a `url` argument, and REMOTE_ARG_GUARDS rejects that argument pre-handler
-// when remote is true — so on mcp.ravenmcp.ai they cannot leave the machine at all.
-// Publishing `openWorldHint: true` there is an annotation that does not match the
-// behaviour, which is exactly what OpenAI's plugin review rejected Raven for on
-// 2026-08-19 (see conversations/2026-08-19-openai-rejection.md). The remote answer is
-// DERIVED from REMOTE_ARG_GUARDS rather than written out as a second list, because two
-// copies of one rule drift and this file already documents that failure four times over:
-// lift a guard and the annotation follows it in the same edit.
+// THIS LIST IS THE STDIO TRUTH AND IT DOES NOT GOVERN THE HOSTED ENDPOINT AT ALL.
+// The two surfaces answer to two different definitions of `openWorldHint`, and that
+// divergence is deliberate rather than drift (Andrew's call, 2026-08-21):
+//
+//   stdio  — the MCP spec's meaning: does this tool INTERACT with an unpredictable
+//            external host. The list above is that answer.
+//   hosted — OpenAI's plugin-review meaning, quoted from their own page: set it true
+//            "if it can write to or change publicly visible internet state (for
+//            example, posting to social media, blogs, or forums; sending emails, SMS,
+//            or messages to external recipients; creating public tickets or issues;
+//            publishing pages; pushing code or content to public endpoints; submitting
+//            forms to third parties)". Every example is a WRITE.
+//
+// The 2026-08-19 rejection (R2, "annotations that do not match behaviour") was answered
+// in August by fixing the DERIVATION — remote vs local, read off REMOTE_ARG_GUARDS —
+// while keeping the spec's reach-based SEMANTICS, which is the half OpenAI disagreed
+// with. Measured live on 2026-08-21, mcp.ravenmcp.ai published four tools carrying
+// `readOnlyHint: true` AND `openWorldHint: true` in the same payload
+// (audit_contrast, audit_tap_targets, audit_responsive_visibility, audit_video_playback).
+// Under OpenAI's definitions those two contradict each other: read-only says it cannot
+// write, open-world says it can. That contradiction is the plausible mechanism behind R2
+// and it is what this split removes. See conversations/2026-08-20-openai-resubmission.md.
 const TOOL_OPEN_WORLD: string[] = [
   "audit_url",
   "audit_contrast",
@@ -2253,6 +2265,20 @@ const TOOL_OPEN_WORLD: string[] = [
   "bind_taste_surface",
   "talon_scan"
 ];
+
+// Which tools can WRITE TO or CHANGE publicly visible internet state — OpenAI's
+// definition of openWorldHint, and the one the hosted endpoint answers to. It is EMPTY
+// and that is the finding, not an oversight: every hosted tool fetches, renders, parses
+// and measures, and not one of them posts, publishes, sends, files or submits anything
+// anywhere. A reader who believes a Raven tool writes to the public internet should add
+// it here rather than reason about the constant below — the list exists so the claim has
+// somewhere to live and so a future write-capable tool is a one-line edit at the point
+// where it is introduced.
+//
+// Do NOT collapse this to `false` because the array is empty today. The array is the
+// RULE; false is only its current answer, and a rule that reads as a constant is exactly
+// what nobody can audit later.
+const TOOL_WRITES_PUBLIC_STATE: string[] = [];
 
 // True when the hosted endpoint blocks this tool's only route to the open web.
 // Reads the guard table itself, so it cannot disagree with what the wrapper enforces.
@@ -2377,8 +2403,14 @@ function toolAnnotations(toolName: string, remote: boolean): {
 } {
   var access = TOOL_ACCESS[toolName];
   if (!access) throw new Error("Missing MCP tool classification: " + toolName);
-  var openWorld = TOOL_OPEN_WORLD.indexOf(toolName) !== -1
-    && !(remote && remoteBlocksNetwork(toolName));
+  // Two surfaces, two definitions — see the TOOL_OPEN_WORLD header. The hosted answer
+  // is NOT a narrowing of the stdio one, so it is not derived from it: a tool can reach
+  // the open web (stdio-true) and still write nothing to it (hosted-false), which is the
+  // case for every tool Raven has. Deriving one from the other would smuggle the reach
+  // semantics back onto the surface OpenAI reviews.
+  var openWorld = remote
+    ? TOOL_WRITES_PUBLIC_STATE.indexOf(toolName) !== -1
+    : TOOL_OPEN_WORLD.indexOf(toolName) !== -1;
   // Same gate the registration wrapper uses: !remote && !isRemoteRuntime().
   // The latch is one-way per process, so both halves are load-bearing.
   var writesLocally = TOOL_LOCAL_ONLY_WRITE.indexOf(toolName) !== -1

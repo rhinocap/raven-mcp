@@ -121,7 +121,7 @@ test('the hosted audit_url is published read-only, idempotent and closed-world',
   assert.equal(a.readOnlyHint, true, 'a tool that can only decline reads nothing and writes nothing');
   assert.equal(a.destructiveHint, false);
   assert.equal(a.idempotentHint, true, 'declining twice leaves the same state as declining once');
-  assert.equal(a.openWorldHint, false, 'the hosted build blocks its only route to the open web');
+  assert.equal(a.openWorldHint, false, 'it can only decline, so it neither reaches nor writes to anything');
 });
 
 test('the local audit_url is published NEITHER read-only NOR idempotent', () => {
@@ -215,22 +215,36 @@ test('the guard is keyed per TOOL: another url-taking hosted tool still runs', a
 });
 
 // The ANNOTATION side of the same over-refusal direction, and it is a separate guard
-// rather than a restatement. `openWorldHint` is derived from remoteBlocksNetwork(), so a
-// derivation that answers "blocked" for EVERY tool publishes the whole hosted surface as
-// closed-world -- including the tools that genuinely do fetch the caller's URL there. That
-// mutant (D9) left every assertion in this file green until this test existed: the local
-// annotations are gated behind `remote &&` and short-circuit before the derivation is ever
-// consulted, so nothing in the local direction can see it either. audit_contrast and
-// audit_tap_targets are on the anonymous 45, take a `url`, are NOT arg-guarded, and reach
-// the open web on the hosted endpoint -- so openWorldHint:true is the true annotation and
-// is what separates them from audit_url one line above.
-test('a hosted tool that DOES reach the open web still says so', () => {
-  for (const name of ['audit_contrast', 'audit_tap_targets']) {
-    const a = toolOf(remoteServer, name).annotations;
-    assert.equal(a.openWorldHint, true, `${name} fetches the caller's url on the hosted endpoint`);
+// rather than a restatement. The two surfaces answer to two DIFFERENT definitions of
+// openWorldHint (see the TOOL_OPEN_WORLD header in src/index.ts): stdio publishes the
+// MCP spec's reach-based meaning, the hosted endpoint publishes OpenAI's write-based
+// one, and no hosted tool writes to public internet state — so the hosted answer is
+// false for all 45.
+//
+// A single-surface assertion here would be worthless in both directions. Asserting only
+// the hosted half asserts a constant, which is what the previous version of this test
+// warned against and would now be doing itself. Asserting only the local half misses a
+// derivation that ignores `remote` entirely. So both halves are pinned on the SAME four
+// tools — the exact four measured live on 2026-08-21 shipping readOnly:true alongside
+// openWorld:true, which is the contradiction this split removes — plus a local control
+// so the local half is not a constant either.
+//
+// What each direction catches: point the remote branch back at TOOL_OPEN_WORLD and the
+// hosted half goes red; empty TOOL_OPEN_WORLD, or gate the local branch on `remote` too,
+// and the local half goes red; return true unconditionally and the control goes red.
+const DIVERGENT = ['audit_contrast', 'audit_tap_targets', 'audit_responsive_visibility', 'audit_video_playback'];
+
+test('openWorldHint is write-based on the hosted surface and reach-based on stdio', () => {
+  for (const name of DIVERGENT) {
+    assert.equal(toolOf(remoteServer, name).annotations.openWorldHint, false,
+      `${name} reads the caller's url on the hosted endpoint but writes nothing to the public internet, which is what OpenAI's openWorldHint asks about`);
+    assert.equal(toolOf(localServer, name).annotations.openWorldHint, true,
+      `${name} on stdio reaches whatever host the caller names, which is what the MCP spec's openWorldHint asks about -- if this is false the two surfaces are no longer diverging and the hosted half above asserts nothing`);
   }
-  assert.equal(toolOf(remoteServer, 'audit_url').annotations.openWorldHint, false,
-    'and audit_url, which cannot, must differ from them -- otherwise this asserts a constant');
+  // The local control: a tool that reads bundled knowledge and never leaves the machine.
+  // Without it, "return true for everything" satisfies every local assertion above.
+  assert.equal(toolOf(localServer, 'get_principles').annotations.openWorldHint, false,
+    'get_principles reads bundled knowledge on either surface');
 });
 
 test('the guard is keyed per SURFACE: local audit_url carries no decline', () => {

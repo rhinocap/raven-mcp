@@ -834,3 +834,63 @@ Honest form: "survived a full document load", never "persisted server-side".
 **P3-2 — OPEN.** No portal status string is rendered anywhere on the page (checked: no
 Draft/Submitted/In review/Approved token in `body.innerText`). What is known is that execution
 stopped before Submit and the Submit step is still unreached. Not independently confirmed.
+
+## openWorldHint — the R2 semantics were never actually fixed (2026-08-21)
+
+**Andrew's decision: "Flip all four to false."** Presented as a fork after the live probe
+found four hosted tools shipping `readOnlyHint: true` and `openWorldHint: true` in the same
+annotation object — `audit_contrast`, `audit_tap_targets`, `audit_responsive_visibility`,
+`audit_video_playback`. Option 3 (one write-based rule on BOTH surfaces) was offered and NOT
+chosen, so stdio keeps the MCP spec's reach-based meaning and only the hosted surface moves.
+
+**Why August missed it.** That round fixed the DERIVATION — remote vs local, read off
+`REMOTE_ARG_GUARDS` — and kept the spec's reach-based SEMANTICS, which is the half OpenAI
+disagrees with. Their review page defines `openWorldHint: true` as the ability to "write to
+or change publicly visible internet state", and every example they give is a WRITE. Under
+that definition `readOnlyHint: true` beside `openWorldHint: true` is self-contradictory in
+one object, which is a plausible mechanism for R2 ("annotations that do not match
+behaviour") and is what this change removes.
+
+**The implementation is a rule, not a constant.** `src/index.ts` gains
+`TOOL_WRITES_PUBLIC_STATE: string[] = []` and the derivation becomes a per-surface ternary:
+hosted reads the write list, stdio reads `TOOL_OPEN_WORLD`. The array is EMPTY and that is
+the finding rather than an oversight — no Raven tool posts, publishes, sends, files or
+submits anything. It is deliberately not collapsed to `false`: the list is where a future
+write-capable tool gets registered in the same edit that introduces it, and a rule that
+reads as a constant is what nobody can audit later. The hosted answer is also deliberately
+NOT derived from the stdio one — a tool can reach the open web and still write nothing to
+it, so deriving one from the other would smuggle reach semantics back onto the reviewed
+surface. `remoteBlocksNetwork()` is untouched and still consumed by
+`toolFiresCallerInteractions`.
+
+**The old D9 test could not survive the rule change.** It asserted the reach-based rule
+("a hosted tool that DOES reach the open web still says so") and existed because a mutant
+answering "blocked" for every tool was invisible — both consumers gate on `remote &&`, so
+local assertions short-circuit before the derivation is consulted. Under the write-based
+rule the hosted answer is constant-false, so keeping that test would have made it assert a
+constant, which is precisely what its own comment warned against. The replacement pins BOTH
+halves on the SAME four tools (the exact four measured live shipping the contradiction) plus
+a local `get_principles` control, so it fails in three distinct directions.
+
+**Proven falsifiable rather than asserted.** Three mutants against built `dist/`, each
+`import()`-load-checked, each restore verified with `cmp`:
+- M1 hosted branch reads the reach list → 15 pass / 2 fail (hosted `audit_url` + new test)
+- M2 write-based rule everywhere → 15 pass / 2 fail (local `audit_url` + new test)
+- M3 return true unconditionally → 15 pass / 2 fail (hosted `audit_url` + new test)
+`dist/index.js` verified byte-identical to the pristine backup afterwards.
+
+**Measured.** Targeted suite 17/17/0/0 on first run. Full suite `RAVEN_NO_USAGE_LOG=1 npm
+test`: **1723 tests / 1720 pass / 0 fail / 3 skipped**, `EXIT=0` read from INSIDE
+`/tmp/full-r3.log`, with the three skips read INDIVIDUALLY at output lines 121/861/862 (the
+file-URL fallback notice and the two removed-capability phase2 tests). The count moved by
+ZERO against the ledgered 1723 — the new test replaces the D9 test one-for-one, both suites
+at 17.
+
+**Deploy ordering, and it is load-bearing.** `R2-annotation-justification.md` §5 has been
+rewritten to the write-based argument, but §8 ("read off the DEPLOYED endpoint") and the
+wizard's annotation justification fields describe what `mcp.ravenmcp.ai` SERVES. Updating
+either before the flip is live would make the submission describe unreleased behaviour —
+the exact class of defect R1 was rejected for. Correct order: Andrew approves the push to
+`main` (which IS the prod deploy of the live endpoint) → deploy → re-measure the live
+annotations → then update §8 and the wizard fields. npm is separately his passkey-gated
+call. **Nothing here is pushed and nothing is on npm.**
