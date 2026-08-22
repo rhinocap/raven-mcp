@@ -206,7 +206,9 @@ own answer, rather than from a hang.
 
 Three consequences for the annotations, all derived rather than asserted:
 
-- `openWorldHint: false` on the hosted surface (§5) — it reaches no host.
+- `openWorldHint: false` on the hosted surface (§5) — it writes nothing to publicly
+  visible internet state, which is what OpenAI's definition of the hint asks about. On this
+  surface it also reaches no host at all, so the answer is the same under either reading.
 - `readOnlyHint: true`, `destructiveHint: false`, `idempotentHint: true` on the hosted
   surface (§3b) — a decline reads nothing, writes nothing, and repeats identically.
 - The sentence appended to the hosted description **is the refusal string itself**, not a
@@ -219,6 +221,18 @@ publishes `readOnlyHint: false`, `destructiveHint: true`, `idempotentHint: false
 ---
 
 ## 8. Per-tool declaration — read off the DEPLOYED endpoint, 2026-08-20
+
+> **STALE AS OF 2026-08-21 — DO NOT SUBMIT THIS SECTION AS WRITTEN.** The table below is an
+> honest measurement of what `mcp.ravenmcp.ai` served on 2026-08-20, and it is deliberately
+> left unedited: describing annotations that are not yet deployed is exactly the defect R1
+> was rejected for. The `openWorldHint` correction in §5 is committed but **not pushed and
+> not deployed**, and pushing `main` is the production deploy of this endpoint, which is a
+> human gate. When it lands, four rows change from `true` to `false` — `audit_contrast`,
+> `audit_responsive_visibility`, `audit_tap_targets`, `audit_video_playback` — the split in
+> fact 3 below becomes 0 / 45, and test case N2's role changes: it will still demonstrate a
+> hosted tool fetching a caller-supplied address, but that fetch is a READ and no longer
+> evidences an `openWorldHint: true`. **Re-fetch `tools/list` and rewrite fact 3 and the
+> table from the response before this document is used.**
 
 OpenAI's guidance asks for a justification for **each** tool. The sections above justify
 by class, because that is how the values are produced — no hint anywhere in this server is
