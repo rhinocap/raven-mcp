@@ -562,3 +562,90 @@ pipe, into a file, with the prompt requiring A and B to be emitted first even if
 **The pass turned the document's own discipline on the document and found real slack in
 it** — for the second time in this remediation, after the N3 correction. Nothing here is
 pushed and nothing is submitted; §7's three open items still gate a send.
+
+## 2026-08-21 — the sections the pipe ate, and the R2 defect inside the R2 fix
+
+The first adverse pass ended `| tail -80`. It was written for a foreground read and then
+backgrounded with the pipe still attached, so sections **A and B were never captured**.
+The tell was inside the surviving text: finding D-2 read "As in A-6," referencing a
+finding that was not in the file. Re-run whole into a file with no pipe, with the prompt
+requiring A and B be emitted first even if empty.
+
+**A truncated adverse output is indistinguishable from a pass that found nothing in the
+sections it never printed.** Same class as this repo's ledgered rule that an
+environment-blocked run must never be dispositioned as "no findings" — the instrument
+failed and the output still looked like a verdict.
+
+Section B, the half that was lost, held the sharpest finding of either run.
+
+### B-1 — the R2 class, reproduced inside the document written to fix R2
+
+§3 justified `idempotentHint: true` on 45/45 with *"these outputs are computed, not
+sampled — the same input returns a byte-identical result."* Four of those 45 carry
+`openWorldHint: true` and render a **caller-supplied live URL**, and N2 in the same
+document says in as many words that `example.com`'s tallies are not the expectation
+because the page is not ours. The blanket claim contradicted four of the tools it covered.
+
+The hint itself is right and the reason given was wrong. MCP defines `idempotentHint` as
+*no additional **effect*** on repeat — a statement about the environment, not about output
+equality. So this was an annotation whose **prose** did not match behaviour, which is
+literally R2, one layer up from the annotation values R2 was about. Rewritten to the
+spec's sense, with the four open-world tools named as the explicit exception to
+byte-stability, and idempotent/deterministic separated in as many words.
+
+### B-2 — an edit made earlier the same session made this one worse
+
+§5 said *"Every claim in §3 is readable off that one response."* False for three
+source-level claims (the `fetch()` call sites, the 36-tool destructive classification, the
+`TOOL_IDEMPOTENT` map) — and the `grep` procedure I added to §3 earlier **this session**,
+closing D-1 from the truncated run, made the sentence more wrong than it had been. Scoped
+to the annotation claims, with the three source-level ones named as deliberately not in
+the response and pointed at the public repo.
+
+### Applied from section A
+
+- **A-2/D-4** — the `save`/`persist`/`write`/`delete`/`overwrite` scan was presented as a
+  read-only *proof*. It is a five-keyword heuristic: `commit`, `store`, `apply`, `upsert`
+  would each pass it and still write. Replaced with all **78 distinct input properties**
+  across the 45 schemas, measured and preserved as `measure-anon-schema-properties.mjs`,
+  and the row now states the limit itself — a schema scan can never establish
+  read-only-ness, because a tool can write without taking a parameter for it. Registration
+  is the load-bearing fact; the scan is corroboration.
+- **A-6** — *"the local stdio build returns the same shape (measured)"* had no artifact,
+  and the **previous version of that same sentence was false**, which is the whole reason
+  N3 carries a blockquote. Measured against a clean `npm run build` — `dist/` is
+  untrustworthy after a mutation harness, per the ledger — and shipped with
+  `measure-stdio-n3-envelope.mjs` so it is re-runnable rather than asserted.
+- **A-4** — the 36-destructive classification cannot be confirmed from an endpoint that
+  does not serve those tools. Says so, and names `src/index.ts` / `TOOL_ACCESS` /
+  `REMOTE_GATED_TOOLS` in the public repo instead.
+- **A-8** — "sub-second in every observed run" and "roughly 0.7–4 s" named no count and no
+  cause. Measured five runs each: N1 at 275/105/99/109/102 ms, N2 at
+  4844/677/764/761/811 ms. **The 6× spread is a cold start**, which is the thing that
+  varies and is now stated rather than left as a range.
+- **A-7** — "served bare" is now `content-type: text/plain`, token alone, no wrapper.
+- **D-5** — the N3 blockquote conceded the R1 class without showing the standard reached
+  the other seven cases. It did: the replay was all eight and **two failed** (N3's
+  envelope, N1's paraphrased `95.2 s`). The count is stated instead of the reassurance.
+
+### Refused again, same reasons as the truncated run
+
+C-1/C-2/C-3 (`#635BFF`, `color-palette-discipline`, `"Landing Page"`) pin shipped
+constants in tracked repo data. Those move only when *we* move them, unlike a count that
+drifts as content grows — **and that distinction is exactly the R1 lesson**, not a dodge of
+it. C-7 misreads the frozen anon hash, which is build-enforced rather than captured. D-6
+is a characterisation; its testable half is §7, which already lists the three open gates.
+
+### Verified before the submission text was touched
+
+45 tools; `title` 45/45; four hints boolean 45/45; `readOnlyHint` 45 true;
+`destructiveHint` 0 true; `idempotentHint` 45 true; `openWorldHint` true on exactly
+`audit_responsive_visibility`, `audit_contrast`, `audit_tap_targets`,
+`audit_video_playback`; anon hash exact match. The §5 reproduction script was extracted
+**from the document verbatim** and run — `45 tools, 45 HTTP 200, 0 protocol errors, 31
+schema-validation results`, the exact line the document claims. The 31 are the evidence
+rather than a blemish: a validation error proves the call was *accepted*, not gated.
+
+Commits `6112449`, `5fffbcf`, `1907924` — **local only. Nothing pushed, nothing on npm,
+no resubmission made.** §7's three gates (identity verification, support-contact bounce
+test, the submission itself) are all Andrew's and all still open.
