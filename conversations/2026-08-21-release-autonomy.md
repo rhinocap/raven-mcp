@@ -783,3 +783,107 @@ branch-protection limit already written beside it.
 
 Gates re-run after the edits: **19 steps**, all 19 `run:` blocks `bash -n` clean,
 `node --check` clean on the detector, `bash -n` clean on `release.sh`.
+
+## Round 6 — Sol falsification pass on the round-5 fixes
+
+Six claims audited (`R6-BRIEF.md`), report-only. Sol's own checks came back clean —
+`node --check`, `bash -n`, 19/19 `run:` blocks syntax-clean, no audited file changed.
+
+| Claim | Grade | Sev |
+|---|---|---|
+| C1 every half-deployed state is finishable | **DOES NOT SURVIVE** | P1 |
+| C2 resume cannot cut, skip or misname a version | **DOES NOT SURVIVE** | P1 |
+| C3 the automatic resume path is unchanged | SURVIVES | — |
+| C4 the `--generate-notes` fallback is safe | **DOES NOT SURVIVE** | P1 |
+| C5 no `${{ }}` reaches shell source | SURVIVES | — |
+| C6 the three comments are true | **DOES NOT SURVIVE** | P2 |
+
+**R6-1 (P1).** An explicit resume sets `released=false`, so `release.sh` is skipped
+and only the workflow tail runs (`detect-release-scope.mjs:63`, `release.yml:236`).
+Two consequences. It cannot finish a failure that happened *inside* `release.sh` —
+after the npm or Registry publish but before the atomic commit/tag/push
+(`release.sh:154`, `:182`, `:242`) — and the tail uploads and deploys bundles built
+from current `main`, not from the requested version's tag (`release.yml:43`, `:293`,
+`:350`).
+
+**Sharper than Sol wrote it, found by reading the build path first-hand:** the bundle
+is built at `scripts/release.sh:117` and NOWHERE else in the workflow, so on a resume
+nothing builds it at all. The tail uploads whatever `site/raven.mcpb` the `main`
+checkout happens to carry. The failure is not "possibly stale", it is "structurally
+the wrong artifact whenever main has moved".
+
+**R6-2 (P1).** The validation is prefix-only — `/^\d+\.\d+\.\d+/`, no `$` — so it is
+not a version check at all. Measured, all three exit 0 and emit their input verbatim:
+
+```
+2.5.0junk -> EXIT=0 resume_version=2.5.0junk
+2.5.0.1   -> EXIT=0 resume_version=2.5.0.1
+99.99.99  -> EXIT=0 resume_version=99.99.99
+```
+
+`99.99.99` is absent from git, npm and GitHub Releases. There was no existence check
+of any kind before the early exit (`detect-release-scope.mjs:63`, exit at `:73`).
+
+**R6-3 (P1).** `gh release create` **auto-creates a missing tag from current
+default-branch HEAD** unless `--verify-tag` is passed, and neither branch passed it
+(`release.yml:297`, `:310`). There is also no post-create body check, so
+`--generate-notes` returning 0 is not evidence of a non-empty body.
+
+**R6-2 and R6-3 compose, and the composition is the real finding.** Neither alone is
+catastrophic; together, a typo'd or invented resume version is accepted by the
+detector and then *materialised* by `gh release create` as a tag and a public Release
+pointing at whatever `main` is at that moment. The machine writes a permanent,
+wrong-commit tag from a fat-fingered dispatch input.
+
+**R6-4 (P2).** `release.yml:97` and `detect-release-scope.mjs:12` are accurate. The
+comment claiming there is "no state" an explicit resume cannot finish
+(`detect-release-scope.mjs:59`) is false — refuted by R6-1 — and `release.sh:128`
+calls the post-check interval the guaranteed "LARGER half" with no bound and no
+measurement; what the code establishes is only that the interval contains unbounded
+network operations.
+
+### Round-6 fixes
+
+**R6-2** — the regex is anchored (`^\d+\.\d+\.\d+$`) and the version must now EXIST
+as a tag in the checkout before `resume=true` is emitted, with a message saying a
+resume finishes an existing release and can never create one. Measured in all five
+directions rather than reasoned:
+
+```
+"2.5.0junk"  EXIT=1  is not a version number. Expected exactly MAJOR.MINOR.PATCH
+"2.5.0.1"    EXIT=1  is not a version number. Expected exactly MAJOR.MINOR.PATCH
+"99.99.99"   EXIT=1  has no tag v99.99.99 in this checkout
+"v2.5.0"     EXIT=0  resume=true resume_version=2.5.0
+""           EXIT=0  resume=false  (automatic detection, unchanged)
+```
+
+`node --check` passes a file whose imports are wrong, and it did: the first version
+of this fix called `spawnSync` without importing it and `node --check` was clean.
+Only running it in all five directions showed it. **A syntax check is not an
+execution.**
+
+**R6-3** — `--verify-tag` on BOTH `gh release create` branches, so the command can
+never invent a tag from default-branch HEAD, plus a post-create read-back that fails
+the step on an empty body. One rule at two doors, deliberately: the detector's check
+reads the CHECKOUT and `--verify-tag` reads the REMOTE.
+
+**R6-1** — the second half is fixed, the first half is narrowed rather than pretended
+away. Fixed: a resume-only step rebuilds the bundle from `refs/tags/v$VERSION` in a
+`git worktree`, with its own `npm ci` (the tag's `package.json` can differ from
+main's, and the tag is the source of truth), then copies both bundles into the tree
+and prints their sha256. The worktree keeps the checkout on main, which the changelog
+commit that follows still needs. Narrowed: the detector comment now states that
+`released=false` means `release.sh` does not run, so npm publish, the Registry
+publish and the atomic push are all OUTSIDE what a resume can finish — a run that
+died after npm published but before the tag was pushed needs a human and a new patch
+version, because the npm version is already taken.
+
+**R6-4** — the false "no state" sentence is gone, replaced by the explicit statement
+of which window a resume covers. `release.sh`'s "LARGER half" is withdrawn: nothing
+in that script measures either interval, and the pre-npm side contains a full test
+suite and a build. What the code establishes is only that the residual side contains
+unbounded network operations, so it cannot be called small either.
+
+Gates: **20 `run:` blocks** (19 + the new resume build), all `bash -n` clean walked
+out of the parsed YAML; 24 steps; `node --check` clean; `bash -n` clean on
+`release.sh`; workflow inputs still `['bump', 'resume_version']`.

@@ -267,6 +267,30 @@ jobs:
           echo "version=$v" >> "$GITHUB_OUTPUT"
           echo "operating on v$v"
 
+      # THE ARTIFACT A RESUME UPLOADS MUST BE THE RELEASED VERSION'S, and on a
+      # resume nothing had built one at all. The bundle is built at
+      # `scripts/release.sh:117` and nowhere else in this workflow, and both
+      # `site/raven.mcpb` and `web/public/raven.mcpb` are TRACKED -- so a resume
+      # skipping release.sh silently uploaded whatever bundle the `main`
+      # checkout carried, and deployed it to the apex. Whenever main has moved
+      # since the tag, that is structurally the wrong artifact, not merely a
+      # stale one. Build it from the TAG, in a worktree, so the checkout stays
+      # on main for the changelog commit that follows.
+      - name: Rebuild the released bundle from its tag (resume only)
+        if: steps.release.outputs.resume == 'true'
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          rm -rf /tmp/resume-src
+          git worktree add --detach /tmp/resume-src "refs/tags/v$VERSION"
+          # `npm ci` in the worktree rather than reusing the root node_modules:
+          # the tag's package.json can differ from main's, and the whole point
+          # of this step is that the tag is the source of truth.
+          ( cd /tmp/resume-src && npm ci && npm run build && SKIP_BUILD=1 npm run build:mcpb )
+          cp /tmp/resume-src/site/raven.mcpb site/raven.mcpb
+          cp /tmp/resume-src/web/public/raven.mcpb web/public/raven.mcpb
+          sha256sum site/raven.mcpb web/public/raven.mcpb
+
       - name: Create GitHub Release
         if: steps.release.outputs.released == 'true' || steps.release.outputs.resume == 'true'
         env:
@@ -300,17 +324,33 @@ jobs:
             # a Release with no body and returns 0. The workflow would go green
             # over an incomplete Release. --generate-notes is the honest
             # fallback: GitHub writes the commit/PR summary itself.
+            # --verify-tag on BOTH branches. `gh release create` otherwise
+            # CREATES a missing tag from current default-branch HEAD, so a
+            # version that does not exist becomes a permanent public tag and
+            # Release pointing at whatever main is at that moment. The detector
+            # already refuses an unknown resume_version; this is the same rule
+            # at the second door, and it is the door that reads the REMOTE.
             if [ -s /tmp/release-notes.md ]; then
               gh release create "v$VERSION" \
+                --verify-tag \
                 --title "v$VERSION" \
                 --notes-file /tmp/release-notes.md \
                 site/raven.mcpb
             else
               echo "no notes were computed (this is a resume) - letting GitHub generate them"
               gh release create "v$VERSION" \
+                --verify-tag \
                 --title "v$VERSION" \
                 --generate-notes \
                 site/raven.mcpb
+            fi
+            # --generate-notes returning 0 is not evidence of a non-empty body:
+            # the whole reason this fallback exists is that the empty-notes path
+            # went green over an incomplete Release. Read the body back.
+            body=$(gh release view "v$VERSION" --json body --jq .body)
+            if [ -z "$(printf '%s' "$body" | tr -d '[:space:]')" ]; then
+              echo "::error::Release v$VERSION was created with an empty body"
+              exit 1
             fi
           fi
 

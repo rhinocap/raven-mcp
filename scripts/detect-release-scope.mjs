@@ -21,7 +21,7 @@
 // when the range since the last tag is empty or holds nothing but that tag's
 // changelog commit.
 
-import { execSync } from "node:child_process";
+import { execSync, spawnSync } from "node:child_process";
 import { readFileSync, appendFileSync } from "node:fs";
 
 function sh(cmd) {
@@ -58,12 +58,44 @@ function setOutput(key, value) {
 //
 // So the operator names the version instead. `resume_version` on
 // workflow_dispatch runs the tail against exactly that release and skips the
-// cut entirely — precise, no classification to get wrong, and no state in which
-// a half-deployed release cannot be finished by the machine.
+// cut entirely — precise, and no classification to get wrong.
+//
+// Be exact about WHICH half-deployed states this finishes, because an earlier
+// version of this comment claimed there is no state it cannot finish and that
+// was false. `released=false` means `release.sh` does not run, and npm publish,
+// the Registry publish and the atomic branch+tag push all live INSIDE it
+// (`scripts/release.sh:154`, `:182`, `:242`). So this finishes the workflow TAIL
+// — GitHub Release, changelog, apex deploy, apex verify — and nothing before it.
+// A run that died after npm published but before the tag was pushed is NOT
+// recoverable here and is not recoverable by re-running either, because the npm
+// version is already taken; that state needs a human and a new patch version.
+//
+// The version is validated ANCHORED and then checked to EXIST as a tag. Both
+// halves are load-bearing and the second is the one that matters: `gh release
+// create` auto-creates a missing tag from current default-branch HEAD, so a
+// prefix-only regex (which accepted `2.5.0junk`) plus an unvalidated version
+// let a fat-fingered dispatch input materialise as a permanent public tag and
+// Release pointing at whatever main happened to be. The workflow ALSO passes
+// `--verify-tag` — one rule, two doors, because this check reads a checkout
+// that could in principle be shallow while `--verify-tag` reads the remote.
 const explicitResume = (process.env.INPUT_RESUME_VERSION || "").trim().replace(/^v/, "");
 if (explicitResume) {
-  if (!/^\d+\.\d+\.\d+/.test(explicitResume)) {
-    console.error(`resume_version "${explicitResume}" is not a version number.`);
+  if (!/^\d+\.\d+\.\d+$/.test(explicitResume)) {
+    console.error(
+      `resume_version "${explicitResume}" is not a version number. ` +
+        `Expected exactly MAJOR.MINOR.PATCH (an optional leading "v" is stripped).`,
+    );
+    process.exit(1);
+  }
+  const tagExists = spawnSync("git", ["rev-parse", "-q", "--verify", `refs/tags/v${explicitResume}`], {
+    encoding: "utf8",
+  });
+  if (tagExists.status !== 0) {
+    console.error(
+      `resume_version "${explicitResume}" has no tag v${explicitResume} in this checkout. ` +
+        `A resume FINISHES an existing release; it can never create one. ` +
+        `Cut a release instead, or fetch the tag if this checkout is shallow.`,
+    );
     process.exit(1);
   }
   console.log(`Explicit resume of v${explicitResume} — the tail runs, nothing is cut.`);

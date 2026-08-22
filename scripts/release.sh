@@ -130,7 +130,11 @@ SKIP_BUILD=1 npm run build:mcpb
 # check and the atomic push at the end sit: the npm publish itself, the registry
 # login, up to three registry publish attempts, the registry read-backs, and 20s
 # of explicit backoff -- none of it network-bounded. So the residual window is
-# not seconds; it is the entire post-npm tail, and it is the LARGER half.
+# not seconds; it is the entire post-npm tail. Whether it is the LARGER half is
+# NOT established here and the earlier wording claiming it was has been removed:
+# nothing in this script measures either interval, and the pre-npm side contains
+# a full test suite and a build. What IS established is that the residual side
+# contains unbounded network operations, so it cannot be called small either.
 #
 # ACCEPTED RESIDUAL, stated rather than implied: this is a narrowing, not a
 # lock. A push landing between this check and the push at the end still strands
