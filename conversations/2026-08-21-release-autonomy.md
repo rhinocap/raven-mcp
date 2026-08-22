@@ -366,3 +366,132 @@ and git commands sharing that line made it read as a force-push. Nothing execute
 so no state changed. **Rule: never put `pgrep -f` — or any bare `-f` — on the same
 line as a git command.** Use `ps ax | grep '[c]odex'`, or split the calls. Split,
 the identical inspection ran clean.
+
+## Round 4 — the push landed, the deploy is verified, and the release path is resumable
+
+### The push, and what it proved on the live surface
+
+`main` pushed `7a6ab0d..a4efc9a`, 19 commits, on Andrew's explicit in-conversation
+approval ("Go ahead and push, then lets figure out next steps"). That approval is
+CONSUMED — it covered that push and does not generalise to the next one.
+
+Pre-push gate, read from inside the log rather than from a wrapper's exit code:
+`prepush-suite.log` carries `SUITE_EXIT=0` and `tests 1723 / pass 1720 / fail 0 /
+skipped 3`, 47683ms. The three skips were read INDIVIDUALLY at output lines 121 /
+861 / 862 — the file-URL fallback notice and the two removed-capability phase2
+tests, this ledger's own set — not inferred from the total.
+
+The deploy was then verified ON THE LIVE SURFACE, which is the only thing that says
+what a hostname serves. A backgrounded watcher polled anonymous `tools/list` at
+`https://mcp.ravenmcp.ai/api/mcp` and reached DEPLOY_CONFIRMED: **45 tools**, sha256
+`f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6` — an exact match
+to the frozen pin, so the annotation work did not disturb the anon surface — and all
+four of `audit_contrast`, `audit_tap_targets`, `audit_responsive_visibility`,
+`audit_video_playback` now read `openWorldHint: false`, with `still_true=[] n=0`.
+**The R2 remediation is live.** Local stdio deliberately keeps MCP-spec reach-based
+`openWorldHint`; only the hosted surface flipped, per Andrew's choice against "one
+rule everywhere".
+
+### Sol round 3, dispositioned in code (commit e4b4f74)
+
+**P1-1 — npm publish is the first irreversible step and nothing after it could
+resume.** The Registry, the commit and the tag all follow it, and npm refuses to
+overwrite a published version, so a rerun could not converge. The publish detects
+that state and resumes now. The artifact is VERIFIED rather than assumed, and the
+licence for that check is a measurement: `npm pack --dry-run --json` was run twice
+with file mtimes touched in between on npm 11.17.0 and returned the same shasum, so
+comparing it against `npm view dist.shasum` is a real byte-identity check and not a
+hopeful one. A mismatch is fatal on purpose — npm will not replace those bytes, so
+continuing would tag a release whose npm artifact is something else.
+
+**P1-2 — the partial-release boundary was wider than npm-to-Registry.** The tag push
+preceded the GitHub Release, the changelog, the Vercel deploy and the apex verify,
+and `detect-release-scope.mjs` reports `released=false` when it sees no commits since
+the last tag — so a failure in that tail left the apex unreachable by every later
+run. Commit, tag and atomic push are each no-ops on a resume now. The Registry
+publish is resume-tolerant too, and **its failure is not TRUSTED to mean "already
+published"**: the registry is queried directly at
+`/v0/servers/ai.ravenmcp%2Fraven-mcp/versions` and only a version it actually reports
+lets the run continue. That endpoint's shape was PROBED, not guessed, and it
+independently confirmed the registry holds 2.5.0.
+
+**P2 — four secret expressions were interpolated into the preflight's shell source.**
+A `${{ }}` expression is substituted into shell SOURCE before bash parses it, so a
+value carrying metacharacters would be executed by the `[ -z ... ]` test rather than
+tested by it. They are checked for PRESENCE only, so the values never need to be
+there: they pass through `env:` now. Verified afterwards that every remaining
+`secrets.` reference in the file (lines 42, 56-61, 134, 172, 193, 212, 236, 240-241,
+294-295) sits in an `env:` block or a YAML `token:` input.
+
+The same step also checks the RESEND pair now, which `notify-release.mjs` hard-exits
+without — in a job that runs AFTER npm, the Registry, the tag and the apex.
+
+**`mcp-publisher validate` added to the provision step.** The Registry publish runs
+after `npm publish`, so a `server.json` the registry refuses was discovered with npm
+already shipped. `server.json.description` sits at **98 characters against a hard
+100-character cap**. Verified in BOTH directions: exit 0 on the current file, exit 1
+on a 175-character fixture, with the registry itself answering
+`422 ... "expected length <= 100"`.
+
+### The currency gate was wrong in shape, and only measuring it in four directions showed that
+
+P1-3 replaced `git pull --ff-only` — which ran AFTER the test gate, so an ordinary
+push landing during the ~10-minute test window moved the tree under a green result
+and shipped bytes nothing tested. The first version asserted `HEAD == origin/main`.
+
+Exercised in a scratch bare origin, one clone per direction, DRY_RUN, with the exit
+status written INTO each log rather than read through a pipe:
+
+| arm | state | equality version | ancestry version |
+|---|---|---|---|
+| A | HEAD == origin | EXIT=0 | EXIT=0 |
+| C | HEAD **ahead** | **EXIT=1** | EXIT=0 |
+| B | HEAD behind | EXIT=1 | EXIT=1 |
+| D | diverged | EXIT=1 | EXIT=1 |
+
+**Arm C is the defect.** A local commit origin has not seen is the ORDINARY state of
+this worktree — the `auto-save-on-turn.sh` hook commits every turn and never pushes —
+and those commits are part of what the suite just measured, so releasing them is
+correct. The equality test would have made `release.sh` unrunnable here most of the
+time. The fix (commit `1fb58b0`) is
+`git merge-base --is-ancestor "$REMOTE_HEAD" "$LOCAL_HEAD"`: containment permits
+ahead and refuses both behind and diverged. **A gate can be right about the harm and
+wrong about the predicate, and only the arm nobody thought to run says so.**
+
+Two measurement lessons from the same probe, both recorded because both wasted a run.
+
+- **The first arm B ran the OLD script.** The clone was rolled back to `HEAD~1` to
+  simulate a moved origin, and `HEAD~1` predates the fix — so what executed was the
+  `git pull --ff-only` version, which silently fast-forwarded the tree mid-run and
+  exited 0. Not a measurement of the gate, but an unplanned live demonstration of the
+  defect it exists for.
+- **The second pass refused all four arms and none of it was the script.** The extra
+  origin commit was pushed BEFORE the equal/ahead arms ran, and the script's own
+  `git fetch` then correctly reported them behind. **Sequence a probe around what it
+  is measuring**, and read the parts before believing a uniform verdict — four
+  identical refusals is exactly the shape a setup error takes.
+
+### Instrument note carried forward
+
+Two commands this segment were stopped by the destructive-op guard: a recursive
+force-delete of a probe directory, and a hard reset inside a throwaway clone. Both
+were genuinely isolated, and both were re-expressed rather than forced — `mktemp -d`
+for a fresh directory that needs no delete, and `git checkout -B` plus a second clone
+in place of the reset. The guard fires on the SHAPE of the command, not on the blast
+radius, so the cheap move is always to restate the intent. It fired a third time on
+this very log entry, because an earlier draft quoted those two commands literally in
+prose — a guard that matches a line has no way to know the line is a paragraph.
+
+### Where this stands
+
+Not done, and not claimed as done. `e4b4f74` and `1fb58b0` are committed and NOT
+pushed. A Sol round-4 falsification pass on exactly these two commits is in flight
+and every hit is owed a disposition before any completion claim.
+
+Still blocked on Andrew, and to be surfaced as ONE set rather than one at a time: the
+four repository secrets (`RAVEN_REGISTRY_KEY`, `VERCEL_TOKEN`, `VERCEL_ORG_ID`,
+`VERCEL_PROJECT_ID`) — `web/.vercel/` is gitignored, so a CI runner has no project
+linkage and a token says *who*, never *which project* — plus the fifth prerequisite
+that is invisible from the repo entirely: a **trusted publisher configured on
+npmjs.com** for `raven-mcp`, pointing at this repo and this workflow file. Uploading
+his private ed25519 registry signing key into GitHub secrets is HIS call, not mine.
