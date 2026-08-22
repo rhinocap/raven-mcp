@@ -28,10 +28,10 @@ This file supersedes it.
 | Field | Value |
 |---|---|
 | MCP server URL | `https://mcp.ravenmcp.ai/api/mcp` |
-| Authentication | None. All 45 tools answer anonymously; no account, key, or reviewer credential. |
+| Authentication | None. Measured 2026-08-21: all 45 tools invoked anonymously returned HTTP 200 with no protocol-level error and no authentication-shaped response. Reproduction script in §5. |
 | Privacy policy | `https://ravenmcp.ai/privacy` — verified HTTP 200 on 2026-08-21 |
 | Homepage | `https://ravenmcp.ai` — verified HTTP 200 |
-| Domain verification | `https://ravenmcp.ai/.well-known/openai-apps-challenge` — verified HTTP 200, 43 bytes, served bare |
+| Domain verification | `https://ravenmcp.ai/.well-known/openai-apps-challenge` — verified HTTP 200, served bare (the token's length is not an expectation; it changes if OpenAI reissues) |
 | Repository | `https://github.com/rhinocap/raven-mcp` |
 | License | Apache-2.0 |
 | Support contact | `cunliffeandrewc@gmail.com` — see the open item in §7 before choosing |
@@ -112,15 +112,24 @@ non-empty `items` array. The item count is not pinned.
 **N1 — `audit_url` declines on the hosted endpoint and says why.** Expected: HTTP 200
 carrying a JSON-RPC *result* with `isError: true`, whose text contains verbatim
 `audit_url is disabled on the hosted (remote) endpoint`, the measured reason, and the two
-routes that do work (`npx raven-mcp`, `audit_page`). Sub-second in every observed run
-against a 95 s floor — the ratio is the point, not the millisecond figure.
+routes that do work (`npx raven-mcp`, `audit_page`). These substrings are quoted from the
+shipped message rather than paraphrased, and are re-verified against the wire on each
+release — an earlier draft of ours paraphrased the shipped `95s` as `95.2 s`, and a
+reviewer diffing against the wire would have found a number that is not there. Sub-second
+in every observed run against a 95 s floor — the ratio is the point, not the millisecond
+figure.
 
 **N2 — a hosted tool that CAN reach the web is not swept up in the decline.**
 `audit_contrast` with `url: "https://example.com"` is *not* declined: no `isError`, and
 the payload carries the `url` field and a text tally. **The tallies are explicitly not the
-expectation** — `example.com` is not ours. This case exists to prove the refusal is scoped
-to one tool rather than applied blanket-fashion, and it is the direct behavioural evidence
-for `openWorldHint: true` on this tool.
+expectation** — `example.com` is not ours. **Named limitation:** this is the one case whose
+structural expectation depends on a third-party page staying reachable and renderable. That
+dependency is accepted deliberately, because reaching the open web is the exact property
+the case exists to demonstrate; it is stated here rather than left for a reviewer to hit.
+If `example.com` is unreachable at review time, substitute any reachable page — the
+expectation is the *shape* of the answer, not its contents. The case exists to prove the
+refusal is scoped to one tool rather than applied blanket-fashion, and it is the direct
+behavioural evidence for `openWorldHint: true` on this tool.
 
 **N3 — missing required argument, and the transport shape is the point.**
 `get_design_system` with `{}` returns HTTP 200 with a JSON-RPC *result* carrying
@@ -171,7 +180,7 @@ emits all four hints as literal booleans and **throws** for any tool not classif
 |---|---|---|
 | `readOnlyHint` | `true` on 45/45 | The anonymous endpoint has no writable state. Every tool that persists anything — taste profiles, decisions, saved design systems, the pattern library, grab sessions — is withheld from this surface and is **not registered at all** (an anonymous call returns `Tool not found`, not a refusal). A scan of all 45 input schemas finds no `save`/`persist`/`write`/`delete`/`overwrite` parameter; `generate_design_system` has its `save` key omitted from the remote schema, and its persistence helper additionally throws under `isRemoteRuntime()`. |
 | `destructiveHint` | `false` on 45/45 | Follows from the same fact: with nothing writable in scope, these tools cannot remove or overwrite anything. The server classifies 36 tools as destructive; every one is gated off this surface. |
-| `idempotentHint` | `true` on 45/45 | These outputs are computed, not sampled — the same input returns a byte-identical result. **No tool on this surface calls a language model.** The package has four runtime dependencies (`@modelcontextprotocol/sdk`, `@upstash/redis`, `jose`, `zod`) and no LLM SDK among them, and every source file that issues an outbound `fetch()` backs a tool that is **not registered on this surface** — verified live, tool by tool. Idempotency is never assumed for anything that writes: an explicit `TOOL_IDEMPOTENT` map covers all 36 destructive tools, **defaults to `false`**, and marks **28 of the 36** non-idempotent, each with a written reason. None of the 36 is served here. |
+| `idempotentHint` | `true` on 45/45 | These outputs are computed, not sampled — the same input returns a byte-identical result. **No tool on this surface calls a language model.** The package has four runtime dependencies (`@modelcontextprotocol/sdk`, `@upstash/redis`, `jose`, `zod`) and no LLM SDK among them, and every source file that issues an outbound `fetch()` backs a tool that is **not registered on this surface**. Procedure a reviewer can repeat: `grep -rn 'fetch(' src/` yields five call sites (`api-contract.ts`, `designmd.ts`, `grab-bridge.ts` ×2, `index.ts` ×2); take the tool each one backs, and check its name against the 45 in the `tools/list` response from §5 — none appears. Idempotency is never assumed for anything that writes: an explicit `TOOL_IDEMPOTENT` map covers all 36 destructive tools, **defaults to `false`**, and marks **28 of the 36** non-idempotent, each with a written reason. None of the 36 is served here. |
 | `openWorldHint` | `true` on **exactly 4**, `false` on 41 | `true` on `audit_contrast`, `audit_tap_targets`, `audit_responsive_visibility`, `audit_video_playback` — each renders or loads a caller-supplied URL, and N2 above is live behavioural proof for the first. `false` on the other 41: they operate only on content passed in the arguments plus knowledge bundled with the server. |
 
 ### What was actually wrong, and what fixed it
@@ -212,7 +221,8 @@ mismatch in prose. Verified live 2026-08-21: `audit_url`, `audit_page`, `score_p
 ### Why `audit_url` declines rather than being removed
 
 `audit_url` drives a real browser through every requested viewport and theme. We measured
-it at **95 s in its cheapest possible configuration** and past 120 s with defaults —
+it at **95 s in its cheapest single-viewport, single-theme configuration** — the same
+wording the shipped decline message uses — and past 120 s with defaults —
 beyond the per-call budget of hosted clients, so every hosted call to it was going to end
 as a timeout regardless of what the tool does. **A decline in 200 ms is a true answer; a
 timeout at 120 s is not an answer at all.** It stays registered so a client discovers the
@@ -223,7 +233,10 @@ limitation from the tool's own description and its own answer, rather than from 
 No tool was added or removed. The endpoint serves exactly 45 tools, and the sha256 of its
 newline-joined sorted tool names is unchanged at
 `f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6` — **verified live
-2026-08-21, exact match.** The `tools/list` payload does change, because the annotations
+2026-08-21, exact match.** This one is safe to pin where the counts in §2 are not: it is a
+frozen project invariant enforced in our own test suite, so it is an expectation by
+construction rather than a number captured off a moving input. Adding a tool to this
+surface breaks our build before it can reach the endpoint. The `tools/list` payload does change, because the annotations
 inside it are what this round corrects; the tool set does not.
 
 ---
@@ -264,6 +277,29 @@ curl -s https://mcp.ravenmcp.ai/api/mcp \
 
 No authentication. Every claim in §3 is readable off that one response.
 
+**And to check the §1 authentication claim rather than take it on trust** — this calls
+every tool the endpoint advertises and reports how each answered:
+
+```bash
+node -e '
+const U="https://mcp.ravenmcp.ai/api/mcp";
+const H={"content-type":"application/json","accept":"application/json, text/event-stream"};
+const rpc=async b=>{const r=await fetch(U,{method:"POST",headers:H,body:JSON.stringify(b)});
+  const t=await r.text();let j=null;
+  for(const l of t.split("\n"))if(l.startsWith("data:")){try{j=JSON.parse(l.slice(5).trim())}catch{}}
+  return {status:r.status,j:j||JSON.parse(t)};};
+const l=await rpc({jsonrpc:"2.0",id:1,method:"tools/list",params:{}});
+const tools=l.j.result.tools;let ok=0,err=0,proto=0;
+for(const t of tools){const r=await rpc({jsonrpc:"2.0",id:2,method:"tools/call",params:{name:t.name,arguments:{}}});
+  if(r.status===200)ok++; if(r.j.error)proto++; if(r.j.result&&r.j.result.isError)err++;}
+console.log(tools.length+" tools, "+ok+" HTTP 200, "+proto+" protocol errors, "+err+" schema-validation results");'
+```
+
+**Measured 2026-08-21: `45 tools, 45 HTTP 200, 0 protocol errors, 31 schema-validation
+results`.** The 31 are the tools with required arguments, called here with none — a
+validation error is itself proof the call was *accepted* rather than gated. The number 31
+is not an expectation; **`45` and the two zeros are.**
+
 ---
 
 ## §6 — Measured state at authoring time (2026-08-21)
@@ -276,8 +312,9 @@ No authentication. Every claim in §3 is readable off that one response.
 | `openWorldHint: true` set | exactly 4, all genuinely network-reaching |
 | Hosted decline sentence in description | present on all 4 guarded tools |
 | Eight-case production replay | 8 cases / 9 calls / **0 failing** |
+| Anonymous reachability, all 45 | 45 HTTP 200 / 0 protocol errors / 0 auth-shaped |
 | `ravenmcp.ai/privacy` | HTTP 200 |
-| `/.well-known/openai-apps-challenge` | HTTP 200, 43 bytes |
+| `/.well-known/openai-apps-challenge` | HTTP 200, served bare |
 
 ---
 
