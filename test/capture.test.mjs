@@ -447,10 +447,15 @@ test('unbounded-scroll-growth.html — reports the walk cap without claiming the
 // correct code. A bound just under the cap (the old 2800) would sit 202ms from
 // the capped observation and is the same mistake in the other direction.
 //
-// `long-entrance-animation.html` is the standing proof this bound is reachable
-// at all — it is a separate test asserting `animationsSettled === false`, and it
-// measures 3002ms here. Without something in the suite landing above the bound,
-// an assertion this loose would be indistinguishable from no assertion.
+// 3002ms is a MEASUREMENT taken here, not something the suite pins. The
+// long-entrance test asserts `animationsSettled === false` and says nothing
+// about duration, and `waitForAnimationsToSettle` also returns false on an
+// immediate error — so that test would pass at near-zero settle time. It is
+// therefore NOT proof this bound is reachable, and an earlier version of this
+// comment claimed it was. What proves the bound is falsifiable is mutant M2 in
+// `.claude/settle-instrument-2026-08-21/settle-mutants.mjs`, which forces the
+// quiescence predicate to never settle and turns the assertion red on its own
+// declared message.
 const SETTLE_FAST_BOUND_MS = 2000;
 
 function assertSettledFast(result, subject) {

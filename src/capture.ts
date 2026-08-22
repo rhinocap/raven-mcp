@@ -383,7 +383,7 @@ export type CaptureResult = {
    * total against a 2800ms bound with the settle wait almost certainly near zero).
    *
    * Deliberately NOT the total settle time: the scroll-phase settle inside
-   * `stepScrollAndSettle` is bounded by the scroll cap and already announces itself
+   * `settleScrollReveals` is bounded by the scroll cap and already announces itself
    * through `scroll-animation-settle-cap-reached`. Summing the two would produce a
    * number no single cap explains.
    *

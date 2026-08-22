@@ -12,6 +12,15 @@ on:
         required: false
         default: "auto"
 
+# One release at a time. `detect release scope` reads the version BEFORE
+# release.sh runs its own `git pull`, so two overlapping dispatches can compute
+# a version against a tree that has already moved, and the loser then skips its
+# GitHub Release and apex deploy while npm has already published. Queue instead
+# of cancelling: a half-finished release must be allowed to reach its apex step.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 permissions:
   contents: write
   pull-requests: read
@@ -46,6 +55,15 @@ jobs:
           fi
           if [ -z "${{ secrets.VERCEL_TOKEN }}" ]; then
             echo "::error::secret VERCEL_TOKEN is not set. The apex .mcpb at ravenmcp.ai is served by the web Vercel project, which has NO git integration, so nothing else in this workflow can move it."
+            missing=1
+          fi
+          # `web/.vercel/` is gitignored (.gitignore:5), so the runner checks out a
+          # tree with NO project linkage. A token alone does not say WHICH project
+          # to deploy; without these two, `vercel deploy` either fails or links to
+          # the wrong project and the apex silently stays stale — the exact failure
+          # the verify step below exists to catch, arriving one step earlier.
+          if [ -z "${{ secrets.VERCEL_ORG_ID }}" ] || [ -z "${{ secrets.VERCEL_PROJECT_ID }}" ]; then
+            echo "::error::secrets VERCEL_ORG_ID and VERCEL_PROJECT_ID must both be set. They are the web project's linkage (read from web/.vercel/project.json); the runner has no .vercel directory of its own."
             missing=1
           fi
           [ "$missing" -eq 0 ] || exit 1
@@ -97,6 +115,19 @@ jobs:
           umask 077
           printf '%s' "$RAVEN_REGISTRY_KEY" > "$HOME/.raven-mcp-registry-key"
           echo "RAVEN_REGISTRY_KEY_FILE=$HOME/.raven-mcp-registry-key" >> "$GITHUB_ENV"
+          # `release.sh` only checks the file EXISTS, and it does not attempt a
+          # login until AFTER `npm publish` — deliberately, because the registry
+          # JWT expires in minutes. So a secret that is set but wrong (a typo, a
+          # truncated paste, a key no longer authorized for ravenmcp.ai) is first
+          # discovered with npm already irreversibly published. This is a
+          # throwaway VALIDITY PROBE, not the release's login: release.sh still
+          # mints its own token at the point of use.
+          if ! printf '%s' "$RAVEN_REGISTRY_KEY" | grep -Eq '^[0-9a-fA-F]{64}$'; then
+            echo "::error::RAVEN_REGISTRY_KEY is not a 64-character hex ed25519 seed. mcp-publisher will reject it, and it would be rejected only after npm publish has already run."
+            exit 1
+          fi
+          mcp-publisher login http --domain ravenmcp.ai --private-key "$RAVEN_REGISTRY_KEY"
+          echo "registry key validated against ravenmcp.ai domain auth"
 
       - name: Configure git identity
         run: |
@@ -111,18 +142,35 @@ jobs:
         run: node scripts/detect-release-scope.mjs
 
       - name: Cut release
+        id: cut
         if: steps.release.outputs.released == 'true'
+        env:
+          BUMP: ${{ steps.release.outputs.bump }}
         run: |
-          bash scripts/release.sh "${{ steps.release.outputs.bump }}"
+          bash scripts/release.sh "$BUMP"
+          # Read the version that was ACTUALLY shipped, rather than reusing the
+          # one `detect release scope` computed before `release.sh` ran its own
+          # `git pull`. If main moved in between, those two disagree, and every
+          # downstream step (tag, GitHub Release, changelog) would then name a
+          # version npm never published.
+          echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
         if: steps.release.outputs.released == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # NOTES and VERSION arrive as ENV, never as `${{ }}` inside the run
+          # block. A `${{ }}` expression is substituted into the shell SOURCE
+          # before bash parses it, and the notes are built verbatim from merged
+          # PR titles (`detect-release-scope.mjs:102`) — so a PR titled
+          # `Fix docs $(whoami)` executed during `printf`, in a job holding
+          # contents:write, OIDC, and the registry signing key on disk.
+          NOTES: ${{ steps.release.outputs.notes }}
+          VERSION: ${{ steps.cut.outputs.version }}
         run: |
-          printf '%s\n' "${{ steps.release.outputs.notes }}" > /tmp/release-notes.md
-          gh release create "v${{ steps.release.outputs.version }}" \
-            --title "v${{ steps.release.outputs.version }}" \
+          printf '%s\n' "$NOTES" > /tmp/release-notes.md
+          gh release create "v$VERSION" \
+            --title "v$VERSION" \
             --notes-file /tmp/release-notes.md \
             site/raven.mcpb
 
@@ -134,10 +182,12 @@ jobs:
 
       - name: Commit changelog + push
         if: steps.release.outputs.released == 'true'
+        env:
+          VERSION: ${{ steps.cut.outputs.version }}
         run: |
           git add site/changelog.html
           if ! git diff --cached --quiet; then
-            git commit -m "Update changelog for v${{ steps.release.outputs.version }}"
+            git commit -m "Update changelog for v$VERSION"
             git push
           fi
 
@@ -152,10 +202,16 @@ jobs:
         if: steps.release.outputs.released == 'true'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          # The documented CI linkage mechanism. `vercel pull` was here first and
+          # was wrong: it resolves the project from `web/.vercel/`, which is
+          # gitignored and therefore absent on the runner.
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         working-directory: web
         run: |
-          npx --yes vercel@latest pull --yes --environment=production --token "$VERCEL_TOKEN"
-          npx --yes vercel@latest deploy --prod --token "$VERCEL_TOKEN"
+          npx --yes vercel@59.3.0 pull --yes --environment=production --token "$VERCEL_TOKEN"
+          npx --yes vercel@59.3.0 build --prod --token "$VERCEL_TOKEN"
+          npx --yes vercel@59.3.0 deploy --prebuilt --prod --token "$VERCEL_TOKEN"
 
       # Read the bytes back off the live apex rather than trusting the deploy's
       # own exit code: a green deploy of a stale tree is the exact failure this
@@ -164,11 +220,24 @@ jobs:
         if: steps.release.outputs.released == 'true'
         run: |
           local_sha=$(sha256sum web/public/raven.mcpb | cut -d" " -f1)
+          echo "local bundle: $local_sha"
           live_sha=""
           for i in 1 2 3 4 5 6; do
-            live_sha=$(curl --fail --silent --show-error --location https://ravenmcp.ai/raven.mcpb | sha256sum | cut -d" " -f1)
+            # Download to a FILE first. Piping curl into sha256sum hides a failed
+            # fetch: without pipefail the pipeline reports sha256sum's status, so
+            # a 404 or a reset connection yields the sha256 of empty input
+            # (e3b0c442...) and is compared as though it were a served bundle.
+            # `|| true` keeps a transient failure inside the retry loop rather
+            # than letting `set -e` abort on the first one.
+            curl --fail --silent --show-error --location \
+              --output /tmp/apex-raven.mcpb https://ravenmcp.ai/raven.mcpb || true
+            if [ -s /tmp/apex-raven.mcpb ]; then
+              live_sha=$(sha256sum /tmp/apex-raven.mcpb | cut -d" " -f1)
+            else
+              live_sha="<fetch failed>"
+            fi
             [ "$live_sha" = "$local_sha" ] && break
-            echo "apex not yet serving the new bundle (attempt $i)"
+            echo "apex not yet serving the new bundle (attempt $i, live $live_sha)"
             sleep 15
           done
           if [ "$live_sha" != "$local_sha" ]; then

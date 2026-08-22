@@ -113,8 +113,12 @@ Co-Authored-By: Codex Opus 4.6 <noreply@anthropic.com>"
 git tag "v$NEW"
 
 echo "→ Pushing"
-git push
-git push --tags
+# ATOMIC. Two separate pushes can half-succeed: the branch lands and the tag
+# push then fails (branch protection, a race, a dropped connection), leaving npm
+# and the MCP Registry published against a `main` that carries no tag, no
+# GitHub Release, no changelog and no apex deploy — and the tag name is by then
+# already taken locally, so a retry does not converge. One ref update or none.
+git push --atomic origin "$BRANCH" "v$NEW"
 
 echo ""
 echo "✓ Released v$NEW"

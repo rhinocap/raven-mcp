@@ -32,7 +32,11 @@ function setOutput(key, value) {
 const inputBump = (process.env.INPUT_BUMP || "auto").toLowerCase();
 let lastTag = "";
 try {
-  lastTag = sh("git describe --tags --abbrev=0 2>/dev/null");
+  // Match release tags ONLY. A bare `--tags` takes the most recent reachable
+  // tag of ANY kind, so one `benchmark-2026-08-21` or `pregate-r5` truncates
+  // the commit range and the PR window, and the run then computes its bump off
+  // a fraction of the actual release scope.
+  lastTag = sh('git describe --tags --abbrev=0 --match "v[0-9]*" 2>/dev/null');
 } catch {
   lastTag = "";
 }
@@ -58,7 +62,18 @@ try {
   );
   mergedPRs = JSON.parse(raw);
 } catch (err) {
+  // Fail CLOSED when the bump is being derived from labels. A transient
+  // `gh pr list` failure previously left mergedPRs empty, which silently
+  // defaults to `patch` — so an API blip could ship a `breaking` PR as a patch
+  // release. With an explicit INPUT_BUMP the labels are not consulted at all,
+  // so the failure is only degraded release notes and the run may continue.
   console.warn("Could not fetch merged PRs:", err.message);
+  if (!["major", "minor", "patch"].includes(inputBump)) {
+    console.error(
+      "::error::Cannot derive the version bump: merged PRs could not be fetched and INPUT_BUMP is 'auto'. Re-run with an explicit bump, or retry once the API recovers.",
+    );
+    process.exit(1);
+  }
 }
 
 if (lastTag) {

@@ -18,6 +18,8 @@ const MUTANTS = [
     find: '            viewportAnimationSettleMs: viewportAnimationSettleMs,\n',
     repl: '',
     expectMessage: 'must report viewportAnimationSettleMs',
+    expectTest:
+      'entrance-animation.html \u2014 infinite spinner does not block animation-settle',
   },
   {
     id: 'M2',
@@ -25,6 +27,8 @@ const MUTANTS = [
     find: '            return now - captureWindow.__ravenAnimationQuietSince >= config.quietMs;',
     repl: '            return false;',
     expectMessage: 'must not consume the 3s settle cap',
+    expectTest:
+      'entrance-animation.html \u2014 infinite spinner does not block animation-settle',
   },
 ];
 
@@ -63,6 +67,15 @@ if (base.tests !== 40 || base.skipped !== 1) {
 }
 
 for (const m of MUTANTS) {
+  if (typeof m.expectTest !== 'string' || typeof m.expectMessage !== 'string') {
+    throw new Error(
+      `${m.id}: expectTest/expectMessage must both be strings. ` +
+        `A missing field makes res.red.includes(undefined) false, which grades a ` +
+        `genuinely killed mutant as SURVIVED — a false alarm that reads exactly ` +
+        `like a coverage hole.`,
+    );
+  }
+
   if (pristine.split(m.find).length - 1 !== 1) {
     console.log(`ABORT ${m.id}: find-string is not unique (a dead anchor is not a survivor)`);
     process.exit(1);
@@ -77,10 +90,16 @@ for (const m of MUTANTS) {
     writeFileSync(DIST, pristine);
     if (readFileSync(DIST, 'utf8') !== pristine) { console.log('ABORT: restore failed'); process.exit(1); }
   }
+  // A kill must be attributable. `out.includes(message)` alone accepts the
+  // declared message appearing ANYWHERE in the combined output — including
+  // raised by a different test, or by a stack trace — so a mutant that breaks
+  // some unrelated assertion is graded KILLED for the wrong reason. Require the
+  // DECLARED test to be in the red set as well.
   const hitExpected = res.out.includes(m.expectMessage);
-  const ok = res.fail > 0 && hitExpected;
+  const hitTest = res.red.includes(m.expectTest);
+  const ok = res.fail > 0 && hitExpected && hitTest;
   if (!ok) failures++;
-  console.log(`${m.id} ${ok ? 'KILLED' : 'SURVIVED/WRONG'} — fail=${res.fail} radius=${res.red.length} onDeclaredMessage=${hitExpected}`);
+  console.log(`${m.id} ${ok ? 'KILLED' : 'SURVIVED/WRONG'} — fail=${res.fail} radius=${res.red.length} onDeclaredMessage=${hitExpected} onDeclaredTest=${hitTest}`);
   console.log(`     ${m.what}`);
   for (const t of res.red) console.log(`     red: ${t}`);
 }

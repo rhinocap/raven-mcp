@@ -19,7 +19,7 @@ mode is indistinguishable from an unrelated cause is not a check.
 
 `capturePage` now reports `viewportAnimationSettleMs` — the VIEWPORT settle wait
 and nothing else. Deliberately not the total settle time: the scroll-phase
-settle inside `stepScrollAndSettle` is bounded by a different cap and already
+settle inside `settleScrollReveals` is bounded by a different cap and already
 announces itself through `scroll-animation-settle-cap-reached`, so summing the
 two would produce a number no single cap explains. Absent on the `file://`
 fallback, which runs no settle wait at all — hence optional, and all three tests
