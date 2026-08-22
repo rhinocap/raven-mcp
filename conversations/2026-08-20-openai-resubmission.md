@@ -778,3 +778,59 @@ Written after the checkpoint above, which stopped mid-Testing-step.
 **One open question for Andrew, deliberately not decided here.** The Version field reads `1.0.0`, and its helper text says *"Choose a semantic version greater than the published version."* `1.0.0` is the version that was **rejected** on 2026-08-19, not a published one, so the form is not currently erroring — but a resubmission of a substantively changed artifact carrying the rejected version string is at best confusing to a reviewer. Bumping it changes a public listing identifier, so it is his call, alongside the other §7 items.
 
 **State: nothing submitted.** Every wizard step (Info · MCP · Skills · Prompts · Testing · Global) is now filled and saved as a draft. What remains is entirely §7 and entirely Andrew's: identity verification status, the support-contact choice, the version-string decision above, and pressing Submit. Repo unchanged at `origin/main...HEAD` = 0/11 — eleven commits ahead, unpushed, nothing on npm.
+
+### Sol falsification pass — verdict FALSIFIED (2026-08-21)
+
+Brief at `/tmp/sol-claim.txt`, output `/tmp/sol-out.txt` (982,451 B). Sol ran WITHOUT browser
+access ("authenticated browser inspection was blocked"), so every finding is document-derived.
+That limit decides two of the dispositions below.
+
+**P1-1 — CONFIRMED, and it is R2 landing a second time.** OpenAI's app-review page does NOT use
+the MCP spec's meaning of `openWorldHint`. Verbatim: *"Set to `true` if it can write to or change
+publicly visible internet state (for example, posting to social media, blogs, or forums; sending
+emails, SMS, or messages to external recipients; ... publishing pages; pushing code or content to
+public endpoints; submitting forms to third parties)"*. Every example is a WRITE. Raven's four
+`openWorldHint:true` hosted tools only READ a caller-supplied URL.
+Measured live, `tools/list` on mcp.ravenmcp.ai: 45 tools, exactly 4 with `openWorldHint:true` —
+`audit_responsive_visibility`, `audit_contrast`, `audit_tap_targets`, `audit_video_playback` —
+and **all four also carry `readOnlyHint:true` in the same payload**. Under OpenAI's definitions
+that pair is self-contradictory: read-only says it cannot write, open-world says it can.
+Root cause is written into the source: `src/index.ts:2222` opens "openWorldHint defaults to TRUE
+in the MCP spec". The R2 remediation fixed the DERIVATION (remote vs local, off REMOTE_ARG_GUARDS)
+and kept the SEMANTICS OpenAI disagrees with. `test/remote-click-guard.test.mjs:230` encodes the
+spec reading as an assertion, so a flip is a source + test + annotation-justification change.
+**NOT actioned — Andrew's call.** It changes what the live endpoint serves (human-gated) and npm.
+
+**P1-2 — CONFIRMED as wording.** "Fully filled" covered Info through Global only. The Submit step
+carries release notes and final policy attestations, and verified identity is a prerequisite, not
+a populated Developer Identity field. The claim is re-scoped to "Info through Global"; the Submit
+material joins the human-gate list rather than being implied complete.
+
+**P1-3 — REFUTED by reading the live form.** Sol assumed SUBMISSION.md's N1/N2/N3 (refusal cases)
+were pasted into the form's negative slots and concluded the positive set was semantically 4+1.
+The form's negative slots say *"Describe the scenario where your app should not trigger"* — a
+non-trigger, not a refusal. The three live negative slots hold purpose-built non-trigger
+scenarios: logo image generation, a WCAG compliance certification, and "Build the React
+components for this landing page." N1 sits in positive slot 5, which is correct: there the app
+DOES trigger and returns a decline. No change.
+
+**P2-1 — PARTIALLY CONFIRMED, narrowed.** Sol cited drift risk in N2/N3, which are **not in the
+submission** (dropped for the 5-case cap). Of the five that ARE in: P1 and P2 are arithmetic over
+inline constants and cannot drift; P3, P4 and N1 pin strings in OUR OWN tracked repo data
+(`color-palette-discipline`, `#635BFF`, the decline copy). That is a weaker property than
+immutability and is now stated as such rather than as "the R1 class is eliminated".
+
+**P2-2 — CONFIRMED, and the count was wrong.** "0 empty" is evidence of non-emptiness, not
+correctness. Correctness rests on the separate re-measurement against production, which is what
+caught the argument-shape errors and the 26→28 principle drift. The Info claim is corrected:
+**12 populated fields plus 1 checkbox deliberately left unchecked** (the out-of-ChatGPT purchases
+box), not "13 populated".
+
+**P3-1 — NARROWED.** I have evidence Sol did not: a load with no `?section` param where
+`performance.getEntriesByType('navigation')[0].type === "navigate"`, then 26/26 fields non-empty.
+That proves the values survived a full document load. It does not exclude localStorage/IndexedDB.
+Honest form: "survived a full document load", never "persisted server-side".
+
+**P3-2 — OPEN.** No portal status string is rendered anywhere on the page (checked: no
+Draft/Submitted/In review/Approved token in `body.innerText`). What is known is that execution
+stopped before Submit and the Submit step is still unreached. Not independently confirmed.
