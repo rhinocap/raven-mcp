@@ -31,7 +31,7 @@ This file supersedes it.
 | Authentication | None. Measured 2026-08-21: all 45 tools invoked anonymously returned HTTP 200 with no protocol-level error and no authentication-shaped response. Reproduction script in §5. |
 | Privacy policy | `https://ravenmcp.ai/privacy` — verified HTTP 200 on 2026-08-21 |
 | Homepage | `https://ravenmcp.ai` — verified HTTP 200 |
-| Domain verification | `https://ravenmcp.ai/.well-known/openai-apps-challenge` — verified HTTP 200, served bare (the token's length is not an expectation; it changes if OpenAI reissues) |
+| Domain verification | `https://ravenmcp.ai/.well-known/openai-apps-challenge` — verified HTTP 200, `content-type: text/plain`, body is the token alone with no wrapper markup or JSON envelope (the token's length is not an expectation; it changes if OpenAI reissues) |
 | Repository | `https://github.com/rhinocap/raven-mcp` |
 | License | Apache-2.0 |
 | Support contact | `cunliffeandrewc@gmail.com` — see the open item in §7 before choosing |
@@ -115,9 +115,9 @@ carrying a JSON-RPC *result* with `isError: true`, whose text contains verbatim
 routes that do work (`npx raven-mcp`, `audit_page`). These substrings are quoted from the
 shipped message rather than paraphrased, and are re-verified against the wire on each
 release — an earlier draft of ours paraphrased the shipped `95s` as `95.2 s`, and a
-reviewer diffing against the wire would have found a number that is not there. Sub-second
-in every observed run against a 95 s floor — the ratio is the point, not the millisecond
-figure.
+reviewer diffing against the wire would have found a number that is not there. Measured 2026-08-21 over five
+consecutive runs: 275, 105, 99, 109, 102 ms — the first is a cold start, the rest warm.
+Against a 95 s floor the ratio is the point, not the millisecond figure.
 
 **N2 — a hosted tool that CAN reach the web is not swept up in the decline.**
 `audit_contrast` with `url: "https://example.com"` is *not* declined: no `isError`, and
@@ -137,9 +137,13 @@ behavioural evidence for `openWorldHint: true` on this tool.
 `MCP error -32602: Input validation error:` and the body names `"path": ["id"]`,
 `"expected": "string"`, `"received": "undefined"`, `"message": "Required"`.
 **A reviewer scripting this case must read `result.isError`, not `response.error.code`,
-which is `undefined` on this surface.** The local stdio build returns the same shape
-(measured), so the validation content is schema-derived and stable while only the envelope
-is transport-specific.
+which is `undefined` on this surface.** The local stdio build returns the same shape.
+Measured 2026-08-21 against a clean `npm run build`: no top-level `error` object,
+`result.isError` true, and `content[0].text` opening `MCP error -32602: Input validation
+error:`. The script is `measure-stdio-n3-envelope.mjs` beside this document, so the claim
+is re-runnable rather than asserted — this is the sentence whose previous version was
+false, which is why it now ships with its instrument. The validation content is therefore
+schema-derived and stable while only the envelope is transport-specific.
 
 > **Recorded rather than quietly patched:** our own earlier draft of N3 expected a
 > protocol-level `-32602` error object and claimed to have measured it. It had not, and
@@ -150,13 +154,22 @@ is transport-specific.
 > error's form, so an expected value must name the surface it was measured on** — and a
 > correction that explains a defect by naming a different surface must measure that
 > surface too.
+>
+> **And the standard was applied to the other seven, not just to N3.** The replay that
+> caught this was a replay of all eight against production, each expectation diffed
+> against the wire — that sweep is what surfaced N3's false envelope and, separately,
+> N1's paraphrased `95.2 s`. Two of eight failed that check and both are corrected above.
+> We state the count rather than the reassurance: this document's expectations have each
+> been read off a live response, and where one had not been, it is named.
 
 ### How to reproduce all eight
 
 Every case is a single `tools/call` POST to `https://mcp.ravenmcp.ai/api/mcp` with no
 authentication, no fixture file and no local checkout. Seven return in well under a
-second; **N2 is the exception at roughly 0.7–4 s, because it is the one case that
-deliberately renders a live external page** — that latency is the evidence for its
+second; **N2 is the exception, because it is the one case that deliberately renders a live
+external page** — measured 2026-08-21 over five consecutive runs at 4844, 677, 764, 761,
+811 ms, where the outlier is a cold start and the warm runs cluster near 0.8 s (script
+`measure-n1-n2-latency.mjs`) — that latency is the evidence for its
 `openWorldHint: true`, not an anomaly. **Latencies are context, never expectations.**
 
 ---
@@ -178,9 +191,9 @@ emits all four hints as literal booleans and **throws** for any tool not classif
 
 | Hint | Live value | Justification |
 |---|---|---|
-| `readOnlyHint` | `true` on 45/45 | The anonymous endpoint has no writable state. Every tool that persists anything — taste profiles, decisions, saved design systems, the pattern library, grab sessions — is withheld from this surface and is **not registered at all** (an anonymous call returns `Tool not found`, not a refusal). A scan of all 45 input schemas finds no `save`/`persist`/`write`/`delete`/`overwrite` parameter; `generate_design_system` has its `save` key omitted from the remote schema, and its persistence helper additionally throws under `isRemoteRuntime()`. |
-| `destructiveHint` | `false` on 45/45 | Follows from the same fact: with nothing writable in scope, these tools cannot remove or overwrite anything. The server classifies 36 tools as destructive; every one is gated off this surface. |
-| `idempotentHint` | `true` on 45/45 | These outputs are computed, not sampled — the same input returns a byte-identical result. **No tool on this surface calls a language model.** The package has four runtime dependencies (`@modelcontextprotocol/sdk`, `@upstash/redis`, `jose`, `zod`) and no LLM SDK among them, and every source file that issues an outbound `fetch()` backs a tool that is **not registered on this surface**. Procedure a reviewer can repeat: `grep -rn 'fetch(' src/` yields five call sites (`api-contract.ts`, `designmd.ts`, `grab-bridge.ts` ×2, `index.ts` ×2); take the tool each one backs, and check its name against the 45 in the `tools/list` response from §5 — none appears. Idempotency is never assumed for anything that writes: an explicit `TOOL_IDEMPOTENT` map covers all 36 destructive tools, **defaults to `false`**, and marks **28 of the 36** non-idempotent, each with a written reason. None of the 36 is served here. |
+| `readOnlyHint` | `true` on 45/45 | The anonymous endpoint has no writable state. Every tool that persists anything — taste profiles, decisions, saved design systems, the pattern library, grab sessions — is withheld from this surface and is **not registered at all** (an anonymous call returns `Tool not found`, not a refusal). Corroborating shape, offered as corroboration and **not** as the proof: enumerating every input property across the 45 advertised schemas gives 78 distinct names (measured 2026-08-21 off the §5 response; script `measure-anon-schema-properties.mjs`), and none of them names a write — not `save`, `commit`, `store`, `apply`, `upsert`, `persist`, `write`, `delete` or `overwrite`. We flag the limit of that check ourselves: a schema scan can never establish read-only-ness, because a tool can write without taking a parameter for it. The load-bearing fact is registration, above. `generate_design_system` has its `save` key omitted from the remote schema, and its persistence helper additionally throws under `isRemoteRuntime()`. |
+| `destructiveHint` | `false` on 45/45 | Follows from the same fact: with nothing writable in scope, these tools cannot remove or overwrite anything. The server classifies 36 tools as destructive; every one is gated off this surface. That classification is not visible from the endpoint, because those tools are not served here — it is checkable in the public repository instead, in `src/index.ts` (`TOOL_ACCESS`, `REMOTE_GATED_TOOLS`), which is also where the build refuses to register any tool that has not been classified. |
+| `idempotentHint` | `true` on 45/45 | Read in the spec's sense: repeating a call with the same arguments has no *additional effect* on the environment. Nothing on this surface has an environment to affect — see the `readOnlyHint` row. **This is deliberately not a claim that the output is byte-stable.** Forty-one of the 45 compute their answer from data shipped inside the package, so repeat calls do return identical bytes; the four `openWorldHint: true` tools render a caller-supplied live URL, and their tallies move when that page moves. That is precisely what N2 demonstrates and why those four carry the open-world hint. Idempotent and deterministic are different properties and only the first is what this hint asserts. **No tool on this surface calls a language model.** The package has four runtime dependencies (`@modelcontextprotocol/sdk`, `@upstash/redis`, `jose`, `zod`) and no LLM SDK among them, and every source file that issues an outbound `fetch()` backs a tool that is **not registered on this surface**. Procedure a reviewer can repeat: `grep -rn 'fetch(' src/` yields five call sites (`api-contract.ts`, `designmd.ts`, `grab-bridge.ts` ×2, `index.ts` ×2); take the tool each one backs, and check its name against the 45 in the `tools/list` response from §5 — none appears. Idempotency is never assumed for anything that writes: an explicit `TOOL_IDEMPOTENT` map covers all 36 destructive tools, **defaults to `false`**, and marks **28 of the 36** non-idempotent, each with a written reason. None of the 36 is served here. |
 | `openWorldHint` | `true` on **exactly 4**, `false` on 41 | `true` on `audit_contrast`, `audit_tap_targets`, `audit_responsive_visibility`, `audit_video_playback` — each renders or loads a caller-supplied URL, and N2 above is live behavioural proof for the first. `false` on the other 41: they operate only on content passed in the arguments plus knowledge bundled with the server. |
 
 ### What was actually wrong, and what fixed it
@@ -275,7 +288,12 @@ curl -s https://mcp.ravenmcp.ai/api/mcp \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
 ```
 
-No authentication. Every claim in §3 is readable off that one response.
+No authentication. Every **annotation** claim in §3 — the five fields, on all 45 tools —
+is readable off that one response, and that is the part R2 was about. Three claims in that
+section are deliberately *not* in it and cannot be: the `fetch()` call sites, the 36-tool
+destructive classification, and the `TOOL_IDEMPOTENT` map are source-level facts about
+tools this surface does not serve. Those are checkable in the public repository at the
+paths named in the rows themselves, not in this response.
 
 **And to check the §1 authentication claim rather than take it on trust** — this calls
 every tool the endpoint advertises and reports how each answered:

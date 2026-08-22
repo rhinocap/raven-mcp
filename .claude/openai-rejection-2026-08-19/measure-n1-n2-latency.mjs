@@ -1,0 +1,10 @@
+const U='https://mcp.ravenmcp.ai/api/mcp';
+const H={'content-type':'application/json','accept':'application/json, text/event-stream'};
+const call=async(name,args)=>{const t0=Date.now();
+  const r=await fetch(U,{method:'POST',headers:H,body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/call',params:{name,arguments:args}})});
+  await r.text();return Date.now()-t0;};
+const n1=[],n2=[];
+for(let i=0;i<5;i++)n1.push(await call('audit_url',{url:'https://example.com'}));
+for(let i=0;i<5;i++)n2.push(await call('audit_contrast',{url:'https://example.com'}));
+console.log('N1 audit_url decline, 5 runs (ms):',n1.join(', '));
+console.log('N2 audit_contrast live render, 5 runs (ms):',n2.join(', '));
