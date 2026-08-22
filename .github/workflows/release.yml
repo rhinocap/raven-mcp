@@ -32,6 +32,24 @@ jobs:
           ref: main
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      # Fail BEFORE the ~10-minute test gate rather than after it. `release.sh`
+      # hard-exits when either of these is missing, and it does so AFTER npm ci,
+      # Playwright and the full suite have already run. Both are checked here so
+      # a misconfigured repo costs seconds, not a full green build that then dies
+      # one line into the release script.
+      - name: Preflight release credentials
+        run: |
+          missing=0
+          if [ -z "${{ secrets.RAVEN_REGISTRY_KEY }}" ]; then
+            echo "::error::secret RAVEN_REGISTRY_KEY is not set. The MCP Registry step (ai.ravenmcp/raven-mcp) cannot run without the ed25519 signing key for ravenmcp.ai domain auth."
+            missing=1
+          fi
+          if [ -z "${{ secrets.VERCEL_TOKEN }}" ]; then
+            echo "::error::secret VERCEL_TOKEN is not set. The apex .mcpb at ravenmcp.ai is served by the web Vercel project, which has NO git integration, so nothing else in this workflow can move it."
+            missing=1
+          fi
+          [ "$missing" -eq 0 ] || exit 1
+
       - uses: actions/setup-node@v5
         with:
           node-version: "24"
@@ -51,6 +69,34 @@ jobs:
         env:
           RAVEN_NO_USAGE_LOG: "1"
         run: npm test
+
+      # `release.sh` requires the mcp-publisher CLI on PATH and a signing key on
+      # disk, and checks for BOTH in its opening guardrails. Neither was ever
+      # provided here, so every CI release since the registry step landed
+      # (2026-07-28) would have exited 1 before bumping anything. Pinned rather
+      # than tracking latest: this is a publishing credential path, and a silent
+      # CLI upgrade is not something a release should discover unattended.
+      - name: Install mcp-publisher (MCP Registry CLI)
+        run: |
+          curl --fail --silent --show-error --location \
+            --output /tmp/mcp-publisher.tar.gz \
+            https://github.com/modelcontextprotocol/registry/releases/download/v1.8.0/mcp-publisher_linux_amd64.tar.gz
+          tar --extract --gzip --file /tmp/mcp-publisher.tar.gz --directory /tmp mcp-publisher
+          sudo install -m 0755 /tmp/mcp-publisher /usr/local/bin/mcp-publisher
+          mcp-publisher --version
+
+      # Written to the runner's ephemeral filesystem and pointed at by the same
+      # env var release.sh already reads locally, so the script is byte-identical
+      # in CI and on Andrew's machine. Registry auth is HTTP domain auth against
+      # https://ravenmcp.ai/.well-known/mcp-registry-auth, which needs no
+      # interactive step and therefore works unattended.
+      - name: Provision MCP Registry signing key
+        env:
+          RAVEN_REGISTRY_KEY: ${{ secrets.RAVEN_REGISTRY_KEY }}
+        run: |
+          umask 077
+          printf '%s' "$RAVEN_REGISTRY_KEY" > "$HOME/.raven-mcp-registry-key"
+          echo "RAVEN_REGISTRY_KEY_FILE=$HOME/.raven-mcp-registry-key" >> "$GITHUB_ENV"
 
       - name: Configure git identity
         run: |
@@ -94,6 +140,42 @@ jobs:
             git commit -m "Update changelog for v${{ steps.release.outputs.version }}"
             git push
           fi
+
+      # THE FOURTH SURFACE. npm, the MCP Registry record and the git tag are all
+      # handled by release.sh; the public download at https://ravenmcp.ai/raven.mcpb
+      # is not, because the apex is served by the `web` Vercel project and `web`
+      # has NO git integration - a push to main will never move it. It stayed one
+      # release behind through a fully successful release.sh run (v2.5.0,
+      # 2026-08-17) for exactly this reason. release.sh prints a reminder; a
+      # workflow has nobody to read one, so the step lives here.
+      - name: Deploy apex marketing site (publishes the new .mcpb)
+        if: steps.release.outputs.released == 'true'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        working-directory: web
+        run: |
+          npx --yes vercel@latest pull --yes --environment=production --token "$VERCEL_TOKEN"
+          npx --yes vercel@latest deploy --prod --token "$VERCEL_TOKEN"
+
+      # Read the bytes back off the live apex rather than trusting the deploy's
+      # own exit code: a green deploy of a stale tree is the exact failure this
+      # step exists to catch. Compares the served bundle to the one just built.
+      - name: Verify the apex .mcpb is the bundle we just built
+        if: steps.release.outputs.released == 'true'
+        run: |
+          local_sha=$(sha256sum web/public/raven.mcpb | cut -d" " -f1)
+          live_sha=""
+          for i in 1 2 3 4 5 6; do
+            live_sha=$(curl --fail --silent --show-error --location https://ravenmcp.ai/raven.mcpb | sha256sum | cut -d" " -f1)
+            [ "$live_sha" = "$local_sha" ] && break
+            echo "apex not yet serving the new bundle (attempt $i)"
+            sleep 15
+          done
+          if [ "$live_sha" != "$local_sha" ]; then
+            echo "::error::apex .mcpb mismatch - local $local_sha, live $live_sha"
+            exit 1
+          fi
+          echo "apex .mcpb verified: $live_sha"
 
   notify:
     needs: release
