@@ -500,3 +500,65 @@ that returns an empty set looks identical to a constant that is empty**; the tel
    reads as an abandoned submission. §1 defaults to the Gmail address known to work.
 2. **OpenAI identity verification** in the Platform dashboard.
 3. **The send itself.**
+
+## 2026-08-21 — the adverse pass on the submission, and the instrument that ate half of it
+
+The submission text got an adverse read (local Qwen, fast quant — the task is textual
+reasoning, not digit transcription, and `q8_0` would refuse at the RAM available anyway).
+
+**The first pass was truncated by my own command.** The invocation ended `| tail -80`,
+which was written for a foreground read and then backgrounded with the pipe still on it,
+so the captured file held only the last 80 lines: sections **A and B were gone**. The tell
+was in the output itself — finding D-2 reads "As in A-6," referencing a finding that was
+not in the file. **A truncated adverse output is indistinguishable from a pass that found
+nothing in the sections it did not print**, which is the same class as this repo's rule
+about empty adverse output never being dispositioned as "no findings". Re-run without the
+pipe, into a file, with the prompt requiring A and B to be emitted first even if empty.
+
+### What was applied, and why
+
+- **D-5 — "All 45 tools answer anonymously" was asserted and §5 did not demonstrate it.**
+  Correct: §5's curl is one `tools/list` discovery call, not 45 invocations. Now measured:
+  all 45 called with empty arguments — **45 HTTP 200, 0 protocol-level errors, 0
+  authentication-shaped responses**, 14 answering outright and 31 returning a schema
+  validation `isError`. **A validation error is the evidence**: it proves the call was
+  accepted rather than gated. The script is in the document and was run verbatim as it
+  appears there. Its first automated sweep flagged two "auth-shaped" responses
+  (`get_brand_principles`, `get_brand_trends`) and both were false positives on design
+  content — "forbidden treatment", "authenticity", "the login screen". A keyword scan over
+  a corpus about brand guidelines will hit the auth vocabulary; the hits were read, not
+  counted.
+- **D-1 — "verified live, tool by tool" is unverifiable by a reviewer.** Replaced with the
+  procedure: `grep -rn 'fetch(' src/` gives five call sites, take the tool each backs, check
+  it against the 45 names in the §5 response.
+- **D-3 — "cheapest possible configuration" never says what it is.** Now quotes the shipped
+  decline string's own wording, single-viewport single-theme.
+- **C-6 — N2 depends on `example.com` being reachable**, which is the R1 drift class the
+  document claims to have eliminated. The sharpest finding in the pass. Not removable —
+  reaching the open web is the property the case exists to demonstrate — so it is stated as
+  an accepted, named limitation with a substitution instruction, rather than left for a
+  reviewer to hit.
+- **C-8 — the challenge file's "43 bytes"** was a measurement dressed as an expectation.
+  Dropped; the token changes if OpenAI reissues it.
+- **C-4/C-5 — the pinned verbatim substrings** are real drift risk on a copyedit. Kept
+  (they are the point of N1) with a note that they are quoted from the wire rather than
+  paraphrased, citing our own `95s`-vs-`95.2 s` near-miss as the precedent.
+
+### What was refused, with reasons
+
+- **C-7 — the frozen anon sha256 as a point-in-time hash.** Misreads it. That hash is a
+  build-enforced project invariant, not a captured number; adding a tool to the anonymous
+  surface fails our own test suite before it can reach the endpoint. The document now says
+  so explicitly, which is the opposite of the change requested.
+- **D-4 — "a decline in 200 ms is a true answer; a timeout at 120 s is not an answer at
+  all"** called a normative opinion stated as fact. It is normative, and it is the design
+  rationale a reviewer is owed for why the tool stays registered. Kept.
+- **C-1/C-2/C-3 — pinned corpus ids and strings** (`color-palette-discipline`, `#635BFF`,
+  `"Landing Page"`). These are shipped constants in tracked repo data, not measurements off
+  a moving input; R1 was about the latter. The distinction is already written into P4.
+- **D-6 — "the fix is structural, not a re-capture" is a characterisation.** It is, and the
+  paragraph under it is the testable version.
+
+**The pass turned the document's own discipline on the document and found real slack in
+it** — for the second time in this remediation, after the N3 correction. Nothing here is
+pushed and nothing is submitted; §7's three open items still gate a send.
