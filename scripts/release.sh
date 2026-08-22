@@ -56,10 +56,20 @@ echo "→ Checking main is current"
 git fetch origin "$BRANCH" --quiet
 LOCAL_HEAD=$(git rev-parse HEAD)
 REMOTE_HEAD=$(git rev-parse "origin/$BRANCH")
-if [[ "$LOCAL_HEAD" != "$REMOTE_HEAD" ]]; then
-  echo "✗ HEAD ($LOCAL_HEAD) is not origin/$BRANCH ($REMOTE_HEAD)."
-  echo "  Whatever was tested is not what would be published. Update and re-run"
-  echo "  the full suite from the new head before releasing."
+# The question is NOT whether the two match. Local commits that origin has not
+# seen yet are the ordinary state of this worktree (the auto-save-on-turn hook
+# commits every turn and never pushes), and they are part of what the suite just
+# measured, so releasing them is correct. What must never happen is the reverse:
+# origin holding a commit this tree does NOT have, because the old
+# `git pull --ff-only` here ran AFTER the test gate and would fast-forward those
+# bytes in under a green result. So the assertion is ancestry -- origin/$BRANCH
+# must already be contained in HEAD -- which permits ahead and refuses both
+# behind and diverged. Measured in all three directions before it was written.
+if ! git merge-base --is-ancestor "$REMOTE_HEAD" "$LOCAL_HEAD"; then
+  echo "✗ origin/$BRANCH ($REMOTE_HEAD) is not contained in HEAD ($LOCAL_HEAD)."
+  echo "  Something landed on origin that this tree has not tested. Whatever was"
+  echo "  tested is not what would be published. Integrate it and re-run the full"
+  echo "  suite from the new head before releasing."
   exit 1
 fi
 
