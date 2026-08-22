@@ -185,7 +185,20 @@ else
   # Recorded for the push-retry below: once npm holds these bytes, any later
   # movement of the tree has to be checked against them, not against a memory of
   # what was built.
-  PUBLISHED_SHASUM_NOW=$(npm view "raven-mcp@$NEW" dist.shasum 2>/dev/null || echo "")
+  # Read it back with retries: the registry can lag a few seconds behind a
+  # successful publish, and a transient miss used to leave this EMPTY, which the
+  # rebase guard below then read as "nothing to compare" and skipped. An empty
+  # value here is not an absence of a problem, it is an absence of a measurement.
+  PUBLISHED_SHASUM_NOW=""
+  for _attempt in 1 2 3 4 5; do
+    PUBLISHED_SHASUM_NOW=$(npm view "raven-mcp@$NEW" dist.shasum 2>/dev/null || echo "")
+    [[ -n "$PUBLISHED_SHASUM_NOW" ]] && break
+    sleep 3
+  done
+  if [[ -z "$PUBLISHED_SHASUM_NOW" ]]; then
+    echo "⚠ published v$NEW but could not read its shasum back from npm."
+    echo "  The rebase check below will REFUSE rather than skip."
+  fi
 fi
 
 echo "→ Publishing to MCP Registry"
@@ -353,7 +366,15 @@ while :; do
     exit 1
   fi
   REBASED_SHASUM=$(npm pack --dry-run --json | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8"))[0].shasum')
-  if [[ -n "$PUBLISHED_SHASUM_NOW" && "$REBASED_SHASUM" != "$PUBLISHED_SHASUM_NOW" ]]; then
+  # Fail CLOSED on an unreadable published shasum: skipping the comparison is how
+  # npm bytes and the tagged tree could silently diverge.
+  if [[ -z "$PUBLISHED_SHASUM_NOW" ]]; then
+    echo "✗ rebased onto origin/$BRANCH but the published shasum is unknown."
+    echo "    rebased: $REBASED_SHASUM"
+    echo "  Cannot prove the tag would name the bytes npm serves. Resolve by hand."
+    exit 1
+  fi
+  if [[ "$REBASED_SHASUM" != "$PUBLISHED_SHASUM_NOW" ]]; then
     echo "✗ rebasing onto origin/$BRANCH changed the packed artifact."
     echo "    npm serves: $PUBLISHED_SHASUM_NOW"
     echo "    rebased:    $REBASED_SHASUM"

@@ -1624,3 +1624,253 @@ instrument artifact.
   that EXIT line. Both CI-shaped arms were written correctly and their EXIT lines are node's own.
 
 Nothing is on npm. No release surface has moved. The version is 2.5.0 everywhere.
+
+## Round 10 — v2.5.1 released, all four surfaces measured against live artifacts
+
+The private-path portability fix (`6e42c46`) was pushed, and run **32605190633** completed with every
+step green in 4m13s. `EXIT=0` was read from INSIDE `$SP/release2-final.log`, not from a notification —
+a background task notification did arrive mid-round and was disregarded on the standing rule that it
+describes the WRAPPER, not the harness verdict.
+
+### The four surfaces, each read off the live artifact
+
+| Surface | Measurement |
+|---|---|
+| npm | `raven-mcp@2.5.1`, dist-tags.latest 2.5.1, `time.modified` 2026-08-22T23:28:51.514Z, fileCount **231**, unpackedSize **4,698,921** (2.5.0 was 231 / 4,618,432) |
+| git tag | `refs/tags/v2.5.1` at `28f6d1dac3228fb36aacf049d2fd0b70387202cc`, read off the **remote** — a local tag proves nothing |
+| MCP Registry | `ai.ravenmcp/raven-mcp` version **2.5.1**, `isLatest: true`, updatedAt 2026-08-22T23:28:52.579Z |
+| apex `.mcpb` | http 200, **5,423,817 B**, sha256 `6269dc21ee8aea66b11a13e43a3a8cf0351e4a74fe813106cc6aafd3920baeca`; manifest read OUT OF the downloaded bytes → version 2.5.1, 111 tools, `design_gauntlet` present |
+
+**Published-surface probe done the only honest way**: a real `npm install` of 2.5.1 into a clean
+directory, then a boot. `remote:false` → **111 tools with `design_gauntlet` present**; `remote:true`
+→ **45 tools with it absent**, sha256 of the newline-joined sorted names an exact match to the frozen
+`f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6`. `npm pack` + `tar` was not used:
+it yields no `node_modules` and throws `ERR_MODULE_NOT_FOUND`.
+
+The apex bundle's hash does NOT match the local working tree, and that is the correct direction
+rather than a defect: the tree still holds the 2.5.0 bundle at exactly the ledgered 5,398,070 B, while
+CI built and deployed 2.5.1.
+
+The workflow's changelog commit pushes `main`, which IS a live-endpoint deploy, so the frozen
+anonymous surface was re-measured after it: **45 tools, exact frozen-hash match.** Local `main`
+fast-forwarded to `14ce959`, clean and in sync.
+
+### The npm trusted publisher is CONFIGURED — established by measurement, not by a browser
+
+This was carried for two rounds as UNKNOWN, and it is now KNOWN without touching a credential or a
+settings page. Three facts read together:
+
+- `gh secret list` holds **no `NPM_TOKEN`** — the only secrets are `RAVEN_KNOWLEDGE_PR`,
+  `RAVEN_REGISTRY_KEY`, `RESEND_*` and the three `VERCEL_*`.
+- The workflow grants `id-token: write` (`.github/workflows/release.yml:37`) and passes setup-node no
+  auth token; the `NODE_AUTH_TOKEN: XXXXX-XXXXX-XXXXX-XXXXX` in the log is setup-node's own literal
+  placeholder, not a masked secret.
+- The publish nonetheless succeeded and printed
+  `npm notice publish Signed provenance statement with source and build information from GitHub Actions`,
+  logged to the transparency log at sigstore index **2568597359**.
+
+A publish with **no credential anywhere** cannot succeed unless npm accepted the OIDC identity, which
+requires a trusted publisher configured on the package. That closes the second of the two items
+previously named for Andrew.
+
+### The Vercel expiry was recomputed, and the earlier reading was wrong in its UNIT
+
+The token was recorded as expiring "today at 20:27:06". Dividing the stored value by 1000 produced
+`1970-01-21` — an obviously wrong answer that was not accepted. Inferring the unit by which reading
+lands in a plausible year: the value is in **seconds**, so the true expiry is
+**2026-08-23T03:27:06Z** and the release run was NOT riding a dead credential — 3h53m remained. The
+earlier figure was local time read as UTC.
+
+**This does not retire the item.** After 03:27Z the next release run fails its Vercel preflight, and
+that preflight fails SAFE (before npm), so the cost is a failed run rather than a stranded release. A
+durable personal access token from vercel.com/account/tokens is still owed and stays named.
+
+### Three instrument errors, recorded rather than smoothed over
+
+1. **The MCP Registry parser assumed the wrong JSON shape.** `servers[].name` returned `None None`
+   eight times; the real shape nests under `servers[].server` with metadata under
+   `_meta['io.modelcontextprotocol.registry/official']`. Fixed by dumping the raw JSON first, then
+   re-querying with `&version=latest` and filtering on `isLatest`.
+2. **The anon-hash probe threw `JSONDecodeError: Expecting value: line 1 column 1`** because splitting
+   `curl -D -` output on `\r\n\r\n` did not separate headers from body. Fixed by capturing them to
+   separate files (`-D`/`-o`) and parsing the body directly.
+3. **The epoch-unit misread above.**
+
+### A correction owed to this log: the endpoint answers JSON, not SSE
+
+Round 9 recorded that a probe failed because "the endpoint answers SSE and the probe was reading it as
+JSON." Measured directly this round from the raw capture: `content-type: application/json`,
+`content-length: 67274`. **That is the INVERSE of what was written.** The round-9 probe failure was
+the header/body split above, not a transport mismatch. Corrected here rather than left standing.
+
+### Unreconciled, and deliberately not smoothed over
+
+The ledger records the 2.5.0 `remote:true` build as **56** tools; the 2.5.1 clean-install boot measures
+**45**. Both readings are first-hand. This is NOT reconciled and is handed to the falsification pass
+rather than explained away.
+
+## Round 11 — the 45-vs-56 discrepancy is reconciled, and the ledger is updated
+
+### The reconciliation, measured against the published 2.5.1 artifact
+
+Round 10 closed with 45-vs-56 handed forward as explicitly unreconciled. It is reconciled now, and
+the answer is that the ledger's `56` is a transcription error rather than a version difference.
+
+Three counts read off the freshly-installed published package:
+
+| Set | Count | How |
+|---|---|---|
+| stdio tools (`remote:false`) | **111** | booted the installed package, called the `tools/list` handler, sorted names to a file |
+| `REMOTE_GATED_TOOLS` | **67** | brace-balanced string extraction directly out of the published `dist/index.js` |
+| remote tools (`remote:true`) | **45** | same boot, `remote:true` build |
+
+`comm -23 gated stdio` returns exactly one name: **`delete_taste_data`**. It is in the gate list but
+`src/index.ts:8566` registers it under `if (remote && hasUserStore)` — an authenticated hosted build
+only — so it is not among the 111. The effective gate on the stdio set is therefore 66, and
+**111 − 66 = 45**, exactly the frozen anonymous count. Read the other way, the full name space is 112
+and 112 − 67 = 45.
+
+Two more `comm` reads that were run because the arithmetic alone would not have settled it:
+`comm -13 stdio remote` is **empty** — no remote-only tools — and `comm -12 gated remote` is
+**empty**, which is the direct measurement that **the gate holds: no gated tool leaks into the remote
+build**.
+
+**`56` is not derivable from 111 and 67 under any reading**, and it contradicts the frozen 45 stated
+in the same ledger paragraph. It is corrected rather than reconciled.
+
+### The drift the reconciliation exposed, which is the part worth carrying
+
+A name can sit in `REMOTE_GATED_TOOLS` with **no registration answering to it**, and nothing fails
+when it does. `delete_taste_data` is gated, classified in `TOOL_ACCESS` as `destructive`, present in
+the idempotency map — and unregistered on every stdio build. The gate list and the registration set
+can drift silently in that direction, and the six suites that assert exact counts cannot see it,
+because they count registrations rather than diffing the two sets.
+
+### The ledger
+
+A v2.5.1 RELEASE OVERRIDE block was inserted immediately above the 2026-08-17 v2.5.0 override — six
+lines, `git diff --stat` confirming 6 insertions and nothing else moved. It carries: all four 2.5.1
+surface measurements; the "56 tools" correction with the arithmetic above; the npm trusted-publisher
+finding established by the ABSENCE of a credential; the Vercel expiry with its unit correction and
+its fail-safe ordering; the CI portability defect and why it is deliberately not a `KNOWN_PUBLISHED`
+entry; and the SSE-vs-JSON correction owed to the round-9 log.
+
+## Round 12 — the round-11 verdict was WRONG, and the falsification pass is what caught it
+
+**Round 11 above says `56` "is not derivable from 111 and 67 under any reading" and corrects it as a
+transcription error. That verdict is refuted. Both numbers are correct measurements of different
+builds, and the round-11 section is left standing rather than edited so the error and its correction
+are both readable.**
+
+The counterexample came out of the Sol falsification pass's interim reasoning before that run was
+killed for recursing on itself — it earned its keep on a claim that had already been written into
+the ledger and had not yet been committed.
+
+### The measurement
+
+A stub taste store was handed to the freshly-installed published 2.5.1 (`$D/authed.mjs`):
+
+| Build | Call | Count |
+|---|---|---|
+| stdio | `buildServer({ remote:false })` | **111** |
+| anonymous hosted | `buildServer({ remote:true })` | **45** |
+| authenticated hosted | `buildServer({ remote:true, tasteStore })` | **56** |
+
+`comm` in both directions: the 45-set is a strict SUBSET of the 56-set, and the difference is exactly
+the eleven names in `AUTHED_USER_TASTE_TOOLS` (`src/index.ts:1961`).
+
+### The reconciliation that actually holds
+
+**112 registered names total. Stdio drops the one hosted-only tool → 111. Anonymous drops all 67
+gated → 45. Authed adds the eleven back → 56.**
+
+Ten of the eleven are ordinary `REMOTE_GATED_TOOLS` members that `src/index.ts:2520` UNBLOCKS when
+`hasUserStore`. The eleventh, `delete_taste_data`, is additionally the only one whose `server.tool()`
+call is itself inside `if (remote && hasUserStore)` (`:8566`) — which is why it is in the gate list,
+in `TOOL_ACCESS`, and in the idempotency map while appearing in neither the 111 nor the 45.
+
+### The lesson, which is about the inference and not the arithmetic
+
+Round 11 computed 111 − 66 = 45, landed on the expected number, and concluded from that landing that
+56 must be a transcription error. **The arithmetic was correct and the inference drawn from it was
+not.** A count that lands where you expect says nothing about a build variant nobody enumerated —
+and the ledger's habit of writing "the `remote:true` build" names only one of three surfaces, which
+is precisely what made a correct entry look wrong.
+
+Rule to carry: **diff the SETS with `comm` in both directions before ruling on a count.**
+
+### The drift finding from round 11 SURVIVES
+
+It was reached by a wrong route and is still true: a name can sit in `REMOTE_GATED_TOOLS` with no
+stdio registration answering to it, and nothing fails when it does. The six exact-count suites count
+registrations and cannot see it. A `comm`-based invariant test is the candidate fix.
+
+### Ledger
+
+CLAUDE.md line 4 was replaced wholesale with the corrected reconciliation, and line 3 was patched to
+disambiguate `remote:true` — it now reads "BARE `remote:true` (no taste store) … `remote:true` PLUS a
+taste store is **56**". `git diff --stat` still reports **6 insertions, 0 deletions**; the file is 75
+lines. Nothing was committed before the correction landed.
+
+## Round 13 — the falsification pass returned a graded verdict, and it falsified the headline
+
+Verdict: **"v2.5.1 did ship, but 'release autonomy is restored' is falsified."** One P1, three P2s,
+one P3. The run was relaunched non-recursively after round 12's stall (the earlier pass had begun
+commissioning its own sub-pass); the brief this time says explicitly *do not delegate, you ARE the
+falsification pass*.
+
+### P1 — CONFIRMED and FIXED: the release identity check could fail OPEN after npm publishes
+
+`scripts/release.sh:188` swallowed a failed post-publish `npm view … dist.shasum` into `""`, and the
+post-rebase comparison at `:355` was gated on that value being non-empty. The concrete path: publish
+succeeds → the read-back transiently fails → the atomic push loses a race → the rebase changes packed
+bytes → **the empty-value guard skips the mismatch and tags anyway**, leaving npm serving bytes the
+tag does not name. Run 32605190633 did not take that path; the mechanism could.
+
+Fixed in `scripts/release.sh`: the read-back retries 5× at 3s, and the rebase guard now **fails
+CLOSED** on an unknown shasum rather than skipping. `bash -n` clean. The comment states the principle
+plainly — *an empty value here is not an absence of a problem, it is an absence of a measurement.*
+
+### P2 — the frozen hash does not freeze the wire contract
+
+`f64bb18…` hashes NAMES ONLY. There is a second pin, `c901…` (`test/taste-remote-full.test.mjs:163`),
+covering server instructions and top-level descriptions — and it **explicitly excludes parameter
+descriptions, input schemas and all annotations** (`:99`). This release deliberately moved ten
+anonymous descriptions (`:103`) and every annotation derivation. So "the frozen surface did not move"
+is a true statement about the 45-name set and **not** about what the endpoint serves.
+
+Compounding it: the workflow deploys and verifies only the apex `.mcpb` (`release.yml:449`) and
+neither waits for nor verifies `mcp.ravenmcp.ai`. A green release run cannot prove which schemas or
+annotations that endpoint serves. Sol measured it externally and healthy (45 names, `f64bb18…`,
+metadata hash `c901…`, server version 2.5.1) — post-hoc evidence, not a pipeline constraint.
+
+### P2 — "fails safe" was true of one credential state and stated as if general
+
+An already-expired Vercel token does fail before npm. The general claim does not hold: `release.yml:104`
+notes in its own text that `whoami`/`pull` does not test production-DEPLOY permission, which is
+exercised only after npm and the Registry; GitHub branch/tag write authority likewise; `release.sh:338`
+tells the operator to finish by hand after exhausted retries; and a token can expire between preflight
+and deploy. Ledger sentence narrowed rather than deleted.
+
+### P2 — `AUTHORING_CHECKOUT` is a real detection narrowing
+
+The CI-portability fix declares the authoring checkout an owned root (`no-private-paths.test.mjs:89`)
+and excludes every resolved tooling path beneath it (`:395`), with `:573` asserting exactly that. A
+genuine raw transcript at `<authoring-home>/projects/raven-mcp/.claude/…` carrying private prose now
+passes. **Accepted, and recorded as a cost rather than absorbed as a fix** — the alternative was a gate
+that could never run in CI, and the file already calls itself a hygiene backstop, not a security
+control.
+
+### P3 — the OIDC conclusion was overstated
+
+"No `NPM_TOKEN` + provenance ⇒ trusted publishing" is not logically sufficient: npm documents
+token-authenticated publishing that emits the same provenance observable, and a trusted-publisher
+setting is not publicly readable. Everything measured still points one way — bare `npm publish`, no
+`publishConfig.provenance`, no tracked `.npmrc`, no secret, setup-node's literal placeholder — so it
+is **strongly supported, not proven**, and the ledger now says so.
+
+### Claims that survived
+
+The run and its 4m13s; all four surface measurements; and the round-12 reconciliation in full —
+111 stdio / 45 anonymous / 56 authenticated / 112-name union, with `delete_taste_data` the sole
+authenticated-only, non-stdio registration.
