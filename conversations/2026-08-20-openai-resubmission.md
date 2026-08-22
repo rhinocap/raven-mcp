@@ -649,3 +649,58 @@ rather than a blemish: a validation error proves the call was *accepted*, not ga
 Commits `6112449`, `5fffbcf`, `1907924` — **local only. Nothing pushed, nothing on npm,
 no resubmission made.** §7's three gates (identity verification, support-contact bounce
 test, the submission itself) are all Andrew's and all still open.
+
+## 2026-08-21 — the cowork round trip, and an R1 defect I wrote myself
+
+Wrote a prompt for a Claude Cowork agent to refile the plugin. It came back having
+filled zero fields, for four reasons, and **three of the four were my fault or stale
+repo notes rather than anything wrong on the live surface.**
+
+**1. The prompt pointed at a file that exists on no remote.** `SUBMISSION.md` is
+committed in `6112449`, `5fffbcf`, `1907924`, `82df40b` — all LOCAL. The agent's
+diagnosis was right except one word: not uncommitted, **unpushed**. Its checkout's
+nearest match is the PRE-REJECTION dossier `conversations/2026-07-25-submission-dossier.md`
+§B, which carries its own "the surface described below does not exist yet" banner and
+whose test cases are the REJECTED ones — so pasting from it would have refiled R1.
+**A prompt that names a source file is making a claim about that file's reachability
+from the reader's machine, and that claim is falsifiable exactly like any other.**
+
+**2. Two of its blockers were stale repo notes, refuted by measurement.** It reported
+`/privacy` still 404 pending C-1's deploy, and the domain-verification token
+"deliberately never written because the token doesn't exist yet." Measured live
+2026-08-21:
+
+| URL | status | content-type |
+|---|---|---|
+| `https://ravenmcp.ai` | 200 | `text/html; charset=utf-8` |
+| `https://ravenmcp.ai/privacy` | 200 | `text/html; charset=utf-8` |
+| `https://mcp.ravenmcp.ai/api/mcp` | 405 | `application/json; charset=utf-8` |
+| `https://ravenmcp.ai/.well-known/openai-apps-challenge` | 200 | `application/octet-stream`, 43 bytes |
+
+Both notes describe pre-deploy state and were overtaken by an apex deploy. The `405`
+is correct behaviour, not a failure — a POST-only JSON-RPC endpoint legitimately
+rejects a bare GET; the §5 POST script returns 200 against the same URL. **A repo note
+recording an open item is a claim about the world at the time it was written, and the
+world moves without it.**
+
+**3. The one thing that measurement convicted was mine.** Closing adverse finding A-7
+("43 bytes, served bare" — `served bare` is undefined), I wrote
+`content-type: text/plain` into §1 **without reading it off the wire**. The wire says
+`application/octet-stream` (Vercel's default for an extensionless static file). That is
+**the R1 defect — an expected value asserted rather than measured — reproduced by me,
+inside the edit written to close an unverifiability finding, in the document written
+to fix R1.** Corrected to the measured value, with the correction itself recorded in
+the row so a reviewer can see the string was read rather than reasoned.
+
+Second time this class has appeared inside this remediation (the first was B-1: R2's
+own defect class — annotation prose not matching behaviour — inside the R2 fix).
+**Twice now the fix document has reproduced the defect it fixes. The rule that follows
+is narrower than "measure things": when the edit you are making is ABOUT
+unverifiability, the sentence you write to close it is the single most likely place in
+the document to contain an unverified value, because you are writing in the register of
+having checked.**
+
+Still unresolved and needing Andrew: the unblock route. Pushing `main` needs fresh
+explicit approval in-conversation (main push = live endpoint deploy), even though these
+four commits touch only `.claude/` and `conversations/`. Alternatives are attaching
+`SUBMISSION.md` to the cowork thread, or inlining §1/§4/§5 into a self-contained prompt.

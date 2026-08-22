@@ -31,7 +31,7 @@ This file supersedes it.
 | Authentication | None. Measured 2026-08-21: all 45 tools invoked anonymously returned HTTP 200 with no protocol-level error and no authentication-shaped response. Reproduction script in §5. |
 | Privacy policy | `https://ravenmcp.ai/privacy` — verified HTTP 200 on 2026-08-21 |
 | Homepage | `https://ravenmcp.ai` — verified HTTP 200 |
-| Domain verification | `https://ravenmcp.ai/.well-known/openai-apps-challenge` — verified HTTP 200, `content-type: text/plain`, body is the token alone with no wrapper markup or JSON envelope (the token's length is not an expectation; it changes if OpenAI reissues) |
+| Domain verification | `https://ravenmcp.ai/.well-known/openai-apps-challenge` — verified HTTP 200 on 2026-08-21, `content-type: application/octet-stream` (Vercel's default for an extensionless static file — **measured, not assumed**; an earlier draft of this row asserted `text/plain` without reading it), body is the token alone with no wrapper markup or JSON envelope (the token's length is not an expectation; it changes if OpenAI reissues) |
 | Repository | `https://github.com/rhinocap/raven-mcp` |
 | License | Apache-2.0 |
 | Support contact | `cunliffeandrewc@gmail.com` — see the open item in §7 before choosing |
