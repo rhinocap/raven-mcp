@@ -2153,3 +2153,58 @@ about the thing moved.** Moving a step is safe exactly when nothing downstream r
 behind — and the way to know that is to grep for the artifact (`.vercel`, `project.json`), not to
 reason about the step in isolation. The claim as first written asserted the conclusion and skipped
 the check that could have refuted it.
+
+### Round 18 verdict: ONE P1 (fixed), three P3s, two claims survive — read out of the log, not off the exit code
+
+The falsification pass exited 0 and its background notification said so; per the standing rule that a
+notification describes the WRAPPER, the verdict was read out of `sol-r18.log` itself. It also ran a
+NESTED second pass against its own draft, so there are two gradings in the file — the second is the
+one graded here.
+
+**C1 — CONFIRMED P1, and it was a live defect in prose I had already committed.** The `CLAUDE.md`
+bullet opened *"the release credentials STORED in the repository secrets are PROVEN"*. Only the
+Vercel one is. The preflight job checks `RAVEN_REGISTRY_KEY` (`release.yml:65`) and the two
+`RESEND_*` secrets (`:102`) for **PRESENCE ONLY** — a non-empty value under that name and nothing
+else. Registry login is at `:211` and Resend is first exercised at `:528`, both AFTER npm has
+published; Vercel production-DEPLOY authority is a third untested thing, admitted in the workflow's
+own comment at `:108`. So one run proved one credential's identity plus project-read, and the
+sentence generalised it to five secrets and three services. Fixed in place, with the overreach
+recorded rather than silently patched. **The entry to carry: a presence check and a validity check
+read IDENTICALLY in a green log** — both print a tick and move on — so the summary sentence is the
+only place the difference can live, and a summary that says "credentials work" when the run measured
+"a value is stored" is the same class as this ledger's own "a check whose failure mode is
+indistinguishable from its success mode is not a check", arriving in the WRITE-UP rather than in the
+instrument.
+
+**C4 — CONFIRMED P3, and it is a real bypass that is closed only where it matters.**
+`test/gate-list-drift.test.mjs:32` reads GENERATED `dist/`, so `node --test test/gate-list-drift.test.mjs`
+run directly after a `src/` edit can pass against a stale build and report a gate that no longer
+matches source. Inside the release gate it is sound, for a mechanical reason rather than a lucky one:
+`npm test` runs `pretest`, which is `npm run build` = `clean && tsc` (`package.json:28`), so the
+tree is deleted and rebuilt before the suite starts. Accepted rather than fixed — every other suite
+in this repo reads `dist/` on the same footing, and this is the ledger's own standing rule ("NEVER
+`npm test` with a mutant applied … use `node --test` directly") seen from the other side: the same
+property that lets a mutant survive a rebuild lets a stale build survive an edit. Named here so a
+future reader does not take a green direct `node --test` on this file as a source-fresh gate.
+
+**C2 and C5 SURVIVE, and C5 survives CAUSALLY rather than arithmetically** — which is the distinction
+this ledger keeps insisting on. The commit adds exactly one test file containing exactly four
+`test()` blocks (`gate-list-drift.test.mjs:78`, `:86`, `:96`, `:112`) and no other file under
+`test/` changed; the run names all four by line (`full-suite-r18.log:585-588`) and reports
+1727/1724/0/3 against three preserved 1723/1720/0/3 baselines. The four named lines are the
+evidence; the +4 is the corroboration, not the argument.
+
+**C3 and C6 were already dispositioned above and the verdict agrees with both narrowings** — C3
+survives only in the form it was rewritten into (topology changed, no publishing-step regression
+demonstrated), and C6's conclusion holds on `e540e68..2d9268d` while its originally-stated
+`origin/main..HEAD` evidence is vacuous.
+
+**SUSPECTED, carried open: no run has executed the new `preflight → release → notify` graph
+end-to-end.** Run 32608599262 was deliberately preflight-only, so it exercised the SKIP path and
+nothing else. Source comparison preserves every publishing and notification step, but that is a
+reading, not a measurement. **Reopen condition is the next real release, and it is the same run that
+closes P1a (production-deploy authority)** — one dispatch answers both, and until it happens the
+honest statement is that the restructure is verified on its skip path only.
+
+Tooling note carried, not acted on: the local Vercel CLI is 58.10.0 against a current 59.5.0. It has
+no bearing on CI, which pins 59.3.0 deliberately.
