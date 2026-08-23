@@ -2208,3 +2208,18 @@ honest statement is that the restructure is verified on its skip path only.
 
 Tooling note carried, not acted on: the local Vercel CLI is 58.10.0 against a current 59.5.0. It has
 no bearing on CI, which pins 59.3.0 deliberately.
+
+### Post-push frozen-surface measurement — 45, exact hash match
+
+A `main` push rebuilds `site`, which is the project serving `mcp.ravenmcp.ai`, so the anonymous
+surface was re-measured **after** `4ef47d5` landed rather than inferred from the diff being
+docs-only. The rule is about what a push CAN deploy, not about what it changed.
+
+```
+count=45
+hash=f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6
+MATCH
+```
+
+Exact match to the frozen pin. The scope check on the explicit range `2d9268d..4ef47d5` had already
+returned no `src/`/`api/` match, so this is the corroboration; the range check is the argument.
