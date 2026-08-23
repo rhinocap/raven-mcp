@@ -2705,3 +2705,144 @@ contradicts the published annotations.
   and it would move the metadata pin `c901…`.
 - Repo state: `main` at `4f22b3e`, pushed. Every wizard fix in rounds 21-24 exists only in the
   browser form — no `src/` or `api/` file has been touched.
+
+## Round 26 — the egress-proxy prose, and a source finding that was NOT what the prose claimed
+
+Still in the OpenAI wizard (tab 1909407749), still bounded by **stop before Submit**. No `src/` or
+`api/` file was touched in this round or the two that follow it, so nothing here can have moved the
+live endpoint or the frozen anonymous surface.
+
+Three fields rewritten, each read back after the write:
+
+- `version.release_notes` (Submit section, `TEXTAREA`) 1567 → 1691 chars.
+- The two synthesising tools' `read_only_justification` 528 → 650 and 488 → 610.
+
+The prose had claimed a bounded egress story that the source does not support in the shape written.
+Reading `src/browser-launch.ts` rather than trusting the sentence: what is there is an **SSRF guard
+only**. That is a real and defensible boundary, and it is not "the browser cannot reach the public
+internet" — a caller-supplied public URL is exactly what these tools load. The claim was narrowed to
+what the code does.
+
+Field map for the Submit section recorded while there: `version.release_notes` plus nine unnamed
+short `INPUT`s. **Fields exist in the DOM only for the ACTIVE section** — a `querySelector` from the
+MCP section returns `null` for a Submit-section field, which is a section problem and not a missing
+field. Click the nav `BUTTON` first; only `button.click()` switches the SPA section.
+
+## Round 27 — N0 rewritten, and two of my own suspicions killed by measurement
+
+- `version.negative_test_cases.0.description` rewritten 293 → 400 chars.
+- **Scanner note, recorded because the number is misleading:** a keyword pass over the 135
+  justification fields reported 48 suspect. That is a false-positive generator, not a finding — the
+  same negation-matching defect as round 19's 45/45. No conclusion may be drawn from it.
+- **Sol's attack vector (iii) refuted by measurement.** The claim was that some of the other 41
+  tools also reach the open web. A live decline-probe against my own `audit_page` suspicion returned
+  the hosted refusal, and a four-tool render probe confirmed exactly four renderers. The DIVERGENT
+  set of 4 is right.
+- **Sol r24 came back REFUTED**, resting on C1/C2/C3.
+
+## Round 28 — Sol r24 read to its end, and a stale row found in our own dossier
+
+### What was mine to fix, and was fixed
+
+**The temp-sweep P3 — verified first-hand before accepting it.** Sol's citation was checked rather
+than trusted: `src/browser-launch.ts:311` calls `sweepStaleTmpEntries()` immediately before
+`acquireBrowserSlot()` on the hosted path, and its body (`:336`–`:361`) reads every entry of the
+server's own `tmpdir()`, matches on the `playwright` / `.org.chromium.` **name prefix**, and
+`rm -r`s anything whose mtime is older than ten minutes. **Prefix-matched and mtime-gated, not
+ownership-tracked** — so Sol is correct that "that browser writes and sweeps its own temporary
+files" overstates the isolation. Release notes 1691 → 1832, replacing that sentence with one that
+says what the code does: each launch writes temp files, and clears browser temp directories older
+than ten minutes from the server's own temp directory, **matched by name prefix, not by which run
+created them**. The edit carried an anchor guard, so a silent no-op was impossible.
+
+**C5 (P3) — Sol's replacement taken VERBATIM over my own round-27 wording.** N0 400 → 397. The
+contestable claim was about vector artwork: Raven *can* deterministically format structured input as
+SVG (`src/index.ts:5678`, `:5787`; a live call returned 6,440 bytes beginning with `<svg>`), so a
+flat "no vector" reads as false. The replacement says the true thing — no image model, no free-form
+raster or vector illustration, but deterministic HTML/SVG formatting of structured input.
+
+**Two other prose absolutes turned out to be already closed in round 26**, which was only knowable
+by reading the live field rather than the report. *"Nothing it does outlives the headless session"*
+was already gone; *"Raven itself destroys nothing"* had already become *"Raven itself **writes**
+nothing: no tool creates, modifies or deletes any user or project data"* — scoped to user/project
+data, so the temp sweep does not falsify it. **The correct disposition of an adverse finding is
+sometimes "already fixed", and that is a measurement, not a memory.**
+
+**C4 SURVIVES**, and it independently corroborates round 27: no falsification among the other 41
+tools — 37 expose no live caller-URL browser path, 4 expose `url` but decline before entering
+handlers, remote usage logging is skipped (`src/index.ts:2585`), and `generate_design_system.save`
+is omitted remotely with an independent persistence refusal (`src/index.ts:5723`,
+`src/user-systems.ts:129`).
+
+### The finding that came out of verifying rather than assuming
+
+**`SUBMISSION.md`'s `openWorldHint` row was STALE, and it is an R2-class defect sitting inside the
+document whose entire job is to cure R2.** It read *"`true` on **exactly 4**, `false` on 41"*. A
+live re-measurement of `tools/list` says otherwise:
+
+```
+45 {"readOnlyHint=true":45,"destructiveHint=false":45,"idempotentHint=true":45,"openWorldHint=false":45}
+hash f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6
+```
+
+The booleans were flipped on 2026-08-21 and the dossier was not updated with them — so we were about
+to hand a reviewer a document asserting a value the endpoint does not publish. That is the same
+class as the rejection itself, one layer up. **That single call is doing two jobs: it proves the row
+stale AND re-verifies the frozen anonymous surface (EXACT hash match).**
+
+Fixed in `.claude/openai-rejection-2026-08-19/SUBMISSION.md` — which is not `src/`, so no deploy gate
+applies:
+
+- The `openWorldHint` row now states the live value, says plainly that the previous text was stale
+  and why, explains the deliberate two-surface split (stdio publishes the spec's reach-based `true`;
+  hosted publishes OpenAI's write-based `false`), cites `test/remote-click-guard.test.mjs:237` and
+  `src/index.ts:2252` — **and states the counter-argument rather than hiding it**, since OpenAI's
+  current wording is "affect public or external systems", which is broader than the write-based
+  reading. It closes by offering the flip if that is the intended reading.
+- The `idempotentHint` row carried the same staleness twice: it referenced *"the four
+  `openWorldHint: true` tools"* (no such tools on this surface), and it carried the exact absolute
+  Sol's C3 targets — *"Nothing on this surface has an environment to affect."* Both narrowed: the
+  four browser tools are now named directly, and the absolute is scoped to *an environment **Raven**
+  affects*, with the page's own handlers named as the thing that is not inert on a repeat call.
+
+### C2 and C3 are NOT mine to disposition
+
+Sol's REFUTED rests entirely on the four annotation **booleans**. That is Andrew's call for three
+structural reasons, and the reasons are the argument:
+
+1. It is a `src/` edit, therefore a `main` push, therefore **a live-endpoint deploy** — the standing
+   human gate.
+2. It breaks `test/remote-click-guard.test.mjs:237` and moves the metadata pin `c901…`.
+3. It **reverses his explicit 2026-08-21 decision**, in which "Flip local too" was offered and
+   declined. He chose "Flip all four to false" on the hosted surface alone.
+
+Sol's own words, which he should see rather than my paraphrase of them:
+
+> **"REFUTED. C2 and C3 remain R2-class defects; the revised prose explains the mismatch but does not
+> cure it."**
+
+> *"Current OpenAI guidance says `openWorldHint:true` when a tool can 'affect public or external
+> systems,' not exclusively when Raven's own source contains a named posting function."*
+
+> *"The repository already accepts this causation rule for hover/focus: page handlers can submit
+> requests or mutate state, therefore the tool is not read-only or idempotent. It then inconsistently
+> excludes resize/play from the classifier: [src/index.ts:2338], [src/index.ts:2372]."*
+
+That last one is the sharpest of the three and I am not going to soften it: the classifier treats
+page-handler causation as decisive for hover/focus and not for resize/play. Whatever the answer is,
+it should be the same answer in both places.
+
+My standing position is unchanged: **the flip is available and it is Andrew's to make.** If he wants
+the spec's definition on the hosted surface too, it is one map in `src/index.ts`, the test above, a
+`main` push and a re-measured anon hash — all of which I can execute the moment he says so.
+
+### Residuals
+
+- Sol restored the repo to `main` at `83e55c1bb799`, clean — an earlier tree than my `6368175`;
+  nothing submitted, nothing pushed.
+- Sol's `tap-targets.ts` cite is `:181` where my prior record says `:183`. Both refer to
+  pre-navigation emulation; unreconciled.
+- **P1a still open:** production-DEPLOY authority unprobed; `release.yml:112-119` says there is no
+  cheap probe. The next real release is its first test.
+- **P1b is Andrew's:** narrowing the Vercel token to team scope with an expiry.
+- `Submit for Review` has **not** been clicked. That boundary has not moved.
