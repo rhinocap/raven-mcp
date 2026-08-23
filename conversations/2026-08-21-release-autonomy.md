@@ -2223,3 +2223,96 @@ MATCH
 
 Exact match to the frozen pin. The scope check on the explicit range `2d9268d..4ef47d5` had already
 returned no `src/`/`api/` match, so this is the corroboration; the range check is the argument.
+
+## Round 19 — the OpenAI wizard's R2 surface: the booleans were sound, the PROSE was not
+
+This round audited the resubmission artifact itself — the OpenAI plugin-directory wizard, tab
+1909407749, MCP section — against measured hosted behaviour. The boundary is unchanged and was
+honoured: fill the form, **stop before Submit**.
+
+### My hypothesis was refuted, and the refutation is the useful half
+
+I expected `openWorldHint: true` on the tools that provably fetch. Measured against the live
+anonymous endpoint (`https://mcp.ravenmcp.ai/api/mcp`), **all 45 tools publish
+`openWorldHint: false`** — aggregate TRUE=0, FALSE=45, with no `readOnlyHint:false` and no
+`destructiveHint:true` anywhere. Rather than report that as drift, the raw payload was re-read, then
+the contract, then the source:
+
+- `test/remote-click-guard.test.mjs:235` declares a deliberate `DIVERGENT` set —
+  `audit_contrast`, `audit_tap_targets`, `audit_responsive_visibility`, `audit_video_playback` —
+  and `:237` asserts hosted `false` **and** stdio `true` for each. `:124` asserts hosted `audit_url`
+  is `false` ("it can only decline"), `:142` local `true`, `:168` that every hint is an explicit
+  boolean and never null.
+- `src/index.ts:2252`, the header above `TOOL_OPEN_WORLD`, documents the two-definition split as
+  Andrew's 2026-08-21 call: **stdio publishes the MCP spec's REACH-based meaning; the hosted
+  endpoint publishes OpenAI's WRITE-based meaning**, quoted from their own review page (every
+  example in it is a write — posting, sending, publishing, pushing, submitting). The same header
+  names the *old* state — four tools carrying `readOnlyHint:true` AND `openWorldHint:true` in one
+  payload, which contradict each other under OpenAI's definitions — as R2's plausible mechanism.
+
+**Live matches repo. The values are correct and deliberate.** The hypothesis died and a different,
+real defect surfaced underneath it.
+
+### The defect: reach-based justification prose beside a write-based `false`
+
+The wizard holds 135 justification fields (45 tools × 3). All four DIVERGENT tools still carried the
+pre-flip **reach-based** argument — *"…so it can reach any host on the public internet: an unbounded
+set, not knowable in advance"* — sitting next to a published `false`. A reviewer reads the
+justification against the value and sees a flat contradiction, in the one artifact whose entire job
+is to justify that value. The boolean was flipped on 2026-08-21; the prose was left behind.
+
+**A defensible boolean does not make its justification prose defensible.** The R2 class —
+"annotations that do not match behaviour" — can live entirely in the justification text.
+
+Scanned first: the defect was bounded to exactly those 4 of 45. All four rewritten to the write-based
+argument with a per-tool measurement phrase, then read back: **total=45, still reach-based=0,
+empty=0.** Applied lengths 352 / 336 / 364 / 352, all `[INPUT]`. `audit_url`'s justification was
+inspected separately and is correct as written — it argues the hosted decline.
+
+Mechanics worth carrying: setting a React-controlled field needs the **native prototype setter plus
+synthetic `input`/`change` events**, and the element may be an `INPUT` rather than a `TEXTAREA` —
+branch on `tagName` to pick `HTMLInputElement.prototype` vs `HTMLTextAreaElement.prototype`, or the
+setter call silently does nothing.
+
+### The DIVERGENT set of 4 is exactly right — measured, not read off the list
+
+Two url-taking tools were still unprobed. Completing them closes the split at 8:
+
+| Tool | Hosted behaviour |
+|---|---|
+| `audit_url`, `audit_page`, `audit_typography`, `score_page` | **decline** |
+| `audit_contrast`, `audit_tap_targets`, `audit_responsive_visibility`, `audit_video_playback` | **render** |
+
+`score_page` → `isError: true` in 0.17s, *"url-capture is disabled on the hosted (remote) endpoint"* —
+correctly OUTSIDE `DIVERGENT`. `audit_video_playback` → a real 5.06s render, `total_videos: 0` —
+correctly INSIDE. So the four-tool set is verified by measurement rather than by trusting the array.
+
+### Instrument note: a keyword scanner matching a NEGATION is a false-positive generator
+
+A first pass over `read_only_justification` reported **45/45 suspect**. That was my scanner, not a
+finding: the keyword list held `'modifies'`, which matches the innocent negation these fields
+actually use — *"No write path: it creates, modifies or deletes nothing."* The same call also
+truncated before emitting the `destructive_justification` half, which was therefore never read.
+**No conclusion may be drawn from that output**, and it is recorded here rather than quietly dropped.
+
+Re-run negation-aware — classifying against the live values (`readOnlyHint:true`,
+`destructiveHint:false` for all 45) and counting server-side rather than emitting a long list that
+truncates:
+
+```
+read_only_justification    | not matching negation template: 0
+destructive_justification  | not matching negation template: 0
+```
+
+Both families are consistent with what the endpoint publishes. The `open_world` family was the only
+one carrying the pre-flip argument.
+
+### Carried forward
+
+- Audit the wizard's **Skills** and **Prompts** sections for the same claim-vs-behaviour class.
+- Return to Global → Continue → Submit, and **stop before Submit**.
+- **P1a still open:** production-DEPLOY authority is unprobed; the next real release is its first
+  test. **P1b is Andrew's:** narrowing the Vercel token to team scope with an expiry.
+- Repo state unchanged this round — every fix was made in the browser form, not in the tree.
+  `main` at `7f17714`; frozen anon surface 45 tools at
+  `f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6`.
