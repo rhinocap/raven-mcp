@@ -2469,3 +2469,29 @@ anonymous endpoint re-measured at **45 tools**, hash
 - Continue → Submit screen, and **stop before Submit**. The boundary has not moved.
 - **P1a still open:** production-DEPLOY authority is unprobed; the next real release is its first
   test. **P1b is Andrew's:** narrowing the Vercel token to team scope with an expiry.
+
+### Submit screen — the release notes opened with a false claim
+
+`version.release_notes` (no `maxlength`) began **"First submission."** Raven 1.0.0 was submitted
+2026-07-26 and **rejected 2026-08-19** — so that sentence is false to the exact party holding the
+rejection on file. This is the R1/R2 class one layer up: not a stale measurement inside a test case,
+but a claim about the submission history contradicted by the reviewer's own record.
+
+Rewritten 425 → 721 chars, opening with the resubmission and naming both remediations (invariants
+instead of captured measurements; annotations re-derived from hosted behaviour) before the unchanged
+product description. Draft saved, `ok=true`.
+
+The rest of the notes was **measured, not trusted**:
+
+| Claim | Check |
+|---|---|
+| "12 bundled systems" | `list_design_systems` → `count: 12` — stripe, linear, apple-hig, material-design, vercel, shadcn, github-primer, notion, supabase, tailwind, spotify, airbnb |
+| "45 tools" | live anonymous `tools/list` → 45 |
+| "all read-only" | all 45 publish `readOnlyHint: true` |
+| "no authentication required" | the anonymous endpoint answers without a token |
+
+Policy compliance: all seven boxes and the under-18 radio were **already ticked before this round**
+and were left untouched — those are Andrew's attestations, not mine to make.
+
+**Stopped at the Submit screen. `Submit for Review` NOT clicked.** The wizard is filled and audited
+end to end; the button is Andrew's.
