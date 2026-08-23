@@ -3681,7 +3681,11 @@ invisible to it by construction — as is the `c901...` metadata pin, which excl
 explicitly. This log has argued that before; here it is measured, on the same instrument, with the
 before and after both preserved. A pin that cannot observe a class of change is not evidence that
 class did not change, and a green freeze around an annotation edit says nothing whatsoever about the
-edit. What could catch a wrong flip is `test/remote-click-guard.test.mjs`, and only that.
+edit. What could catch a wrong flip is `test/remote-click-guard.test.mjs` — **and the "and only that" this
+sentence originally carried was FALSE, corrected in round 43 after a Sol pass named it (P3).**
+`test/idempotent-annotations.test.mjs` catches a flip independently at `:143`, `:156` and `:166`, and so
+does the live exact-set probe run in this very round. A comment describing a measurement is a claim and
+decays exactly like a test does, except nothing executes it.
 
 ### Suite state
 
@@ -3811,3 +3815,100 @@ narrowing; no defect and no repo change owed.
 Repo state at the time of writing: `main` at `c7ec300`, local, **not pushed**; frozen anonymous surface
 unchanged at 45 tools / `f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6`. Suite figure
 of record unchanged at 1729 / 1726 / 0 / 3, EXIT=0, skips read individually at output lines 121/865/866.
+
+## Round 43 — Sol says DOES NOT SURVIVE, and the coverage gap closes on a mutant pair pulling opposite ways
+
+Verdict of record: **DOES NOT SURVIVE (1 x P2 + 1 x P3)**, `$SP/sol-r41.log`, 997,274 B. Both findings
+were verified against source rather than accepted from the report, and both are dispositioned below.
+
+### The gate's three halves
+
+- **Full suite:** **1730 tests / 1727 pass / 0 fail / 3 skipped**, `EXIT=0` read from INSIDE
+  `full-suite-r41.log`. The **+1 over the ledgered 1729 is exactly ONE test**, confirmed by NAME at
+  output line 1485 rather than inferred from the total: `the authenticated hosted 6/50 split is
+  asserted over all 56 names`. The **3 skips are the same three, read INDIVIDUALLY at lines
+  121/865/866** — the file-URL fallback notice and the two removed-capability phase2 tests.
+- **Matrix v10** (`.claude/openai-rejection-2026-08-19/click-mutants.mjs`), re-run WHOLE:
+  **13 mutants, 13 killed, 0 survived; 2 CONTROLS, 0 false-failed**, `EXIT=0` against a declared
+  20/20/0/0 baseline. Anchors swept with ONE regex probe before launching: 13 checked, 0 stale.
+- **Sol:** read, verified, dispositioned.
+
+### The entry to carry: a red set is a PREDICTION, and two of mine were wrong
+
+Matrix v9 measured the new 56-name test red under **D8 and D9 only**. I had predicted D10 and D11
+would redden it too, and they do not — the subset cross-check compares *authed against anonymous*,
+and both take the hosted branch, while D10/D11 move only the stdio branch. **A predicted red set is
+exactly as falsifiable as an assertion, and this one was refuted by measurement.** Recorded rather
+than smoothed over, because the refutation is what exposed the real gap underneath it.
+
+That gap: **every mutant reddening the new test also reddened the anonymous one**, so nothing
+separated the two. A test whose red set is a subset of another test's is radius-shared — this log's
+own recurring lesson about one mechanism wearing two guards' clothes.
+
+**D12 and D13 close it, one per authed-only extra.** Each drops one of `audit_taste` /
+`bind_taste_surface` from `TOOL_OPEN_WORLD`; neither name is in the anonymous 45, so each reddens the
+stdio and authed assertions while leaving the anonymous one GREEN. Measured:
+
+| mutant | anonymous 45 | authed 56 | stdio 14 |
+|---|---|---|---|
+| D8, D9 | red | **red** | green |
+| D12, D13 | green | **red** | red |
+
+**Two pairs pulling opposite ways is what establishes independence** — the 56-name assertion is
+separated from BOTH sibling partition tests, in both directions. One pair alone would have shown only
+that it is not a comment; it takes the second to show it is not a duplicate.
+
+### P2 dispositioned — the finding was already remedied, and its second half is a stated residual
+
+Sol's P2: `remote-click-guard` builds only the anonymous and stdio servers, so "both surfaces" omitted
+the authenticated hosted build, which registers 56 (`src/index.ts:2563`) and publishes
+**6 true / 50 false / 0 missing** — the anonymous four plus `audit_taste` and `bind_taste_surface`.
+**Sol reached identical numbers independently, on a gap round 42 had already found and remedied.**
+Convergent confirmation of a defect already fixed is the strongest form this gate produces, and it is
+worth naming as such rather than filing as a new hit.
+
+Its **second half was genuinely unaddressed**: `api/mcp-user.js:128` degrades the authenticated
+endpoint to the anonymous 45-tool surface when Redis is unavailable, so production serves **56 (Redis
+up) or 45 (Redis down)**. Read directly:
+
+```js
+const server = client
+  ? buildServer({ remote: true, tasteStore: new RedisTasteStore(auth.claims.sub, client) })
+  : buildServer({ remote: true });
+```
+
+**Both variants are now asserted in-repo** — the 45 by the pre-existing hosted partition test, the 56
+by the new one — so whichever way the endpoint degrades, its annotation surface is pinned. The
+residual, stated rather than closed: **no authenticated LIVE probe has established which variant
+`mcp.ravenmcp.ai` currently serves**, because that needs an OAuth bearer token. That is
+credential-gated and is Andrew's, not an execution step.
+
+### P3 dispositioned — a false sentence in this very log, corrected in place
+
+Round 41 wrote, of the frozen-hash blindness: *"What could catch a wrong flip is
+`test/remote-click-guard.test.mjs`, and only that."* **False.**
+`test/idempotent-annotations.test.mjs` catches a flip independently at `:143`, `:156` and `:166`
+(including `audit_page publishes openWorldHint false on the hosted build`), and so does the live
+exact-set probe that same round ran. Corrected at the line rather than appended to, with the reason
+attached. Its header comment also **independently corroborates the round-42 reach analysis**:
+`bind_taste_surface` captures each caller-supplied reference url LIVE and is not in
+`REMOTE_ARG_GUARDS` at all.
+
+### Instrument correction: `pgrep -f` is a liveness test, never a process inventory
+
+Sol's log sat byte-identical at 997,274 B across two checks while `pgrep -qf 'gpt-5.6-sol'` still
+reported running, and I nearly filed a completed run as a stall. `ps -o etime` disproved it: the
+surviving matches were unrelated zsh wrappers at `01-00:01:26` (24h) and `03:58:43`, and the log
+already held a full verdict. **`pgrep -f 'gpt-5.6-sol'` matches the zsh wrapper and its exported env,
+not only this run's codex process.** Had I trusted the signal, a DOES-NOT-SURVIVE verdict would have
+been dispositioned as an environment failure — the exact class this log has twice recorded as
+"an environment-blocked adverse output must never be filed as no findings", arriving from the
+opposite direction.
+
+### State
+
+`dist/index.js` verified rebuild-identical after the matrix — a mutation harness leaves `dist/` in a
+state no timestamp can vouch for. Two test-side files changed; **no `src/` or `api/` path is in the
+unpushed range**, so nothing here trips the human-gated live-endpoint deploy. **P1a** (Vercel
+production-DEPLOY authority) closes only on the next real release; **P1b** (narrowing the Vercel token
+to team scope with an expiry) is Andrew's. `Submit for Review` has not been clicked.

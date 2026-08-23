@@ -32,7 +32,7 @@ import { spawnSync } from 'node:child_process';
 
 const FILE = 'dist/index.js';
 const SUITE = 'test/remote-click-guard.test.mjs';
-const BASE = { tests: 19, pass: 19, fail: 0, skipped: 0 };
+const BASE = { tests: 20, pass: 20, fail: 0, skipped: 0 };
 
 const MUTANTS = [
   { id: 'D1', expect: 'red', why: 'delete audit_url from REMOTE_ARG_GUARDS entirely (the whole mechanism)',
@@ -87,6 +87,20 @@ const MUTANTS = [
     find: `const TOOL_OPEN_WORLD = [\n    "audit_url",`,
     repl: `const TOOL_OPEN_WORLD = [\n    "capture_reference",\n    "audit_url",` },
 
+  // D12/D13 close the AUTHENTICATED half of the partition. Matrix v9 measured the new
+  // 56-name test as red under D8 and D9 ONLY -- both of which also redden the anonymous
+  // test, so nothing yet separated the two. A mutant dropping one of the two
+  // authed-only extras reddens the stdio and authed assertions while leaving the
+  // anonymous 45 untouched (neither name is in the anonymous set), which is the only
+  // shape that can show the 56-build assertion measures something the 45-build one cannot.
+  { id: 'D12', expect: 'red', why: 'drop audit_taste from TOOL_OPEN_WORLD: the authed true-set loses one of its two extras while the anonymous 4 are untouched',
+    find: `"audit_video_playback",\n    "audit_taste",`,
+    repl: `"audit_video_playback",` },
+
+  { id: 'D13', expect: 'red', why: 'drop bind_taste_surface from TOOL_OPEN_WORLD: same, via the other authed-only extra',
+    find: `"bind_taste_surface",\n    "talon_scan"\n];`,
+    repl: `"talon_scan"\n];` },
+
   { id: 'CONTROL-A', expect: 'green', why: 'behaviour-neutral: bind the guard message to a local before returning it',
     find: `return { content: [{ type: "text", text: guard.message }], isError: true };`,
     repl: `var __m = guard.message; return { content: [{ type: "text", text: __m }], isError: true };` },
@@ -111,8 +125,8 @@ for (const m of MUTANTS) {
 // ledger warns against it in general (it once truncated a suite whose browser tests
 // registered after a top-level-await probe, reporting them as passing-by-absence).
 //
-// That hazard cannot occur in this file: all 19 tests are registered SYNCHRONOUSLY at
-// module top level (14 `test(` calls plus a 5-case loop), there is no top-level await,
+// That hazard cannot occur in this file: all 20 tests are registered SYNCHRONOUSLY at
+// module top level (15 `test(` calls plus a 5-case loop), there is no top-level await,
 // and the DECLARED baseline below asserts the registered count, so a truncated run
 // aborts rather than grading.
 //

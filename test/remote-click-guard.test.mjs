@@ -85,6 +85,13 @@ const signal = new AbortController().signal;
 
 const remoteServer = buildServer({ remote: true });
 const localServer = buildServer({ remote: false, tasteStore: new FsTasteStore() });
+// The THIRD build, and the one this suite could not see until 2026-08-22. `remote` alone is
+// the frozen ANONYMOUS surface (45); `remote` PLUS a taste store is the AUTHENTICATED hosted
+// surface (56), which is what a signed-in caller of mcp.ravenmcp.ai actually gets. The eleven
+// AUTHED_USER_TASTE_TOOLS the store unblocks include two that reach the open web, so the
+// authed surface publishes a DIFFERENT openWorldHint partition than either build above --
+// and a partition asserted on 45 names and 111 names says nothing about the 56 in between.
+const authedServer = buildServer({ remote: true, tasteStore: new FsTasteStore() });
 
 function toolOf(server, name) {
   const t = server._registeredTools[name];
@@ -310,6 +317,38 @@ test('the stdio true-set IS TOOL_OPEN_WORLD, all 14 of it', () => {
     'stdio registers 112 names minus the hosted-only delete_taste_data');
   assert.deepEqual(openWorldTrueSet(localServer), STDIO_TRUE,
     'stdio publishes the reach-based meaning for every tool in TOOL_OPEN_WORLD and no other -- this is the surface the hosted half above diverges FROM, so if it drifts the divergence stops being measurable');
+});
+
+// ── The AUTHENTICATED hosted partition, over all 56 names ───────────────────
+// The two partitions above are 4-of-45 and 14-of-111. Neither constrains the 56-name build,
+// and the difference is not cosmetic: `audit_taste` takes a top-level `url` and has NO
+// REMOTE_ARG_GUARDS entry, and `bind_taste_surface` takes `references[].url` which its own
+// schema says is "captured live" and whose handler calls capturePage(). Both genuinely reach
+// the open web on the hosted endpoint once a store unblocks them, so both are honest at
+// `true` -- but nothing measured that, and nothing would have caught it drifting in either
+// direction. Under-disclosing it is the R2 class arriving on the surface real users sign in to.
+//
+// The 45-set is a strict SUBSET of the 56-set, so this is also the assertion that keeps the
+// anonymous partition and the authed one from being derived by two different rules.
+const AUTHED_TRUE = [...RENDERS, 'audit_taste', 'bind_taste_surface'].sort();
+
+test('the authenticated hosted 6/50 split is asserted over all 56 names', () => {
+  const names = Object.keys(authedServer._registeredTools);
+  assert.equal(names.length, 56,
+    'remote + a taste store is the authenticated hosted surface: the anonymous 45 plus the eleven AUTHED_USER_TASTE_TOOLS -- if this moved, the partition below is being asserted over a different surface than the one that ships');
+  const nonBoolean = names.filter(
+    (n) => typeof authedServer._registeredTools[n].annotations?.openWorldHint !== 'boolean');
+  assert.deepEqual(nonBoolean, [],
+    'every authenticated hosted tool must publish an explicit boolean openWorldHint -- a missing hint is the R2 class arriving as an omission rather than a wrong value');
+  assert.deepEqual(openWorldTrueSet(authedServer), AUTHED_TRUE,
+    'EXACTLY the six tools that reach the open web on the AUTHENTICATED hosted endpoint may publish openWorldHint:true -- the four rendering audits plus audit_taste (top-level url, no arg guard) and bind_taste_surface (references[].url, captured live via capturePage)');
+  // The anonymous surface is a strict subset, so its true-set must be too. Without this, the
+  // two partitions could be satisfied by two unrelated rules and nobody would see it.
+  const anon = new Set(Object.keys(remoteServer._registeredTools));
+  assert.ok(Object.keys(authedServer._registeredTools).filter((n) => anon.has(n)).length === 45,
+    'the anonymous 45 must be a strict subset of the authenticated 56, or these two partitions are describing unrelated surfaces');
+  assert.deepEqual(openWorldTrueSet(remoteServer), AUTHED_TRUE.filter((n) => anon.has(n)),
+    'the anonymous true-set is exactly the authed true-set restricted to the anonymous names -- one derivation, two surfaces');
 });
 
 test('the guard is keyed per SURFACE: local audit_url carries no decline', () => {
