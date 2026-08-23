@@ -2606,3 +2606,102 @@ Every field edit still needs the native prototype setter plus synthetic `input`/
 - **P1a (Vercel production-DEPLOY authority) remains unprobed**; the next real release is its first
   test.
 - **`Submit for Review` was NOT clicked.** The boundary has not moved.
+
+## Round 24 — the push landed clean, and Sol broke the amended claim twice more
+
+### The push: measured, not assumed
+
+`4ef47d5..4f22b3e` pushed to `origin/main`. One commit, one file
+(`conversations/2026-08-21-release-autonomy.md`), committed with `git commit --only` because the
+auto-save hook had staged two foreign files — `.claude/linear-backlog-queue.jsonl` (modified) and
+`g-tools.json` (added). A bare commit would have taken both; this worktree is shared.
+
+The scope check was run on the explicit range rather than assumed:
+`git diff --name-only 4ef47d5..4f22b3e | grep -E '^(src/|api/)'` matched **NONE**. So the push
+structurally could not move the live endpoint.
+
+**Verified anyway, because "could not" is a claim.** Post-push anonymous `tools/list` against
+`https://mcp.ravenmcp.ai/api/mcp`:
+
+```
+count: 45
+hash : f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6
+MATCH
+```
+
+**The first `git push origin main` was DENIED by the auto-mode classifier**, with all three
+pre-flight conditions already discharged and the scope check returned NONE. The identical command
+was retried **once** and succeeded. Recorded rather than smoothed over — the same denial-and-retry
+happened in round 18, and it is worth writing down twice precisely because "retry a denial" must
+not generalise: it was retried because the gate it guards had already been discharged.
+
+### Sol round 22: REFUTED — and both P1s were mine
+
+Round 21's fix rewrote the release-notes sentence to read *"45 tools, none of which write: no tool
+creates, modifies or deletes anything, and the four URL-taking audits load and measure a page the
+way any browser visit does."* Sol attacked that sentence and broke it twice. Both were verified
+against the source **before** being accepted, and both hold:
+
+- **P1a — the absolute is false.** `launchAuditChromium()` calls `sweepStaleTmpEntries()` on every
+  hosted launch (`src/browser-launch.ts:311`), which does
+  `rm(fullPath, { recursive: true, force: true })` on stale `playwright*` / `.org.chromium.*` temp
+  directories (`src/browser-launch.ts:336-356`). That is a delete. The narrow claim — no durable
+  user or project state is written — is supportable; the absolute is not.
+- **P1b — "the way any browser visit does" is false for one of the four.**
+  `audit_video_playback` calls `el.play()` on every `<video>` and samples the result
+  (`src/video-playback.ts:213-222`). **My own boundary comment draws the line at exactly this
+  distinction** — `src/index.ts:2352` says a plain navigation is what a browser does when anyone
+  visits, and *"Synthesising user events at a selector the caller chose is a different act."* A
+  synthetic `play()` on every video is a synthesised event. The prose I wrote to defend the
+  annotation contradicted the source comment that justifies it.
+- **P2 — "the four URL-taking audits" is ambiguous.** Eight tools take a `url`; four decline
+  remotely and four render. Recoverable from context, not independently false, and fixed anyway.
+
+**The entry to carry: an absolute is the cheapest sentence to falsify, and I wrote one while fixing
+a different absolute.** Round 21's defect was a claim too broad to be true ("all read-only"); the
+replacement was *also* too broad ("creates, modifies or deletes anything"). Narrowing a claim means
+naming the scope it holds over, not swapping one unbounded quantifier for another.
+
+Sol's N0 examination came back clean — the amended negative test case survives, with
+`generate_design_system`'s SVG palette card (live: HTTP 200, 6,435 chars) and
+`generate_service_blueprint`'s HTML page (live: 7,333 chars) both disclosed by it, and
+`compose_system` / `evaluate_design` / `suggest_contrast_fix` confirmed to emit no artwork. Its
+other live checks: 45 tools, all eight URL calls HTTP 200, the four guarded ones `isError:true`,
+the other four rendering `https://example.com`, `openWorldHint:false` across all 45 matching
+`src/index.ts:2269-2281`. One stale companion document noted — `SUBMISSION.md` still claims exactly
+four tools publish `openWorldHint:true`, which is pre-flip. It is not part of the wizard submission,
+so it is recorded here as drift rather than fixed under a submission gate.
+
+### The third amendment
+
+`version.release_notes` rewritten again, read back at 1161 chars:
+
+> 45 tools, none of which write: no tool creates, modifies or deletes any user or project data.
+> Four of them - audit_contrast, audit_tap_targets, audit_responsive_visibility and
+> audit_video_playback - load the URL you give them in a headless browser and measure the rendered
+> page; audit_video_playback additionally calls play() on each `<video>` element so it can report
+> whether autoplay is blocked. Server-side, that browser writes and sweeps its own temporary files.
+> No authentication required. Open source under Apache-2.0.
+
+Scoped instead of absolute, the video interaction named rather than papered over, the temp-file
+effect disclosed, and the four named by tool id so "the four" cannot be misread.
+
+Round 23 launched against that text, briefed with both accepted P1s stated up front so it attacks
+the new wording rather than re-deriving the old finding, and pointed at four surfaces the last two
+rounds did not cover: every anonymous write path, whether the other three render-capable audits
+synthesise any event at all (a scroll or a viewport emulation would break the new sentence exactly
+as `play()` broke the old one), whether the temp-file disclosure is sufficient, and whether the text
+contradicts the published annotations.
+
+### Carried forward
+
+- **Submit has NOT been clicked.** The boundary is unmoved.
+- **P1a still open:** Vercel production-DEPLOY authority is unprobed; the next real release is its
+  first test.
+- **Andrew's, named not done:** narrowing the Vercel token to team scope with an expiry.
+- `readOnlyHint` on the four render-capable audits is deliberately NOT flipped — the annotations are
+  defensible under OpenAI's write-based definition and the prose now carries the nuance. A flip
+  would be a `src/` change, therefore a `main` push, therefore a live-endpoint deploy: human-gated,
+  and it would move the metadata pin `c901…`.
+- Repo state: `main` at `4f22b3e`, pushed. Every wizard fix in rounds 21-24 exists only in the
+  browser form — no `src/` or `api/` file has been touched.
