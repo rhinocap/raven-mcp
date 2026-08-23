@@ -2316,3 +2316,76 @@ one carrying the pre-flip argument.
 - Repo state unchanged this round — every fix was made in the browser form, not in the tree.
   `main` at `7f17714`; frozen anon surface 45 tools at
   `f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6`.
+
+## Round 20 — the rest of the wizard: one real defect in Prompts, one currency mismatch in MCP, Testing verified live
+
+Continuing the audit of the resubmission artifact (tab 1909407749). Boundary unchanged and honoured:
+fill the form, **stop before Submit**.
+
+### Plugin Info — consistent, and carefully scoped
+
+subtitle *"Audit and fix UI design"*; a 518-char description that names **only contrast and tap
+targets** on the URL path — which is exactly the hosted render set measured in round 19. It does not
+claim the four declining tools work remotely. Website / support / privacy / tos / demo all present.
+No change made.
+
+### Skills — empty, and skippable. No claims to audit.
+
+### Prompts — a real defect, found, bounded, fixed
+
+`default-prompt-0` stored its own leading `@Raven`, while the wizard **also** prepends the mention
+("ChatGPT adds your plugin mention when it displays them"). The submitted artifact would have
+rendered **"@Raven @Raven Audit my landing page…"**. Prompts 1 and 2 correctly omitted it, so the
+defect was bounded to 1 of 3 rather than assumed systemic. Stripped; 93 → 86 chars; read back with
+all three rendering exactly one mention and `remaining @@ = 0`.
+
+The three prompts' claims were also checked against measured hosted behaviour: P1 uses contrast +
+tap-targets (both in the render set), P2 asks for HTML/CSS rather than a URL (`score_page` declines
+URLs and accepts `html`), P3 is anonymous knowledge tools.
+
+### MCP — 44 tools argued one ground and `audit_url` argued another
+
+Round 19 fixed the four DIVERGENT justifications onto OpenAI's **write-based** ground. Re-scanning
+the whole family for *which argument* each field makes — not merely whether it contradicts the value
+— returned **1 of 45 reach-only: `audit_url`**.
+
+Every value was already right. But a reviewer reading `audit_url` learns *false because it cannot
+reach the web*, then reads `audit_contrast` — which demonstrably **can** reach the web and is also
+`false`. Two different definitions of open-world in one artifact, which is the R2 class one level up
+from the boolean. **A per-field justification can be individually true and collectively incoherent.**
+
+Rewritten to lead with the write ground (the definition that governs this surface), keeping the
+hosted decline as a reinforcing second fact and naming the stdio `true` explicitly. 500 → 526 chars.
+Read back: **total=45, empty=0, reach-only=0.** One definition now governs all 45.
+
+### Testing — the R1 surface. All five cases read in full and verified LIVE
+
+R1 was *"a submitted test case whose stored expected value could not be reproduced"*, because the
+dossier documented CAPTURED NUMBERS off a live URL. Every case was read in full and checked for that
+shape. A regex pre-screen had reported all five clean; that was treated as **weak evidence and not a
+verdict**, on round 19's own lesson that a keyword scanner is a poor instrument.
+
+| # | tool(s) | shape | verified how |
+|---|---|---|---|
+| 0 | `audit_contrast` | arithmetic over four constants **given in the prompt** | WCAG luminance **recomputed independently**: #111/#fff → 18.88, #bbb/#fff → 1.92, delta 2.58. All three match. |
+| 1 | `audit_tap_targets` | arithmetic over sizes given in the prompt | 44−20 = 24 on both axes; 48 passes. |
+| 2 | `get_principles` | **explicitly refuses to pin a count** | live: count 28 = principles.length, ≥ 20 ✓, `color-palette-discipline` present ✓, **0** principles missing a required non-empty field. |
+| 3 | `list_design_systems` + `get_design_system` | id-set + token **shape**, literal stated as today's reading | live: count 12 = length; stripe/linear/apple-hig/material-design all present; `color.primary.$value` = `#635BFF`. |
+| 4 | `audit_url` | the hosted **decline**, as an invariant | previously read in full; documents the refusal text and the openWorldHint split. |
+
+**Not one case stores a captured measurement off a live third-party URL.** Cases 0 and 1 derive
+their numbers from constants the prompt itself supplies, so they cannot drift with the corpus, a
+third-party site, or a redeploy. Case 2 says so in its own text — *"the exact count is deliberately
+NOT the expectation … pinning a captured count is precisely what made the previous submission
+unreproducible"*. Case 3 pins the token **shape** and states the literal as what it should read
+today rather than as the assertion.
+
+The two cases that make live claims (2 and 3) were verified against the hosted endpoint rather than
+trusted, because an invariant is still a falsifiable claim: all six held.
+
+### Carried forward
+
+- Return to Global → Continue → Submit, and **stop before Submit**.
+- **P1a still open:** production-DEPLOY authority is unprobed; the next real release is its first
+  test. **P1b is Andrew's:** narrowing the Vercel token to team scope with an expiry.
+- Repo untouched again this round — every wizard fix lives in the browser form, not in the tree.
