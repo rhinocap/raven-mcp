@@ -2227,28 +2227,45 @@ function toolTitle(toolName: string): string {
 // init_design_md is deliberately absent — its fetch targets one fixed starter
 // base URL, a closed set, not an open world.
 //
-// THIS LIST IS THE STDIO TRUTH AND IT DOES NOT GOVERN THE HOSTED ENDPOINT AT ALL.
-// The two surfaces answer to two different definitions of `openWorldHint`, and that
-// divergence is deliberate rather than drift (Andrew's call, 2026-08-21):
+// THIS LIST IS THE STDIO TRUTH. The hosted endpoint answers the same REACH question,
+// narrowed by what the hosted wrapper actually blocks — see the derivation in
+// toolAnnotations() and `remoteBlocksNetwork` below.
 //
-//   stdio  — the MCP spec's meaning: does this tool INTERACT with an unpredictable
-//            external host. The list above is that answer.
-//   hosted — OpenAI's plugin-review meaning, quoted from their own page: set it true
-//            "if it can write to or change publicly visible internet state (for
-//            example, posting to social media, blogs, or forums; sending emails, SMS,
-//            or messages to external recipients; creating public tickets or issues;
-//            publishing pages; pushing code or content to public endpoints; submitting
-//            forms to third parties)". Every example is a WRITE.
+// HISTORY, because this line has now been drawn in three different places and the
+// reasoning matters more than the current answer:
 //
-// The 2026-08-19 rejection (R2, "annotations that do not match behaviour") was answered
-// in August by fixing the DERIVATION — remote vs local, read off REMOTE_ARG_GUARDS —
-// while keeping the spec's reach-based SEMANTICS, which is the half OpenAI disagreed
-// with. Measured live on 2026-08-21, mcp.ravenmcp.ai published four tools carrying
-// `readOnlyHint: true` AND `openWorldHint: true` in the same payload
-// (audit_contrast, audit_tap_targets, audit_responsive_visibility, audit_video_playback).
-// Under OpenAI's definitions those two contradict each other: read-only says it cannot
-// write, open-world says it can. That contradiction is the plausible mechanism behind R2
-// and it is what this split removes. See conversations/2026-08-20-openai-resubmission.md.
+//   1. Before 2026-08-21 both surfaces published the MCP spec's REACH meaning — does
+//      this tool INTERACT with an unpredictable external host — which meant the hosted
+//      endpoint advertised `openWorldHint: true` on four tools it had ALREADY blocked
+//      at the arg guard. That was a real claim-vs-behaviour defect and it is fixed.
+//   2. On 2026-08-21 the hosted surface was switched to OpenAI's plugin-review meaning,
+//      quoted from their own page: set it true "if it can write to or change publicly
+//      visible internet state (for example, posting to social media, blogs, or forums;
+//      sending emails, SMS, or messages to external recipients; creating public tickets
+//      or issues; publishing pages; pushing code or content to public endpoints;
+//      submitting forms to third parties)". Every example there is a WRITE, and Raven
+//      writes nothing, so that read published `false` on all 45 anonymous tools.
+//   3. REVERSED 2026-08-22 for the four tools that still RENDER a caller-supplied URL
+//      on the hosted endpoint (audit_contrast, audit_tap_targets,
+//      audit_responsive_visibility, audit_video_playback). The write-only reading is
+//      defensible and it is not the reading a reviewer will apply: OpenAI's own
+//      one-line summary of the field is whether the tool can "affect public or external
+//      systems", and a tool that loads an arbitrary caller-supplied URL in a real
+//      browser — firing the page's own hover and focus handlers, which then do whatever
+//      they do over the network (src/capture.ts:499) — meets that sentence plainly.
+//      R2 was "annotations that do not match behaviour". Publishing `false` there and
+//      arguing the definition in the dossier is the same shape that drew R2 in the
+//      first place, so the annotation over-declares reach instead. Over-declaring is
+//      the safe direction: it can cost a client an extra confirmation prompt, where
+//      under-declaring costs a rejection.
+//
+// The contradiction step 2 was written to remove is removed a different way and is
+// still removed: `readOnlyHint: true` beside `openWorldHint: true` is only a
+// contradiction under a WRITE reading of open-world. Under the REACH reading both
+// surfaces now publish, they are orthogonal and both true — the tool reaches an
+// unpredictable host and writes nothing to it. That is exactly what these four do.
+// See conversations/2026-08-20-openai-resubmission.md and the 2026-08-22 round in
+// conversations/2026-08-21-release-autonomy.md.
 const TOOL_OPEN_WORLD: string[] = [
   "audit_url",
   "audit_contrast",
@@ -2356,6 +2373,23 @@ const TOOL_IDEMPOTENT: { [tool: string]: boolean } = {
 // tool non-read-only. Synthesising user events at a selector the caller chose is a
 // different act.
 //
+// That boundary has a SECOND EDGE and it is stated here because a reviewer will find
+// it: these tools are not passive readers of whatever the page happened to render.
+// `scroll_settle` drives the document to the bottom, and audit_video_playback's probe
+// calls video.play() on every <video> it locates (src/capture.ts:1954). Both fire the
+// page's own handlers - IntersectionObserver reveals, lazy loads, autoplay analytics,
+// a view counter - so "it only reads" is not literally true of them either.
+//
+// They are read-only anyway, and the reason is CALLER CONTROL, which is the unit an
+// annotation is denominated in: it answers what a CALLER can make the tool do. A
+// caller aims a hover at any selector on any page - unbounded, caller-chosen, and
+// whatever that page's handler then does is reach the caller bought. Nobody can aim
+// scroll_settle or the video probe. They are fixed internal steps of rendering, byte
+// for byte the same on every call, and a page reacting to being rendered is that
+// page's own behaviour on any visit. Widening the line to cover them makes every tool
+// that opens a browser non-read-only, which over-claims in exactly the direction
+// OpenAI's own examples (post, send, publish, push, submit) rule out.
+//
 // It is per SURFACE for the same reason toolAnnotations takes `remote` at all:
 // audit_page accepts an interaction list too, but its interactions run only inside
 // the `url` branch (src/index.ts:4136) and the hosted build REJECTS `url` outright,
@@ -2403,13 +2437,22 @@ function toolAnnotations(toolName: string, remote: boolean): {
 } {
   var access = TOOL_ACCESS[toolName];
   if (!access) throw new Error("Missing MCP tool classification: " + toolName);
-  // Two surfaces, two definitions — see the TOOL_OPEN_WORLD header. The hosted answer
-  // is NOT a narrowing of the stdio one, so it is not derived from it: a tool can reach
-  // the open web (stdio-true) and still write nothing to it (hosted-false), which is the
-  // case for every tool Raven has. Deriving one from the other would smuggle the reach
-  // semantics back onto the surface OpenAI reviews.
+  // Both surfaces answer the REACH question; the hosted one is that answer NARROWED by
+  // what the hosted wrapper actually blocks. See the TOOL_OPEN_WORLD header for why
+  // this was reversed on 2026-08-22.
+  //
+  // The narrowing is what keeps the annotation honest in the other direction: the
+  // hosted endpoint refuses audit_url / audit_page / score_page / audit_typography at
+  // the arg guard, so on that surface they can only decline and `true` would be the
+  // false claim. `remoteBlocksNetwork` reads REMOTE_ARG_GUARDS itself rather than
+  // restating the list, so it cannot disagree with what the wrapper enforces.
+  //
+  // TOOL_WRITES_PUBLIC_STATE stays in the disjunction even though it is empty: it is
+  // the RULE for "writes to the public internet", and a tool added there must publish
+  // open-world on the hosted surface whether or not the reach clause already catches it.
   var openWorld = remote
     ? TOOL_WRITES_PUBLIC_STATE.indexOf(toolName) !== -1
+      || (TOOL_OPEN_WORLD.indexOf(toolName) !== -1 && !remoteBlocksNetwork(toolName))
     : TOOL_OPEN_WORLD.indexOf(toolName) !== -1;
   // Same gate the registration wrapper uses: !remote && !isRemoteRuntime().
   // The latch is one-way per process, so both halves are load-bearing.

@@ -2846,3 +2846,193 @@ the spec's definition on the hosted surface too, it is one map in `src/index.ts`
   cheap probe. The next real release is its first test.
 - **P1b is Andrew's:** narrowing the Vercel token to team scope with an expiry.
 - `Submit for Review` has **not** been clicked. That boundary has not moved.
+
+## Round 29 — the openWorldHint flip, made a RULE rather than a fourth list
+
+Andrew: **"Whatever will get us approved by OpenAI"** — answering the fork on whether the four
+hosted browser tools should publish `openWorldHint: true`. Read as approval to flip, and said so:
+a reviewer applies OpenAI's own one-line summary of the field — whether the tool can "affect public
+or external systems" — and a tool that loads an arbitrary caller-supplied URL in a real browser,
+firing the page's own hover and focus handlers (`src/capture.ts:499`), meets that sentence plainly.
+R2 was "annotations that do not match behaviour". Publishing `false` there and arguing the
+definition in the dossier is the same shape that drew R2. **Over-declaring reach costs a client an
+extra confirmation prompt; under-declaring costs a rejection.**
+
+The stdio half of the 2026-08-21 decision is UNCHANGED and was measured unchanged — Andrew declined
+"flip local too" then, and nothing here touches it.
+
+### The design question, and why the answer is a derivation
+
+Three wrong ways to express "these four are open-world on hosted": adding them to
+`TOOL_WRITES_PUBLIC_STATE` (whose name says *writes* — a lie); collapsing that array to a constant
+(its own comment forbids it); or hardcoding a fourth list that can drift from the guard table.
+
+`remoteBlocksNetwork()` already reads `REMOTE_ARG_GUARDS` and already means *the hosted endpoint
+blocks this tool's only route to the open web*. So hosted open-world =
+
+```
+TOOL_WRITES_PUBLIC_STATE.has(t) || (TOOL_OPEN_WORLD.has(t) && !remoteBlocksNetwork(t))
+```
+
+derived from the enforcement table, so it **cannot disagree with what the wrapper enforces**. The
+load-bearing discovery is at `src/index.ts:2010`: exactly four entries in `REMOTE_ARG_GUARDS` guard
+a `url` param — `audit_url`, `audit_page`, `score_page`, `audit_typography`. Every other entry
+guards `project`/`profile`, `brand_profile_id`, or the two screenshot params. That is precisely the
+4-decline / 4-render split measured live against the endpoint in round 19. The rule and the
+measurement agree, independently.
+
+Both replacements were made under `assert old in s` guards, so a drifted anchor would have failed
+loud rather than silently no-op'd. `TOOL_WRITES_PUBLIC_STATE` stays in the disjunction while empty —
+it is the RULE for public writes, and a tool added there must publish open-world whether or not the
+reach clause already catches it.
+
+### Measured, not reasoned — all three surfaces, after a clean build
+
+| Surface | Tools | `openWorldHint: true` |
+|---|---|---|
+| LOCAL stdio | 111 | **14 — unchanged** |
+| REMOTE anonymous | 45 | **4** — audit_contrast, audit_tap_targets, audit_responsive_visibility, audit_video_playback |
+| REMOTE authed | 56 | **6** — those four plus audit_taste and bind_taste_surface |
+
+Non-boolean hints: **0**. Anon name hash `f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6`
+— **exact match**, as expected: that hash covers NAMES only, and annotations are not in it.
+
+### The two extra authed tools are HONEST, and that was checked rather than assumed
+
+The rule catching six on the 56-tool surface looked at first like an unanticipated side effect, and
+was treated as the round's open question until the handlers were read.
+
+- `audit_taste` is in `REMOTE_URL_GUARDED_TOOLS` precisely because it is *only reachable remotely on
+  the authed store-injected path; when it is, its url-capture mode gets the same public-URL guard as
+  the Phase-3 browser tools* (`src/index.ts:2035`). It renders a caller-supplied URL there.
+- `bind_taste_surface` was the one that needed reading. Its handler captures each `references[].url`
+  live — on the remote path it rejects local `.png` paths, clears the public-URL guard, and then
+  calls `capturePage(refInput.url, …)`. That is a real browser against an arbitrary public host.
+
+So both were already in `TOOL_OPEN_WORLD` for the correct reason, and the new hosted value agrees
+with the stdio one. **Neither is on the anonymous 45 that OpenAI reviews.** The open question is
+closed as *no change needed* — recorded that way rather than left to be rediscovered.
+
+The entry to carry: a rule derived from an enforcement table will reach members a hand-written list
+would have missed, and the right response is to read those members' handlers, not to narrow the rule
+until the count matches what was expected. Here the rule was right and the expectation was short.
+
+### Instrument note
+
+A probe script placed outside the repo must use ABSOLUTE `dist/` paths: **ESM resolves relative
+specifiers against the SCRIPT'S own directory, not `cwd`**, so `./dist/index.js` from a scratchpad
+probe resolved to `/private/tmp/dist/index.js` and raised `ERR_MODULE_NOT_FOUND` (Node v26.5.0).
+
+### State at this checkpoint
+
+`src/index.ts` edited and BUILT (`BUILD_EXIT=0`), **not tested, not committed, not pushed**. `dist/`
+is gitignored and now holds the flipped build. Carried forward, in order:
+`test/remote-click-guard.test.mjs:237` (the DIVERGENT set still asserts hosted `false`); the
+metadata pin `c901…` in `test/taste-remote-full.test.mjs:163` (its `:99` says it excludes ALL
+annotations — verify rather than assume); the classifier inconsistency Sol named
+(`src/index.ts:2338`/`:2372`, hover/focus causative but resize/play not — check first whether fixing
+it moves any PUBLISHED annotation); the full suite against the ledgered 1727/1724/0/3; `SUBMISSION.md`
+(its openWorldHint row now reads false on 45/45, and its idempotentHint row cross-references it); and
+the wizard's four `open_world_justification` fields on tab 1909407749, which currently carry the
+write-based argument.
+
+**The next push IS a live-endpoint deploy** — the first in many rounds that legitimately touches
+`src/`. Scope check with an explicit range, and re-verify the anon 45-hash after it lands.
+
+### Round 29, test half — the guard had to be rewritten, because the old one asserted a constant
+
+`test/remote-click-guard.test.mjs` declared a single `DIVERGENT` set of four and asserted hosted
+`false` / stdio `true` for each. After the flip that assertion is simply inverted, and inverting it
+in place would have left the suite asserting one thing about one set — which is exactly the shape
+that cannot see the defect. The set is split in two:
+
+```js
+const BLOCKED = ['audit_url', 'audit_page', 'score_page', 'audit_typography'];
+const RENDERS = ['audit_contrast', 'audit_tap_targets', 'audit_responsive_visibility', 'audit_video_playback'];
+```
+
+Hosted BLOCKED → `false`; hosted RENDERS → `true`; local both → `true`; `get_principles` as the
+non-browser control → `false`. **Why two sets, written into the header rather than left implicit:**
+assert only BLOCKED and "hosted is always false" passes; assert only RENDERS and "hosted just
+mirrors stdio" passes — and that second one is precisely the pre-2026-08-21 defect. Neither half
+alone constrains the derivation; the pair does.
+
+17/17 pass. Both mutants applied to `dist/` (never `npm test` with a mutant applied), each killed on
+its own declared message:
+
+| Mutant | Edit | Result |
+|---|---|---|
+| **M1** | hosted branch = `TOOL_WRITES_PUBLIC_STATE` membership only | 16 pass / 1 fail on `audit_contrast renders a caller-supplied url…`, radius **1** |
+| **M2** | drop the `!remoteBlocksNetwork(...)` narrowing | 15 pass / 2 fail — the new `audit_url is url-guarded in REMOTE_ARG_GUARDS…` **and** the pre-existing hosted-`audit_url` test at `:122`, radius **2** |
+
+M2's radius of 2 is correct rather than sloppy: without the narrowing the four BLOCKED tools also
+read `true`, so the older assertion goes red alongside the new one. Restore was `cmp`-verified
+byte-identical in both cases.
+
+**The `c901…` metadata pin cannot move, and that was established by reading its producer rather than
+trusting the comment above it.** `anonymousMetadataPayload()` (`test/taste-remote-full.test.mjs:163`)
+serialises `instructions` plus per-tool `{name, description}` and nothing else — annotations are
+absent from the payload it hashes, which is what the `:99` comment claims and what the code does.
+Suite re-run: 7/7/0/0. No rebaseline is owed, and the frozen `f64bb18…` name hash is untouched by
+construction since no name moved.
+
+## Round 30 — the classifier's second edge: the tools are not passive readers either
+
+Sol's remaining open item was an inconsistency in the `TOOL_OPEN_WORLD` classifier comment. Checking
+it first — per the standing rule that a comment fix must be shown not to move a published value —
+established the real shape of the gap, which is not the one Sol named.
+
+Sol read it as "hover/focus causative, resize/play not". That is not what the code does: the
+caller-facing interaction enum is `hover | click | focus` only, so there is no caller-supplied resize
+or play to be inconsistent about. The genuine gap is one layer over, and nothing in the file said it:
+**the render tools' own fixed behaviour fires page handlers.** `scroll_settle` drives the document
+to the bottom, and `audit_video_playback`'s probe calls `video.play()` on every `<video>` it locates
+(`src/capture.ts:1954`, immediately after a `scrollIntoView`). IntersectionObserver reveals, lazy
+loads, autoplay analytics, a view counter — all of those fire. So "it only reads" is not literally
+true of those two, and a reviewer grepping the capture path will find `video.play()` before we
+mention it.
+
+The resolving principle is **CALLER CONTROL, which is the unit an annotation is denominated in**: a
+hint answers what a CALLER can make the tool do. A caller aims a hover at any selector on any page —
+unbounded, caller-chosen, and whatever that page's handler then does is reach the caller bought.
+Nobody can aim `scroll_settle` or the video probe: they are fixed internal steps of rendering, byte
+for byte identical on every call, and a page reacting to being rendered is that page's own behaviour
+on any visit. Widening the line to cover them makes every tool that opens a browser non-read-only,
+which over-claims in exactly the direction OpenAI's own examples (post, send, publish, push, submit)
+rule out.
+
+Seventeen lines inserted after the `// different act.` line, stating the second edge explicitly and
+resolving it on caller control rather than leaving the reader to reconstruct it.
+
+**Comment-only, confirmed by measurement rather than asserted.** Rebuilt (`BUILD_EXIT=0`) and
+re-measured all three surfaces with `$SP/probe-r30.mjs` (absolute `dist/` paths, per the ESM
+relative-import lesson):
+
+```
+LOCAL  111 ow=14 nonbool=0
+ANON   45 ow=4  audit_contrast,audit_responsive_visibility,audit_tap_targets,audit_video_playback
+AUTHED 56 ow=6  ... + audit_taste, bind_taste_surface
+ANONHASH f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6
+MATCH true
+```
+
+Byte-identical to the pre-comment measurement on all three surfaces.
+
+The two extras on the AUTHED surface are accepted with reasons rather than filed as drift:
+`audit_taste` is in `REMOTE_URL_GUARDED_TOOLS` precisely because its url-capture mode is only
+reachable on the authed path, and `bind_taste_surface` calls `capturePage(refInput.url, …)`. Both are
+url-**guarded**, not url-**blocked**, so `remoteBlocksNetwork()` correctly returns false for them.
+**Neither is on the anonymous 45 that OpenAI reviews.**
+
+Full suite after the comment: **1727 tests / 1724 pass / 0 fail / 3 skipped**, EXIT=0 read from
+inside `$SP/full-suite-r30.log`, exactly the ledgered figure. The 3 skips were read INDIVIDUALLY at
+output lines 121/865/866 — the file-URL fallback notice and the two removed-capability phase2
+tests — not inferred from the total.
+
+### Instrument note: shell state does not survive between Bash calls
+
+`cat > "$SP/classifier-para.txt"` in a fresh invocation resolved to `/classifier-para.txt` and failed
+`read-only file system`, and the python heredoc that consumed it then died on `FileNotFoundError`.
+**`src/index.ts` was never modified** — confirmed by a `sed` readback showing the original text, not
+by assuming the failure was clean. Only the working directory persists across Bash tool calls;
+environment variables do not. Assign `SP=` inside the same invocation that uses it.

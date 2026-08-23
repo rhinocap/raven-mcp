@@ -215,34 +215,49 @@ test('the guard is keyed per TOOL: another url-taking hosted tool still runs', a
 });
 
 // The ANNOTATION side of the same over-refusal direction, and it is a separate guard
-// rather than a restatement. The two surfaces answer to two DIFFERENT definitions of
-// openWorldHint (see the TOOL_OPEN_WORLD header in src/index.ts): stdio publishes the
-// MCP spec's reach-based meaning, the hosted endpoint publishes OpenAI's write-based
-// one, and no hosted tool writes to public internet state — so the hosted answer is
-// false for all 45.
+// rather than a restatement.
 //
-// A single-surface assertion here would be worthless in both directions. Asserting only
-// the hosted half asserts a constant, which is what the previous version of this test
-// warned against and would now be doing itself. Asserting only the local half misses a
-// derivation that ignores `remote` entirely. So both halves are pinned on the SAME four
-// tools — the exact four measured live on 2026-08-21 shipping readOnly:true alongside
-// openWorld:true, which is the contradiction this split removes — plus a local control
-// so the local half is not a constant either.
+// Both surfaces answer the REACH question (see the TOOL_OPEN_WORLD header in
+// src/index.ts for the three-step history, including the 2026-08-21 write-based reading
+// that was reversed on 2026-08-22). The hosted answer is that same answer NARROWED by
+// what the hosted wrapper actually blocks: a tool whose only route to the open web is a
+// `url` argument the hosted arg guard refuses can only ever decline, so `true` there
+// would be the false claim.
 //
-// What each direction catches: point the remote branch back at TOOL_OPEN_WORLD and the
-// hosted half goes red; empty TOOL_OPEN_WORLD, or gate the local branch on `remote` too,
-// and the local half goes red; return true unconditionally and the control goes red.
-const DIVERGENT = ['audit_contrast', 'audit_tap_targets', 'audit_responsive_visibility', 'audit_video_playback'];
+// That makes the split a RULE, not a list, and this test pins both sides of it:
+//
+//   BLOCKED  -- url-guarded in REMOTE_ARG_GUARDS, so hosted false / stdio true.
+//   RENDERS  -- reaches the open web on BOTH surfaces, so true on both.
+//
+// A single-surface assertion would be worthless in both directions, and so would a
+// single SET. Assert only BLOCKED and "hosted is always false" passes. Assert only
+// RENDERS and "hosted just mirrors stdio" passes -- which is exactly the pre-2026-08-21
+// defect, four tools advertising reach the wrapper had already blocked. The two sets
+// pull opposite ways, and the local control keeps the stdio half from being a constant.
+//
+// What each direction catches: drop the `!remoteBlocksNetwork` narrowing and BLOCKED's
+// hosted half goes red; point the remote branch at TOOL_WRITES_PUBLIC_STATE alone (the
+// 2026-08-21 shape) and RENDERS' hosted half goes red; empty TOOL_OPEN_WORLD, or gate
+// the local branch on `remote` too, and both local halves go red; return true
+// unconditionally and the control goes red.
+const BLOCKED = ['audit_url', 'audit_page', 'score_page', 'audit_typography'];
+const RENDERS = ['audit_contrast', 'audit_tap_targets', 'audit_responsive_visibility', 'audit_video_playback'];
 
-test('openWorldHint is write-based on the hosted surface and reach-based on stdio', () => {
-  for (const name of DIVERGENT) {
+test('openWorldHint is reach-based on both surfaces, narrowed on hosted by what the wrapper blocks', () => {
+  for (const name of BLOCKED) {
     assert.equal(toolOf(remoteServer, name).annotations.openWorldHint, false,
-      `${name} reads the caller's url on the hosted endpoint but writes nothing to the public internet, which is what OpenAI's openWorldHint asks about`);
+      `${name} is url-guarded in REMOTE_ARG_GUARDS, so on the hosted endpoint it can only decline -- openWorldHint:true there would claim a reach the wrapper refuses`);
     assert.equal(toolOf(localServer, name).annotations.openWorldHint, true,
-      `${name} on stdio reaches whatever host the caller names, which is what the MCP spec's openWorldHint asks about -- if this is false the two surfaces are no longer diverging and the hosted half above asserts nothing`);
+      `${name} on stdio reaches whatever host the caller names -- if this is false the two surfaces are no longer diverging and the hosted half above asserts nothing`);
+  }
+  for (const name of RENDERS) {
+    assert.equal(toolOf(remoteServer, name).annotations.openWorldHint, true,
+      `${name} renders a caller-supplied url in a real browser on the HOSTED endpoint (measured live), so it reaches an unpredictable external host -- false here is the annotation-vs-behaviour class that drew R2`);
+    assert.equal(toolOf(localServer, name).annotations.openWorldHint, true,
+      `${name} reaches the open web on stdio too -- if this is false the hosted half above is no longer pinned against a surface that agrees with it`);
   }
   // The local control: a tool that reads bundled knowledge and never leaves the machine.
-  // Without it, "return true for everything" satisfies every local assertion above.
+  // Without it, "return true for everything" satisfies every assertion above.
   assert.equal(toolOf(localServer, 'get_principles').annotations.openWorldHint, false,
     'get_principles reads bundled knowledge on either surface');
 });
