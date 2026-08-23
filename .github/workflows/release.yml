@@ -15,6 +15,10 @@ on:
         description: "Finish a half-deployed release (e.g. 2.5.0). Skips the cut entirely and runs only the tail."
         required: false
         default: ""
+      preflight_only:
+        description: "Validate the release credentials against the STORED secrets and stop. Publishes nothing."
+        required: false
+        default: "false"
       resend_notification:
         description: "Re-send the release email for resume_version. Use only when the original notify job failed."
         required: false
@@ -37,22 +41,22 @@ permissions:
   id-token: write
 
 jobs:
-  release:
+  # Credentials are validated in their OWN job, ahead of the checkout and the
+  # ~10-minute test gate, so a rotation that broke a secret costs seconds rather
+  # than a full green build that dies one line into the release script.
+  #
+  # `preflight_only: true` runs this job ALONE and publishes nothing. It is the
+  # only way to prove the bytes STORED in the repository secret work, as opposed
+  # to the bytes that passed a probe on the authoring Mac: `gh secret set` proves
+  # GitHub accepted some bytes and `gh secret list` proves only a name and a
+  # timestamp. It also runs the PINNED CI CLI in a throwaway directory with no
+  # `.vercel` linkage, which a local run from `web/` structurally cannot
+  # reproduce -- a linked directory can mask wrong ORG/PROJECT id secrets.
+  # It still does NOT exercise production-DEPLOY authority; see the comment on
+  # the Vercel step below for why no cheap probe for that exists.
+  preflight:
     runs-on: ubuntu-latest
-    outputs:
-      released: ${{ steps.release.outputs.released }}
-      resume: ${{ steps.release.outputs.resume }}
-      version: ${{ steps.release.outputs.version }}
-      bump: ${{ steps.release.outputs.bump }}
-      notes: ${{ steps.release.outputs.notes }}
-      resume_version: ${{ steps.release.outputs.resume_version }}
     steps:
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-          ref: main
-          token: ${{ secrets.GITHUB_TOKEN }}
-
       # Fail BEFORE the ~10-minute test gate rather than after it. `release.sh`
       # hard-exits when either of these is missing, and it does so AFTER npm ci,
       # Playwright and the full suite have already run. Both are checked here so
@@ -134,6 +138,24 @@ jobs:
             echo "::error::VERCEL_ORG_ID/VERCEL_PROJECT_ID do not resolve to a project this token can reach. Read them from web/.vercel/project.json on a linked checkout."
             exit 1
           fi
+
+  release:
+    needs: preflight
+    if: ${{ inputs.preflight_only != 'true' }}
+    runs-on: ubuntu-latest
+    outputs:
+      released: ${{ steps.release.outputs.released }}
+      resume: ${{ steps.release.outputs.resume }}
+      version: ${{ steps.release.outputs.version }}
+      bump: ${{ steps.release.outputs.bump }}
+      notes: ${{ steps.release.outputs.notes }}
+      resume_version: ${{ steps.release.outputs.resume_version }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-node@v5
         with:

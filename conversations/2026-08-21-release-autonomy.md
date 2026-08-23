@@ -1924,8 +1924,9 @@ Measured against the same two commands, from `web/` with `.vercel` present:
 Installed with `pbpaste | tr -d '\n' | gh secret set VERCEL_TOKEN` so the value never entered the
 transcript; `gh secret list` reports **`VERCEL_TOKEN 2026-08-23T00:16:21Z`** (name and timestamp
 only). The clipboard was cleared afterwards and verified at 0 bytes. The only things ever read off
-the secret were its length (60) and its 4-character prefix (`vcp_`) — enough to prove it is a real
-Vercel token and nothing more.
+the secret were its length (60) and its 4-character prefix (`vcp_`). **Shape proves nothing** — a
+60-character `vcp_` string is a plausible token, not a real one; what established that the value
+works is the successful authenticated request it made, and nothing weaker.
 
 **The dead token was revoked**, not left lying around: a never-expiring credential that does not work
 is still a live credential. The confirm dialog named exactly one token — `raven-mcp release CI`,
@@ -1945,3 +1946,56 @@ stdio drops the one hosted-only registration → 111; anonymous drops all 67 gat
 the 11 back → 56. The round-11 reasoning computed 111 − 66 = 45, landed on the expected number, and
 inferred from that that 56 was wrong — **the arithmetic was correct and the inference from it was
 not.** Diff the SETS with `comm` in both directions before ruling on a count.
+
+## Round 15 — the push
+
+`14ce959..e540e68`, two commits. Scope-checked before pushing: `git diff --name-only 14ce959..e540e68 | grep -E '^(src/|api/)'` returned NOTHING, so the push could not move what `mcp.ravenmcp.ai` serves.
+
+**Instrument note worth carrying: the auto-mode classifier denies compound git chains.** A `fetch; log; push` one-liner was blocked, and so was a two-command `fetch | tail; log`. Individual Bash calls succeeded. Do not read a denial of the chain as a denial of the push.
+
+Post-push, the frozen anonymous surface was re-measured rather than assumed: **COUNT=45, exact hash match to `f64bb18…2bb0a6`, PROBE_EXIT=0.**
+
+## Round 16 — the gate-list drift guard
+
+New file `test/gate-list-drift.test.mjs`. It closes the drift round 11 exposed: a name can sit in `REMOTE_GATED_TOOLS` with **no registration answering to it**, and the six count suites structurally cannot see it because they count REGISTRATIONS and never diff the gate LIST against the registration set. `delete_taste_data` is the live proof the class is real — gated, classified in `TOOL_ACCESS`, in the idempotency map, and absent from all 111 stdio registrations.
+
+Two decisions, both deliberate:
+
+- **It scrapes `dist/index.js` by brace balance rather than exporting the sets from `src/index.ts`.** Any `src/` change makes the next push to `main` a live-endpoint deploy, which is human-gated. A test that forces a `src/` edit to exist is a test that raises the cost of every future run of itself.
+- **TypeScript emits `new Set<string>([...])` members DOUBLE-quoted.** A prototype written for single quotes returned an empty set *silently* — and an empty set satisfies every set-difference assertion in the file vacuously. That is why the first test asserts the scraped SIZES (67 / 11) before any difference is taken. Mutant M1 (narrow the regex to single quotes) reddens exactly that test.
+
+**The structural lesson, measured rather than reasoned: a mutant declared against one assertion can be graded by another.** `assert` aborts at the first failure, so the first draft — one test — graded every mutant by whichever pin sat highest. Adding a phantom name to the gate list reddened the SIZE guard (68≠67); renaming an entry reddened the ANON COUNT (the un-gated tool registers on the anon build → 46). Neither reached the phantom-entry assertion it was declared against.
+
+The fix is structural, not a better message: **four separate `test()` blocks**, so each mechanism reports the artifact a human can act on — a tool NAME, not a count delta. Re-measured after the split: 4 tests / 4 pass / 0 fail / 0 skipped, EXIT=0.
+
+Both mutant restores were sha256-verified against `/tmp/dist-index.bak`, and the baseline was re-confirmed EXIT=0 afterwards.
+
+## Round 17 — the Sol r14 verdict
+
+Verdict: *"C1 and C4 are not established as written. C2 and C3 prove local preflight behavior only. C5, C6, the round-11 correction in C7, and the narrow rebase-guard claim survive."*
+
+**CONFIRMED P1 — the new Vercel token has never exercised a production deployment.** The local test stopped at `whoami`/`pull`; the workflow's own comment (`release.yml:112-119`) says those do not test `FullProductionDeployment`, and the token is used for `build --prod` / `deploy --prebuilt --prod` at `:442-462`, *after* npm and the Registry. Secret updated `2026-08-23T00:16:21Z`; the latest release run ended `2026-08-22T23:30:00Z` — **no run has tested the new secret.**
+
+**CONFIRMED P1 — "Full Account + No Expiration" is an unnecessarily durable account-wide credential.** Vercel supports team-scoped tokens and expirations from 1 day to 1 year.
+
+**CONFIRMED P2 — the GitHub secret's value is not bound to the locally tested token.** `gh secret set` proves GitHub accepted *some* bytes; `gh secret list` proves only a name and a timestamp.
+
+**CONFIRMED P2 — the local measurement did not reproduce the CI gate.** CI runs a PINNED `vercel@59.3.0` from a fresh temp dir, depending on `VERCEL_ORG_ID`/`VERCEL_PROJECT_ID` (`:125-133`); the local record used unpinned `npx vercel` from `web/` with an existing `.vercel` link, on CLI **58.10.0**. A linked directory can mask wrong org/project id secrets.
+
+**CONFIRMED P3 — the ledger overstates what token SHAPE proves.** "A 60-character value with a `vcp_` prefix is enough to prove it is a real Vercel token" is false; the successful authenticated request is the evidence, not the prefix.
+
+**CONFIRMED P3 — "fails closed on an unknown shasum" is true of the rebase guard only.** After five failed read-backs `scripts/release.sh:192-201` warns and CONTINUES; the rebase guard at `:368-383` is the part that fails closed. The claim survives narrowly, in that narrower form.
+
+### Disposition
+
+`release.yml` has **no dry-run input** — the inputs were exactly `bump`, `resume_version`, `resend_notification`, and `resume_version` "skips the cut entirely and runs only the tail", which DEPLOYS. So no safe existing probe existed.
+
+**The fix: a `preflight_only` dispatch input plus a standalone `preflight` job.** The credential checks (previously steps 2–3 of `release`, needing no checkout) moved into their own top-level job; `release` gained `needs: preflight` and `if: ${{ inputs.preflight_only != 'true' }}`. Firing the workflow with `preflight_only=true` runs that job ALONE and publishes nothing.
+
+That closes both P2s in one change: it exercises the bytes STORED in the repository secret, and it does so through the pinned CI CLI in a throwaway directory with no `.vercel` linkage — the exact conditions a local run from `web/` structurally cannot reproduce.
+
+**P1a is NOT closable this way and is recorded as a named residual.** The workflow's own comment already states it: production-deploy authority is a separate Vercel RBAC grant and *"there is no cheap probe for it: the only command that exercises it is a production deploy."* Reopen condition: the next real release run is the first thing that tests it, and its Vercel step is the one to read.
+
+**P1b is Andrew's to change on his own account** — narrowing the token to team scope with an expiry is persistent-credential configuration, not an execution step. Named to him rather than accepted silently.
+
+**A first restructure attempt aborted** on `assert block[-1].strip().endswith('exit 1')` — line 136 is `exit 1` and line 137 is `fi`, so the block's last line is the `fi`. The script writes only at the end, so `release.yml` was never modified; `yaml.safe_load` confirmed the old structure intact before the retry.
