@@ -3912,3 +3912,139 @@ state no timestamp can vouch for. Two test-side files changed; **no `src/` or `a
 unpushed range**, so nothing here trips the human-gated live-endpoint deploy. **P1a** (Vercel
 production-DEPLOY authority) closes only on the next real release; **P1b** (narrowing the Vercel token
 to team scope with an expiry) is Andrew's. `Submit for Review` has not been clicked.
+
+## Rounds 44–48 — the OpenAI wizard's scanner artifacts, and P1b closed the hard way
+
+Written after the fact, in one block: rounds 44–47 went unwritten while the work ran, and round 48
+is what settled them.
+
+### Round 44 — three consecutive scanner artifacts on the OpenAI wizard
+
+The round set out to verify that the 135 justification fields (45 tools × 3) agree with the
+booleans the live anonymous endpoint publishes after the annotation reversal (4 True / 41 False).
+It produced three wrong verdicts in a row, all mine, all from the same instrument class.
+
+- **Scanner #1** required a literal `^Published true|false` opener and reported `mismatchCount: 131`.
+  Artifact — the fields do not begin that way.
+- **Scanner #2** classified prose with the regex
+  `/opens no network|no network connections|no outbound|cannot reach|declin|bundled|local only|no external/i`.
+  The fragment `declin` matched **"rather than declining."** — the closing sentence of exactly the
+  four reach-based fields. Artifact again, and this time it matched the four tools the round was
+  about, which is the shape most likely to be believed.
+- A stale-justification hypothesis on the wizard was **refuted** by the same measurement.
+
+**The generalized entry: a keyword scanner over justification PROSE is a false-positive generator in
+both directions.** A negation matches the affirmative pattern ("it modifies nothing" matches
+`modifies`), and a disclaimer matches the negative one. The fix is not a better keyword list — it is
+to stop asking prose what it says and instead **classify against the published boolean**, which the
+wizard hands you for free in the field placeholder ("Describe why Open World is set to True"), and
+to count server-side rather than emitting a list long enough to truncate. Corrected verdict:
+**45/45 consistent, 0 empty.**
+
+Two attempts to measure the Submit section were denied by the auto-mode classifier. Unmeasured
+still: the attestation checkboxes and whether `Submit for Review` is enabled. Those checkboxes are
+Andrew's attestations and none is ticked.
+
+### Round 45 — the Vercel token-narrowing session (P1b)
+
+Discovered an existing `raven-mcp release CI account` token, **Never expires**, Full Account — the
+one the secret then held. The Tokens page's scope control turned out to be a **two-level custom
+combobox**, and the discovery worth carrying is that **clicking the team row DRILLS IN rather than
+selecting it**: the sub-list is `Back`, `All Projects`, then the seven projects. Chose team scope →
+**All Projects** rather than a single project, because `release.yml` deploys the apex `.mcpb` AFTER
+npm publish and the MCP Registry write — an over-narrow scope fails past the point of no return.
+90-day expiry. Also learned `form_input`'s schema is flat (`{ref, value, tabId}`), not an `elements`
+array, and that Vercel's relative timestamps on that page are unreliable; the absolute expiry date
+is the field to read.
+
+### Round 46 — the blind Create, and the gate that caught what nothing local did
+
+Clicked Create without looking at the page, correctly, to protect the one-time value reveal. The
+name collided with an existing token, Vercel rejected it, no reveal appeared, and the clipboard held
+stale bytes. `pbpaste | gh secret set VERCEL_TOKEN` then stored those bytes. **Nothing locally
+signalled anything wrong** — `gh secret list` showed a fresh timestamp, which reads exactly like
+success.
+
+Run **32665523157** caught it: `preflight` **FAILED in 20s** with
+
+```
+Error: You defined "--token", but its contents are invalid. Must not contain: " ", "!", "|"
+```
+
+and `release` and `notify` both **skipped**. Nothing published; no surface moved. This is the C3
+ledger entry's whole point confirmed on the path that runs — a credential failure now reports as
+`preflight` red with `release` skipped.
+
+**Two entries to carry.**
+
+(a) **`gh secret set` proves GitHub accepted SOME bytes; `gh secret list` proves a name and a
+timestamp. A credential is unproven until a run in CI uses the stored copy.** This was already
+written in CLAUDE.md as a general entry — it earned its keep the first time it was tested.
+
+(b) **A blind hand-off has no verification loop, so make the inputs collision-proof BEFORE the blind
+submit.** The secrecy constraint that forced me to look away is exactly what stopped me seeing the
+rejection. The remedy is upstream of the click, not after it.
+
+### Round 47 — the retry under a collision-proof name
+
+Refilled the form as `raven-mcp release CI v2 (90d)` / team → All Projects / 90 days. The readback
+on the name field reported `previous: ""`, which confirms the earlier attempt persisted nothing.
+Rendered expiry: "This token will expire on 11/21/26". Zoomed all three fields before submitting —
+the unique name is what made this Create safe to click blind.
+
+One correction logged mid-round: I wrote "Created." after the click. **I clicked Create; I did not
+verify it succeeded**, and that is the round-46 failure restated as a sentence rather than as an
+action. Retracted in the same turn.
+
+### Round 48 — P1b closed, in CI
+
+Andrew copied the value with Vercel's own copy button and ran `pbpaste | gh secret set VERCEL_TOKEN`.
+The value was never read into this transcript, never screenshotted, never scraped.
+
+Run **32669187991**, `workflow_dispatch` with `preflight_only=true`: `preflight` **GREEN in 27s**,
+`release` and `notify` both **skipped at 0s**, `gh run watch --exit-status` wrote `EXIT=0`. Read out
+of the step log rather than inferred from the conclusion:
+
+```
+Vercel CLI 59.3.0 (Node.js 22.23.2)
+cunliffeandrewc-8712
+Retrieving project…
+> Downloading `production` environment variables for cunliffeandrewc-8712s-projects/web
+> Downloaded project settings to /tmp/tmp.4xN1cbSwQe/.vercel/project.json
+```
+
+**The temp directory is the load-bearing detail**, exactly as at run 32608599262: the step runs in
+`probe=$(mktemp -d); cd "$probe"`, so the runner has no `.vercel` linkage and the stored
+`VERCEL_ORG_ID`/`VERCEL_PROJECT_ID` resolved to the `web` project — the one owning the apex `.mcpb`
+— on their own. A local run from `web/` structurally cannot establish that, because a linked
+directory masks wrong id secrets. All three secrets masked `***`; no value exposed.
+
+**What is now true:** the stored credential is team-scoped rather than Full Account, carries a
+90-day expiry (Nov 21 2026) rather than none, and is proven in CI on the path that runs.
+
+**What is NOT closed, and the residual is now LARGER than before, not smaller.** P1a —
+production-DEPLOY authority — was already unprobed, and `release.yml:112-119` says in its own
+comment that there is no cheap probe: the only command exercising it is a production deploy, which
+runs AFTER npm and the Registry. Narrowing the scope **adds** an unknown rather than removing one,
+because a green `whoami` + `pull` measures read access and says nothing about whether a team-scoped
+token carries a deploy grant the previous Full-Account token had. **The next real release is its
+first test; read its Vercel step.**
+
+Two tokens still live on Vercel and both should be revoked, each with a different reason and both
+Andrew's call because revocation is irreversible on his account:
+
+| Token | Why revoke | When |
+|---|---|---|
+| `raven-mcp release CI (scoped, 90d)` | orphaned by the round-46 collision; its value is lost and it can never be used | any time |
+| `raven-mcp release CI account` | the old Full-Account/never-expires credential P1b exists to retire | now that 32669187991 is green |
+
+A new failure mode enters the ledger with the expiry: **`VERCEL_TOKEN` now dies on 2026-11-21**, and
+nothing tracks it. It fails safe — `preflight` stops the run before npm publishes — but a release
+attempted after that date stops at the gate until a new token is minted. That is the correct trade
+against a never-expiring Full-Account credential, and it is written here so the failure is
+recognised rather than diagnosed from scratch.
+
+**Repo state:** unchanged through all five rounds. `main` == `origin/main` == `51620fe`, working tree
+clean apart from the auto-save hook's `.claude/linear-backlog-queue.jsonl`. Every fix in rounds 44–48
+was made in a browser form or in GitHub secrets, not in the tree. `Submit for Review` has not been
+clicked and that boundary has not moved.
