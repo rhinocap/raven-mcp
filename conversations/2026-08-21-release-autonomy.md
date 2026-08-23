@@ -3627,3 +3627,85 @@ Neither pair is a drift. Recording them so a future reader does not "fix" one in
   test. **P1b is Andrew's:** narrowing the Vercel token to team scope with an expiry.
 - `get_checklist` (P5) has no slot in the wizard at the five-case cap — noted, not a defect.
 - **`Submit for Review` has not been clicked and that boundary has not moved.**
+
+## Round 41 — the deploy re-verified after the fact, and the hash that could not see it
+
+Andrew asked for a verification of the live-endpoint deploy of `2f0bba9` and for round 31 to be
+appended. **Round 31 was already written and committed** as `6e73198`; it is at line 3040 of this
+log. Nothing was duplicated. What follows is the verification round itself.
+
+### Provenance, before any measurement
+
+`2f0bba9` — *"Publish openWorldHint: true on the four hosted tools that render a caller-supplied
+URL"*, 4 files, 296 insertions, 48 deletions, `src/index.ts` among them. `git merge-base
+--is-ancestor 2f0bba9 HEAD` → yes; `git branch -r --contains` → `origin/main`. So the commit under
+verification is on the branch the endpoint builds from, and it touched `src/`, which is what made it
+a deploy at all.
+
+### The re-measurement, taken now rather than read off the watcher
+
+The watcher's verdict is a claim about a moment. Four commits have landed on `main` since, each of
+which re-deployed the endpoint, so the question "does it still hold" is a different question from
+"did it land". Measured fresh against `https://mcp.ravenmcp.ai/api/mcp`:
+
+```
+http=200 bytes=67270
+count= 45
+hash= f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6
+hash MATCH: True
+TRUE  n=4  -> ['audit_contrast', 'audit_responsive_visibility', 'audit_tap_targets', 'audit_video_playback']
+FALSE n=41
+MISSING/absent n=0 -> []
+TRUE-SET EXACT: True
+audit_url False | audit_page False | audit_typography False | score_page False
+```
+
+Three things are asserted rather than sampled, and the third is the one that usually gets skipped:
+the TRUE set is compared for **set equality** against the expected four, not merely for containment;
+FALSE is counted at 41; and **`MISSING = 0`** — every one of the 45 publishes the hint as an explicit
+boolean. Without that last count a partition of 4 + 41 could still be hiding a tool with no hint at
+all, and 4 + 41 = 45 would read as complete while it was not. The four url-taking tools that DECLINE
+on this surface were then read individually, because they are the ones a reviewer would check first.
+
+### The finding: the frozen hash was identical on both sides of the change
+
+`$SP/watch-r31.log` caught the deploy in flight, twenty-one seconds apart:
+
+```
+count=45 hash=f64bb18...2bb0a6   true=[]                          03:13:52Z
+count=45 hash=f64bb18...2bb0a6   true=[the four]                  03:14:13Z
+```
+
+**Same hash, different payload.** The frozen 45-name pin hashes NAMES, so an annotation change is
+invisible to it by construction — as is the `c901...` metadata pin, which excludes annotations
+explicitly. This log has argued that before; here it is measured, on the same instrument, with the
+before and after both preserved. A pin that cannot observe a class of change is not evidence that
+class did not change, and a green freeze around an annotation edit says nothing whatsoever about the
+edit. What could catch a wrong flip is `test/remote-click-guard.test.mjs`, and only that.
+
+### Suite state
+
+`RAVEN_NO_USAGE_LOG=1 npm test` → **1729 tests / 1726 pass / 0 fail / 3 skipped**, `EXIT=0` read from
+inside the log (`$SP/full-suite-r40.log`). Identical to the figure already in the ledger, so the
+override needs no update. The 3 skips were read INDIVIDUALLY at output lines 121 / 865 / 866 — the
+file-URL fallback notice and the two removed-capability phase2 tests — not inferred from the total.
+
+The background task-notification for that run reported "exit code 0". That describes the wrapper.
+The in-log `EXIT=0` is the measurement, and it is what is quoted here.
+
+### Instrument note
+
+`watch-r31.sh` ends with `echo "EXIT=$?"` outside its polling loop, so that status reflects the
+`if`/`break`, not the body. The substantive verdict in that file is the `LANDED` line and the two
+captured payloads — the `EXIT=0` on the last line carries no information about the answer. Recorded
+because this log has twice mistaken a wrapper's status for a harness's verdict.
+
+### Carried forward
+
+- **Round 31 was already committed** (`6e73198`); this round is the verification, not a re-append.
+- Sol's `readOnlyHint` half stays as-is for submission. Flipping it is a `src/index.ts` edit → a
+  `main` push → a live-endpoint deploy, and the gate Andrew discharged was specific to the
+  `openWorldHint` change. It is his call, not an inherited authorisation.
+- **P1a still open:** production-DEPLOY authority is unprobed; the next real release is its first
+  test. **P1b is Andrew's:** narrowing the Vercel token to team scope with an expiry.
+- **`Submit for Review` has not been clicked and that boundary has not moved.**
