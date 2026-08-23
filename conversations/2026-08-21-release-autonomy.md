@@ -4048,3 +4048,92 @@ recognised rather than diagnosed from scratch.
 clean apart from the auto-save hook's `.claude/linear-backlog-queue.jsonl`. Every fix in rounds 44–48
 was made in a browser form or in GitHub secrets, not in the tree. `Submit for Review` has not been
 clicked and that boundary has not moved.
+
+## Rounds 49-51 — the wizard's Skills and Prompts audited, and Sol falsifies the P1b wording
+
+### Round 49 — Skills: no defect is constructible
+
+The wizard's Skills section is **empty and skippable**. Verbatim: *"Drop a skill ZIP or folder
+here / Upload / Back / Skip"*. Raven ships no OpenAI-format skills, so there is no claim in that
+section that could contradict behaviour. Recorded as a non-finding rather than skipped silently —
+an empty section is evidence, and the R1/R2 class needs a claim to be wrong about.
+
+### Round 50 — Prompts: all three verified REACHABLE on the anonymous hosted surface
+
+The three prompts are the only prose in the wizard that promises a *behaviour* to a reviewer, and
+the reviewer hits the **anonymous 45** (Authentication is "No Auth"). So each was measured against
+the live endpoint rather than read for plausibility.
+
+| Prompt | Tools it routes to | Hosted result |
+|---|---|---|
+| 1 — contrast and tap-target fixes | `audit_contrast`, `audit_tap_targets` | render (measured round 19, the DIVERGENT set) |
+| 2 — score this page's HTML and CSS | `score_page` | **overall 77, grade C** |
+| 3 — principles + pre-publish checklist for a pricing page | `get_checklist` | matches, 1 pattern list |
+
+**Prompt 2 sits on the right side of a split that round 19 measured**: `score_page` DECLINES on the
+hosted endpoint when handed a `url`, and works when handed `html` + `css`. The prompt says
+*"this page's HTML and CSS"*, which routes to the path that works. That is luck made durable by
+measurement — had it said "score this URL", the reviewer's first prompt would have returned an
+error.
+
+**One non-defect recorded rather than smoothed over.** `get_checklist` answers `pricing` with one
+pattern list and `pricing_page` with `pattern_match: "none"` and an empty `pattern_checklists` —
+but it **says so in its own `pattern_match_note`** rather than returning a silently thin answer.
+That is the *opposite* of the R1 class: the tool is honest and self-explaining about the miss.
+**Disposition: LEAVE.** Rewording a prompt to dodge a vocabulary edge is not obviously better than
+a tool that tells you it missed. No change made.
+
+### Two instrument errors, both self-caught
+
+1. **`get_principles` was called with `{type:"landing_page"}`** and returned
+   `MCP error -32602 … path ["context"] … Required`. That is **my argument error, not a tool
+   defect**, and no conclusion about reachability may be drawn from it. Recorded because the raw
+   log otherwise reads like a third tool failing.
+2. **A grep COUNT over a Sol log was nearly read as a finding.** The count was 1; the matched line
+   was the brief echoed into the log. **A grep count over an agent log counts the brief and the
+   loaded skill text as readily as a verdict — read the matched LINE, never the count.** This
+   mattered immediately: the same log finished at 1,529,380 B, dominated by brief and skill text.
+
+### Round 51 — Sol's P1b pass: FALSIFIED AS WRITTEN, and the narrowing is adopted
+
+Sol exited; 5,090 lines / 1,529,380 B. Verdict **FALSIFIED AS WRITTEN**, eight findings. It
+concedes the narrow claim and refuses the broad one:
+
+> The stored GitHub secret now contains a syntactically valid Vercel token that authenticates as
+> the expected user and can pull the production configuration for `web`.
+
+**What it CONFIRMED.** (a) The immediate breakage is repaired — failed run 32665523157 and green
+run 32669187991 share a workflow SHA, the secret changed nine seconds before the green run and has
+not changed since. (b) **Production deployment remains unproven**: `whoami` proves identity,
+`pull` proves the stored ids resolve to a readable project, and `deploy --prebuilt --prod` never
+ran — Vercel lists "Full Production Deployment" as a *separate* RBAC permission. (c) **CI did not
+prove team scope or expiration** — neither command reports a token's negative boundary or its
+expiry, so both rest on a dashboard-form observation, not on CI. (d) The old exposure was not
+retired: replacing the GitHub secret stops CI *using* the old token and does not *revoke* it, and
+revocation state is not observable from GitHub. (e) "All Projects" is narrower than Full Account
+but is **not least privilege** — the workflow targets only `web`, the team holds seven projects.
+(f) The **Nov 21 2026 expiry exists only as narrative** — no schedule, no Actions variable, no
+issue; it fails safe at preflight, but only when somebody next attempts a release.
+
+**What it REFUTED, and this one matters because it was MY residual.** I had written that the scope
+narrowing may have *enlarged* the deploy-authority residual. Sol marks that **SUSPECTED, not
+established**: Vercel documents token scope as a *resource* boundary and production deploy as
+*RBAC authority*; both tokens carry the same `whoami` principal and the new one demonstrably
+includes the target project. The uncertainty is real; the claim that narrowing *created* it is not
+supported. **A residual I named myself is exactly as falsifiable as a claim I made.**
+
+**Ledger wording adopted verbatim from Sol:**
+
+> P1b replacement configured and its CI read-path verified. Not closed end-to-end: old-token
+> revocation is unverified, production deploy authority remains untested, and expiry rotation is
+> untracked.
+
+**None of the eight findings touches the OpenAI submission.** P1b is release-pipeline hygiene; the
+submission surface is the wizard plus the live anonymous endpoint, and neither moved this round.
+
+### Boundary and state
+
+`Submit for Review` has **not** been clicked and no policy-compliance attestation has been ticked —
+those are Andrew's. Repo unchanged by this work: every round-49/50 fix lived in the browser form or
+in measurement, not in the tree. Sol edited nothing; the auto-save hook committed the pre-existing
+`.claude/linear-backlog-queue.jsonl` change as `5a9d1f6` while it read.
