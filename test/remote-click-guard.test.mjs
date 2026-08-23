@@ -262,6 +262,56 @@ test('openWorldHint is reach-based on both surfaces, narrowed on hosted by what 
     'get_principles reads bundled knowledge on either surface');
 });
 
+// ── The PARTITION, over every registered name, in both directions ───────────
+// The two tests above pin nine names. That catches every degeneracy anyone reaches for
+// first -- all-true, all-false, hosted-mirrors-stdio -- and it does NOT catch the case
+// that matters most here: correct values on those nine and `true` on the other 37 hosted
+// tools. Measured, that mutant passes every authored assertion above while the endpoint
+// publishes 41 true. A spot check cannot see a name it does not name.
+//
+// So the split is asserted as a SET over the whole surface. `deepEqual` on sorted arrays
+// rather than a count, because a count is satisfied by any four names -- swap one RENDERS
+// entry for `get_principles` and 4 === 4 still holds while both halves are wrong.
+//
+// The stdio half is the same assertion against the TABLE: TOOL_OPEN_WORLD is 14 entries
+// and all 14 register on stdio, so stdio's true-set IS the table and nothing else. Empty
+// the table, add a phantom entry, or gate the local branch on `remote` and this goes red.
+const HOSTED_TRUE = [...RENDERS].sort();
+const STDIO_TRUE = [
+  'audit', 'audit_api_contract', 'audit_contrast', 'audit_page',
+  'audit_responsive_visibility', 'audit_tap_targets', 'audit_taste', 'audit_typography',
+  'audit_url', 'audit_video_playback', 'bind_taste_surface', 'design_gauntlet',
+  'score_page', 'talon_scan',
+];
+
+function openWorldTrueSet(server) {
+  return Object.keys(server._registeredTools)
+    .filter((n) => server._registeredTools[n].annotations?.openWorldHint === true)
+    .sort();
+}
+
+test('the hosted 4/41 split is asserted over all 45 names, not spot-checked', () => {
+  const names = Object.keys(remoteServer._registeredTools);
+  assert.equal(names.length, 45,
+    'the anonymous surface is frozen at 45 -- if this moved, the partition below is being asserted over a different surface than the one that ships');
+  // Every hint an explicit boolean: `undefined` is neither true nor false, so a tool that
+  // dropped its annotation would silently leave the true-set correct while publishing
+  // nothing at all for that name.
+  const nonBoolean = names.filter(
+    (n) => typeof remoteServer._registeredTools[n].annotations?.openWorldHint !== 'boolean');
+  assert.deepEqual(nonBoolean, [],
+    'every hosted tool must publish an explicit boolean openWorldHint -- a missing hint is the R2 class arriving as an omission rather than a wrong value');
+  assert.deepEqual(openWorldTrueSet(remoteServer), HOSTED_TRUE,
+    'EXACTLY the four tools that reach the open web on the hosted endpoint may publish openWorldHint:true -- any other name here over-discloses, and a missing name under-discloses the trust-boundary crossing that drew R2');
+});
+
+test('the stdio true-set IS TOOL_OPEN_WORLD, all 14 of it', () => {
+  assert.equal(Object.keys(localServer._registeredTools).length, 111,
+    'stdio registers 112 names minus the hosted-only delete_taste_data');
+  assert.deepEqual(openWorldTrueSet(localServer), STDIO_TRUE,
+    'stdio publishes the reach-based meaning for every tool in TOOL_OPEN_WORLD and no other -- this is the surface the hosted half above diverges FROM, so if it drifts the divergence stops being measurable');
+});
+
 test('the guard is keyed per SURFACE: local audit_url carries no decline', () => {
   const d = toolOf(localServer, 'audit_url').description;
   assert.ok(!d.includes(DECLINE), 'local stdio still runs audit_url; saying otherwise would be false');

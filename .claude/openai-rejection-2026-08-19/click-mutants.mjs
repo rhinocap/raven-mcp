@@ -32,7 +32,7 @@ import { spawnSync } from 'node:child_process';
 
 const FILE = 'dist/index.js';
 const SUITE = 'test/remote-click-guard.test.mjs';
-const BASE = { tests: 17, pass: 17, fail: 0, skipped: 0 };
+const BASE = { tests: 19, pass: 19, fail: 0, skipped: 0 };
 
 const MUTANTS = [
   { id: 'D1', expect: 'red', why: 'delete audit_url from REMOTE_ARG_GUARDS entirely (the whole mechanism)',
@@ -64,8 +64,11 @@ const MUTANTS = [
     repl: `return !(false && remoteBlocksNetwork(toolName));` },
 
   { id: 'D8', expect: 'red', why: 'un-derive openWorldHint: keep advertising the open web on a surface that cannot reach it',
-    find: `&& !(remote && remoteBlocksNetwork(toolName));`,
-    repl: `&& true;` },
+    // Re-anchored 2026-08-22: the annotation flip rewrote the derivation into a hosted/stdio
+    // ternary, so the old one-line anchor no longer exists. This edit neutralises the reach
+    // clause on the HOSTED branch only, so the hosted surface publishes the stdio 14-set.
+    find: `&& !remoteBlocksNetwork(toolName))`,
+    repl: `&& true)` },
 
   { id: 'D9', expect: 'red', why: 'OVER-REFUSE the derivation: make remoteBlocksNetwork true everywhere, so the LOCAL build claims read-only too',
     find: `return !!guard && guard.params.indexOf("url") !== -1;`,
@@ -95,8 +98,8 @@ for (const m of MUTANTS) {
 // ledger warns against it in general (it once truncated a suite whose browser tests
 // registered after a top-level-await probe, reporting them as passing-by-absence).
 //
-// That hazard cannot occur in this file: all 17 tests are registered SYNCHRONOUSLY at
-// module top level (12 `test(` calls plus a 5-case loop), there is no top-level await,
+// That hazard cannot occur in this file: all 19 tests are registered SYNCHRONOUSLY at
+// module top level (14 `test(` calls plus a 5-case loop), there is no top-level await,
 // and the DECLARED baseline below asserts the registered count, so a truncated run
 // aborts rather than grading.
 //
