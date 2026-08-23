@@ -2389,3 +2389,83 @@ trusted, because an invariant is still a falsifiable claim: all six held.
 - **P1a still open:** production-DEPLOY authority is unprobed; the next real release is its first
   test. **P1b is Andrew's:** narrowing the Vercel token to team scope with an expiry.
 - Repo untouched again this round — every wizard fix lives in the browser form, not in the tree.
+
+## Round 21 — the wizard's NEGATIVE test cases, and the one that was refuted by a live SVG
+
+Round 20 audited the Testing section's five POSITIVE cases and stopped there. Enumerating the
+wizard's controls by `[name]` attribute rather than by visible nav label surfaced **three negative
+test cases** the nav listed as two (indices 0, 1, 2) — the same class as the earlier finding that the
+wizard's `?section=` parameter does not match its nav labels. **Trust the DOM, not the chrome.**
+
+### Why a negative case is the most falsifiable thing in the artifact
+
+A positive case fails when its stored number drifts — that is the R1 class, and round 17 rebuilt all
+five as invariants for exactly that reason. A **negative** case asserts the ABSENCE of a capability,
+so **any single tool refutes it**. It is strictly easier to get wrong and strictly easier for a
+reviewer to disprove. All three were therefore checked against the live anonymous 45-tool set rather
+than against my model of what Raven does.
+
+### N0 — DEFECT, refuted by measurement
+
+Original (137 chars):
+
+> "Asks for image generation. Sounds like design work, but Raven returns logo and brand guidance as
+> text and **creates no imagery of any kind**."
+
+`generate_design_system`'s description mentions an SVG palette-card export. A description is
+suggestive, not evidence, so it was **called on the hosted endpoint**:
+
+```
+isError: None
+len: 6432 | has <svg: True
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 696 580" width="696" height="580">…
+```
+
+A real 6,432-byte SVG. **"creates no imagery of any kind" is false**, and it is false in the one
+direction a reviewer can check in a single call. (Gotcha: the tool requires a `name` argument — the
+first call returned `MCP error -32602 … path: ["name"] … Required`.)
+
+Rewritten (175 chars, inside `maxlength=200`, applied `ok=true`):
+
+> "Asks for original artwork. Raven has no image generation: it returns logo and brand direction as
+> written guidance, and renders only token documentation such as a palette card."
+
+The negative point survives — there is no image *generation* — while the palette card is now stated
+rather than contradicted.
+
+**The entry to carry: verify the EFFECT, not the description.** Reading the tool's own blurb made the
+claim suspect; calling it and reading `<svg` out of the bytes made the finding a measurement.
+
+### N1 and N2 hold — checked, not assumed
+
+| Case | Claim | Live check |
+|---|---|---|
+| N1 | measures contrast/tap-targets against WCAG, **certifies nothing** | `contrast/tap: ['audit_contrast','suggest_contrast_fix','audit_tap_targets']`; `cert/compliance tools: []` |
+| N2 | audits and advises, **does not write components** | candidates `compose_system`, `generate_design_system`, `generate_service_blueprint` all emit tokens/blueprints, never components |
+
+Read-back across all three plus the whole form:
+
+```
+N0 len=175 absolute-phrasing=no promptlen=52
+N1 len=184 absolute-phrasing=no promptlen=86
+N2 len=146 absolute-phrasing=no promptlen=49
+empty version.* fields: 0
+```
+
+### Global — audited, no claim surface
+
+Translations: none added, `English (US)` only, so no translated copy can drift from the source.
+Allowed Countries: `ALLOW_ALL`. The only text fields reachable from this section are the Info
+description and subtitle already audited in round 20. Nothing to fix.
+
+### Frozen surface re-confirmed
+
+Every fix this round lives in the browser form; no `src/` or `api/` file was touched. The live
+anonymous endpoint re-measured at **45 tools**, hash
+`f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6` — **exact match**.
+
+### Carried forward
+
+- Continue → Submit screen, and **stop before Submit**. The boundary has not moved.
+- **P1a still open:** production-DEPLOY authority is unprobed; the next real release is its first
+  test. **P1b is Andrew's:** narrowing the Vercel token to team scope with an expiry.
