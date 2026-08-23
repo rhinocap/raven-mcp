@@ -3142,3 +3142,287 @@ step exists to establish. `sed -n '/Aliases/,/^$/p'` also returned just the head
 with a blank line). Plain `tail -25` was what worked. **A grep whose pattern matches the label but
 not the payload returns a confident empty answer**, which is the same class as this ledger's
 `# ` vs `ℹ ` summary-line miss.
+
+## Round 32 — Sol's round-31 pass: 1 P1 + 2 P2 + 1 P3, and the P1 is a contested reading, not a missed defect
+
+Sol's pass on the `openWorldHint` flip (commit `2f0bba9`, pushed and deployed) completed: 1,883,777
+bytes / 14,307 lines, `$SP/sol-r31.log`. Findings at `:14050`.
+
+### What came back CLEAN, and it is the half I aimed hardest at
+
+Attack #1 — is the four-tool DIVERGENT set exactly right? — returned nothing. Sol enumerated
+`TOOL_OPEN_WORLD` (14 entries) against `REMOTE_ARG_GUARDS` (10 keys, `src/index.ts:2010`) and
+accounted for all 14: *"Four reachable and correctly true. Four URL-guarded and correctly false. Six
+absent from the anonymous 45. I found no anonymous hosted false negative or four-set
+over-disclosure. Live calls to all four returned successful rendered-URL results."* Its independent
+measurements: live anonymous 45 tools, 4 true / 41 false, zero missing or non-boolean, exact hash
+`f64bb185…2bb0a6`; focused guard test 17/17; surface/freeze tests 24/24 including 111/45/56 and the
+`c901` pin.
+
+### P1 — `readOnlyHint:true` on two tools that drive the page. NOT a discovery.
+
+Sol: `audit_video_playback` calls `video.play()` on every video (`src/video-playback.ts:214`, and the
+shared capture path independently at `src/capture.ts:1951`); `audit_responsive_visibility` repeatedly
+calls `setViewportSize` after navigation (`src/responsive.ts:240`). A page whose `play` or `resize`
+handler POSTs analytics or increments a view counter is deterministically fired. Its sharpest
+sentence: *"The new `openWorldHint:true` values correctly disclose the trust-boundary crossing, but
+they expose rather than resolve this R2 contradiction."*
+
+**All three code sites were read directly rather than taken on Sol's word, and all three claims are
+factually correct** — the `play()` and `setViewportSize` loops are real and unconditional.
+
+**But `src/index.ts:2360-2400` already concedes exactly this in its own prose**, before Sol wrote a
+line: *"these tools are not passive readers… audit_video_playback's probe calls video.play() on every
+`<video>` it locates. Both fire the page's own handlers — IntersectionObserver reveals, lazy loads,
+autoplay analytics, a view counter — so 'it only reads' is not literally true of them either."* Its
+defence is **caller control**: nobody can aim `scroll_settle` or the video probe; they are fixed
+internal steps of rendering, byte for byte the same on every call. And it names the reductio:
+*"widening the line to cover them makes every tool that opens a browser non-read-only."*
+
+So this is a contested interpretation, not an unnoticed defect. Sol's counter is that caller-control
+appears nowhere in the MCP text — which is true. **Both readings are defensible and the deciding
+criterion is which one an OpenAI reviewer rejects.** Disposition deferred: it requires a
+`src/index.ts` edit → `main` push → **live-endpoint deploy**, which is the project's hardest gate and
+was discharged once already this session for the `openWorldHint` flip. A second `src/` push needs its
+own fresh approval; it is not covered by the first.
+
+Line-number discrepancies noted rather than smoothed over: Sol cites `capture.ts:1951`, the ledger
+and the `src/index.ts` comment cite `:1954`; earlier Sol cited `tap-targets.ts:181` against a
+recorded `:183`. Unreconciled.
+
+### P2 — the guard test catches the degeneracies and NOT the partition
+
+`test/remote-click-guard.test.mjs:243` asserts 4 BLOCKED + 4 RENDERS + 1 local control. Sol mutated
+in memory: hosted all-true → red on BLOCKED; all-false → red on RENDERS; hosted mirrors stdio → red
+on BLOCKED. **But correct values for those eight plus `true` on the other 37 hosted tools → every
+authored assertion PASSES, while the endpoint publishes 41 true.** The two sets pull opposite ways
+and still leave the exact 4/41 split unguarded in both directions. Test-only, no deploy.
+
+### P2 — `SUBMISSION.md` contradicts the current state and itself
+
+Five concrete items, all read: `:3` claims every value measured live 2026-08-21 when the flip was
+2026-08-22; `:323` still labels the four-true state *"Measured state at authoring time
+(2026-08-21)"*; `:264` says no test case depends on a URL or browser run while N2 at `:122` explicitly
+does; `:194` repeats the P1 behaviour contradiction; the idempotency row says `grep` finds *"five call
+sites"* and its own enumeration totals six. Doc-only, no deploy.
+
+### P3 — the authed METADATA surface moved, and the ledger says otherwise
+
+| Surface | Tools | `openWorldHint:true` |
+|---|---:|---:|
+| stdio | 111 | 14 |
+| anonymous | 45 | 4 |
+| authed | 56 | 6 |
+
+The prior implementation returned false for every remote tool, so the commit changed **six** authed
+annotations — the anonymous four plus `audit_taste` and `bind_taste_surface`. Sol's disposition:
+*"'no frozen name surface moved' survives. 'Nothing moved on the authed surface' does not, if
+metadata is included."* The `c901` pin is unaffected because it deliberately excludes annotations.
+
+**An open question Sol did not rule on:** are `audit_taste` and `bind_taste_surface` behaviourally
+open-world on authed? Only the anonymous 45 were probed. If either does not reach the open web the
+new derivation over-discloses there — the safe direction, but still claim-vs-behaviour.
+
+### Instrument note: Sol could not reproduce the full suite, and said so
+
+Its sandbox: 1,727 tests, 1,478 pass, **12 fail**, 237 skipped, exit 1 — all 12 Chromium launches
+blocked by macOS Mach-port permissions. Sol's own wording is the right one: *"This does not establish
+a code regression, but it does not independently verify the supplied 1,724/0/3 result."* Same
+environment class that produced the round-5b `MachPortRendezvousServer … Permission denied (1100)`
+abort. An environment-blocked adverse run is never a clean bill, in either direction.
+
+### Repo state
+
+`2f0bba9` pushed and deployed. `6e73198` (round-31 log append, 106 insertions) committed by the
+auto-save hook, **not pushed** — Sol observed it independently and correctly left it alone. Five
+wizard justification fields rewritten and **unsaved**, living only in DOM on tab 1909407749.
+
+## Round 33 — the partition guard, falsified three ways
+
+The two tests added to `test/remote-click-guard.test.mjs` assert the hosted 4/41 `openWorldHint`
+split **over all 45 names** rather than spot-checking, and that the derivation is reach-based on
+both surfaces and narrowed on hosted by what the wrapper blocks. `BASE` went 17 → 19.
+
+**A new test is worth nothing until a mutant proves it red.** Three targeted mutants were run,
+each red on its own declared assertion, message read directly rather than inferred from a count.
+
+## Round 34 — the matrix could not run, and the reason was a ledgered landmine
+
+`click-mutants.mjs` aborted at `ABORT D8: find-string occurs 0× (need exactly 1)`, EXIT=2 — thrown
+in the uniqueness pre-flight **before the baseline ran**, so nothing had been mis-graded. That is
+the abort working.
+
+Cause measured, not assumed: the 2026-08-22 annotation flip rewrote the flat
+`&& !(remote && remoteBlocksNetwork(toolName));` into a hosted/stdio ternary, so D8's anchor no
+longer existed. **A find-string mutant dies the moment its target line is edited** — already
+ledgered, fired again here. Re-anchored at `:66` onto the hosted branch's clause
+(`&& !remoteBlocksNetwork(toolName))`), with a dated comment naming the rewrite.
+
+**Then every remaining anchor was swept in one regex probe before relaunching**, rather than
+discovering each dead anchor serially at one abort per cycle: D1 D2 D3 D5 D6 D4 D7 D8 D9
+CONTROL-A CONTROL-B — **all eleven count 1**.
+
+### Matrix v6, re-run WHOLE
+
+```
+baseline: 19 tests / 19 pass / 0 fail / 0 skipped, EXIT=0
+D1 killed r=11   D2 killed r=7   D3 killed r=1   D5 killed r=3   D6 killed r=2
+D4 killed r=4    D7 killed r=2   D8 killed r=3   D9 killed r=2
+CONTROL-A neutral   CONTROL-B neutral
+9 mutants, 9 killed, 0 survived; 2 control, 0 false-failed
+EXIT=0
+```
+
+EXIT read from **inside** the log (launcher-written), not from the background task notification,
+which describes the wrapper. The 19/19 baseline is what confirms the two new tests registered and
+ran rather than passing by absence.
+
+**Independent evidence the two new tests widen coverage rather than restate it:** both appear in
+the red sets of D1, D8 **and** D9 — three different mechanisms.
+
+`cmp` against `$SP/index.js.pristine` (589,466 B) afterwards: **byte-identical**. A mutation harness
+leaves `dist/` in a state no timestamp can vouch for, so nothing measured downstream of this is
+contaminated by residue.
+
+### `SUBMISSION.md` — five contradictions, all five closed
+
+Sol's P2 (doc half). Each edit applied under `assert s.count(old)==1`.
+
+1. **Header date.** Was dated to one measurement while carrying two. Now states both explicitly:
+   everything except `openWorldHint` measured 2026-08-21; the `openWorldHint` row and the §6 table
+   re-measured 2026-08-22 after the four rendering tools were flipped back to `true`. **A document
+   dated to one measurement while carrying a second is the R1 class reappearing inside the
+   remediation artifact** — a snapshot presented as an expectation.
+2. **R1 cover note vs N2.** Said no case depends on a browser run; N2 deliberately loads
+   example.com, because it is the case demonstrating a tool CAN reach the open web. Now says so,
+   and states N2's expectation is structural (no `isError`, a `url` field present) — never a tally.
+3. **§6 header date** → 2026-08-22, after the `openWorldHint` revert.
+4. **The grep recipe, worse than Sol reported.** Sol flagged "says five, lists six". Re-measured:
+   `grep -rn 'fetch(' src/` returns **9 raw** matches, of which **three are not call sites** —
+   `grab-bridge.ts:424` (comment), `:493` (message string), `index.ts:1916` (comment) — leaving
+   **six real**. Further, the doc's reviewer recipe ("take the tool each one backs") **breaks on
+   one of them**: `src/index.ts:936` is `checkForUpdate()`, which backs no tool at all — it fetches
+   the npm registry and is called only from `main()` (`:9189`), the stdio entry point the hosted
+   path never executes. The underlying claim survives and is strengthened; the procedure is
+   rewritten with the exception stated rather than left for a reviewer to trip on.
+5. **`readOnlyHint` — the doc half of Sol's P1.** The row asserted "no writable state" flatly while
+   `audit_video_playback` calls `play()` and `audit_responsive_visibility` steps the viewport. Now
+   narrowed to what it actually claims: **Raven holds no writable state**, and the caller's page is
+   manipulated inside a throwaway headless context discarded at return.
+
+**P1's boolean half stays open and is NOT dispositioned here.** Flipping `readOnlyHint` is a
+`src/index.ts` edit → `main` push → **live-endpoint deploy**, which needs a fresh gate discharge
+that the standing annotation authorisation does not supply. The doc-side narrowing needed no gate,
+which is why it went first.
+
+## Round 35 — the last two SUBMISSION.md fixes, both of which I got wrong first
+
+Sol's remaining P2 doc contradictions were the `fetch(` reviewer recipe and the `readOnlyHint` row.
+Both edits landed on the first attempt and **both were wrong**, and the way each was caught is the
+round's content.
+
+### Fix 4 — a count that did not reconcile with its own enumeration
+
+The reviewer procedure was rewritten to say: `grep -rn 'fetch(' src/` yields **nine** matches, two are
+prose inside `grab-bridge.ts`, "leaving **six real call sites**". Nine minus two is seven. The edit
+guard (`assert s.count(old) == 1`) reported success, because the guard proves an edit LANDED and says
+nothing whatsoever about whether what landed is true.
+
+Corrected by naming all three non-call matches — `grab-bridge.ts:424` (a comment), `:493` (a message
+string), and `src/index.ts:1916` (a comment) — and then **measured against the tree rather than against
+my own recount**:
+
+```
+=== raw count === 9
+src/api-contract.ts:124    await fetch(endpointUrl + ...)      <- call
+src/grab-bridge.ts:424     // fetch()-based proxy above...     <- comment
+src/grab-bridge.ts:493     "...only answers in-process fetch() calls..."  <- message string
+src/grab-bridge.ts:1067    void fetch(webhook, {               <- call
+src/grab-bridge.ts:1463    await fetch(targetUrl, {            <- call
+src/designmd.ts:358        await fetch(url);                   <- call
+src/index.ts:936           await fetch("https://registry.npmjs.org/...")   <- call
+src/index.ts:1916          // ... audit_api_contract -> fetch(endpoint_url);  <- comment
+src/index.ts:7839          await fetch(REGISTER_API, {         <- call
+```
+
+9 raw, 3 non-call, **6 real**: `api-contract.ts` ×1, `designmd.ts` ×1, `grab-bridge.ts` ×2,
+`index.ts` ×2. The doc now matches the tree exactly.
+
+The row also states the exception that breaks the recipe, because "take the tool each one backs" does
+not work on all six: **`src/index.ts:936` backs no tool at all.** It is `checkForUpdate()`, a startup
+npm-version check called from `main()` (`:9189`) — the stdio entry point, which the hosted surface
+never executes, because the hosted path imports `buildServer` and never enters `main`. A reviewer who
+follows the recipe without that sentence trips on it and reads the trip as a discrepancy.
+
+### Fix 5 — a narrowing that announced itself and then narrowed nothing
+
+The first `readOnlyHint` edit prefixed the row with *"Read as a statement about RAVEN's state, and
+narrowed here rather than left to be read more broadly than it holds."* That sentence performs the
+announcement of a fix without performing the fix: it names no tool and no behaviour, so a reviewer
+learns only that we were uneasy. **The entire substance of Sol's P1 is two specific tools**, and the
+row did not contain them.
+
+Rewritten to say what actually happens: `audit_video_playback` calls `play()` on the videos it finds
+and `audit_responsive_visibility` steps the viewport through a series of widths, so the *loaded page*
+is manipulated — in a throwaway headless context discarded when the call returns. Nothing persists,
+nothing is written back to the URL's origin, and no state of Raven's changes. What the hint asserts is
+that the anonymous endpoint holds no writable state.
+
+Caught by reading the row back after the edit. Both defects share one cause and it is worth stating as
+a rule: **read an edit back rather than trusting its uniqueness guard.** The guard answers "did this
+land exactly once"; it cannot answer "is the replacement true", and both of these were false while
+green.
+
+**P1's boolean half stays open** and is deliberately not dispositioned here. Flipping `readOnlyHint`
+is a `src/index.ts` edit, which means a `main` push, which IS a live-endpoint deploy — and the
+standing "whatever will get us approved" instruction discharged that gate for ONE push, which has
+already happened and been verified. A second annotation change needs its own discharge.
+
+### The suite: a verdict refused, then measured
+
+`RAVEN_NO_USAGE_LOG=1 npm test` → **1729 tests / 1726 pass / 0 fail / 3 skipped**, EXIT=0 read from
+inside the log. The +2 over the ledgered 1727 is exactly the two partition tests added in round 33
+(`BASE` 17 → 19); the SUBMISSION.md fixes and the session-log rounds move it by zero. The three skips
+were read INDIVIDUALLY at output lines 121 / 865 / 866 — the file-URL fallback notice and the two
+removed-capability phase2 tests.
+
+**The first read of that log reported no summary block and no `EXIT=` line, and the run was correctly
+refused rather than reported.** It was an instrument error twice over: the background task-notification
+that prompted the read had fired on my own `&` wrapper rather than on the suite, and the file was read
+mid-write at 9,537 bytes of an eventual 159,627. Two standing rules did their job in sequence — a
+notification describes the WRAPPER, and a count is never derived when it can be measured. Had 1729 been
+written as 1727 + 2 at that moment it would have been right by luck, and the log would have carried a
+figure nothing had read.
+
+### Ledger
+
+Three bullets added at the head of `CLAUDE.md`, because every release-override paragraph above them
+still described an all-false hosted `openWorldHint` surface, which is no longer what ships:
+
+- The **annotation override** — hosted now publishes `true` on 4 of 45 (the DIVERGENT set), `false` on
+  41; the derivation is reach-based on both surfaces and narrowed on hosted by `remoteBlocksNetwork`,
+  which reads `REMOTE_ARG_GUARDS` itself so it cannot disagree with what the wrapper enforces; the
+  empty `TOOL_WRITES_PUBLIC_STATE` stays in the disjunction on purpose; stdio was deliberately not
+  flipped. It records the reversal as a reversal: the 2026-08-21 flip adopted OpenAI's write-based
+  reading and thereby made the payload say that a tool loading an arbitrary URL does not touch the
+  open web — R2 reintroduced by the remediation for R2.
+- **Sol's P3**, in the form that survives: no frozen NAME surface moved, and *"nothing moved on the
+  authed surface"* does not survive — **six** tools moved on metadata (the anon four plus `audit_taste`
+  and `bind_taste_surface`). The `c901…` pin does not contradict it, because that pin excludes
+  annotations by construction, and **a pin that cannot observe a class of change is not evidence the
+  class did not change.**
+- The **guard and matrix v6** — 9 mutants, 9 killed, 0 survived, 2 controls, 0 false-failed against a
+  declared 19/19/0/0 baseline; both new tests in the red sets of D1, D8 and D9, which is what makes
+  "they widen coverage" a measurement rather than a reading. Plus the D8 stale-anchor abort (EXIT=2 in
+  the uniqueness pre-flight, before the baseline, so nothing was mis-graded) and the fix that saved a
+  second abort cycle: **sweep every anchor with one regex probe before launching**, rather than
+  discovering dead anchors serially at one abort per run.
+
+### Carried forward
+
+- **Save the OpenAI wizard form** — five justification rewrites still live only in the DOM.
+- Audit the wizard's Skills and Prompts sections for the same claim-vs-behaviour class; then Global →
+  Continue → Submit, and **stop before `Submit for Review`**.
+- Push the pending commits; the `src/`|`api/` scope check must be RUN, not assumed.
+- Reconcile `capture.ts:1951` vs `:1954` and `tap-targets.ts:181` vs `:183`.
+- **P1a** (Vercel production-DEPLOY authority) closes only on the next real release. **P1b is Andrew's.**
