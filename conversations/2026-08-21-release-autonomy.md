@@ -3548,3 +3548,82 @@ a suite that printed no summary, so it was re-grepped rather than accepted.
 
 **Committed as `8aa3507`** (2 files, 58 insertions, 5 deletions) after the scope check was RUN
 in both directions and matched nothing under `src/` or `api/`.
+
+## Round 40 — the matrix confirmed nine radii and found the tenth guard was a comment
+
+Two measurements this round, and the useful one is a null result that turned into a real gap.
+
+### Matrix v7: a confirmation run, not a first measurement
+
+The standing rule is that a matrix is re-run WHOLE after any suite change, so v7 ran from the
+committed tree against the new 19-test baseline. Every radius came back **byte-identical to v6**,
+and so did the D8 and D9 red SETS. Reading v6's own header explains why: its baseline line already
+said `19 tests`, so v6 had been run with the (then-uncommitted) partition tests already present.
+**v7 is therefore a confirmation of v6, not the re-run against a new baseline that the pending list
+described** — the pending item was already satisfied and nobody had noticed. Worth recording,
+because "re-run whole after a suite change" is only meaningful if you also check WHICH baseline the
+previous run used.
+
+### The finding: the stdio half of the partition was guarded by nothing
+
+Across all nine mutants, the test `the stdio true-set IS TOOL_OPEN_WORLD, all 14 of it` appears in
+**no red set at all**. Its own comment names three mutants that would turn it red — *"Empty the
+table, add a phantom entry, or gate the local branch on `remote`"* — and **none of those three
+existed**. That is precisely this repo's own recorded lesson (*a test whose own assertion no mutant
+reaches is a comment*, and *a claim in a comment with no fixture behind it*), arriving in a test
+written after that lesson was written down. The hosted half was covered incidentally by D8 and D9;
+the stdio half was covered by the fact that nobody had mutated the stdio branch.
+
+### Matrix v8: two new mutants, and D11 is the one that isolates
+
+Two of the comment's own three were built, against `dist/`:
+
+| Mutant | Edit | Radius |
+|---|---|---|
+| **D10** | gate the LOCAL branch on `remote` (`: TOOL_OPEN_WORLD.indexOf(toolName) !== -1;` becomes `: false;`) | 3 |
+| **D11** | PHANTOM entry: a **gated, stdio-only** name (`capture_reference`) joins `TOOL_OPEN_WORLD` | **1** |
+
+```
+baseline: 19 tests / 19 pass / 0 fail / 0 skipped, EXIT=0
+11 mutants, 11 killed, 0 survived; 2 control, 0 false-failed
+EXIT=0
+```
+
+**All nine v7 radii are unchanged**, which is the evidence that the two additions guard the stdio
+half and nothing else drifted.
+
+**D11's choice of name is the load-bearing decision, not a detail.** A phantom entry naming an
+ANONYMOUS tool (`get_principles`, say) would also flip that tool's hosted `openWorldHint` to true —
+`remoteBlocksNetwork` is false for a tool with no `url` param — so it would redden the hosted
+partition test as well and grade at radius 2. Picking a **gated** name makes the mutant structurally
+invisible to the hosted build, which registers no gated tool at all, so its whole radius is the one
+test it was written for. **A mutant that reddens two tests proves a mechanism is reachable; a mutant
+that reddens exactly one proves WHICH test owns it.**
+
+D10 is the wider of the two at radius 3, and its extra reds are the correct ones — the local
+`audit_url` interaction-hint test and the reach-based-on-both-surfaces test both read the stdio
+branch it disables.
+
+### Two line-number reconciliations — neither is a contradiction
+
+Sol's citations and this ledger's disagreed by a few lines in two places. Both were read at source
+and both are the same mechanism at different anchor granularities:
+
+- `src/capture.ts` — **`:1951` is the try-block start, `:1954` is the literal `video.play()` call.**
+- `src/tap-targets.ts` — **`:181` is `browser.newPage()`, `:183` is the `page.goto(url, ...)`.** The
+  claim is about loading the URL, so `:183` is the precise citation.
+
+Neither pair is a drift. Recording them so a future reader does not "fix" one into the other.
+
+### Carried forward
+
+- **Sol's P1 boolean half is still open and deliberately not closed.** Flipping `readOnlyHint` is a
+  `src/index.ts` edit, which is a `main` push, which IS the live-endpoint deploy — it needs its own
+  gate discharge, and the standing "whatever will get us approved" call discharged exactly one push
+  that has already happened. The release notes' prose disclosure (the viewport resize, the `play()`
+  call, and that a page's own handlers run) is an ARGUMENT beside the published `true`, not a
+  closure.
+- **P1a still open:** production-DEPLOY authority is unprobed; the next real release is its first
+  test. **P1b is Andrew's:** narrowing the Vercel token to team scope with an expiry.
+- `get_checklist` (P5) has no slot in the wizard at the five-case cap — noted, not a defect.
+- **`Submit for Review` has not been clicked and that boundary has not moved.**

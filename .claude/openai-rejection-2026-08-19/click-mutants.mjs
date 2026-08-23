@@ -74,6 +74,19 @@ const MUTANTS = [
     find: `return !!guard && guard.params.indexOf("url") !== -1;`,
     repl: `return true;` },
 
+  // D10/D11 close the stdio half of the partition, which matrix v7 measured as reddened by
+  // NOTHING: the test `the stdio true-set IS TOOL_OPEN_WORLD, all 14 of it` named three
+  // mutants in its own comment and none of them existed, so it was a comment wearing an
+  // assertion's clothes -- this repo's own recorded lesson, arriving in a test written
+  // after that lesson was written down.
+  { id: 'D10', expect: 'red', why: 'gate the LOCAL branch on remote: the stdio true-set collapses to empty while the hosted 4 are untouched',
+    find: `: TOOL_OPEN_WORLD.indexOf(toolName) !== -1;`,
+    repl: `: false;` },
+
+  { id: 'D11', expect: 'red', why: 'PHANTOM table entry: a gated (stdio-only) name joins TOOL_OPEN_WORLD, so stdio publishes 15 and the hosted 45 cannot see it',
+    find: `const TOOL_OPEN_WORLD = [\n    "audit_url",`,
+    repl: `const TOOL_OPEN_WORLD = [\n    "capture_reference",\n    "audit_url",` },
+
   { id: 'CONTROL-A', expect: 'green', why: 'behaviour-neutral: bind the guard message to a local before returning it',
     find: `return { content: [{ type: "text", text: guard.message }], isError: true };`,
     repl: `var __m = guard.message; return { content: [{ type: "text", text: __m }], isError: true };` },
