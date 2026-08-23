@@ -3426,3 +3426,125 @@ still described an all-false hosted `openWorldHint` surface, which is no longer 
 - Push the pending commits; the `src/`|`api/` scope check must be RUN, not assumed.
 - Reconcile `capture.ts:1951` vs `:1954` and `tap-targets.ts:181` vs `:183`.
 - **P1a** (Vercel production-DEPLOY authority) closes only on the next real release. **P1b is Andrew's.**
+
+## Round 36 — the wizard's stored values, and the reload that makes a save a save
+
+The OpenAI resubmission wizard (tab 1909407749) is a multi-section form whose "Continue"
+advances a section without necessarily persisting it. **A section advance is not a save; a
+`location.reload()` read-back is.** Every field written in this and the following rounds was
+verified by reloading the page and re-reading the value out of the DOM, never by trusting the
+advance.
+
+Two mechanics worth carrying, both of which silently do nothing if you get them wrong:
+
+- A React-controlled field needs the **native prototype setter plus synthetic `input`/`change`
+  events**. Branch on `tagName` to pick `HTMLInputElement.prototype` vs
+  `HTMLTextAreaElement.prototype` — the wrong prototype's setter call is a no-op with no error.
+- The JS tool's output truncates around ~2000 characters, so a long field must be read one at a
+  time. A truncated read that happens to end mid-object looks exactly like a short value.
+
+## Round 37 — Skills and Prompts audited for the R2 class; the justification rewrites verified persisted
+
+The five `open_world_justification` rewrites from round 19 were re-read after a reload: all five
+persisted. The Skills and Prompts sections were then audited for the same claim-vs-behaviour class
+that produced R2 — a default prompt that advertises a behaviour the hosted endpoint declines would
+be R1/R2 arriving through the prompt list rather than through an annotation.
+
+## Round 38 — the Testing section audited against production, and the R1 class re-verified live
+
+The wizard's Testing section was already fully populated: five positive cases and three negative
+ones. Rather than trust that, the content was checked in **three independent directions**.
+
+**Against the repo.** The stored numbers match `SUBMISSION.md` §2 exactly — `18.88`, `1.92`,
+`2.58`, `deficit_w`/`deficit_h` 24 at lines 90-96. The five positive slots carry P1, P2, P3, P4
+and **N1**; the audit_url decline is filed as a positive case, which is right for this form,
+because the wizard's own "negative test cases" mean *prompts the app should refuse* (logo
+generation, WCAG certification, writing React components), not error-path cases.
+
+**P5 (`get_checklist`) has no slot.** "Add test case" was clicked and was a no-op — the button
+list still ends at Test Case 5 — so five is the cap. Named rather than hidden, because
+`get_checklist` is reachable from default prompt 2 and is therefore a documented behaviour with
+no documented expectation. A form limit, not a claim-vs-behaviour defect.
+
+**Against the wire, for the one case whose expectation is a quoted product string.** Case 4
+asserts `content[0].text` *begins* `"audit_url is disabled on the hosted (remote) endpoint"`.
+That is exactly the shape of claim `replay-r1-cases.mjs` already caught once — an earlier draft
+paraphrased the shipped `95s` as `95.2 s`. Probed directly: http 200, **no top-level `error`
+key**, `isError: true`, 446-char text opening with the quoted substring verbatim, both routes
+(`npx raven-mcp`, `audit_page`) present. The claim reproduces character-for-character.
+
+**Against production, executably, for all eight.** `node replay-r1-cases.mjs` →
+**EXIT=0, 8 cases (9 calls), 0 failing**. P1 18.88/1.92 delta 2.58 aa_fail 1; P2 44/2/1/1
+deficit 24,24; P3 count=26 with invariants holding; P4a count=12 incl stripe; P4b `#635BFF`;
+P5 matched/responsive; N1 all three substrings verbatim and sub-second; N2 not declined with
+url+tally present; N3 http 200, `isError` true, error object absent. Exit status read from the
+process itself, not from a wrapper notification.
+
+**The entry to carry: the wizard is the artifact, and a repo fix that never reached it is the
+classic drift.** The check that mattered was not re-running the replay — that was already green
+— it was diffing the *form's stored text* against `SUBMISSION.md` and then against the wire, in
+that order. All three agree. **No edit was needed and none was made**, which is a measurement
+rather than an assumption.
+
+## Round 39 — Global and Submit read; the boundary is unmoved, and a verified test surfaces uncommitted
+
+### Global and Submit
+
+Global: `version.description` populated, `version.subtitle` "Audit and fix UI design",
+`allowed-countries-allow-or-block` `ALLOW_ALL`, optional `add-translation` empty.
+
+The description's one sentence that could reproduce the R1/R2 class — *"Point it at a URL and it
+renders the page, reporting per-element WCAG contrast ratios and tap-target failures"* — was
+checked rather than read past. On the hosted endpoint `audit_url` declines, but `audit_contrast`
+and `audit_tap_targets` are two of the four DIVERGENT tools that genuinely render, and those are
+exactly the two behaviours the sentence names. N2 measured it live: `audit_contrast` with a `url`
+was **not** declined, 4014 ms, url and tally present. Production-true on the surface being listed.
+
+Submit: all seven policy attestations already checked and the age radio at `all_ages`, carried
+from the original submission — **nothing was ticked by me; those are Andrew's attestations.**
+`version.release_notes` holds 1832 characters and describes THIS resubmission (the 2026-08-19
+findings, invariants-not-measurements, annotations re-derived), not v1.0.0.
+
+Worth recording: the release notes **disclose in prose** the exact behaviour Sol's P1 objects to —
+that `audit_responsive_visibility` resizes the viewport and `audit_video_playback` calls `play()`,
+and that a page's own handlers will run. That sits beside a published `readOnlyHint: true`, which
+under OpenAI's write-based definition means "creates, modifies or deletes no user or project
+data" — true, and the synthesis is stated rather than hidden. **A defensible pairing without a
+second `src/` push, and NOT a claim that P1 is closed:** whether a reviewer reads it that way is
+their call. Flipping the boolean remains a `src/index.ts` edit, hence a live-endpoint deploy, and
+the 2026-08-21 gate discharge covered ONE push which has already been spent.
+
+**`Submit for Review` has not been clicked and that boundary has not moved.**
+
+### The uncommitted partition test, found by a status check rather than by memory
+
+`git status` showed `test/remote-click-guard.test.mjs` and
+`.claude/openai-rejection-2026-08-19/click-mutants.mjs` dirty. The first read of that was "mutant
+residue from a matrix run that did not restore" — a real hazard this ledger documents. It was
+neither: both are deliberate work from an earlier round that never reached a commit.
+
+The test adds the **partition asserted over the whole surface**, in both directions, because the
+nine spot-checked names catch every degeneracy anyone reaches for first (all-true, all-false,
+hosted-mirrors-stdio) and **miss the one that matters**: correct values on those nine and `true`
+on the other 37 hosted tools. `deepEqual` on sorted arrays rather than a count, since a count is
+satisfied by any four names. The harness's D8 anchor was re-anchored because the annotation flip
+rewrote the derivation into a ternary and the old one-line find-string no longer exists — a
+find-string mutant dies the moment its target line is edited, which is why the whole matrix gets
+re-run rather than carried forward.
+
+Measured after a `npm run build` from committed source, because **`dist/` can hold mutant residue
+that no timestamp vouches for**: **19 tests / 19 pass / 0 fail / 0 skipped, EXIT=0**, matching the
+harness's declared `BASE` of 19. Both partition tests confirmed to have RUN **by name** at output
+lines 13 and 14, not inferred from the total. The `# ` grep for the summary returned nothing first
+— `node --test` prefixes totals with `ℹ `, and a wrong pattern's silence is indistinguishable from
+a suite that printed no summary, so it was re-grepped rather than accepted.
+
+### Carried forward
+
+- **P1a** (Vercel production-DEPLOY authority) closes only on the next real release; read its
+  Vercel step. **P1b is Andrew's** — narrowing the token to team scope with an expiry.
+- Reconcile `capture.ts:1951` vs `:1954` and `tap-targets.ts:181` vs `:183`.
+- The wizard sits one click from submission. That click is Andrew's.
+
+**Committed as `8aa3507`** (2 files, 58 insertions, 5 deletions) after the scope check was RUN
+in both directions and matched nothing under `src/` or `api/`.
