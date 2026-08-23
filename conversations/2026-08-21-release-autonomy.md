@@ -3709,3 +3709,105 @@ because this log has twice mistaken a wrapper's status for a harness's verdict.
 - **P1a still open:** production-DEPLOY authority is unprobed; the next real release is its first
   test. **P1b is Andrew's:** narrowing the Vercel token to team scope with an expiry.
 - **`Submit for Review` has not been clicked and that boundary has not moved.**
+
+## Round 42 — the annotation surface has FOUR partitions, the ledger names three, and the tests instantiate two
+
+Round 41 closed with the phrase "the derivation is reach-based on **both surfaces**". Sol's interim
+pass challenged that wording, and following it produced one correction to my own model of this
+codebase, one refuted defect, and one real coverage gap. None of the three is a shipped bug.
+
+### The correction: there are FOUR annotation partitions, not three
+
+CLAUDE.md's own reconciliation paragraph enumerates three builds (111 stdio / 45 anonymous /
+56 authenticated, out of 112 registered names). That is correct as a TOOL-COUNT reconciliation and it
+is incomplete as an ANNOTATION map, because the `openWorldHint` true-set differs across all three:
+
+| Build | `buildServer(...)` | Tools | `openWorldHint: true` |
+|---|---|---|---|
+| anonymous hosted | `{remote:true}` | 45 | **4** — the DIVERGENT rendering set |
+| authenticated hosted | `{remote:true, tasteStore}` | 56 | **6** — those four **plus `audit_taste`, `bind_taste_surface`** |
+| stdio | `{remote:false, tasteStore}` | 111 | **14** — all of `TOOL_OPEN_WORLD` |
+
+Measured against the built tree, not read off the array:
+
+```
+AUTHED HOSTED total= 56
+TRUE n= 6 [ 'audit_contrast', 'audit_responsive_visibility', 'audit_tap_targets',
+            'audit_taste', 'audit_video_playback', 'bind_taste_surface' ]
+FALSE n= 50    MISSING n= 0 []
+```
+
+The eleven `AUTHED_USER_TASTE_TOOLS` that `:2520` unblocks when `hasUserStore` are not annotation-neutral:
+two of them are in `TOOL_OPEN_WORLD` and neither has a `REMOTE_ARG_GUARDS` entry, so `remoteBlocksNetwork`
+returns false for both and the reach clause publishes `true`. **A tool-count reconciliation is not an
+annotation reconciliation** — adding a name to a build can move a hint partition without moving any
+count anybody is watching.
+
+### The lead that looked like a live R2 defect, and is REFUTED
+
+`bind_taste_surface` publishes `readOnlyHint:false`, `destructiveHint:true`, `openWorldHint:true` on the
+56-build. Its top-level parameters are `profile, project, surface, hosts, overrides, voice_note,
+design_notes, references, uncalibrated_ack` — no `url` among them. On that scan I concluded it cannot
+reach the open web and that its `true` was exactly the R2 class OpenAI rejected us for: an annotation
+that does not match behaviour.
+
+**That conclusion was wrong, and reading one level deeper is what killed it.** `src/index.ts:8669`:
+
+> `url: z.string().describe("Example site URL (http/https), or a local .png screenshot file path for mobile references. **URLs are captured live**; .png paths are pixel-analyzed …")`
+
+and the handler backs the sentence rather than merely claiming it — the reference loop calls
+`capturePage(refInput.url, { scroll_settle: true, collectTraits: true })` and stores the returned traits
+on the binding. `bind_taste_surface` renders caller-supplied URLs in a real browser. Its `openWorldHint:
+true` is **honest**. Its `readOnlyHint:false` / `destructiveHint:true` are about the local store write and
+are orthogonal to reach — which is precisely the orthogonality the `TOOL_OPEN_WORLD` header commits to
+when it says `readOnlyHint:true` beside `openWorldHint:true` is only a contradiction under the WRITE
+reading of open-world.
+
+`audit_taste` needed no such rescue: it takes a top-level `url` and has no `REMOTE_ARG_GUARDS` entry, so
+its `true` was never in question.
+
+**The entry to carry: a top-level parameter-name scan is not a reach analysis.** The URL was NESTED
+inside an object array, one `z.object` down, and every instrument I had pointed at the flat param list
+answered "no url" truthfully while the tool fetched. This repo has recorded the same shape before in
+other clothes — a preview computed by a different rule than the action, a listing that reads a different
+question than the lookup. Here it was an ANALYSIS computed at a shallower depth than the behaviour.
+
+Instrument note, recorded rather than smoothed over: an `awk '/"bind_taste_surface"/,/^  \);/'` range
+over `src/index.ts` matched a far wider span than the handler — it swept in `capture_reference`,
+`search_references`, `forget_references`, `audit_page`, `score_page` and the entire server-instructions
+string. The finding came from a `z.` schema grep, not from that range. **An awk range anchored on a
+quoted tool name is not a handler extractor in this file.**
+
+### The gap that IS real: the click-guard suite never instantiates the 56
+
+`test/remote-click-guard.test.mjs` builds exactly two servers — `:86` `buildServer({remote:true})` (the
+45) and `:87` / `:362` `buildServer({remote:false, tasteStore: new FsTasteStore()})` (the 111). Measured
+with `grep -n 'tasteStore\|buildServer('`, which returns those three lines and nothing else: **there is
+no `buildServer({remote:true, tasteStore})` anywhere in the file.**
+
+So round 41's "both surfaces" is accurate about the two surfaces the suite asserts, and overstates
+coverage if read as "every reachable build". That is a **coverage** overstatement, not a correctness
+one — the 56-build's 6/50 partition is honest, as established above. But it is asserted by nothing, and
+an unasserted honest value is one refactor away from a dishonest one that no test can see.
+
+### Finding 3, minor: "and only that" was overbroad prose
+
+Round 41 said the hosted `openWorldHint` partition is asserted in `test/remote-click-guard.test.mjs`
+"and only that". `grep -rln 'openWorldHint' test/` returns **two** files: that one and
+`test/idempotent-annotations.test.mjs`, whose `:150` asserts the local-build `true` per DIVERGENT tool,
+`:158` asserts `get_principles` is `false`, and `:166` asserts hosted `audit_page` is `false`. A wording
+narrowing; no defect and no repo change owed.
+
+### Disposition
+
+- `bind_taste_surface` — **refuted**, no change.
+- `audit_taste` — honest, no change.
+- The 56-build coverage gap — **real, and the remedy is TEST-ONLY**: a `buildServer({remote:true,
+  tasteStore})` partition assertion enumerated over all 56 names, plus the matching `BASE.tests` bump in
+  `click-mutants.mjs` and a whole re-run of the matrix. It touches no `src/` or `api/` path, so it does
+  **not** engage the human-gated live-endpoint deploy rule.
+- Round 41's "and only that" — narrowed here.
+
+Repo state at the time of writing: `main` at `c7ec300`, local, **not pushed**; frozen anonymous surface
+unchanged at 45 tools / `f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6`. Suite figure
+of record unchanged at 1729 / 1726 / 0 / 3, EXIT=0, skips read individually at output lines 121/865/866.
