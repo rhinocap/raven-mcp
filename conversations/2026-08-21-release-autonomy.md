@@ -1874,3 +1874,74 @@ is **strongly supported, not proven**, and the ledger now says so.
 The run and its 4m13s; all four surface measurements; and the round-12 reconciliation in full —
 111 stdio / 45 anonymous / 56 authenticated / 112-name union, with `delete_taste_data` the sole
 authenticated-only, non-stdio registration.
+
+## Round 14 — the durable Vercel token
+
+The last expiring credential in the release path is retired. `VERCEL_TOKEN` was the Vercel CLI's own
+OAuth token, dying 2026-08-23T03:27:06Z; it is now a durable personal access token created in
+Andrew's browser under his standing "you do it all" authorization.
+
+### It took two tokens, and the first one's failure is the entry worth carrying
+
+**Token 1 — `raven-mcp release CI`, scope `web`, No Expiration.** The scope was derived from
+`release.yml` naming exactly one Vercel project (`VERCEL_PROJECT_ID`, lines 69–71 / 122–124 /
+452–457), so a project-scoped token looked like the correct least-privilege choice. It was created,
+installed as the `VERCEL_TOKEN` secret, and then **measured against the two commands the workflow
+itself runs**, rather than against a proxy:
+
+| Command | `release.yml` | Result |
+|---|---|---|
+| `vercel whoami --token` | :129 | **exit 1** — `Error: User not found.` |
+| `vercel pull --yes --environment=production --token` | :133 | **exit 1** — `Could not retrieve Project Settings` |
+
+**A project-scoped token cannot answer an account-identity query.** The preflight at :129 would have
+hard-failed every release run. The directory confound was ruled out rather than assumed: the `pull`
+was re-run from `web/` with `ls -d .vercel` printing `.vercel` as a precondition, and the exit code
+was 1 again with the identical error — so the failure is scope, not location.
+
+Note where the break actually landed. `release.yml:115` carries its own caution that production-deploy
+permission is a separate RBAC grant (`FullProductionDeployment`) from the project-level grant — the
+real failure is **one layer earlier**, at `whoami`, before any deploy permission is exercised.
+
+**The instrument error, recorded rather than smoothed over.** The first `whoami` reading was
+`WHOAMI_EXIT=0` — from `npx vercel whoami --token "$TOK" 2>&1 | tail -3 ; echo "WHOAMI_EXIT=$?"`,
+where `$?` after a pipe is **`tail`'s** status. This is this ledger's own documented gotcha,
+reproduced live. Redirecting to a file instead (`> /tmp/w.log 2>&1; echo "WHOAMI_EXIT=$?"`) gave the
+true exit 1. Had the first reading been trusted, a broken credential would have been installed and
+called verified. **When the exit code IS the measurement, redirect — never pipe.**
+
+**Token 2 — `raven-mcp release CI account`, scope `Full Account`, No Expiration.** The fallback was
+pre-committed rather than quietly taken: the standing note said that if the `web`-scoped token failed
+the deploy, fall back to a broader scope **and say so plainly**. Full Account carries a `Non-SAML`
+warning badge, accepted as the cost of a preflight that can pass. No Expiration is deliberate — the
+whole point of this round is that the previous credential expired.
+
+Measured against the same two commands, from `web/` with `.vercel` present:
+
+- `vercel whoami --token` → **exit 0**, `cunliffeandrewc-8712`
+- `vercel pull --yes --environment=production --token` → **exit 0**, project settings downloaded
+
+Installed with `pbpaste | tr -d '\n' | gh secret set VERCEL_TOKEN` so the value never entered the
+transcript; `gh secret list` reports **`VERCEL_TOKEN 2026-08-23T00:16:21Z`** (name and timestamp
+only). The clipboard was cleared afterwards and verified at 0 bytes. The only things ever read off
+the secret were its length (60) and its 4-character prefix (`vcp_`) — enough to prove it is a real
+Vercel token and nothing more.
+
+**The dead token was revoked**, not left lying around: a never-expiring credential that does not work
+is still a live credential. The confirm dialog named exactly one token — `raven-mcp release CI`,
+last active never — and Vercel reported `Removed Token successfully`. The CLI's own OAuth token
+(`Vercel CLI from Andrews-MacBook-Pro.local`, expires 2026-08-23) is deliberately left alone: it is
+what Andrew's local `vercel` CLI authenticates with, and it expires on its own.
+
+### A correction owed to the round-11 append
+
+That append claimed *"the ledger's `56` is a transcription error"* and *"`56` is not derivable from
+111 and 67 under any reading."* **Both claims are false.** The falsification pass caught it before it
+was committed, and the ledger line in `CLAUDE.md` is authoritative: there are **three** remote builds,
+not two — `buildServer({remote:true})` is the anonymous **45**, and `buildServer({remote:true,
+tasteStore})` is the authenticated hosted **56**, differing by exactly the eleven
+`AUTHED_USER_TASTE_TOOLS`. The arithmetic that reconciles all three surfaces is 112 registered names;
+stdio drops the one hosted-only registration → 111; anonymous drops all 67 gated → 45; authed adds
+the 11 back → 56. The round-11 reasoning computed 111 − 66 = 45, landed on the expected number, and
+inferred from that that 56 was wrong — **the arithmetic was correct and the inference from it was
+not.** Diff the SETS with `comm` in both directions before ruling on a count.
