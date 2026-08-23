@@ -1,0 +1,12 @@
+TOTAL 45
+TOOLS ACCEPTING A url PARAM:
+ - audit_page | props: ['html', 'url', 'scroll_settle', 'interactions', 'viewport', 'strict', 'containerMaxWidth', 'adversarial_verify', 'compact']
+ - score_page | props: ['html', 'url', 'strict', 'containerMaxWidth']
+ - audit_responsive_visibility | props: ['url', 'breakpoints', 'viewportHeight']
+ - audit_contrast | props: ['url', 'dom_snapshot', 'screenshot']
+ - audit_url | props: ['url', 'viewports', 'themes', 'scroll_settle', 'interactions', 'containerMaxWidth', 'includeScreenshots', 'timeoutMs', 'compact']
+ - audit_typography | props: ['url', 'nodes']
+ - audit_tap_targets | props: ['url', 'elements', 'minSize']
+ - audit_video_playback | props: ['url', 'dom_snapshot', 'observeMs']
+
+audit_url present: True
