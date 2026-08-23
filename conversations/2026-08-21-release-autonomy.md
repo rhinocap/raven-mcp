@@ -2495,3 +2495,114 @@ and were left untouched — those are Andrew's attestations, not mine to make.
 
 **Stopped at the Submit screen. `Submit for Review` NOT clicked.** The wizard is filled and audited
 end to end; the button is Andrew's.
+
+## Rounds 22–23 — the done-gate on the wizard claim: Sol returned REFUTED, and two of its findings were mine to own
+
+The claim under audit, verbatim from the brief: *"The OpenAI plugin-directory resubmission wizard for
+Raven has been audited end to end against measured hosted behaviour, every claim in it is now true of
+what the hosted endpoint actually does, and the only remaining step is Andrew clicking Submit."*
+
+Sol's answer, verbatim: **"## Verdict: REFUTED / The wizard is not ready to submit. Two P1 claims
+remain false."** Both are now closed. Neither was closed by agreeing with Sol.
+
+### Instrument note: the completion notification lied, and `pgrep` is what caught it
+
+A background task-notification reported the Sol run finished. `pgrep` said it was **still running**.
+The standing rule — a notification describes the WRAPPER, not the verdict — held again, and this time
+it was not merely the exit code that was wrong but the fact of termination. The verdict line landed
+~1500 lines later, at line ~7715 of a 3,557,404-byte log. **Reading a log because a notification says
+it is complete is how a truncated verdict gets dispositioned as a whole one.**
+
+### P1a — CONFIRMED against me, and my own scan is what should have caught it
+
+Negative test case N0 read: *"Raven has no image generation: it returns logo and brand direction as
+written guidance, and renders only token documentation such as a palette card."*
+
+`generate_service_blueprint` is in the live anonymous 45 and its description begins **"Render a
+service blueprint as a self-contained HTML page."** That is not token documentation. N0 was false as
+written, and a reviewer testing exactly that case would find it false in one call.
+
+**I had run a visual-output scan across the anon 45 and cleared this tool in error** — I read
+"blueprint" as a process diagram rather than a rendered visual artifact, so the keyword never fired
+and the tool never got its description read. The scan was the right instrument pointed at the wrong
+vocabulary. Fixed by rewriting N0 to the narrower claim that is actually defensible (293 chars,
+read back verbatim):
+
+> "Asks for original artwork. Raven has no image generation: it returns logo and brand direction as
+> written guidance. It does render HTML and SVG documents from structured input - a palette card, a
+> design-system page, a service blueprint - but it never produces original raster or vector artwork."
+
+The distinction that survives measurement is **rendering a document from structured input vs.
+producing original artwork**, not "no visual output at all". The first claim is true and checkable;
+the second was neither.
+
+### P1b — NARROWED to P3, because Sol's framing was false and reading the code is what showed it
+
+Sol wrote that the release notes' "all read-only" is derived from published annotations rather than
+behaviour, and that the interaction-list carve-out at `src/index.ts:2352` was made **"without
+justification."**
+
+That last clause is false. `src/index.ts:2330-2360` carries a ~20-line justification with an explicit
+boundary, quoted here because it is the reason the finding drops two grades:
+
+> "The boundary is deliberately the caller-supplied INTERACTION LIST and not 'renders a URL'.
+> audit_contrast, audit_tap_targets, audit_responsive_visibility and audit_video_playback navigate and
+> read; a plain navigation is what a browser does when anyone visits a page, and treating that as a
+> write would make every fetching tool non-read-only. Synthesising user events at a selector the
+> caller chose is a different act."
+
+**A subagent's characterization of a code comment is a claim like any other.** Read the cited line
+range before accepting an adverse finding's framing — the finding was real in its residue and wrong
+in its account of the code.
+
+What survived: the release-notes sentence still stated a behavioural absolute — *"45 tools, all
+read-only, no authentication required."* Rewritten, applied, read back (861 chars total):
+
+> "45 tools, none of which write: no tool creates, modifies or deletes anything, and the four
+> URL-taking audits load and measure a page the way any browser visit does. No authentication
+> required."
+
+That states what is measured rather than an absolute, and it pre-empts the exact reviewer objection
+by naming the four tools' behaviour instead of hiding it behind a hint value.
+
+### A correction I owe: my own attack #4 premise was wrong
+
+I had reasoned that the same endpoint serves 45 anonymously and 56 authenticated, so "no
+authentication required" was misleading. Sol refuted it as a P3, and the field read confirms the
+refutation: the wizard's submitted `mcp.mcp_url` is **`https://mcp.ravenmcp.ai/api/mcp`**, which
+always builds the anonymous 45. The authenticated 56 lives at the separate `/api/mcp-user`. So "45
+tools / no authentication required" is TRUE **of the submitted URL**, and my objection was aimed at a
+resource the submission does not name. Recorded rather than quietly dropped.
+
+The same read closed Sol's SUSPECTED P2 by measurement: `mcp-auth-type` = **`NONE`**.
+
+### Sol's positive-case re-derivation: 8 cases, 9 calls, 0 failures — and one drift correctly absorbed
+
+The live `get_principles` count is now **26**, not the ledger's snapshot of 28. The test case asserts
+`>= 20` plus shape and ID invariants and does not assert 26 or 28. **That is the R1 remediation
+working as designed** — the whole rejection ground was a stored measurement that stopped reproducing,
+and the invariant rewrite is what makes a two-count drift a non-event instead of a second rejection.
+
+### Mechanics: the wizard's section nav is BUTTONs, and `pushState` reads exactly like success
+
+`history.pushState` plus a synthetic `PopStateEvent` **does not switch the SPA section**. It changes
+the URL and leaves the previous section rendered — so the URL bar says `?section=MCP` while the DOM
+still holds App Info, and a field scan returns the old section's fields with no error anywhere. The
+working pattern:
+
+```js
+[...document.querySelectorAll('button')].find(e=>e.textContent.trim()==='Testing').click()
+// then wait ~2500ms
+```
+
+Every field edit still needs the native prototype setter plus synthetic `input`/`change`, branching on
+`tagName` for `HTMLInputElement` vs `HTMLTextAreaElement`.
+
+### Carried forward
+
+- **`readOnlyHint` on the four URL-rendering tools is Andrew's call, not mine.** Flipping it is a
+  `src/` change, therefore a `main` push, therefore a live-endpoint deploy — human-gated — and it
+  would move the metadata pin `c901…`. Named, not done.
+- **P1a (Vercel production-DEPLOY authority) remains unprobed**; the next real release is its first
+  test.
+- **`Submit for Review` was NOT clicked.** The boundary has not moved.
