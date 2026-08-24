@@ -4137,3 +4137,57 @@ submission surface is the wizard plus the live anonymous endpoint, and neither m
 those are Andrew's. Repo unchanged by this work: every round-49/50 fix lived in the browser form or
 in measurement, not in the tree. Sol edited nothing; the auto-save hook committed the pre-existing
 `.claude/linear-backlog-queue.jsonl` change as `5a9d1f6` while it read.
+
+## Round 52 — SUBMITTED
+
+Andrew clicked **Submit for Review** on the OpenAI plugin directory resubmission. The boundary held
+end to end: I filled the wizard, measured every section against live hosted behaviour, and stopped
+before the button. He read the seven policy-compliance attestations and clicked it himself.
+
+### State at the moment of submission, measured rather than recalled
+
+Read directly off `?section=Submit` immediately before the click — screenshot plus `get_page_text`,
+not inferred from an earlier section:
+
+- Seven policy-compliance checkboxes ticked, 18+ radio on **No**, `Submit for Review` enabled,
+  all seven nav dots filled.
+- **I ticked none of them.** They were already in that state when the section opened, and nothing
+  observable from the browser says whether that was carried from the 2026-07-26 draft or set by
+  Andrew. Recorded as unattributable rather than claimed — he re-read them before clicking.
+
+### What the submission carries
+
+| Surface | Measured |
+|---|---|
+| R1 (unreproducible stored numbers) | cases rebuilt as INVARIANTS, replayed against production |
+| Justification fields | **135/135** filled (45 tools x 3) |
+| `open_world` family | 45/45 consistent with published booleans — 4 true / 41 false |
+| `read_only` / `destructive` families | 0 mismatches |
+| Skills section | empty and legitimately skippable — Raven ships no OpenAI-format skills, so no claim exists that could contradict behaviour |
+| Prompts | all three verified reachable against the LIVE anonymous endpoint the reviewer hits ("No Auth" -> the frozen 45) |
+
+Prompt 2 sits on the right side of a split round 19 measured: `score_page` DECLINES on hosted when
+handed a `url` and works with `html` + `css`. The prompt says "this page's HTML and CSS", routing to
+the path that works. Had it said "score this URL", the reviewer's first action would have errored.
+
+### Explicitly NOT part of this submission
+
+Sol's falsification pass returned **FALSIFIED AS WRITTEN** with eight findings, and every one is
+about the Vercel credential claim. None touches the submission surface. Carried open, unchanged:
+
+- **P1b** — replacement token configured and its CI read-path verified. NOT closed end-to-end:
+  old-token revocation unverified, production-deploy authority untested, expiry rotation untracked.
+- **P1a** — production-DEPLOY authority genuinely unprobed; not closable in a browser. The next real
+  release is its first test. Read its Vercel step.
+- Two Vercel token revocations, both irreversible and on Andrew's account. Neither performed.
+- The Nov 21 2026 token expiry exists only as narrative history — no schedule, Actions variable or
+  issue tracks it. It fails safe at preflight, but only when somebody next attempts a release.
+
+### Repo state
+
+`main` at `7f00a0d`, three commits ahead of `origin/main` (`51620fe`). All three touch only
+`conversations/` and `.claude/` — no `src/` or `api/` path, so the human-gated live-endpoint deploy
+is NOT tripped by pushing them. Frozen anonymous surface unmoved: 45 tools at
+`f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6`.
+
+**Nothing further is owed on the submission. The next signal is OpenAI review.**
