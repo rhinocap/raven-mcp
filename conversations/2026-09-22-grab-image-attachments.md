@@ -34,12 +34,15 @@ Baseline: npm test 1730 tests, 1727 pass, 3 skipped (baseline.log).
 - origin strict "drop"/"paste"; path route sets "path".
 - spec says resolved path must equal realpath: on macOS /tmp and /var/folders are symlinks, so tests must realpathSync their mkdtemp dirs.
 
+## Incidents
+- L9 first launch sat 5 min on "Reading additional input from stdin..." (stdin was a unix socket). Killed, relaunched with `< /dev/null`. Rule: every background `codex exec` gets `< /dev/null`. Memory written: reference-codex-exec-background-needs-stdin-closed.
+- Full suite before L9 (S/pre-L9.log): 1752 tests, 1747 pass, 2 fail, 3 skipped. Fails: byte-mirror (cleared by L8) and no-private-paths.test.mjs:592, which resolves `repoRoot/../private.claude/...` — inside a nested worktree `..` is still under raven-mcp, so the finding is absent. Passes in the main checkout at 74cfb7b. Final suite must run from a worktree outside the repo tree.
+
 ## Next commands
-1. wait L11 → extract blocks from S/L11.json → npm run build → node --test test/grab-attachments.test.mjs → commit.
-2. launch L5 (Terra) + L7 (Sol) in fresh worktrees from feat HEAD.
-3. L3 lands → git diff HEAD browser/raven-grab.js in att-L3 → apply → node --check → commit → L6.
-4. L9 → L8 (cp + cmp) → L10 → fixes with GLM mutants.
-5. nohup env RAVEN_NO_USAGE_LOG=1 npm test > S/final.log; live Chromium check; chip screenshot.
+1. L9 lands → `git -C ../att-L9 diff HEAD browser/raven-grab.js test/grab-overlay-attachments.test.mjs` → apply → node --check → node --test overlay attachments + voice-input → commit → drop worktree.
+2. L8 (Sol, prompt S/L8.prompt): cp + cmp + CHANGELOG → commit.
+3. L10 (Astra, read-only, prompt S/L10.prompt) on a frozen worktree → fix each finding with test + mutant → commit.
+4. Final: worktree outside repo tree, `nohup env RAVEN_NO_USAGE_LOG=1 npm test > S/final.log`; live Chromium check on S/live/index.html; chip screenshot; handoff.
 
 ## Open questions (defaults, left for Andrew)
 Q1 inbox at ~/.raven/grab-inbox (implemented). Q2 no blob live-preview in v1. Q3 cap 4 kept.
