@@ -3716,7 +3716,10 @@
           };
         });
       }
-      if (kind === "background") target.backgroundImage = backgroundImage;
+      if (kind === "background") {
+        target.backgroundImage = backgroundImage;
+        target.backgroundHasUrl = /url\(/i.test(backgroundImage);
+      }
       return target;
     } catch (error) {
       return null;
@@ -4247,8 +4250,10 @@
   }
 
   function revokeAttachmentThumb(attachment) {
-    if (attachment && attachment.thumbUrl && window.URL && typeof window.URL.revokeObjectURL === "function") {
-      window.URL.revokeObjectURL(attachment.thumbUrl);
+    if (attachment && attachment.thumbUrl) {
+      if (String(attachment.thumbUrl).indexOf("blob:") === 0 && window.URL && typeof window.URL.revokeObjectURL === "function") {
+        window.URL.revokeObjectURL(attachment.thumbUrl);
+      }
       attachment.thumbUrl = null;
     }
   }
@@ -4290,6 +4295,7 @@
   }
   function attachmentRecordFromResponse(chip, record) {
     Object.keys(record || {}).forEach(function (key) { chip[key] = record[key]; });
+    if (!chip.thumbUrl && record && record.id) chip.thumbUrl = bridgeUrl("/attachment") + "&id=" + encodeURIComponent(record.id);
     chip.state = "ready";
     chip.error = "";
     syncSendButtonDisabled();
@@ -4330,7 +4336,9 @@
   }
   function attachmentPath(value, origin) {
     var text = String(value || "").trim();
-    if (!(/^(?:\/|file:\/\/)/.test(text) && /\.(?:png|jpe?g|webp|gif|svg|avif)$/i.test(text))) return false;
+    if (text.length >= 2 && ((text[0] === "'" && text[text.length - 1] === "'") || (text[0] === '"' && text[text.length - 1] === '"'))) text = text.slice(1, -1);
+    text = text.replace(/\\([\s\S])/g, "$1");
+    if (!(/^(?:\/|~\/|file:\/\/)/.test(text) && /\.(?:png|jpe?g|webp|gif|svg|avif)$/i.test(text))) return false;
     var reason = attachmentPrecondition();
     if (reason) { attachmentNoticeNow(reason); return true; }
     if (attachmentDraft.filter(function (attachment) { return attachment.state === "ready" || attachment.state === "uploading"; }).length >= 4) { attachmentNoticeNow("Up to 4 attachments per send"); return true; }

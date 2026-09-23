@@ -8,6 +8,10 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 
 ### Added
 - The Grab overlay accepts image attachments dropped or pasted into the composer: PNG, JPEG, WebP, GIF, SVG, and AVIF files up to 25 MiB each, with up to four per send. It also accepts an absolute image path. The bridge stores attachments under `~/.raven/grab-inbox` (`RAVEN_GRAB_INBOX` overrides the location) and prunes inboxes older than seven days when a session starts. Each selection carries an `imageTarget` block with its kind (`img`, `picture`, `background`, `svg`, or `video-poster`), `currentSrc`, `srcset`, `sources`, natural and rendered size, and `object-fit`. `get_grabbed_elements` returns `attachments[]` with absolute paths and `imageTarget`; `agent_protocol` tells the agent how to apply a replacement. The bridge adds `POST /attachment` for multipart uploads or a JSON path. Attachments are available through the bridge only; hosted endpoints refuse them.
+- Path attachments receive thumbnail previews through `GET /attachment`; background `imageTarget` values report `backgroundHasUrl` to distinguish gradients from URL-backed images.
+- The attachment path route reads without following a symlink at the final path component.
+- Attachment records preserve the supplied original filename in `record.name`, including non-ASCII characters.
+- Pasted attachment paths accept matching surrounding quotes, shell-escaped characters, and a leading `~/`.
 
 ### Changed
 - **Every tool now states all four MCP annotation hints explicitly — `readOnlyHint`, `destructiveHint`, `idempotentHint` and `openWorldHint` — with no value left to a spec default.** A consumer that reads annotations as a flat capability record sees an omitted hint as unanswered rather than as the documented default, so each one is answered outright and each answer is derived from what the handler actually does.

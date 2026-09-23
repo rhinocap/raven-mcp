@@ -2,7 +2,7 @@
 // storage under ~/.raven/grab-inbox, and pruning. Contract stub — L1 replaces
 // every body. Pure of session state: the bridge owns the id→record map.
 import { homedir } from "node:os";
-import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
+import { closeSync, constants, existsSync, fstatSync, mkdirSync, openSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { createHash, randomBytes } from "node:crypto";
 import { basename, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -142,6 +142,7 @@ export function storeAttachmentPath(sessionKey: string, input: { path: string; p
   } catch (_error) {
     throw new AttachmentError(400, "path must be a valid file URL or absolute path");
   }
+  if (requested.startsWith("~/")) requested = join(homedir(), requested.slice(2));
   if (!isAbsolute(requested)) throw new AttachmentError(400, "path must be absolute");
   var resolved = resolve(requested);
   // Containment is checked before existence so the route cannot be used to
@@ -150,16 +151,6 @@ export function storeAttachmentPath(sessionKey: string, input: { path: string; p
     throw new AttachmentError(400, "attachment path must be under the home or project directory");
   }
   if (!existsSync(resolved)) throw new AttachmentError(404, "attachment path was not found");
-  var stat;
-  try {
-    stat = statSync(resolved);
-  } catch (_error) {
-    throw new AttachmentError(404, "attachment path was not found");
-  }
-  if (!stat.isFile()) throw new AttachmentError(400, "attachment path must be a regular file");
-  // Size is checked before the read: a multi-gigabyte file would otherwise be
-  // loaded whole (or fail as too large to read) before the 25 MiB refusal.
-  if (stat.size > MAX_ATTACHMENT_BYTES) throw new AttachmentError(413, "attachment exceeds the 25 MiB limit");
   var real: string;
   try {
     real = realpathSync(resolved);
@@ -167,11 +158,48 @@ export function storeAttachmentPath(sessionKey: string, input: { path: string; p
     throw new AttachmentError(400, "attachment path could not be resolved");
   }
   if (real !== resolved) throw new AttachmentError(400, "attachment path has a symlink escape: " + resolved);
-  var bytes = readFileSync(resolved);
+  var fd: number;
+  var stat;
+  try {
+    var opened = openAttachmentFile(resolved);
+    fd = opened.fd;
+    stat = opened.stat;
+  } catch (error) {
+    var code = error && typeof error === "object" && "code" in error ? String((error as { code: unknown }).code) : "";
+    if (code === "ELOOP" || code === "EMLINK") throw new AttachmentError(400, "attachment path has a symlink escape: " + resolved);
+    throw new AttachmentError(404, "attachment path was not found");
+  }
+  if (!stat.isFile()) {
+    closeSync(fd);
+    throw new AttachmentError(400, "attachment path must be a regular file");
+  }
+  if (stat.size > MAX_ATTACHMENT_BYTES) {
+    closeSync(fd);
+    throw new AttachmentError(413, "attachment exceeds the 25 MiB limit");
+  }
+  var bytes: Buffer;
+  try {
+    bytes = readFileSync(fd);
+  } finally {
+    closeSync(fd);
+  }
   if (bytes.length > MAX_ATTACHMENT_BYTES) throw new AttachmentError(413, "attachment exceeds the 25 MiB limit");
   var kind = sniffImageKind(bytes);
   if (!kind) throw new AttachmentError(415, "attachment is not a supported image");
   return storeVerifiedAttachment(sessionKey, basename(resolved), bytes, kind, "path", resolved, IMAGE_MIME_BY_KIND[kind]);
+}
+
+// O_NOFOLLOW protects the final path component. Intermediate directories are
+// not protected (macOS has no O_RESOLVE_BENEATH); third-party proxy routes are
+// already refused by the bridge.
+export function openAttachmentFile(path: string): { fd: number; stat: ReturnType<typeof fstatSync> } {
+  var fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  try {
+    return { fd: fd, stat: fstatSync(fd) };
+  } catch (error) {
+    closeSync(fd);
+    throw error;
+  }
 }
 
 // Dispatch on contentType: multipart/form-data → storeAttachmentBytes; application/json {path} → storeAttachmentPath.
@@ -208,7 +236,9 @@ function storeVerifiedAttachment(sessionKey: string, originalName: string, bytes
   // (.html on PNG bytes), is refused on both routes.
   var extensionKind = imageKindForExtension(basename(originalName));
   if (extensionKind && extensionKind !== kind) throw new AttachmentError(415, "attachment extension does not match image content");
+  var leaf = basename(originalName.replace(/[\\/]+/g, "/"));
   var name = sanitizeFilename(originalName, kind);
+  var recordName = capUtf8Bytes(leaf.replace(/[\x00-\x1f\x7f]/g, "").normalize("NFC"), 255) || name;
   var sha256 = createHash("sha256").update(bytes).digest("hex");
   var dimensions = readImageDimensions(bytes, kind);
   var directory = sessionInboxDir(sessionKey);
@@ -228,22 +258,32 @@ function storeVerifiedAttachment(sessionKey: string, originalName: string, bytes
   } else {
     writeFileSync(path, bytes);
   }
-  return { id: "att_" + randomBytes(8).toString("hex"), origin: origin, name: name, mime: IMAGE_MIME_BY_KIND[kind], bytes: bytes.length, sha256: sha256, width: dimensions.width, height: dimensions.height, path: path, sourcePath: sourcePath };
+  return { id: "att_" + randomBytes(8).toString("hex"), origin: origin, name: recordName, mime: IMAGE_MIME_BY_KIND[kind], bytes: bytes.length, sha256: sha256, width: dimensions.width, height: dimensions.height, path: path, sourcePath: sourcePath };
+}
+
+function capUtf8Bytes(value: string, maxBytes: number): string {
+  var output = "";
+  for (var character of value) {
+    if (Buffer.byteLength(output + character, "utf8") > maxBytes) break;
+    output += character;
+  }
+  return output;
 }
 
 function sanitizeFilename(name: string, kind: ImageKind): string {
-  var leaf = name.split(/[\\/]+/).pop() || "";
-  var sanitized = leaf.replace(/[\x00-\x1f\x7f]/g, "").replace(/[^A-Za-z0-9._-]/g, "-").replace(/-+/g, "-").replace(/^[.-]+/, "").slice(0, 80);
-  if (!sanitized) return "attachment." + extensionForKind(kind);
-  // The stored name always ends with the sniffed type's extension: a name with
-  // no extension ("image" from a paste) gains one, and a non-image extension
-  // (.html on PNG bytes) is replaced, so the path handed to the agent never
-  // misstates what the file is. Image extensions were already matched to the
-  // content by the caller.
-  if (imageKindForExtension(sanitized)) return sanitized;
-  var dot = sanitized.lastIndexOf(".");
-  var stem = dot > 0 ? sanitized.slice(0, dot) : sanitized;
-  return stem + "." + extensionForKind(kind);
+  var leaf = (name.split(/[\\/]+/).pop() || "").replace(/[\x00-\x1f\x7f]/g, "");
+  // Split the stem from the extension before sanitising so a stem made only of
+  // characters the ASCII sanitiser drops becomes "attachment", not the bare
+  // extension. The stored name always ends with the sniffed type's extension:
+  // a name with no extension ("image" from a paste) gains one, and a non-image
+  // extension (.html on PNG bytes) is replaced, so the path handed to the agent
+  // never misstates what the file is. Image extensions were already matched to
+  // the content by the caller.
+  var dot = leaf.lastIndexOf(".");
+  var stemSource = dot > 0 ? leaf.slice(0, dot) : leaf;
+  var extension = dot > 0 && imageKindForExtension(leaf) ? leaf.slice(dot + 1).toLowerCase() : extensionForKind(kind);
+  var stem = stemSource.replace(/[^A-Za-z0-9._-]/g, "-").replace(/-+/g, "-").replace(/^[.-]+|[.-]+$/g, "").slice(0, 80);
+  return (stem || "attachment") + "." + extension;
 }
 
 function extensionForKind(kind: ImageKind): string {

@@ -3628,7 +3628,7 @@ server.tool(
       var protocol = "Tell the user in ONE line that sends and component requests from the overlay arrive in this agent session and are held until Apply commits the batch; for teams, briefly mention GitHub routing with COMPONENT_REQUEST_GITHUB_REPO and optional COMPONENT_REQUEST_GITHUB_TOKEN.";
       if (session.watch_command) {
         protocol += " Now run watch_command as a background Bash task. Sends may arrive before a commit: acknowledge them without implementing and re-launch watch_command. When batchCommit appears, use the batch field already present in the watch_command output; it is pinned to the committed batchId. Do not re-fetch via batch:true. Resolve every target against the pre-reorder baseline, then implement batch.pending in ascending sequence in one patch.";
-        protocol += " Sends can carry image attachments (absolute paths under ~/.raven/grab-inbox) alongside an imageTarget describing the image to replace; treat the instruction text as authoritative.";
+        protocol += " Sends can carry image attachments (absolute paths under ~/.raven/grab-inbox) alongside an imageTarget describing the image to replace; treat the instruction text as authoritative. When imageTarget.kind is background and backgroundHasUrl is false the carrier is a generated image (a gradient); replacing it means setting background-image to a url() of the copied asset.";
       } else if (proxy_target) {
         // watch_command comes back empty for two unrelated reasons, and naming
         // the wrong one changes what the agent does next. A capture-only proxy
@@ -3639,7 +3639,7 @@ server.tool(
         protocol = "Tell the user in ONE line that the overlay is capture-only on this proxied site: they can measure and grab, and nothing will be written to the page. Drain sends with get_grabbed_elements whenever control returns to you, keep each selection with capture_reference, and map it onto this project's tokens with map_reference_to_tokens. Do not wait for a batchCommit marker — none is coming.";
       } else {
         protocol += " This environment has no HTTP listener for a watcher to poll, so drain sends by calling get_grabbed_elements whenever control returns to you.";
-        protocol += " Sends can carry image attachments (absolute paths under ~/.raven/grab-inbox) alongside an imageTarget describing the image to replace; treat the instruction text as authoritative.";
+        protocol += " Sends can carry image attachments (absolute paths under ~/.raven/grab-inbox) alongside an imageTarget describing the image to replace; treat the instruction text as authoritative. When imageTarget.kind is background and backgroundHasUrl is false the carrier is a generated image (a gradient); replacing it means setting background-image to a url() of the copied asset.";
       }
       payload.agent_protocol = protocol;
       return {
@@ -3691,7 +3691,7 @@ server.tool(
       }
       if (grabbed.elements.some(function (element) { return Array.isArray(element.attachments) && element.attachments.length > 0; })) {
         payload.agent_protocol = (typeof payload.agent_protocol === "string" ? payload.agent_protocol + " " : "")
-          + "An element carries attachments: absolute file paths the user supplied for this change. For an image replacement, copy the attachment into the project's asset location, update the carrier named in imageTarget (src, srcset, picture sources, or background-image, or the import at imageTarget.sourceFile), keep alt and rendered dimensions, and warn when the attachment's aspect ratio differs from imageTarget by more than 2%.";
+          + "An element carries attachments: absolute file paths the user supplied for this change. For an image replacement, copy the attachment into the project's asset location, update the carrier named in imageTarget (src, srcset, picture sources, or background-image, or the import at imageTarget.sourceFile), keep alt and rendered dimensions, and warn when the attachment's aspect ratio differs from imageTarget by more than 2%. When imageTarget.kind is background and backgroundHasUrl is false the carrier is a generated image (a gradient); replacing it means setting background-image to a url() of the copied asset.";
       }
       return {
         content: [{

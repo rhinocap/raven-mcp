@@ -2,7 +2,7 @@ import { createServer, request as httpRequest, type IncomingMessage, type Server
 import { request as httpsRequest } from "https";
 import type { Duplex } from "stream";
 import { randomBytes } from "crypto";
-import { existsSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, readFileSync, statSync, writeFileSync } from "fs";
 import { basename, join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import { tmpdir } from "os";
@@ -2154,7 +2154,7 @@ function readAttachmentBody(req: IncomingMessage): Promise<Buffer | null> {
 interface GrabResponse {
   status: number;
   headers: Record<string, string>;
-  body: string;
+  body: string | Buffer;
 }
 
 function buildAttachmentResponse(key: string, url: string, contentType: string, body: Buffer): GrabResponse {
@@ -2190,10 +2190,37 @@ async function buildGrabResponse(designMdPath: string, key: string, method: stri
     return { status: 204, headers: {}, body: "" };
   }
 
-  var protectedRoute = (method === "GET" && (pathname === "/raven-grab.js" || pathname === "/tokens" || pathname === "/template" || pathname === "/components" || pathname === "/batch" || pathname === "/agent/wait" || pathname === "/layers-operation"))
+  var protectedRoute = (method === "GET" && (pathname === "/raven-grab.js" || pathname === "/tokens" || pathname === "/attachment" || pathname === "/template" || pathname === "/components" || pathname === "/batch" || pathname === "/agent/wait" || pathname === "/layers-operation"))
     || (method === "POST" && (pathname === "/grab" || pathname === "/attachment" || pathname === "/batch-commit" || pathname === "/template" || pathname === "/template-validation" || pathname === "/components" || pathname === "/layers" || pathname === "/layers-intent"));
   if (protectedRoute && parsedUrl.searchParams.get("key") !== key) {
     return { status: 403, headers: { "Content-Type": "text/plain; charset=utf-8" }, body: "Forbidden" };
+  }
+
+  if (method === "GET" && pathname === "/attachment") {
+    var attachmentSession = currentSession;
+    if (!attachmentSession) return jsonResponse(404, { error: "No active grab session" });
+    if (proxyCaptureOnly(attachmentSession.proxyTarget)) {
+      return { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8" }, body: "Not available while proxying a third-party site" };
+    }
+    var attachmentId = parsedUrl.searchParams.get("id");
+    var attachmentRecord = attachmentId ? attachmentSession.attachments.get(attachmentId) : undefined;
+    if (!attachmentRecord) return jsonResponse(404, { error: "Attachment not found" });
+    try {
+      var attachmentStats = statSync(attachmentRecord.path);
+      if (!attachmentStats.isFile()) return jsonResponse(404, { error: "Attachment file not found" });
+      var attachmentBytes = readFileSync(attachmentRecord.path);
+      return {
+        status: 200,
+        headers: {
+          "Content-Type": attachmentRecord.mime,
+          "Content-Length": String(attachmentBytes.length),
+          "Cache-Control": "no-store"
+        },
+        body: attachmentBytes
+      };
+    } catch (_err) {
+      return jsonResponse(404, { error: "Attachment file not found" });
+    }
   }
 
   if (method === "GET" && pathname === "/raven-grab.js") {
@@ -2404,7 +2431,7 @@ function installFetchShim(): void {
         attachmentHeaders.set("Access-Control-Allow-Origin", "*");
         attachmentHeaders.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
         attachmentHeaders.set("Access-Control-Allow-Headers", "Content-Type");
-        return new Response(attachmentResult.body, { status: attachmentResult.status, headers: attachmentHeaders });
+        return new Response(typeof attachmentResult.body === "string" ? attachmentResult.body : new Uint8Array(attachmentResult.body), { status: attachmentResult.status, headers: attachmentHeaders });
       }
       var bodyText = request.method === "GET" || request.method === "HEAD" ? "" : await request.text();
       var result = await buildGrabResponse(currentSession.path, currentSession.key, request.method, url.pathname + url.search, bodyText);
@@ -2412,7 +2439,7 @@ function installFetchShim(): void {
       headers.set("Access-Control-Allow-Origin", "*");
       headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
       headers.set("Access-Control-Allow-Headers", "Content-Type");
-      return new Response(result.body, { status: result.status, headers: headers });
+      return new Response(typeof result.body === "string" ? result.body : new Uint8Array(result.body), { status: result.status, headers: headers });
     }
     return originalFetch!(input, init);
   }) as typeof fetch;

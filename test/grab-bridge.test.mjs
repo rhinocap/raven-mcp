@@ -909,6 +909,9 @@ test('template routes batch page-scoped slots, round-trip, and flag validation o
     const started = await client.callTool({ name: 'start_grab_session', arguments: { path: designPath } });
     const session = JSON.parse(started.content[0].text);
     const key = sessionKey(session);
+    // The agent reads imageTarget.backgroundHasUrl to tell a gradient carrier
+    // from a url() one; the protocol has to say what false means.
+    assert.match(session.agent_protocol, /backgroundHasUrl is false the carrier is a generated image \(a gradient\)/);
     const slots = [
       { slotId: 'hero', selector: '#hero', role: 'fixed' },
       { slotId: 'body', selector: 'main', role: 'flexible' }
