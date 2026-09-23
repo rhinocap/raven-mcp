@@ -174,3 +174,10 @@ Verdict: "Claim fails" (stored drafts still carried inbox paths with 32 bits of 
 
 - Falsification fixes committed as aab3fc8 on top of b6ff46c. Full suite in raven-mcp-att-final 1811/1808/0/3. Sibling and oi-* worktrees removed. Not pushed.
 - Open: two carried entries matching the same page (first resumes, rest stay frozen rows); an unresolvable resume selector (kept as a carried row, untested); resume opens the panel on reload (design decision, reversible by deleting the startup resume block).
+
+### Merged and pushed: ec22ca2 (2026-09-23)
+
+- Andrew: "Keep the reload resume, merge to main and push". Resume block kept (finding 5 stands as designed).
+- Merge commit ec22ca2 on main; full suite on main 1811/1808/0/3; pushed 974934a..ec22ca2, origin/main = ec22ca2. Feature branch and worktrees removed.
+- Vercel `site` production deployment site-d80zb8tvt Ready (43s), alias mcp.ravenmcp.ai. Post-push anon `tools/list`: 45 tools, hash f64bb18…2bb0a6 unchanged.
+- https://ravenmcp.ai/raven-grab.js still serves the pre-merge overlay (794426 B, last-modified 2026-09-12, 0 × `hydrateAttachmentThumb`; repo mirror 820422 B, 4 ×). Apex is the `web` project, no git integration; it only moves on `cd web && vercel deploy --prod`. Not run: a separate prod deploy needing its own approval. Local bridges serve `browser/raven-grab.js` directly, so the npm/stdio path carries the new overlay once released; npm untouched (still 2.5.1).
