@@ -31,7 +31,10 @@ function parseBlock(raw) {
     .filter((line) => !/^<!--.*-->\s*$/.test(line.trim()))
     .join("\n")
     .trim();
-  return { body, meta, bullets: leadParagraphs(body), sections: sectionHeadings(body) };
+  // `raw` keeps the `<!-- web: -->` meta lines that `body` strips: the
+  // tag-anchored remainder is computed over raw text so a meta line written
+  // for the NEXT release survives promotion instead of being deleted.
+  return { raw: raw.trim(), body, meta, bullets: leadParagraphs(body), sections: sectionHeadings(body) };
 }
 
 /** Return the text of the `## [Unreleased]` block (without its heading). */
@@ -204,6 +207,16 @@ function isContentLine(line) {
  * (multiset subtraction, one removal per occurrence). `###` headings are
  * never subtracted; a heading left with nothing under it is pruned; blank
  * runs collapse. What remains is the work that landed AFTER the tag.
+ * Both inputs are the RAW block text, so a `<!-- web: -->` meta line is an
+ * ordinary content line: identical in both → subtracted, new in current → kept.
+ *
+ * Two limits are accepted rather than guarded, because the alternative is
+ * diffing markdown structurally for a file one person edits by hand:
+ *   - a line duplicated verbatim across sections is removed at its FIRST
+ *     occurrence from the top, whichever section the tag actually carried it in;
+ *   - the match is exact (trailing whitespace aside), so a tagged bullet that
+ *     was re-worded after the tag is announced again under [Unreleased] — the
+ *     next release repeats a sentence, which is visible and cheap to fix.
  */
 function subtractBody(current, tagged) {
   const remove = tagged.split("\n").filter(isContentLine).map((l) => l.trimEnd());
@@ -240,19 +253,39 @@ function subtractBody(current, tagged) {
 export function promoteChangelogMd(md, version, date, taggedMd) {
   md = normalize(md);
   const v = String(version).replace(/^v/, "");
-  if (parseReleaseBlock(md, v)) return md;
-  const current = parseUnreleased(md);
   const tagged = taggedUnreleased(taggedMd);
+  const existing = parseReleaseBlock(md, v);
+  if (existing) {
+    // Already promoted — unless the heading is a bullet-less STUB and the
+    // tagged copy has the notes: then the stub is dropped and refilled below
+    // under the date it already carried, so a resume repairs it instead of
+    // reporting "nothing to promote" over an empty section.
+    if (existing.bullets.length > 0 || !tagged || tagged.bullets.length === 0) return md;
+    md = removeReleaseBlock(md, v);
+    date = existing.date || date;
+  }
+  const current = parseUnreleased(md);
   const source = tagged && tagged.bullets.length > 0 ? tagged : current;
   if (source.bullets.length === 0) return md;
-  const remainder = source === tagged ? subtractBody(current.body, tagged.body) : "";
+  const remainder = source === tagged ? subtractBody(current.raw, tagged.raw) : "";
   const match = UNRELEASED_HEADING.exec(md);
   const start = match.index + match[0].length;
   const rest = md.slice(start);
   const next = RELEASE_HEADING.exec(rest);
   const tail = next ? rest.slice(next.index) : "";
   const unreleased = remainder ? `## [Unreleased]\n\n${remainder}\n\n` : "## [Unreleased]\n\n";
-  return `${md.slice(0, match.index)}${unreleased}## [${v}] - ${date}\n\n${source.body}\n\n${tail}`;
+  return `${md.slice(0, match.index)}${unreleased}## [${v}] - ${date}\n\n${source.raw}\n\n${tail}`;
+}
+
+/** `md` without the `## [version]` block (heading through the next `## [` heading). */
+function removeReleaseBlock(md, v) {
+  const heading = new RegExp(`^## \\[${escapeRegExp(v)}\\](?:\\s*-\\s*\\S+)?\\s*$`, "m");
+  const match = heading.exec(md);
+  if (!match) return md;
+  const rest = md.slice(match.index + match[0].length);
+  const next = RELEASE_HEADING.exec(rest);
+  const after = next ? rest.slice(next.index) : "";
+  return `${md.slice(0, match.index).replace(/\n+$/, "\n\n")}${after}`;
 }
 
 const KIND_BY_BUMP = { major: "new", minor: "feature", patch: "fix" };
@@ -299,9 +332,15 @@ export function promoteChangelog({ changelogMd, changelogJson, version, bump, da
   // completed promotion leaves behind.
   const v = String(version).replace(/^v/, "");
   const promoted = parseReleaseBlock(changelogMd, v);
+  const tagged = taggedUnreleased(taggedChangelogMd);
+  // A bullet-less `## [v]` stub with the notes in the tagged copy is not a
+  // completed promotion: it takes the fresh-promotion path below, where
+  // promoteChangelogMd refills the stub (keeping its date) and
+  // prependChangelogJson stays idempotent by version.
+  const stub = Boolean(promoted && promoted.bullets.length === 0 && tagged && tagged.bullets.length > 0);
   const jsonDone = (changelogJson.releases || []).some((r) => r.version === `v${v}`);
-  if (promoted && jsonDone) return { changelogMd, changelogJson, promoted: false, alreadyPromoted: true };
-  if (promoted) {
+  if (promoted && jsonDone && !stub) return { changelogMd, changelogJson, promoted: false, alreadyPromoted: true };
+  if (promoted && !stub) {
     // Half-promoted: the previous run wrote CHANGELOG.md and died before
     // changelog.json (or the commit). Back-fill the web entry from the
     // promoted block — [Unreleased] is empty now, or holds the NEXT release.
@@ -325,13 +364,13 @@ export function promoteChangelog({ changelogMd, changelogJson, version, bump, da
   // may already hold the next release's bullets (a resume cut after more
   // work landed); only the tagged copy separates the two.
   const current = parseUnreleased(changelogMd);
-  const tagged = taggedUnreleased(taggedChangelogMd);
   const block = tagged && tagged.bullets.length > 0 ? tagged : current;
   const where = block === tagged ? `[Unreleased] at tag v${v}` : "[Unreleased]";
   if (block.bullets.length === 0) {
     if (bump !== "patch") throw emptyNotesError(bump, where);
     return { changelogMd, changelogJson, promoted: false };
   }
+  if (stub) date = promoted.date || date;
   const entry = webEntryFromBlock(block, v, date, bump);
   return {
     changelogMd: promoteChangelogMd(changelogMd, v, date, taggedChangelogMd),

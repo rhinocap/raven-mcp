@@ -13,18 +13,20 @@
 //                         the notes are computed here from CHANGELOG.md the same
 //                         way — never from the GitHub Release body, which is a
 //                         copy that can be edited or stale.
-//   RELEASE_BUMP        — "minor" | "major"
+//   RELEASE_BUMP        — "minor" | "major"; EMPTY on a resend/resume (the
+//                         job output only exists on a fresh release), in which
+//                         case it is derived from the version shape.
 
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { Resend } from "resend";
-import { escapeHtml, releaseNotesFor, renderNotesHtml } from "./release-notes.mjs";
+import { bumpFromVersion, escapeHtml, releaseNotesFor, renderNotesHtml } from "./release-notes.mjs";
 
 const {
   RESEND_API_KEY,
   RESEND_AUDIENCE_ID,
   RELEASE_VERSION,
-  RELEASE_BUMP = "minor",
+  RELEASE_BUMP,
 } = process.env;
 let { RELEASE_NOTES = "" } = process.env;
 
@@ -32,6 +34,10 @@ if (!RESEND_API_KEY || !RESEND_AUDIENCE_ID || !RELEASE_VERSION) {
   console.error("Missing required env: RESEND_API_KEY, RESEND_AUDIENCE_ID, RELEASE_VERSION");
   process.exit(1);
 }
+
+// A resend carries no bump output, and defaulting to "minor" would send a
+// major release out with the minor subject and body.
+const bump = RELEASE_BUMP || bumpFromVersion(RELEASE_VERSION);
 
 if (RELEASE_NOTES.trim() === "") {
   // [Unreleased] as it stood at the tag is best effort here: the notify job's
@@ -44,7 +50,7 @@ if (RELEASE_NOTES.trim() === "") {
     tagged = undefined;
   }
   try {
-    RELEASE_NOTES = releaseNotesFor(RELEASE_VERSION, RELEASE_BUMP, readFileSync("CHANGELOG.md", "utf8"), tagged);
+    RELEASE_NOTES = releaseNotesFor(RELEASE_VERSION, bump, readFileSync("CHANGELOG.md", "utf8"), tagged);
     console.log(`RELEASE_NOTES was empty - computed from CHANGELOG.md for v${RELEASE_VERSION}`);
   } catch (err) {
     console.error(`::error::no curated release notes for v${RELEASE_VERSION}: ${err.message}`);
@@ -55,7 +61,7 @@ if (RELEASE_NOTES.trim() === "") {
 const resend = new Resend(RESEND_API_KEY);
 
 const subject =
-  RELEASE_BUMP === "major"
+  bump === "major"
     ? `Raven v${RELEASE_VERSION} — major release`
     : `Raven v${RELEASE_VERSION} is out`;
 
@@ -73,7 +79,7 @@ const html = `<!DOCTYPE html>
           Raven v${escapeHtml(RELEASE_VERSION)} is out
         </td></tr>
         <tr><td style="color:#9498A0;font-size:15px;line-height:1.7;padding-bottom:24px;">
-          ${RELEASE_BUMP === "major" ? "A major release" : "A minor release"} landed on npm and ravenmcp.ai.
+          ${bump === "major" ? "A major release" : "A minor release"} landed on npm and ravenmcp.ai.
         </td></tr>
         <tr><td bgcolor="#212129" style="background:#212129;border-radius:12px;border:1px solid rgba(255,255,255,0.06);padding:24px;color:#9498A0;font-size:14px;">
           ${renderNotesHtml(RELEASE_NOTES)}
