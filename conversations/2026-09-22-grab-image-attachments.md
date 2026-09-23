@@ -152,3 +152,25 @@ Spec fdd15f5 docs/spec-grab-attachments-open-items.md. Legs in .worktrees/oi-E (
 - Suites: overlay 36/36/0/0; node bridge+inbox 321/319/0/2; live check four chips blob thumbs before and after reload, one GET per chip each side, memo has no key, direct GET 200 image/png no-store, unknown id 404, no page errors; full suite in raven-mcp-att-final 1804/1801/0/3 (was 1798/1795/0/3).
 - Leg worktrees oi-E/F/G removed after their diffs were saved to the scratchpad. Sibling raven-mcp-att-final kept until the falsification pass closes.
 - Falsification: claude-opus-5-5 report-only on b6ff46c, log `$S/oi/opus55.log`.
+
+### Batch 3 falsification (claude-opus-5-5, cold context, report-only on b6ff46c)
+
+Verdict: "Claim fails" (stored drafts still carried inbox paths with 32 bits of the key; the item A and ENOENT tests passed without their changes).
+
+| # | Sev | Finding | Action |
+|---|-----|---------|--------|
+| 1 | P2 | Carried `draft.attachments` stored full records (path with key prefix, sourcePath, sha256) | Fixed: whitelist {id,name,mime,bytes,width,height,origin,state}; test asserts the memo has none of them and the endpoint is `/grab` |
+| 2 | P2 | Item A test passed with `readFileSync` | Fixed: 256 MiB sparse file streamed while `process.memoryUsage().arrayBuffers` growth stays under 64 MiB; mutation (buffer instead of stream) grows by 352 MB and fails |
+| 3 | P2 | Missing parent directory returned 400, not 404 | Fixed: realpath ENOENT/ENOTDIR maps to 404; test fails under mutation |
+| 4 | P2 | No tests for `/grab` drain resolution, style-edit entries not resuming, unresolvable selector | Fixed: drain-across-navigation test (key present on the bridge POST), style-edit entry stays a carried row (seeded via `addInitScript` because pagehide re-persists); both fail under mutation. Unresolvable selector and two matching entries left untested (documented behaviour: first match resumes, others stay frozen) |
+| 5 | P2 | Resume calls `selectTarget`, which opens the panel on load | Accepted as designed: the acceptance line "reload restores blob thumbs" needs the composer; panel state is not persisted, so there is no closed state to respect. Reversible by deleting the resume block |
+| 6 | P3 | Dedupe dropped the size check; stale comment | Fixed: size must match too; test forges a mismatched file under the exact name |
+| 7 | P3 | Content-Length from path `stat`, not `fstat` | Fixed: route opens the fd, `fstat`s it, streams from it; `res` close destroys the stream; shim reads and closes the fd |
+| 8 | P3 | Blob leak if `renderPanel` throws after `createObjectURL` | Fixed: catch calls `revokeAttachmentThumb` |
+| 9 | P3 | Legacy stored entries keep the keyed endpoint | Fixed: `readCarriedPending` rewrites `/grab?key=` endpoints to `/grab` |
+| 10 | P3 | Failed thumbnails refetch on every reactivation | Fixed: `thumbFailed` marker; test counts one GET across reactivation and fails under mutation |
+
+### Batch 3 closed: aab3fc8
+
+- Falsification fixes committed as aab3fc8 on top of b6ff46c. Full suite in raven-mcp-att-final 1811/1808/0/3. Sibling and oi-* worktrees removed. Not pushed.
+- Open: two carried entries matching the same page (first resumes, rest stay frozen rows); an unresolvable resume selector (kept as a carried row, untested); resume opens the panel on reload (design decision, reversible by deleting the startup resume block).
