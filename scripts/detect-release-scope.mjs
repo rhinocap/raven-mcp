@@ -41,8 +41,17 @@ import { readFileSync, appendFileSync } from "node:fs";
 // empty notes: the release exists, and an empty output is what the Release
 // step checks for.
 function resumeNotes(version) {
+  // [Unreleased] AS IT STOOD AT THE TAG is the block vX.Y.Z shipped; the
+  // current file may already carry later bullets. Best effort: no tag, no
+  // tagged copy, and releaseNotesFor falls back to the current block.
+  let tagged;
   try {
-    return releaseNotesFor(version, bumpFromVersion(version), readFileSync("CHANGELOG.md", "utf8"));
+    tagged = execSync(`git show v${version}:CHANGELOG.md`, { encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] });
+  } catch {
+    tagged = undefined;
+  }
+  try {
+    return releaseNotesFor(version, bumpFromVersion(version), readFileSync("CHANGELOG.md", "utf8"), tagged);
   } catch (err) {
     console.log(`No curated notes for v${version} on resume (${err.message}); notes output left empty.`);
     return "";

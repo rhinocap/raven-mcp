@@ -355,13 +355,27 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # NOTES and VERSION arrive as ENV, never as `${{ }}` inside the run
           # block. A `${{ }}` expression is substituted into the shell SOURCE
-          # before bash parses it, and the notes are built verbatim from merged
-          # PR titles (`detect-release-scope.mjs:246`) — so a PR titled
-          # `Fix docs $(whoami)` executed during `printf`, in a job holding
+          # before bash parses it, and the notes are hand-written CHANGELOG.md
+          # text (`scripts/release-notes.mjs`) — a bullet reading
+          # `Fix docs $(whoami)` would execute during `printf`, in a job holding
           # contents:write, OIDC, and the registry signing key on disk.
           NOTES: ${{ steps.release.outputs.notes }}
           VERSION: ${{ steps.ver.outputs.version }}
         run: |
+          # NOTES are the curated CHANGELOG.md block for this version
+          # (`scripts/release-notes.mjs`), computed on a fresh release from
+          # [Unreleased] and on a resume from the promoted [vX.Y.Z] block or
+          # [Unreleased] as it stood at the tag. They are the ONLY source of the
+          # Release body: never `--generate-notes`, which pastes raw commit
+          # subjects (v2.6.0's public Release and its email carried ~70 of them).
+          # Empty notes are a failure, not a fallback -- a Release nobody wrote
+          # up must not go out.
+          if [ -n "$(printf '%s' "$NOTES" | tr -d '[:space:]')" ]; then
+            printf '%s\n' "$NOTES" > /tmp/release-notes.md
+          else
+            echo "::error::no curated notes for v$VERSION - add bullets under [Unreleased] in CHANGELOG.md"
+            exit 1
+          fi
           # QUERIED before it is created. `gh release create` is not
           # duplicate-tolerant: on a resume the release usually already exists
           # and an unconditional create fails the step, taking the changelog,
@@ -371,77 +385,34 @@ jobs:
           # release the asset is re-uploaded with --clobber rather than skipped,
           # because the half-finished state this recovers from includes "release
           # created, asset upload failed".
-          # `printf '%s\n' ""` writes a NEWLINE, so `[ -s ]` on the result is
-          # TRUE for EMPTY notes and every `--generate-notes` fallback below is
-          # unreachable. A resume never computes notes, so the step failed on
-          # the exact path the fallback exists to serve -- both branches took
-          # --notes-file with a whitespace-only file, GitHub wrote an empty
-          # body, and the readback exited 1. `-s` stays the predicate at all
-          # four call sites; this makes it mean what those comments claim.
-          if [ -n "$(printf '%s' "$NOTES" | tr -d '[:space:]')" ]; then
-            printf '%s\n' "$NOTES" > /tmp/release-notes.md
-          else
-            : > /tmp/release-notes.md
-          fi
           if gh release view "v$VERSION" >/dev/null 2>&1; then
-            echo "release v$VERSION already exists - re-uploading the bundle"
+            echo "release v$VERSION already exists - re-uploading the bundle and rewriting the body"
             gh release upload "v$VERSION" site/raven.mcpb --clobber
-            # AN EXISTING RELEASE IS NOT A COMPLETE ONE. The branch below can
-            # leave a Release with an EMPTY BODY behind -- `--generate-notes`
-            # returns 0 having written nothing, and the run can also die between
-            # creation and the readback. A later dispatch then took this branch,
-            # re-uploaded the asset, and went green over a public Release with no
-            # notes, permanently: nothing here ever looked at the body. Repair is
-            # the same question the create branch asks, asked at the other door.
-            body=$(gh release view "v$VERSION" --json body --jq .body)
-            if [ -z "$(printf '%s' "$body" | tr -d '[:space:]')" ]; then
-              echo "release v$VERSION has an empty body - regenerating"
-              if [ -s /tmp/release-notes.md ]; then
-                gh release edit "v$VERSION" --notes-file /tmp/release-notes.md
-              else
-                gh release edit "v$VERSION" --generate-notes
-              fi
-              body=$(gh release view "v$VERSION" --json body --jq .body)
-              if [ -z "$(printf '%s' "$body" | tr -d '[:space:]')" ]; then
-                echo "::error::Release v$VERSION still has an empty body after regeneration"
-                exit 1
-              fi
-            fi
+            # AN EXISTING RELEASE IS NOT A COMPLETE ONE, and an existing BODY is
+            # not a correct one: a run that died before this step, or one that
+            # ran under the old `--generate-notes` fallback, left a Release with
+            # an empty body or a commit-subject dump. The body is rewritten
+            # from the curated notes unconditionally, so a resume repairs it.
+            gh release edit "v$VERSION" --notes-file /tmp/release-notes.md
           else
-            # A resume never computes notes -- the detector exits before the PR
-            # walk -- so on a resume whose ORIGINAL run died before creating
-            # the release, $NOTES is empty and an unguarded --notes-file writes
-            # a Release with no body and returns 0. The workflow would go green
-            # over an incomplete Release. --generate-notes is the honest
-            # fallback: GitHub writes the commit/PR summary itself.
             # --verify-tag on BOTH branches. `gh release create` otherwise
             # CREATES a missing tag from current default-branch HEAD, so a
             # version that does not exist becomes a permanent public tag and
             # Release pointing at whatever main is at that moment. The detector
             # already refuses an unknown resume_version; this is the same rule
             # at the second door, and it is the door that reads the REMOTE.
-            if [ -s /tmp/release-notes.md ]; then
-              gh release create "v$VERSION" \
-                --verify-tag \
-                --title "v$VERSION" \
-                --notes-file /tmp/release-notes.md \
-                site/raven.mcpb
-            else
-              echo "no notes were computed (this is a resume) - letting GitHub generate them"
-              gh release create "v$VERSION" \
-                --verify-tag \
-                --title "v$VERSION" \
-                --generate-notes \
-                site/raven.mcpb
-            fi
-            # --generate-notes returning 0 is not evidence of a non-empty body:
-            # the whole reason this fallback exists is that the empty-notes path
-            # went green over an incomplete Release. Read the body back.
-            body=$(gh release view "v$VERSION" --json body --jq .body)
-            if [ -z "$(printf '%s' "$body" | tr -d '[:space:]')" ]; then
-              echo "::error::Release v$VERSION was created with an empty body"
-              exit 1
-            fi
+            gh release create "v$VERSION" \
+              --verify-tag \
+              --title "v$VERSION" \
+              --notes-file /tmp/release-notes.md \
+              site/raven.mcpb
+          fi
+          # A zero exit from create/edit is not evidence of a non-empty body.
+          # Read it back and require the curated text to have landed.
+          body=$(gh release view "v$VERSION" --json body --jq .body)
+          if [ -z "$(printf '%s' "$body" | tr -d '[:space:]')" ]; then
+            echo "::error::Release v$VERSION has an empty body after writing the curated notes"
+            exit 1
           fi
 
       # Promote CHANGELOG.md's [Unreleased] block to `## [X.Y.Z]` and prepend the
@@ -456,7 +427,21 @@ jobs:
         env:
           VERSION: ${{ steps.ver.outputs.version }}
           BUMP: ${{ steps.release.outputs.bump }}
-        run: node scripts/promote-changelog.mjs --version "$VERSION" ${BUMP:+--bump "$BUMP"}
+        run: |
+          # [Unreleased] AS IT STOOD AT THE TAG is what vX.Y.Z shipped; the
+          # current file may already carry later bullets (a resume cut after
+          # more work landed). The tagged copy is passed so only the shipped
+          # bullets are promoted and the rest stay under [Unreleased].
+          tagged=""
+          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            git show "v$VERSION:CHANGELOG.md" > /tmp/tagged-changelog.md
+            tagged="/tmp/tagged-changelog.md"
+          fi
+          if [ -n "$tagged" ]; then
+            node scripts/promote-changelog.mjs --version "$VERSION" ${BUMP:+--bump "$BUMP"} --tagged-changelog "$tagged"
+          else
+            node scripts/promote-changelog.mjs --version "$VERSION" ${BUMP:+--bump "$BUMP"}
+          fi
 
       - name: Rebuild changelog page
         if: steps.release.outputs.released == 'true' || steps.release.outputs.resume == 'true'
@@ -570,23 +555,13 @@ jobs:
           RELEASE_NOTES: ${{ needs.release.outputs.notes }}
           RELEASE_BUMP: ${{ needs.release.outputs.bump }}
         run: |
-          # A resume never computes notes -- the detector exits before the PR
-          # walk -- so a resend would otherwise mail a release announcement with
-          # an empty body. The GitHub Release created by the original run is the
-          # authoritative text at that point, so read it back rather than
-          # sending nothing. Fail loudly if neither source has content: an email
-          # with no notes is worse than a job that says why it refused.
+          # The notes are the curated CHANGELOG.md block. When the job output
+          # carries none (a resend after a resume), notify-release.mjs computes
+          # them from CHANGELOG.md itself and exits 1 if there is nothing
+          # curated -- never from the GitHub Release body, which is an editable
+          # copy and, before this pipeline was fixed, held raw commit subjects.
           if [ -z "$RELEASE_VERSION" ]; then
             echo "::error::no version to announce"
-            exit 1
-          fi
-          if [ -z "$RELEASE_NOTES" ]; then
-            echo "no notes on the job output - reading the GitHub Release body"
-            RELEASE_NOTES=$(gh release view "v$RELEASE_VERSION" --json body --jq .body)
-            export RELEASE_NOTES
-          fi
-          if [ -z "$(printf '%s' "$RELEASE_NOTES" | tr -d '[:space:]')" ]; then
-            echo "::error::no release notes available for v$RELEASE_VERSION"
             exit 1
           fi
           node scripts/notify-release.mjs

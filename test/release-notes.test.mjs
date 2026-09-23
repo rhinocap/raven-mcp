@@ -30,6 +30,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   parseUnreleased,
+  parseReleaseBlock,
   stripMarkdown,
   MAINTENANCE_BODY,
   releaseNotesFor,
@@ -311,4 +312,82 @@ test("renderNotesHtml: a #N or [x](y) inside a code span stays literal; only htt
   assert.match(html, /href="https:\/\/github\.com\/rhinocap\/raven-mcp\/issues\/42"/, "#42 outside code is linked");
   assert.doesNotMatch(html, /href="javascript:/, "non-http scheme is not an anchor");
   assert.match(html, /href="https:\/\/ravenmcp\.ai"/);
+});
+
+// ---------------------------------------------------------------------------
+// Tag-anchored promotion. On a resume, [Unreleased] may already carry bullets
+// written AFTER the tag; the block vX.Y.Z shipped is [Unreleased] as it stood
+// at the tag (`git show vX.Y.Z:CHANGELOG.md`, passed in by the workflow).
+// ---------------------------------------------------------------------------
+
+// The current file: everything the tag had plus one bullet written afterwards.
+const LATER = FULL.replace("### Fixed\n- audit_contrast", "### Fixed\n- Written after the tag was cut.\n- audit_contrast");
+
+test("tag-anchored promotion files only the tagged bullets and keeps the newer one under [Unreleased]", () => {
+  assert.equal(parseUnreleased(LATER).bullets.length, 6, "fixture: current has one more bullet than the tag");
+  const r = promoteChangelog({ changelogMd: LATER, changelogJson: JSON_FIXTURE, version: "2.6.0", bump: "minor", date: "2026-09-23", taggedChangelogMd: FULL });
+  assert.equal(r.promoted, true);
+  assert.equal(r.entry.changes.length, 5, "entry from the tagged block");
+  assert.ok(!r.entry.changes.some((c) => c.includes("Written after")), "the later bullet is not in the web entry");
+  assert.equal(parseReleaseBlock(r.changelogMd, "2.6.0").body, parseUnreleased(FULL).body, "promoted block == tagged [Unreleased]");
+  const remainder = parseUnreleased(r.changelogMd);
+  assert.equal(remainder.bullets.length, 1, "the newer bullet stays under [Unreleased]");
+  assert.match(remainder.body, /^### Fixed\n- Written after the tag was cut\.$/, "only its own section heading survives");
+  // Nothing tagged: the current block is promoted whole, as before.
+  const whole = promoteChangelog({ changelogMd: LATER, changelogJson: JSON_FIXTURE, version: "2.6.0", bump: "minor", date: "2026-09-23" });
+  assert.equal(whole.entry.changes.length, 6);
+  // A tagged file that has no [Unreleased] heading at all falls back to current.
+  const noHeading = promoteChangelog({ changelogMd: LATER, changelogJson: JSON_FIXTURE, version: "2.6.0", bump: "minor", date: "2026-09-23", taggedChangelogMd: HEADER + PREVIOUS });
+  assert.equal(noHeading.entry.changes.length, 6, "unparseable tagged copy → current block");
+  // A tagged copy whose [Unreleased] is empty also falls back to current.
+  const emptyTag = promoteChangelog({ changelogMd: LATER, changelogJson: JSON_FIXTURE, version: "2.6.0", bump: "minor", date: "2026-09-23", taggedChangelogMd: EMPTY });
+  assert.equal(emptyTag.entry.changes.length, 6);
+});
+
+test("promoteChangelogMd with a tagged copy is idempotent even when the date differs on the second call", () => {
+  const once = promoteChangelogMd(LATER, "2.6.0", "2026-09-23", FULL);
+  assert.match(once, /^## \[Unreleased\]\n\n### Fixed\n- Written after the tag was cut\.\n\n## \[2\.6\.0\] - 2026-09-23\n\n### Added/m);
+  assert.equal(promoteChangelogMd(once, "2.6.0", "2026-09-24", FULL), once, "a resume with a later date changes nothing");
+  assert.equal(promoteChangelogMd(once, "2.6.0", "2026-09-24"), once, "with or without the tagged copy");
+});
+
+test("releaseNotesFor takes the tagged [Unreleased] over a current block that has grown, and over a bullet-less promoted stub", () => {
+  const tagged = releaseNotesFor("2.6.0", "minor", LATER, FULL);
+  assert.ok(!tagged.includes("Written after"), "the later bullet is not in the notes");
+  assert.ok(tagged.includes("image attachments"));
+  // A `## [2.6.0]` heading with no bullets under it must not win over the tagged bullets.
+  const stub = FULL.replace("## [2.5.0]", "## [2.6.0] - 2026-09-23\n\n### Added\n\n## [2.5.0]");
+  assert.equal(parseReleaseBlock(stub, "2.6.0").bullets.length, 0, "fixture: promoted stub is bullet-less");
+  const fromTag = releaseNotesFor("2.6.0", "minor", stub, FULL);
+  assert.ok(fromTag.includes("image attachments"), "tagged bullets are used, not the stub");
+  // Explicit resume of a patch whose current [Unreleased] has since grown.
+  const patch = releaseNotesFor("2.6.1", "patch", LATER, FULL);
+  assert.ok(!patch.includes("Written after"));
+  // No tagged copy and nothing curated: unchanged behaviour.
+  assert.throws(() => releaseNotesFor("2.7.0", "minor", EMPTY, undefined), /no bullets/);
+  assert.throws(() => releaseNotesFor("2.7.0", "minor", EMPTY, EMPTY), /no bullets/);
+});
+
+test("renderNotesHtml skips only the generated title line, and does not double-link a #N inside link text", () => {
+  const html = renderNotesHtml(["Raven v2 release notes", "### Fixed", "- See [issue #7 thread](https://example.com/t) and #8."].join("\n"));
+  assert.match(html, /Raven v2 release notes/, "a bullet-less lead line that merely starts with the title prefix is kept");
+  assert.equal((html.match(/<a /g) || []).length, 2, "one anchor for the link, one for #8");
+  assert.match(html, /<a [^>]*href="https:\/\/example\.com\/t"[^>]*>issue #7 thread<\/a>/, "#7 inside link text is literal");
+  assert.doesNotMatch(html, /issues\/7"/);
+  assert.match(html, /issues\/8"/);
+});
+
+test("the CLI and the workflow pass the tagged changelog through, and the workflow never lets GitHub write the body", () => {
+  const cli = readFileSync(new URL("../scripts/promote-changelog.mjs", import.meta.url), "utf8");
+  assert.match(cli, /opt\("tagged-changelog"\)/);
+  assert.match(cli, /promoteChangelog\(\{[^}]*taggedChangelogMd/);
+  const yml = readFileSync(new URL("../.github/workflows/release.yml", import.meta.url), "utf8");
+  assert.doesNotMatch(yml, /--generate-notes(?![^\n]*`)/, "no --generate-notes as a flag (a comment may name it in backticks)");
+  assert.match(yml, /git show "v\$VERSION:CHANGELOG\.md" > \/tmp\/tagged-changelog\.md/);
+  assert.match(yml, /promote-changelog\.mjs --version "\$VERSION" \$\{BUMP:\+--bump "\$BUMP"\} --tagged-changelog "\$tagged"/);
+  assert.match(yml, /gh release edit "v\$VERSION" --notes-file \/tmp\/release-notes\.md/);
+  const notify = yml.slice(yml.indexOf("\n  notify:"));
+  assert.doesNotMatch(notify, /gh release view/, "the email never reads the Release body");
+  const notifyScript = readFileSync(new URL("../scripts/notify-release.mjs", import.meta.url), "utf8");
+  assert.match(notifyScript, /releaseNotesFor\(RELEASE_VERSION, RELEASE_BUMP, readFileSync\("CHANGELOG\.md"/);
 });

@@ -8,13 +8,20 @@
 // v2.5.0 because nothing wrote changelog.json). Idempotent: a resume finds
 // the version already present in both files and changes nothing.
 //
-//   node scripts/promote-changelog.mjs --version 2.6.0 [--bump minor] [--date 2026-09-23]
+//   node scripts/promote-changelog.mjs --version 2.6.0 [--bump minor] [--date 2026-09-23] \
+//     [--tagged-changelog /tmp/tagged-changelog.md]
 //
 // --bump defaults from the version shape (X.Y.0 → minor, X.0.0 → major, else
 // patch) because a resume run has no bump output. A patch with an empty
 // [Unreleased] promotes nothing; a minor/major with an empty block exits 1.
+// --tagged-changelog is CHANGELOG.md as it stood AT THE TAG (`git show
+// vX.Y.Z:CHANGELOG.md`, written by the workflow): its [Unreleased] is what
+// vX.Y.Z actually shipped, and anything the current [Unreleased] holds beyond
+// it stays under [Unreleased] for the next release. Without it the whole
+// current block is promoted, which on a resume cut after more work landed
+// would file the next release's notes under this version.
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { bumpFromVersion, promoteChangelog } from "./release-notes.mjs";
 
 const args = process.argv.slice(2);
@@ -38,10 +45,13 @@ const MD = "CHANGELOG.md";
 const JSON_PATH = "web/data/changelog.json";
 const changelogMd = readFileSync(MD, "utf8");
 const changelogJson = JSON.parse(readFileSync(JSON_PATH, "utf8"));
+const taggedPath = opt("tagged-changelog");
+const taggedChangelogMd = taggedPath && existsSync(taggedPath) ? readFileSync(taggedPath, "utf8") : undefined;
+if (taggedPath && !taggedChangelogMd) console.log(`--tagged-changelog ${taggedPath} not found; promoting the current [Unreleased] whole.`);
 
 let result;
 try {
-  result = promoteChangelog({ changelogMd, changelogJson, version, bump, date });
+  result = promoteChangelog({ changelogMd, changelogJson, version, bump, date, taggedChangelogMd });
 } catch (err) {
   console.error(`::error::${err.message}`);
   process.exit(1);

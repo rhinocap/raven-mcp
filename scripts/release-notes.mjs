@@ -147,20 +147,46 @@ function emptyNotesError(bump, where) {
   );
 }
 
+/** `[Unreleased]` of the CHANGELOG.md as it stood at the version's tag, or null. */
+function taggedUnreleased(taggedChangelogMd) {
+  if (!taggedChangelogMd) return null;
+  try {
+    return parseUnreleased(taggedChangelogMd);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * The GitHub Release body and the email body for one version.
- * Source: the promoted `## [version]` block when CHANGELOG.md already carries
- * it (a resume after the changelog commit), else `[Unreleased]`.
+ * Source, in order: the promoted `## [version]` block when CHANGELOG.md
+ * already carries it (a resume after the changelog commit); else
+ * `[Unreleased]` as it stood AT THE TAG (`taggedChangelogMd`, the file read
+ * out of `vX.Y.Z:CHANGELOG.md`), which is the only block that cannot have
+ * picked up later work; else the current `[Unreleased]`. Without the tagged
+ * copy a resume cut after new bullets landed would announce the next
+ * release's notes under this version.
  * Throws when a minor/major release has nothing curated to say — a release
  * with no notes is a release nobody wrote up, and the email must not go out.
  * "Nothing" is judged on bullets, not on text: `### Added` with no items
  * under it is a stub, not notes.
  */
-export function releaseNotesFor(version, bump, changelogMd) {
+export function releaseNotesFor(version, bump, changelogMd, taggedChangelogMd) {
   const v = String(version).replace(/^v/, "");
   const promoted = parseReleaseBlock(changelogMd, v);
-  const block = promoted && promoted.bullets.length > 0 ? promoted : parseUnreleased(changelogMd);
-  const where = block === promoted ? `[${v}]` : "[Unreleased]";
+  const tagged = taggedUnreleased(taggedChangelogMd);
+  let block;
+  let where;
+  if (promoted && promoted.bullets.length > 0) {
+    block = promoted;
+    where = `[${v}]`;
+  } else if (tagged && tagged.bullets.length > 0) {
+    block = tagged;
+    where = `[Unreleased] at tag v${v}`;
+  } else {
+    block = parseUnreleased(changelogMd);
+    where = "[Unreleased]";
+  }
   let sections = block.body;
   if (block.bullets.length === 0) {
     if (bump !== "patch") throw emptyNotesError(bump, where);
@@ -169,19 +195,64 @@ export function releaseNotesFor(version, bump, changelogMd) {
   return [`Raven v${v} — ${bump} release`, "", sections, "", ...INSTALL_LINES].join("\n");
 }
 
-/** Move `[Unreleased]` under `## [version] - date`, leaving an empty block above. Idempotent. */
-export function promoteChangelogMd(md, version, date) {
+function isContentLine(line) {
+  return line.trim() !== "" && !/^###\s/.test(line);
+}
+
+/**
+ * `current` minus every bullet/continuation line that `tagged` carries
+ * (multiset subtraction, one removal per occurrence). `###` headings are
+ * never subtracted; a heading left with nothing under it is pruned; blank
+ * runs collapse. What remains is the work that landed AFTER the tag.
+ */
+function subtractBody(current, tagged) {
+  const remove = tagged.split("\n").filter(isContentLine).map((l) => l.trimEnd());
+  const kept = [];
+  for (const line of current.split("\n")) {
+    if (isContentLine(line)) {
+      const i = remove.indexOf(line.trimEnd());
+      if (i !== -1) {
+        remove.splice(i, 1);
+        continue;
+      }
+    }
+    kept.push(line);
+  }
+  const out = [];
+  for (let i = 0; i < kept.length; i++) {
+    if (/^###\s/.test(kept[i])) {
+      let j = i + 1;
+      while (j < kept.length && kept[j].trim() === "") j++;
+      if (j >= kept.length || /^###\s/.test(kept[j])) continue;
+    }
+    out.push(kept[i]);
+  }
+  return out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+/**
+ * Move `[Unreleased]` under `## [version] - date`. Idempotent.
+ * With `taggedMd` (CHANGELOG.md at the version's tag) the promoted block is
+ * the TAGGED `[Unreleased]` and the new `[Unreleased]` keeps whatever landed
+ * after the tag; without it the whole current block moves and the new
+ * `[Unreleased]` is empty.
+ */
+export function promoteChangelogMd(md, version, date, taggedMd) {
   md = normalize(md);
   const v = String(version).replace(/^v/, "");
   if (parseReleaseBlock(md, v)) return md;
-  const { body, bullets } = parseUnreleased(md);
-  if (bullets.length === 0) return md;
+  const current = parseUnreleased(md);
+  const tagged = taggedUnreleased(taggedMd);
+  const source = tagged && tagged.bullets.length > 0 ? tagged : current;
+  if (source.bullets.length === 0) return md;
+  const remainder = source === tagged ? subtractBody(current.body, tagged.body) : "";
   const match = UNRELEASED_HEADING.exec(md);
   const start = match.index + match[0].length;
   const rest = md.slice(start);
   const next = RELEASE_HEADING.exec(rest);
   const tail = next ? rest.slice(next.index) : "";
-  return `${md.slice(0, match.index)}## [Unreleased]\n\n## [${v}] - ${date}\n\n${body}\n\n${tail}`;
+  const unreleased = remainder ? `## [Unreleased]\n\n${remainder}\n\n` : "## [Unreleased]\n\n";
+  return `${md.slice(0, match.index)}${unreleased}## [${v}] - ${date}\n\n${source.body}\n\n${tail}`;
 }
 
 const KIND_BY_BUMP = { major: "new", minor: "feature", patch: "fix" };
@@ -220,7 +291,7 @@ export function prependChangelogJson(json, entry) {
 }
 
 /** Both files in one pass; returns the new contents (unchanged when nothing to promote). */
-export function promoteChangelog({ changelogMd, changelogJson, version, bump, date }) {
+export function promoteChangelog({ changelogMd, changelogJson, version, bump, date, taggedChangelogMd }) {
   // A resume re-runs this step after the tag exists and the previous run's
   // changelog commit has emptied [Unreleased]. Recognise the version heading
   // BEFORE asking whether there are notes to promote, or a resume of a minor
@@ -250,14 +321,20 @@ export function promoteChangelog({ changelogMd, changelogJson, version, bump, da
       `refusing to promote [Unreleased] as ${v}: CHANGELOG.md already carries ${top} above it, so these notes belong to a later release`,
     );
   }
-  const block = parseUnreleased(changelogMd);
+  // Notes for vX are [Unreleased] AS IT STOOD AT THE TAG. The current block
+  // may already hold the next release's bullets (a resume cut after more
+  // work landed); only the tagged copy separates the two.
+  const current = parseUnreleased(changelogMd);
+  const tagged = taggedUnreleased(taggedChangelogMd);
+  const block = tagged && tagged.bullets.length > 0 ? tagged : current;
+  const where = block === tagged ? `[Unreleased] at tag v${v}` : "[Unreleased]";
   if (block.bullets.length === 0) {
-    if (bump !== "patch") throw emptyNotesError(bump, "[Unreleased]");
+    if (bump !== "patch") throw emptyNotesError(bump, where);
     return { changelogMd, changelogJson, promoted: false };
   }
   const entry = webEntryFromBlock(block, v, date, bump);
   return {
-    changelogMd: promoteChangelogMd(changelogMd, v, date),
+    changelogMd: promoteChangelogMd(changelogMd, v, date, taggedChangelogMd),
     changelogJson: prependChangelogJson(changelogJson, entry),
     promoted: true,
     entry,
@@ -304,7 +381,16 @@ function inline(s) {
       let out = escapeHtml(part);
       out = out.replace(/\*\*([^*]+)\*\*/g, '<strong style="color:#F0F0F2;">$1</strong>');
       out = out.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" style="color:#00BFFF;text-decoration:none;">$1</a>');
-      out = out.replace(/(^|[\s(])#(\d+)\b/g, (_, pre, n) => `${pre}<a href="https://github.com/rhinocap/raven-mcp/issues/${n}" style="color:#00BFFF;text-decoration:none;">#${n}</a>`);
+      // Link bare `#N` only OUTSIDE anchors already emitted above — a
+      // `[see #12](url)` link would otherwise nest an <a> inside its <a>.
+      out = out
+        .split(/(<a [^>]*>[\s\S]*?<\/a>)/)
+        .map((seg, i) =>
+          i % 2
+            ? seg
+            : seg.replace(/(^|[\s(])#(\d+)\b/g, (_, pre, n) => `${pre}<a href="https://github.com/rhinocap/raven-mcp/issues/${n}" style="color:#00BFFF;text-decoration:none;">#${n}</a>`),
+        )
+        .join("");
       return out;
     })
     .join("");
@@ -357,8 +443,10 @@ export function renderNotesHtml(md) {
     } else if (/^\*\*Install:\*\*/.test(line) || /^\*\*Claude Desktop:\*\*/.test(line)) {
       close();
       html += `<p style="color:#9498A0;font-size:14px;margin:12px 0;">${inline(line)}</p>`;
-    } else if (line.startsWith("Raven v") && line.includes("release")) {
-      // skip the title line — we build our own header
+    } else if (/^Raven v\d+\.\d+\.\d+ — (major|minor|patch) release$/.test(line)) {
+      // skip the title line (exactly the one releaseNotesFor emits) — the
+      // email builds its own header; a bullet-less prose line that merely
+      // mentions "Raven v3 release" must still render.
     } else {
       close();
       html += `<p style="color:#9498A0;margin:12px 0;">${inline(line)}</p>`;

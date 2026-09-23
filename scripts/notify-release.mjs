@@ -8,23 +8,48 @@
 //   RESEND_AUDIENCE_ID  — required (target audience)
 //   RELEASE_VERSION     — e.g. "1.2.0"
 //   RELEASE_NOTES       — markdown from detect-release-scope.mjs, i.e. the
-//                         curated CHANGELOG.md [Unreleased] block (never git log)
+//                         curated CHANGELOG.md [Unreleased] block (never git log).
+//                         When empty (a resend whose job output carried none)
+//                         the notes are computed here from CHANGELOG.md the same
+//                         way — never from the GitHub Release body, which is a
+//                         copy that can be edited or stale.
 //   RELEASE_BUMP        — "minor" | "major"
 
+import { execSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { Resend } from "resend";
-import { escapeHtml, renderNotesHtml } from "./release-notes.mjs";
+import { escapeHtml, releaseNotesFor, renderNotesHtml } from "./release-notes.mjs";
 
 const {
   RESEND_API_KEY,
   RESEND_AUDIENCE_ID,
   RELEASE_VERSION,
-  RELEASE_NOTES = "",
   RELEASE_BUMP = "minor",
 } = process.env;
+let { RELEASE_NOTES = "" } = process.env;
 
 if (!RESEND_API_KEY || !RESEND_AUDIENCE_ID || !RELEASE_VERSION) {
   console.error("Missing required env: RESEND_API_KEY, RESEND_AUDIENCE_ID, RELEASE_VERSION");
   process.exit(1);
+}
+
+if (RELEASE_NOTES.trim() === "") {
+  // [Unreleased] as it stood at the tag is best effort here: the notify job's
+  // checkout is shallow and may not carry the tag, in which case the promoted
+  // [vX.Y.Z] block or the current [Unreleased] is used.
+  let tagged;
+  try {
+    tagged = execSync(`git show v${RELEASE_VERSION}:CHANGELOG.md`, { encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] });
+  } catch {
+    tagged = undefined;
+  }
+  try {
+    RELEASE_NOTES = releaseNotesFor(RELEASE_VERSION, RELEASE_BUMP, readFileSync("CHANGELOG.md", "utf8"), tagged);
+    console.log(`RELEASE_NOTES was empty - computed from CHANGELOG.md for v${RELEASE_VERSION}`);
+  } catch (err) {
+    console.error(`::error::no curated release notes for v${RELEASE_VERSION}: ${err.message}`);
+    process.exit(1);
+  }
 }
 
 const resend = new Resend(RESEND_API_KEY);

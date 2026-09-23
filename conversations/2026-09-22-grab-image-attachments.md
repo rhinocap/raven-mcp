@@ -297,3 +297,31 @@ P3: CRLF normalise (fix), `#N`/links inside code spans (fix: placeholder code sp
 - `node scripts/promote-changelog.mjs --version 2.6.0 --bump minor` on the real tree: "already carry this release — nothing to do (resume)", no writes. `releaseNotesFor("2.6.0","minor", CHANGELOG.md)` yields the curated 2.6.0 block, not commit subjects.
 - Full suite running to `$SP/full-suite-release-notes-r2.log` (expect 1829/1826/0/3, EXIT=0).
 - Next: read the suite log, commit the 9 files by pathspec, report "committed locally, not yet pushed". No push, no apex deploy, no `gh release edit`, no email without approval.
+
+## Checkpoint 2026-09-23 — curated release notes (decision 2)
+
+- Full suite before commit: 1829 tests / 1826 pass / 0 fail / 3 skipped, EXIT=0.
+- Committed locally as `98c2d8b` (main 5 ahead of origin/main, NOT pushed): `scripts/release-notes.mjs`, `scripts/promote-changelog.mjs`, `scripts/detect-release-scope.mjs` (resumeNotes), `scripts/notify-release.mjs`, `test/release-notes.test.mjs` (18 tests), `.github/workflows/release.yml` (Promote step + changelog.json in git add), `CHANGELOG.md`, `web/data/changelog.json`.
+- Opus falsification on 98c2d8b: DOES NOT SURVIVE.
+  - P1: a resume promotes/reports `[Unreleased]` bullets that landed after the tag (patch with no block; minor that died at Create Release). Fix: tag-anchored source — notes for vV = `[Unreleased]` as it stood at tag vV (`git show vV:CHANGELOG.md`); promote splits current block into tagged (promoted) and remainder (new `[Unreleased]`).
+  - P2: existing non-empty Release body never replaced on resume; `--generate-notes` and `gh release view` fallbacks still reachable. Fix: edit body on resume when curated notes exist; drop `--generate-notes`; notify computes from CHANGELOG.md, fails otherwise.
+  - P3: leadParagraphs truncates on 2-space wrapped line; "Raven v" title skip too loose; `#N` linker nests anchors in emitted links; four stale release.yml comments; two surviving mutants (tagged-source, promoteChangelogMd idempotency).
+- Blockers unchanged: push of main (= mcp.ravenmcp.ai deploy), `gh release edit v2.6.0`, decision-1 email, apex deploy all need fresh approval.
+
+## Checkpoint 2026-09-23 — compaction, fix pass not yet started
+
+State: `98c2d8b` committed on main (5 ahead of origin, not pushed). Opus post-commit falsification: DOES NOT SURVIVE (P1 tag-anchored notes source; P2 existing Release body never replaced on resume + `--generate-notes`/`gh release view` fallbacks; P3 leadParagraphs soft-wrap, title-skip regex, `#N` linker over anchors, four stale yml comments, two surviving mutants). Spec for the fix stated (7 lines). No source edit made yet.
+
+Next: edit `scripts/release-notes.mjs`, `scripts/promote-changelog.mjs`, `scripts/detect-release-scope.mjs`, `scripts/notify-release.mjs`, `.github/workflows/release.yml`; add tests; `node --test test/release-notes.test.mjs`; full suite in background; commit by pathspec with trailer.
+
+Blockers (approval-gated, untouched): push main (= mcp.ravenmcp.ai deploy, would auto-resume and rewrite v2.6.0's Release body once P2 lands); `gh release edit v2.6.0`; decision-1 correction email; `cd web && vercel deploy --prod`. `conversations/2026-09-23-client-overlay-goal.md` is another session's staged file — never in my commits.
+
+## Checkpoint 2026-09-23 — fix pass started (post-Opus DOES NOT SURVIVE on 98c2d8b)
+- Edits begun: `scripts/release-notes.mjs` gets tag-anchored source (`taggedUnreleased`, `subtractBody`, 4th param on `releaseNotesFor`, tag-aware `promoteChangelogMd`/`promoteChangelog`), tightened title-skip regex, `#N` linker that skips emitted anchors. Next: promote-changelog.mjs `--tagged-changelog`, detector `resumeNotes`, notify-release.mjs computing from CHANGELOG.md, release.yml (no `--generate-notes`, always `--notes-file`, empty notes → exit 1, drop notify `gh release view` fallback, 4 stale comments), tests.
+- `leadParagraphs` P3 deliberately not applied: unindented line after a bullet is CommonMark lazy continuation; fixture's 2-space continuation must stay a continuation.
+- No push, no apex deploy, no Release edit, no email.
+
+- Checkpoint (fix pass, post-compaction): release-notes.mjs, promote-changelog.mjs, detect-release-scope.mjs (stray brace removed), notify-release.mjs (computes notes from CHANGELOG.md when env is empty), release.yml (Create Release: no --generate-notes, empty notes → ::error; resume always `gh release edit --notes-file`; notify drops `gh release view` fallback; Promote passes `git show vV:CHANGELOG.md`). Tests next. No push/deploy/email.
+
+- Checkpoint (fix pass, post-compaction): five tests added to `test/release-notes.test.mjs` → `node --test` 23/23. Two mutants (taggedUnreleased→null; subtractBody→identity) each fail 2–3 tests, source restored byte-identical. CLI e2e in scratch dir with `--tagged-changelog`: promoted [2.6.0] = 16 tagged bullets, post-tag bullet stays under [Unreleased], changelog.json entry kind feature. Real repo `releaseNotesFor("2.6.0", …, git show v2.6.0:CHANGELOG.md)` → 35 lines, 0 commit-subject-shaped lines. Full suite running in background; next = commit the 7 files by pathspec (exclude `conversations/2026-09-23-client-overlay-goal.md`, another session's staged file). No push, apex deploy, Release edit or email.
+- Full suite after the fix pass: 1834 tests / 1831 pass / 0 fail / 3 skipped, EXIT=0 read from inside `$SP/full-suite-fix.log` (+5 over the 1829 baseline = exactly the five new release-notes tests, confirmed by name at log lines 1561–1565). Committing by pathspec next.
