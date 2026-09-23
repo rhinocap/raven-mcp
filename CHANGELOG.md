@@ -6,7 +6,18 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 
 ## [Unreleased]
 
+### Added
+- The Grab overlay accepts image attachments dropped or pasted into the composer: PNG, JPEG, WebP, GIF, SVG, and AVIF files up to 25 MiB each, with up to four per send. It also accepts an absolute image path. The bridge stores attachments under `~/.raven/grab-inbox` (`RAVEN_GRAB_INBOX` overrides the location) and prunes inboxes older than seven days when a session starts. Each selection carries an `imageTarget` block with its kind (`img`, `picture`, `background`, `svg`, or `video-poster`), `currentSrc`, `srcset`, `sources`, natural and rendered size, and `object-fit`. `get_grabbed_elements` returns `attachments[]` with absolute paths and `imageTarget`; `agent_protocol` tells the agent how to apply a replacement. The bridge adds `POST /attachment` for multipart uploads or a JSON path. Attachments are available through the bridge only; hosted endpoints refuse them.
+- Path attachments receive thumbnail previews through `GET /attachment`; background `imageTarget` values report `backgroundHasUrl` to distinguish gradients from URL-backed images.
+- The attachment path route reads without following a symlink at the final path component.
+- Attachment records preserve the supplied original filename in `record.name`, including non-ASCII characters.
+- Pasted attachment paths accept matching surrounding quotes, shell-escaped characters, and a leading `~/`.
+- An attachment-only draft on the same page resumes in the composer after a reload, with its thumbnails fetched again from the bridge.
+
 ### Changed
+- `GET /attachment` streams the file from an open descriptor instead of buffering it; the overlay fetches each thumbnail once into a `blob:` URL, and the pending-changes memo in `sessionStorage` no longer holds the bridge capability key, inbox paths, source paths or hashes.
+- Identical attachment bytes dedupe to one inbox file only when the stored filename also matches.
+- The attachment path route resolves the parent directory before opening the file, so a symlinked parent is refused before any read.
 - **Every tool now states all four MCP annotation hints explicitly — `readOnlyHint`, `destructiveHint`, `idempotentHint` and `openWorldHint` — with no value left to a spec default.** A consumer that reads annotations as a flat capability record sees an omitted hint as unanswered rather than as the documented default, so each one is answered outright and each answer is derived from what the handler actually does.
 
   Two of those answers are new statements rather than restatements. `idempotentHint` is a per-tool table whose default is **false**: a tool that mints an id, appends to a log, drains a queue, or applies a relative change is not idempotent, while one that writes a value the caller supplied or removes something by name is. Under-claiming costs a client a retry it chose not to make; over-claiming is an annotation that does not match behaviour, which is the thing this table exists to prevent. And `openWorldHint` is now derived per build instead of read from one fixed list — `audit_page`, `score_page` and `audit_typography` reach the open web only through a `url` argument, and the hosted endpoint rejects that argument before the handler runs, so on `mcp.ravenmcp.ai` they are published closed-world because they are closed-world there. The remote answer reads the guard table itself rather than being written out a second time, so lifting a guard moves the annotation in the same edit.

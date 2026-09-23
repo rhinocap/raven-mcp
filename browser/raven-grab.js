@@ -127,6 +127,11 @@
       if (STYLE_PROPERTIES.indexOf(property) === -1) STYLE_PROPERTIES.push(property);
     });
   });
+  // Captured for imageTarget context, not panel rows: these values do not have
+  // sane standalone controls in the current panel.
+  ["background-image", "object-position", "aspect-ratio"].forEach(function (property) {
+    if (STYLE_PROPERTIES.indexOf(property) === -1) STYLE_PROPERTIES.push(property);
+  });
   var INTERACTIVE_STATES = ["hover", "focus", "active", "disabled"];
 
   var bridgeTokens = [];
@@ -180,6 +185,11 @@
   // reclaim vertical space (critical on the mobile sheet). Keyed by section role.
   var changeTrayCollapsed = Object.create(null);
   var instructionDraft = "";
+  // Like the instruction, attachments belong to the active selection's draft,
+  // never to a transient composer node rebuilt by renderPanel().
+  var attachmentDraft = [];
+  var attachmentNotice = "";
+  var attachmentDragDepth = 0;
   // Live dictation session ({ recognizer, targetAttr }) or null. Module scope
   // on purpose: renderPanel() rebuilds panel DOM wholesale, so nothing about
   // an in-flight dictation may live on the button or textarea node.
@@ -966,6 +976,16 @@
     .raven-grab-assets-cta { margin-top: 12px; }
     .raven-grab-composer { margin: 0 0 12px; }
     .raven-grab-composer .raven-grab-textarea { width: 100%; box-sizing: border-box; max-height: 30vh; }
+    .raven-grab-composer[data-drop-active] { outline: 1px solid var(--raven-grab-accent); outline-offset: 3px; }
+    .raven-grab-attachment-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+    .raven-grab-attachment-chip { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 6px; color: var(--raven-grab-text); background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.12); border-radius: 6px; }
+    .raven-grab-attachment-thumb { width: 44px; height: 44px; object-fit: cover; background: rgba(255,255,255,.08); border-radius: 4px; }
+    .raven-grab-attachment-meta { min-width: 0; font: 400 calc(11px * var(--raven-grab-font-scale))/1.35 var(--raven-grab-ui); }
+    .raven-grab-attachment-name, .raven-grab-attachment-dims, .raven-grab-attachment-error { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .raven-grab-attachment-dims { color: var(--raven-grab-muted); }
+    .raven-grab-attachment-error { color: #ff8a8a; }
+    .raven-grab-attachment-remove { min-width: 28px; min-height: 28px; padding: 0; color: var(--raven-grab-muted); background: transparent; border: 1px solid rgba(255,255,255,.12); border-radius: 4px; cursor: pointer; }
+    .raven-grab-attachment-notice { margin: 6px 0 0; color: var(--raven-grab-muted); font: 400 calc(11px * var(--raven-grab-font-scale))/1.35 var(--raven-grab-ui); }
     .raven-grab-voice { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 24px; height: 24px; padding: 0; color: var(--raven-grab-muted); background: transparent; border: 1px solid rgba(255,255,255,.12); border-radius: 6px; cursor: pointer; }
     .raven-grab-voice:hover { color: var(--raven-grab-accent); border-color: rgba(0,191,255,.45); }
     .raven-grab-voice:focus-visible { outline: 2px solid rgba(0, 191, 255, .35); outline-offset: 2px; }
@@ -3595,10 +3615,121 @@
     return output;
   }
 
-  function selectionFor(element) {
+  function imageTargetFor(element, metadata) {
+    try {
+      if (!element || element.nodeType !== 1) return null;
+
+      var kind = null;
+      var carrier = null;
+      var imageElement = null;
+      var backgroundImage = null;
+      var tagName = String(element.tagName || "").toLowerCase();
+      if (tagName === "img") {
+        // A click on a <picture> always lands on its <img>; the agent still has
+        // to rewrite the sibling <source> candidates, so report the picture.
+        var imgParent = element.parentElement;
+        kind = imgParent && String(imgParent.tagName || "").toLowerCase() === "picture" ? "picture" : "img";
+        carrier = element;
+        imageElement = element;
+      } else if (tagName === "picture") {
+        kind = "picture";
+        carrier = element.querySelector("img");
+        imageElement = carrier;
+      } else if (tagName === "svg") {
+        kind = "svg";
+        carrier = element;
+      } else if (tagName === "video" && element.hasAttribute("poster")) {
+        kind = "video-poster";
+        carrier = element;
+      } else {
+        var computed = getComputedStyle(element);
+        if (computed.backgroundImage !== "none") {
+          kind = "background";
+          carrier = element;
+          backgroundImage = computed.backgroundImage;
+        } else {
+          // Do not scan descendants for background images: only explicit media carriers qualify.
+          // An <img> inside a <picture> is that picture's own child, not a second carrier.
+          var descendants = Array.prototype.filter.call(element.querySelectorAll("img, picture, svg, video[poster]"), function (node) {
+            var parent = node.parentElement;
+            return !(String(node.tagName || "").toLowerCase() === "img" && parent && String(parent.tagName || "").toLowerCase() === "picture" && element.contains(parent));
+          });
+          if (descendants.length !== 1) return null;
+          var descendant = descendants[0];
+          var descendantTagName = String(descendant.tagName || "").toLowerCase();
+          if (descendantTagName === "img") {
+            kind = "img";
+            carrier = descendant;
+            imageElement = descendant;
+          } else if (descendantTagName === "picture") {
+            kind = "picture";
+            carrier = descendant.querySelector("img");
+            imageElement = carrier;
+          } else if (descendantTagName === "svg") {
+            kind = "svg";
+            carrier = descendant;
+          } else if (descendantTagName === "video") {
+            kind = "video-poster";
+            carrier = descendant;
+          }
+        }
+      }
+      if (!kind || !carrier) return null;
+
+      var carrierStyle = getComputedStyle(carrier);
+      var carrierRect = carrier.getBoundingClientRect();
+      // A stored draft passes its own metadata; the live selection uses the module's.
+      var sourceMetadata = metadata === undefined ? reactMetadata : metadata;
+      var sourceFile = sourceMetadata && sourceMetadata.filePath
+        ? { filePath: sourceMetadata.filePath, line: sourceMetadata.line, column: sourceMetadata.column }
+        : null;
+      var target = {
+        kind: kind,
+        selector: stableSelector(carrier),
+        currentSrc: imageElement && imageElement.currentSrc ? new URL(imageElement.currentSrc, document.baseURI).href : "",
+        src: imageElement ? imageElement.getAttribute("src") : null,
+        srcset: imageElement ? imageElement.getAttribute("srcset") : null,
+        sizes: imageElement ? imageElement.getAttribute("sizes") : null,
+        alt: imageElement ? imageElement.getAttribute("alt") : null,
+        loading: imageElement ? imageElement.getAttribute("loading") : null,
+        decoding: imageElement ? imageElement.getAttribute("decoding") : null,
+        naturalWidth: imageElement ? imageElement.naturalWidth : null,
+        naturalHeight: imageElement ? imageElement.naturalHeight : null,
+        renderedWidth: carrierRect.width,
+        renderedHeight: carrierRect.height,
+        objectFit: carrierStyle.objectFit,
+        objectPosition: carrierStyle.objectPosition,
+        aspectRatio: carrierStyle.aspectRatio,
+        sourceFile: sourceFile
+      };
+      if (kind === "picture") {
+        var picture = carrier.parentElement && String(carrier.parentElement.tagName || "").toLowerCase() === "picture"
+          ? carrier.parentElement
+          : element;
+        target.sources = Array.prototype.filter.call(picture.children || [], function (child) {
+          return String(child.tagName || "").toLowerCase() === "source";
+        }).map(function (source) {
+          return {
+            srcset: source.getAttribute("srcset"),
+            media: source.getAttribute("media"),
+            type: source.getAttribute("type")
+          };
+        });
+      }
+      if (kind === "background") {
+        target.backgroundImage = backgroundImage;
+        target.backgroundHasUrl = /url\(/i.test(backgroundImage);
+      }
+      return target;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function selectionFor(element, metadata) {
     var html = element.outerHTML || "";
     if (html.length > MAX_HTML) html = html.slice(0, MAX_HTML - 1) + "…";
-    return {
+    var selection = {
       selector: stableSelector(element),
       html: html,
       rect: rectFor(element),
@@ -3607,6 +3738,9 @@
       stateStyles: interactiveStylesFor(element),
       componentScope: componentScopeFor(element, reactMetadata)
     };
+    var imageTarget = imageTargetFor(element, metadata);
+    if (imageTarget) selection.imageTarget = imageTarget;
+    return selection;
   }
 
   function setHighlight(element) {
@@ -4032,7 +4166,7 @@
 
   function activeStyleDraft(force) {
     var hasWork = Object.keys(styleEdits).length > 0 || Object.keys(stateStyleEdits).length > 0 || Object.keys(tokenIntents).length > 0 || !!textEdit;
-    if (!force && !hasWork && !instructionDraft.trim()) return null;
+    if (!force && !hasWork && !instructionDraft.trim() && !attachmentDraft.length) return null;
     ensureActiveStyleDraftKey();
     return {
       clientKey: activeStyleDraftKey,
@@ -4054,7 +4188,8 @@
       reactMetadata: reactMetadata,
       // The active draft's instruction lives in the shared box; capture it so a
       // stash (selection switch) persists it and a later activate restores it.
-      instruction: instructionDraft
+      instruction: instructionDraft,
+      attachments: attachmentDraft
     };
   }
 
@@ -4075,7 +4210,7 @@
     // instruction nulled the key, the next activeStyleDraft() minted a FRESH one,
     // and lastConnectedPending still held the snapshot under the old key — so
     // carryDetachedDraft() found nothing when the element left the DOM.
-    if (Object.keys(styleEdits).length || Object.keys(stateStyleEdits).length || Object.keys(tokenIntents).length || textEdit || instructionDraft.trim()) ensureActiveStyleDraftKey();
+    if (Object.keys(styleEdits).length || Object.keys(stateStyleEdits).length || Object.keys(tokenIntents).length || textEdit || instructionDraft.trim() || attachmentDraft.length) ensureActiveStyleDraftKey();
     else activeStyleDraftKey = null;
     // The Versions section's visibility and its refusal note are derived from
     // exactly these four collections, so this is the one function that already
@@ -4114,7 +4249,161 @@
     schedulePersistPending();
   }
 
-  function clearActiveStyleDraftState() {
+  function revokeAttachmentThumb(attachment) {
+    if (attachment && attachment.thumbUrl) {
+      if (String(attachment.thumbUrl).indexOf("blob:") === 0 && window.URL && typeof window.URL.revokeObjectURL === "function") {
+        window.URL.revokeObjectURL(attachment.thumbUrl);
+      }
+      attachment.thumbUrl = null;
+    }
+  }
+
+  function clearAttachmentDraft(preserveUrls) {
+    if (!preserveUrls) attachmentDraft.forEach(revokeAttachmentThumb);
+    attachmentDraft = [];
+    attachmentNotice = "";
+  }
+
+  function removeAttachment(id) {
+    attachmentDraft = attachmentDraft.filter(function (attachment) {
+      if (attachment.id !== id) return true;
+      revokeAttachmentThumb(attachment);
+      return false;
+    });
+    syncSendButtonDisabled();
+    persistPendingNow();
+    renderPanel();
+  }
+
+  var ATTACHMENT_MIMES = ["image/png", "image/jpeg", "image/webp", "image/gif", "image/svg+xml", "image/avif"];
+  var ATTACHMENT_EXTENSIONS = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp", gif: "image/gif", svg: "image/svg+xml", avif: "image/avif" };
+  function attachmentMime(file) {
+    var declared = String(file.type || "").toLowerCase();
+    if (ATTACHMENT_MIMES.indexOf(declared) !== -1) return declared;
+    if (declared) return "";
+    var match = String(file.name || "").match(/\.([^.]+)$/);
+    return match ? (ATTACHMENT_EXTENSIONS[match[1].toLowerCase()] || "") : "";
+  }
+  function attachmentNoticeNow(message, kind) {
+    attachmentNotice = message;
+    setGlobalActionStatus(message, kind || "error");
+    renderPanel();
+  }
+  function attachmentPrecondition() {
+    if (!selectedElement) return "Select the image to replace first";
+    if (grabConfig && grabConfig.grabEndpoint) return "Attachments need the local Raven bridge";
+    return "";
+  }
+  function attachmentRecordFromResponse(chip, record) {
+    Object.keys(record || {}).forEach(function (key) { chip[key] = record[key]; });
+    chip.state = "ready";
+    chip.error = "";
+    syncSendButtonDisabled();
+    // Hydrate before the persist/render below: either can sweep a detached draft,
+    // which revokes and nulls a file chip's own blob thumb, and a chip with no
+    // blob thumb would otherwise be refetched for a draft that no longer exists.
+    hydrateAttachmentThumb(chip);
+    persistPendingNow();
+    renderPanel();
+  }
+  function attachmentChipOwned(chip) {
+    return attachmentDraft.indexOf(chip) !== -1 || localStyleDrafts().some(function (draft) {
+      return (draft.attachments || []).indexOf(chip) !== -1;
+    });
+  }
+  function hydrateAttachmentThumb(chip) {
+    if (!chip || chip.state !== "ready" || !chip.id || (chip.thumbUrl && String(chip.thumbUrl).indexOf("blob:") === 0) || chip.thumbLoading || chip.thumbFailed) return;
+    chip.thumbLoading = true;
+    fetch(bridgeUrl("/attachment") + "&id=" + encodeURIComponent(chip.id)).then(function (response) {
+      if (!response.ok) throw new Error("Bridge returned " + response.status);
+      return response.blob();
+    }).then(function (blob) {
+      // The draft may have been sent, removed, or carried while the bytes were in
+      // flight; a blob URL nobody can revoke would leak for the page's lifetime.
+      if (!attachmentChipOwned(chip)) return;
+      chip.thumbUrl = window.URL.createObjectURL(blob);
+      renderPanel();
+    }).catch(function () {
+      // A blob URL created above is revoked if the render after it threw; a
+      // failed fetch is remembered so re-renders and reactivation do not retry.
+      revokeAttachmentThumb(chip);
+      chip.thumbFailed = true;
+      renderPanel();
+    }).finally(function () { chip.thumbLoading = false; });
+  }
+  function bridgeAttachmentError(response) {
+    return response.text().then(function (text) {
+      try { var parsed = JSON.parse(text); return parsed.error || parsed.message || text; } catch (error) { return text; }
+    });
+  }
+  function uploadAttachmentFile(file, origin) {
+    var reason = attachmentPrecondition();
+    if (reason) { attachmentNoticeNow(reason); return; }
+    if (attachmentDraft.filter(function (attachment) { return attachment.state === "ready" || attachment.state === "uploading"; }).length >= 4) { attachmentNoticeNow("Up to 4 attachments per send"); return; }
+    var mime = attachmentMime(file);
+    if (!mime) { attachmentNoticeNow("Can't attach " + (file.type || "unknown") + " — images only"); return; }
+    if (file.size > 25 * 1024 * 1024) { attachmentNoticeNow((file.name || "File") + " is over 25 MiB"); return; }
+    var chip = { id: "local-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8), name: file.name || "image", mime: mime, bytes: file.size, width: null, height: null, path: null, origin: origin, state: "uploading", error: "", thumbUrl: window.URL.createObjectURL(file) };
+    attachmentDraft.push(chip);
+    serializeLivePending(); // Capture full selection context before an upload can outlive its target.
+    syncSendButtonDisabled();
+    renderPanel();
+    var form = new FormData();
+    // A File with no type (some drag sources) would post as octet-stream and be
+    // refused; carry the type inferred from the name instead.
+    var upload = file.type ? file : new File([file], file.name || "image", { type: mime });
+    form.append("file", upload, upload.name);
+    form.append("origin", origin);
+    fetch(bridgeUrl("/attachment"), { method: "POST", body: form }).then(function (response) {
+      if (response.status !== 202) return bridgeAttachmentError(response).then(function (message) { throw new Error(message || ("Bridge returned " + response.status)); });
+      return response.json();
+    }).then(function (record) { attachmentRecordFromResponse(chip, record); }).catch(function (error) {
+      chip.state = "error";
+      chip.error = error && error.message ? error.message : "Could not attach image";
+      syncSendButtonDisabled();
+      renderPanel();
+    });
+  }
+  function attachmentPath(value, origin) {
+    var text = String(value || "").trim();
+    // Shell quoting rules: single quotes are literal, double quotes unescape
+    // only \" and \\, and an unquoted path unescapes every \<char>.
+    if (text.length >= 2 && text[0] === "'" && text[text.length - 1] === "'") {
+      text = text.slice(1, -1);
+    } else if (text.length >= 2 && text[0] === '"' && text[text.length - 1] === '"') {
+      text = text.slice(1, -1).replace(/\\(["\\])/g, "$1");
+    } else {
+      text = text.replace(/\\([\s\S])/g, "$1");
+    }
+    if (!(/^(?:\/|~\/|file:\/\/)/.test(text) && /\.(?:png|jpe?g|webp|gif|svg|avif)$/i.test(text))) return false;
+    var reason = attachmentPrecondition();
+    if (reason) { attachmentNoticeNow(reason); return true; }
+    if (attachmentDraft.filter(function (attachment) { return attachment.state === "ready" || attachment.state === "uploading"; }).length >= 4) { attachmentNoticeNow("Up to 4 attachments per send"); return true; }
+    var name = text.replace(/^file:\/\//, "").split("/").pop() || "image";
+    var chip = { id: "local-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8), name: name, mime: "", bytes: null, width: null, height: null, path: text, origin: "path", state: "uploading", error: "", thumbUrl: null };
+    attachmentDraft.push(chip);
+    serializeLivePending(); // Capture full selection context before an upload can outlive its target.
+    syncSendButtonDisabled(); renderPanel();
+    fetch(bridgeUrl("/attachment"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path: text, origin: "path" }) }).then(function (response) {
+      if (response.status !== 202) return bridgeAttachmentError(response).then(function (message) { throw new Error(message || ("Bridge returned " + response.status)); });
+      return response.json();
+    }).then(function (record) { attachmentRecordFromResponse(chip, record); }).catch(function (error) { chip.state = "error"; chip.error = error && error.message ? error.message : "Could not attach image"; syncSendButtonDisabled(); renderPanel(); });
+    return true;
+  }
+  function attachmentListMarkup() {
+    return '<div data-attachment-list>' + attachmentDraft.map(function (attachment) {
+      var thumbnail = attachment.thumbUrl
+        ? '<img class="raven-grab-attachment-thumb" src="' + escapeHtml(attachment.thumbUrl) + '" alt="">'
+        : '<span class="raven-grab-attachment-thumb" aria-hidden="true"></span>';
+      var dims = attachment.width != null && attachment.height != null ? String(attachment.width) + "×" + String(attachment.height) : "";
+      return '<div class="raven-grab-attachment-chip" data-attachment-chip data-attachment-id="' + escapeHtml(attachment.id) + '" data-state="' + escapeHtml(attachment.state) + '">' + thumbnail +
+        '<span class="raven-grab-attachment-meta"><span class="raven-grab-attachment-name" data-attachment-name>' + escapeHtml(attachment.name) + '</span><span class="raven-grab-attachment-dims" data-attachment-dims>' + escapeHtml(dims) + '</span>' +
+        (attachment.state === "error" ? '<span class="raven-grab-attachment-error" data-attachment-error>' + escapeHtml(attachment.error || "Could not attach image") + '</span>' : '') +
+        '</span><button type="button" class="raven-grab-attachment-remove" data-attachment-remove aria-label="Remove ' + escapeHtml(attachment.name) + '">×</button></div>';
+    }).join("") + '</div>' + (attachmentNotice ? '<p class="raven-grab-attachment-notice" data-attachment-notice role="status">' + escapeHtml(attachmentNotice) + '</p>' : '<p class="raven-grab-attachment-notice" data-attachment-notice role="status"></p>');
+  }
+
+  function clearActiveStyleDraftState(preserveAttachmentUrls) {
     tokenIntents = Object.create(null);
     styleEdits = Object.create(null);
     stateStyleEdits = Object.create(null);
@@ -4126,17 +4415,18 @@
     styleEditTarget = null;
     previewOriginals = Object.create(null);
     activeStyleDraftKey = null;
+    clearAttachmentDraft(preserveAttachmentUrls);
     renderStatePreviewStyles();
   }
 
   function stashActiveStyleDraft() {
-    if (!Object.keys(styleEdits).length && !Object.keys(stateStyleEdits).length && !Object.keys(tokenIntents).length && !textEdit && !instructionDraft.trim()) {
+    if (!Object.keys(styleEdits).length && !Object.keys(stateStyleEdits).length && !Object.keys(tokenIntents).length && !textEdit && !instructionDraft.trim() && !attachmentDraft.length) {
       activeStyleDraftKey = null;
       return null;
     }
     var draft = activeStyleDraft();
     styleDrafts[draft.clientKey] = draft;
-    clearActiveStyleDraftState();
+    clearActiveStyleDraftState(true);
     return draft;
   }
 
@@ -4173,6 +4463,7 @@
     // rebuilt active draft. Assign like the send path does, rather than calling
     // clearInstructionText(), whose field animation is pointless before a render.
     instructionDraft = "";
+    attachmentDraft = [];
     persistPendingNow();
     renderPanel();
     return true;
@@ -4211,7 +4502,8 @@
   // stash contract, not a leak in the queue.
   function queueDraftBlocker() {
     if (!selectedElement) return "Select an element first";
-    if (!Object.keys(styleEdits).length && !Object.keys(stateStyleEdits).length && !Object.keys(tokenIntents).length && !textEdit && !instructionDraft.trim()) {
+    if (attachmentDraft.some(function (attachment) { return attachment.state === "uploading"; })) return "Wait for the upload to finish";
+    if (!Object.keys(styleEdits).length && !Object.keys(stateStyleEdits).length && !Object.keys(tokenIntents).length && !textEdit && !instructionDraft.trim() && !attachmentDraft.some(function (attachment) { return attachment.state === "ready"; })) {
       return QUEUE_NEEDS_WORK;
     }
     // The bank is a STASH, and the very next sweep DROPS a stashed draft whose
@@ -4360,6 +4652,9 @@
       instructionDraft = draft.instruction;
       delete draft.instruction;
     }
+    attachmentDraft = draft.attachments || [];
+    attachmentDraft.forEach(hydrateAttachmentThumb);
+    delete draft.attachments;
     // Stashing cleared the shared state-preview stylesheet; re-render it so a
     // reactivated draft's hover/focus edits preview again.
     renderStatePreviewStyles();
@@ -4406,6 +4701,7 @@
   function dropStyleDraft(draft, restore) {
     if (!draft) return;
     if (restore) restoreStyleDraftPreview(draft);
+    (draft.attachments || []).forEach(revokeAttachmentThumb);
     if (styleDrafts[draft.clientKey] === draft) delete styleDrafts[draft.clientKey];
     if (activeStyleDraftKey === draft.clientKey) clearActiveStyleDraftState();
     // Clear the rescue snapshot LAST, and unconditionally. Every route out of a
@@ -4469,7 +4765,8 @@
       tokenIntents: Object.keys(ctx.tokenIntents || {}).map(function (key) { return scopedIntentForSend(ctx.tokenIntents[key], ctx.target, ctx); }),
       styleEdits: styleEditsForSend(ctx.styleEdits).map(function (intent) { return scopedIntentForSend(intent, ctx.target, ctx); }),
       stateStyleEdits: stateStyleEditsForSend(ctx.stateStyleEdits).map(function (intent) { return scopedIntentForSend(intent, ctx.target, ctx); }),
-      instruction: ctx.instructionDraft || ""
+      instruction: ctx.instructionDraft || "",
+      attachments: (ctx.attachments || []).filter(function (attachment) { return attachment.state === "ready"; }).map(function (attachment) { return { id: attachment.id }; })
     };
     if (ctx.textEdit && ctx.textEdit.newText !== ctx.textEdit.oldText) {
       edits.textEdit = { oldText: ctx.textEdit.oldText, newText: ctx.textEdit.newText };
@@ -4491,7 +4788,7 @@
   }
 
   function carryDetachedDraft(draft) {
-    if (!draft) return false;
+    if (!draft || !rowsForStyleDraft(draft, false).length) return false;
     var entry = lastConnectedPending[draft.clientKey];
     if (!entry) return false;
     entry = freshenedCarryEntry(entry, draft);
@@ -4511,6 +4808,7 @@
   // bug would have looked half-fixed and intermittent.
   function sweepStaleStyleDrafts() {
     localStyleDrafts().forEach(function (draft) {
+      if ((draft.attachments || []).some(function (attachment) { return attachment.state === "uploading"; })) return;
       if (!draft.target) { carryDetachedDraft(draft); dropStyleDraft(draft, true); return; }
       if (draft.target.isConnected === false && !draftAwaitingReconnect(draft)) {
         carryDetachedDraft(draft);
@@ -4536,6 +4834,7 @@
     clearActiveStyleDraftState();
     localStyleDrafts().forEach(function (draft) {
       if (restore) restoreStyleDraftPreview(draft);
+      (draft.attachments || []).forEach(revokeAttachmentThumb);
       delete styleDrafts[draft.clientKey];
     });
   }
@@ -9003,14 +9302,22 @@
     if (live.indexOf(selectedElement) === -1) selectedElement = live.length ? live[live.length - 1] : null;
     if (selectionAnchor && selectionAnchor.isConnected === false) selectionAnchor = selectedElement;
     if (previousPrimary !== selectedElement) {
-      // Detached-primary work is explicit cancellation: restore/drop its active
-      // or stored preview before promoting a fallback. A same-selector replacement
-      // is a different element and must never inherit this draft.
+      // Preserve attachment work in the tray before promoting a fallback.
+      // A same-selector replacement is a different element and must never
+      // inherit this draft.
       if (previousPrimary && previousPrimary.isConnected === false) {
         var detachedActiveDraft = previousActiveDraft;
-        if (detachedActiveDraft && detachedActiveDraft.target === previousPrimary) dropStyleDraft(detachedActiveDraft, true);
+        if (detachedActiveDraft && detachedActiveDraft.target === previousPrimary) {
+          if ((detachedActiveDraft.attachments || []).length) {
+            styleDrafts[detachedActiveDraft.clientKey] = detachedActiveDraft;
+            clearActiveStyleDraftState(true);
+          } else dropStyleDraft(detachedActiveDraft, true);
+        }
         var detachedStoredDraft = styleDraftForElement(previousPrimary);
-        if (detachedStoredDraft) dropStyleDraft(detachedStoredDraft, true);
+        if (detachedStoredDraft && !(detachedStoredDraft.attachments || []).some(function (attachment) { return attachment.state === "uploading"; })) {
+          carryDetachedDraft(detachedStoredDraft);
+          dropStyleDraft(detachedStoredDraft, true);
+        }
         resetSelectionLocalContext();
       }
       currentSelection = selectedElement ? selectionFor(selectedElement) : null;
@@ -10761,6 +11068,10 @@
     // carries its own on draft.instruction. Resolve by which this draft is.
     var effectiveInstruction = isActive ? instructionDraft : (draft.instruction || "");
     if (effectiveInstruction.trim()) rows.push({ id: "draft-instruction:" + draft.clientKey, kind: "instruction", type: "Instruction", target: selector + " · " + effectiveInstruction.trim(), status: "Pending", removable: true, local: true });
+    var effectiveAttachments = isActive ? attachmentDraft : (draft.attachments || []);
+    effectiveAttachments.filter(function (attachment) { return attachment.state === "ready"; }).forEach(function (attachment) {
+      rows.push({ id: "draft-attachment:" + draft.clientKey + ":" + attachment.id, kind: "attachment", type: "Attachment", target: selector + " · " + attachment.name, status: "Pending", removable: true, local: true });
+    });
     return rows;
   }
 
@@ -10821,9 +11132,16 @@
     return counts;
   }
 
+  function hasUploadingAttachments() {
+    return allStyleDrafts().some(function (draft) {
+      return (draft.attachments || []).some(function (attachment) { return attachment.state === "uploading"; });
+    });
+  }
+
   function batchUiState() {
     var nextCount = pendingLogicalCount();
     var activeCount = activeDispatch ? activeDispatch.logicalCount : 0;
+    if (hasUploadingAttachments()) return { state: "pending-upload", label: "Wait for the upload to finish", enabled: false, count: nextCount };
     var counts;
     if (dispatchState === "registering") return { state: "registering", label: "Sending " + activeCount + " changes…", enabled: false, count: activeCount };
     if (dispatchState === "committing") return { state: "committing", label: "Sending " + activeCount + " changes…", enabled: false, count: activeCount };
@@ -10955,14 +11273,14 @@
   function pruneEmptyStyleDraft(draft) {
     // stateStyleEdits (hover/focus edits) count as real work too — a draft holding
     // only those must survive pruning (pre-existing omission alongside styleEdits/tokens).
-    if (!draft || Object.keys(draft.styleEdits).length || Object.keys(draft.tokenIntents).length || Object.keys(draft.stateStyleEdits || {}).length || draft.textEdit) return;
+    if (!draft || Object.keys(draft.styleEdits).length || Object.keys(draft.tokenIntents).length || Object.keys(draft.stateStyleEdits || {}).length || draft.textEdit || (draft.attachments && draft.attachments.length)) return;
     if (draft.clientKey === activeStyleDraftKey) {
-      if (!instructionDraft.trim()) activeStyleDraftKey = null;
+      if (!instructionDraft.trim() && !attachmentDraft.length) activeStyleDraftKey = null;
     }
     // A stored draft may hold only a carried instruction (e.g. a retry whose last
     // style edit was removed) — keep it so the instruction still sends, mirroring
     // the active-draft branch that keeps the key alive while the box has text.
-    else if (!(draft.instruction && draft.instruction.trim())) delete styleDrafts[draft.clientKey];
+    else if (!(draft.instruction && draft.instruction.trim()) && !(draft.attachments && draft.attachments.length)) delete styleDrafts[draft.clientKey];
   }
 
   function removeChange(id) {
@@ -11028,6 +11346,20 @@
         delete instrDraft.instruction;
         pruneEmptyStyleDraft(instrDraft);
       }
+    } else if (id.indexOf("draft-attachment:") === 0) {
+      var attachmentParts = id.slice("draft-attachment:".length).split(":");
+      var attachmentClientKey = attachmentParts.shift();
+      var attachmentId = attachmentParts.join(":");
+      var attachmentDraftOwner = styleDraftForClientKey(attachmentClientKey);
+      if (!attachmentDraftOwner) return;
+      var attachmentsToRemove = attachmentClientKey === activeStyleDraftKey ? attachmentDraft : (attachmentDraftOwner.attachments || []);
+      attachmentsToRemove.forEach(function (attachment) {
+        if (attachment.id === attachmentId) revokeAttachmentThumb(attachment);
+      });
+      attachmentsToRemove = attachmentsToRemove.filter(function (attachment) { return attachment.id !== attachmentId; });
+      if (attachmentClientKey === activeStyleDraftKey) attachmentDraft = attachmentsToRemove;
+      else attachmentDraftOwner.attachments = attachmentsToRemove;
+      pruneEmptyStyleDraft(attachmentDraftOwner);
     } else if (layerOrderDrafts[id]) {
       var clearedDraft = layerOrderDrafts[id];
       var clearedElement = clearedDraft ? clearedDraft.movedElement : null;
@@ -11247,7 +11579,8 @@
       previewOriginals: draft.previewOriginals,
       editScope: draft.editScope,
       reactMetadata: draft.reactMetadata,
-      instructionDraft: instruction || ""
+      instructionDraft: instruction || "",
+      attachments: draft.attachments || []
     };
   }
 
@@ -11293,6 +11626,9 @@
         // Index-based so it is stateless and cannot itself collide.
         .map(function (entry, index) {
           entry.key = "stored:" + (index + 1);
+          // Entries stored before the endpoint was symbolic carry the keyed bridge
+          // URL; rewrite so the key leaves storage on the next persist.
+          if (/\/grab\?key=/.test(String(entry.endpoint))) entry.endpoint = "/grab";
           return entry;
         });
     } catch (error) { return []; }
@@ -11307,23 +11643,35 @@
         || Object.keys(draft.stateStyleEdits || {}).length
         || Object.keys(draft.tokenIntents || {}).length
         || !!draft.textEdit
-        || !!instruction.trim();
-      if (!hasWork) return;
+        || !!instruction.trim()
+        || (draft.attachments || []).some(function (attachment) { return attachment.state === "ready"; });
+      var hasUpload = (draft.attachments || []).some(function (attachment) { return attachment.state === "uploading"; });
+      if (!hasWork && !hasUpload) return;
       try {
         var ctx = styleDraftContextForFreeze(draft, instruction);
         var payload = JSON.parse(JSON.stringify(payloadForSend(true, draft.target, ctx)));
         var entry = {
           key: "live:" + draft.clientKey,
           pathname: location.pathname,
-          endpoint: grabConfig ? grabConfig.grabEndpoint : bridgeUrl("/grab"),
+          endpoint: grabConfig ? grabConfig.grabEndpoint : "/grab",
           label: payload.selector || draft.selector || "element",
-          payload: payload
+          payload: payload,
+          draft: (draft.attachments || []).length ? {
+            selector: draft.selector || payload.selector,
+            instruction: instruction,
+            // Only what the composer needs to show the chip again. The bridge record
+            // also carries path, sourcePath and sha256; the inbox path embeds part of
+            // the session key, and none of them belong in page-origin storage.
+            attachments: (draft.attachments || []).filter(function (attachment) { return attachment.state === "ready"; }).map(function (attachment) {
+              return { id: attachment.id, name: attachment.name, mime: attachment.mime, bytes: attachment.bytes, width: attachment.width, height: attachment.height, origin: attachment.origin, state: "ready" };
+            })
+          } : null
         };
         // Remember it while the node is still connected. carryDetachedDraft()
         // promotes this exact object later if the element disappears without a
         // navigation, which is the only moment the payload is still buildable.
         lastConnectedPending[draft.clientKey] = entry;
-        out.push(entry);
+        if (hasWork) out.push(entry);
       } catch (error) { /* selection resolved to nothing mid-serialize — skip it */ }
     });
     return out;
@@ -11353,7 +11701,7 @@
     persistPendingNow();
     renderPanel();
     batch.forEach(function (entry) {
-      fetch(entry.endpoint, {
+      fetch(entry.endpoint === "/grab" ? bridgeUrl("/grab") : entry.endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(entry.payload)
@@ -11437,6 +11785,7 @@
     if (styleRecords.length) {
       frozenDrafts.forEach(function (draft) {
         restoreStyleDraftPreview(draft, false); // keep sent copy visible on the page
+        (draft.attachments || []).forEach(revokeAttachmentThumb);
         if (styleDrafts[draft.clientKey] === draft) delete styleDrafts[draft.clientKey];
       });
       instructionDraft = "";
@@ -11618,6 +11967,10 @@
   }
 
   function dispatchPendingBatch() {
+    if (hasUploadingAttachments()) {
+      setGlobalActionStatus("Wait for the upload to finish", "");
+      return;
+    }
     // Carried rows send independently of the dispatch state machine — POST their
     // frozen payloads straight away, even mid-flight, so Send always flushes them.
     if (carriedPending.length) drainCarriedPending();
@@ -12070,7 +12423,8 @@
     var instructionsMarkup = `
       <section class="raven-grab-section raven-grab-composer">
         <div class="raven-grab-section-heading"><h2 class="raven-grab-section-title">Instructions</h2></div>
-        <textarea class="raven-grab-textarea" data-instruction spellcheck="true" aria-label="Instructions" placeholder="Tell the agent what to change…">${escapeHtml(instructionDraft)}</textarea>
+        <textarea class="raven-grab-textarea" data-instruction spellcheck="true" aria-label="Instructions" placeholder="${attachmentDraft.length && !instructionDraft ? "Replace this image with the attached one" : "Tell the agent what to change…"}">${escapeHtml(instructionDraft)}</textarea>
+        ${attachmentListMarkup()}
         <div class="raven-grab-queue">${voiceButtonMarkup("data-instruction", "instructions")}
           <button type="button" class="raven-grab-queue-add" data-queue-draft${queueNoteAtRender ? ' aria-disabled="true" title="' + escapeHtml(queueNoteAtRender) + '"' : ""}>Add to queue</button>
         </div>
@@ -12438,6 +12792,7 @@
     closeSettingsModal();
     expandedSections = { styles: true };
     instructionDraft = "";
+    clearAttachmentDraft();
     componentRequestStep = "form";
     componentRequest = { issueType: "", issueSize: "", useCase: "", email: "" };
     componentRequestId = "";
@@ -12552,6 +12907,7 @@
     var payloadTokenIntents;
     var payloadTextEdit;
     var payloadInstruction;
+    var payloadAttachments;
     var payloadMetadata;
     var payloadSelectionElements;
     if (draftContext) {
@@ -12560,13 +12916,14 @@
         draftSelectionGoneError.ravenSelectionGone = true;
         throw draftSelectionGoneError;
       }
-      selection = selectionFor(payloadTarget);
+      selection = selectionFor(payloadTarget, draftContext.reactMetadata || null);
       draftContext.selection = selection;
       draftContext.selector = selection.selector;
       payloadStyleEdits = draftContext.styleEdits;
       payloadTokenIntents = draftContext.tokenIntents;
       payloadTextEdit = draftContext.textEdit || null;
       payloadInstruction = draftContext.instructionDraft || "";
+      payloadAttachments = draftContext.attachments || [];
       payloadMetadata = draftContext.reactMetadata;
       payloadSelectionElements = draftContext.selectionElements || [payloadTarget];
     } else {
@@ -12580,6 +12937,7 @@
       payloadTokenIntents = tokenIntents;
       payloadTextEdit = textEdit;
       payloadInstruction = instructionDraft;
+      payloadAttachments = attachmentDraft;
       payloadMetadata = reactMetadata;
       payloadSelectionElements = orderedSelection();
     }
@@ -12598,8 +12956,10 @@
       tokenIntents: Object.keys(payloadTokenIntents).map(function (key) { return scopedIntentForSend(payloadTokenIntents[key], payloadTarget, draftContext); }),
       styleEdits: styleEditsForSend(payloadStyleEdits).map(function (intent) { return scopedIntentForSend(intent, payloadTarget, draftContext); }),
       stateStyleEdits: stateStyleEditsForSend(draftContext ? draftContext.stateStyleEdits : stateStyleEdits).map(function (intent) { return scopedIntentForSend(intent, payloadTarget, draftContext); }),
-      instruction: payloadInstruction
+      instruction: payloadInstruction,
+      attachments: payloadAttachments.filter(function (attachment) { return attachment.state === "ready"; }).map(function (attachment) { return { id: attachment.id }; })
     };
+    if (selection.imageTarget) payload.imageTarget = selection.imageTarget;
     if (payloadTextEdit && payloadTextEdit.newText !== payloadTextEdit.oldText) {
       payload.textEdit = { oldText: payloadTextEdit.oldText, newText: payloadTextEdit.newText };
     }
@@ -13031,6 +13391,12 @@
       activeGlobalActionSurface = event.currentTarget === panelLeft ? activeTabB : activeTabA;
       mountGlobalActions();
     }
+    var attachmentRemove = event.target.closest("[data-attachment-remove]");
+    if (attachmentRemove) {
+      var attachmentChip = attachmentRemove.closest("[data-attachment-chip]");
+      if (attachmentChip) removeAttachment(attachmentChip.getAttribute("data-attachment-id"));
+      return;
+    }
     var layerToggle = event.target.closest("[data-layer-toggle]");
     if (layerToggle) {
       toggleLayerNode(layerToggle.getAttribute("data-layer-toggle"));
@@ -13170,6 +13536,53 @@
     }
     var radiusExpand = event.target.closest("[data-radius-expand]");
     if (radiusExpand) beginRadiusEdit(radiusExpand.closest("[data-style-property]"));
+  });
+
+  function attachmentTransferKind(dataTransfer) {
+    if (!dataTransfer) return "";
+    var types = Array.prototype.slice.call(dataTransfer.types || []);
+    return types.indexOf("Files") !== -1 || types.indexOf("text/plain") !== -1 ? "attachment" : "";
+  }
+  function composerForEvent(event) {
+    return event.target && event.target.closest ? event.target.closest(".raven-grab-composer") : null;
+  }
+  onPanels("dragenter", function (event) {
+    var composer = composerForEvent(event);
+    if (!composer || !attachmentTransferKind(event.dataTransfer)) return;
+    attachmentDragDepth += 1;
+    composer.setAttribute("data-drop-active", "");
+  });
+  onPanels("dragover", function (event) {
+    var composer = composerForEvent(event);
+    if (!composer || !attachmentTransferKind(event.dataTransfer)) return;
+    event.preventDefault();
+    composer.setAttribute("data-drop-active", "");
+  });
+  onPanels("dragleave", function (event) {
+    var composer = composerForEvent(event);
+    if (!composer || !attachmentDragDepth) return;
+    attachmentDragDepth = Math.max(0, attachmentDragDepth - 1);
+    if (!attachmentDragDepth) composer.removeAttribute("data-drop-active");
+  });
+  onPanels("drop", function (event) {
+    var composer = composerForEvent(event);
+    if (!composer || !attachmentTransferKind(event.dataTransfer)) return;
+    var files = Array.prototype.slice.call(event.dataTransfer.files || []);
+    var text = event.dataTransfer.getData ? event.dataTransfer.getData("text/plain") : "";
+    if (!files.length && !attachmentPath(text, "path")) return;
+    event.preventDefault();
+    attachmentDragDepth = 0;
+    composer.removeAttribute("data-drop-active");
+    files.forEach(function (file) { uploadAttachmentFile(file, "drop"); });
+  });
+  onPanels("paste", function (event) {
+    if (!event.target || event.target.getAttribute("data-instruction") === null) return;
+    var data = event.clipboardData;
+    var files = Array.prototype.slice.call((data && data.files) || []);
+    var text = data && data.getData ? data.getData("text/plain") : "";
+    if (!files.length && !attachmentPath(text, "path")) return;
+    event.preventDefault();
+    files.forEach(function (file) { uploadAttachmentFile(file, "paste"); });
   });
 
   onPanels("keydown", function (event) {
@@ -14026,12 +14439,12 @@
     // truly changes, transfer its singleton maps into a persistent element draft;
     // previews stay applied until removal, dispatch, detachment, or dismissal.
     var previousPrimary = selectedElement;
-    var hasUnsentEdits = Object.keys(styleEdits).length > 0 || Object.keys(stateStyleEdits).length > 0 || Object.keys(tokenIntents).length > 0 || !!textEdit || instructionDraft !== "" || componentRequestHasDraft();
+    var hasUnsentEdits = Object.keys(styleEdits).length > 0 || Object.keys(stateStyleEdits).length > 0 || Object.keys(tokenIntents).length > 0 || !!textEdit || instructionDraft !== "" || attachmentDraft.length > 0 || componentRequestHasDraft();
     if (hasUnsentEdits && selectedElement && elements.indexOf(selectedElement) !== -1) primary = selectedElement;
     if (previousPrimary !== primary) {
       if (activeStyleEditorFlush) activeStyleEditorFlush();
       capturePanelDrafts();
-      if (Object.keys(styleEdits).length || Object.keys(stateStyleEdits).length || Object.keys(tokenIntents).length || !!textEdit || instructionDraft.trim()) stashActiveStyleDraft();
+      if (Object.keys(styleEdits).length || Object.keys(stateStyleEdits).length || Object.keys(tokenIntents).length || !!textEdit || instructionDraft.trim() || attachmentDraft.length) stashActiveStyleDraft();
       resetSelectionContext();
     }
     multiSelections = elements.slice();
@@ -14828,6 +15241,26 @@
   // Restore un-sent changes from a prior page load before the first render so
   // they show in the tray immediately (see the persistence block).
   carriedPending = readCarriedPending();
+  // A same-page attachment draft can resume in the composer; other carried
+  // changes remain frozen rows because their live edit context cannot be rebuilt.
+  for (var restoredIndex = carriedPending.length - 1; restoredIndex >= 0; restoredIndex -= 1) {
+    var restoredEntry = carriedPending[restoredIndex];
+    var restoredDraft = restoredEntry.draft;
+    var restoredPayload = restoredEntry.payload || {};
+    if (!restoredDraft || restoredEntry.pathname !== location.pathname ||
+        (restoredPayload.styleEdits || []).length || (restoredPayload.stateStyleEdits || []).length ||
+        (restoredPayload.tokenIntents || []).length || restoredPayload.textEdit) continue;
+    var restoredTarget = null;
+    try { restoredTarget = document.querySelector(restoredDraft.selector); } catch (error) { /* keep carried row */ }
+    if (!restoredTarget) continue;
+    carriedPending.splice(restoredIndex, 1);
+    selectTarget(restoredTarget, false, "canvas");
+    instructionDraft = restoredDraft.instruction || "";
+    attachmentDraft = restoredDraft.attachments || [];
+    attachmentDraft.forEach(hydrateAttachmentThumb);
+    renderPanel();
+    break;
+  }
   hydrateStyleVersions();
 
   renderPanel();

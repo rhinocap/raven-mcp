@@ -909,6 +909,9 @@ test('template routes batch page-scoped slots, round-trip, and flag validation o
     const started = await client.callTool({ name: 'start_grab_session', arguments: { path: designPath } });
     const session = JSON.parse(started.content[0].text);
     const key = sessionKey(session);
+    // The agent reads imageTarget.backgroundHasUrl to tell a gradient carrier
+    // from a url() one; the protocol has to say what false means.
+    assert.match(session.agent_protocol, /backgroundHasUrl is false the carrier is a generated image \(a gradient\)/);
     const slots = [
       { slotId: 'hero', selector: '#hero', role: 'fixed' },
       { slotId: 'body', selector: 'main', role: 'flexible' }
@@ -980,6 +983,7 @@ test('proxy mode withholds the authoring routes and forwards paths it does not o
       const started = await client.callTool({ name: 'start_grab_session', arguments: { path: designPath, proxy_target: 'https://fixture.invalid' } });
       const session = JSON.parse(started.content[0].text);
       const key = sessionKey(session);
+      assert.match(session.agent_protocol, /backgroundHasUrl is false the carrier is a generated image \(a gradient\)/);
       const authoringRoutes = [
         ['GET', '/template?page=%2F'],
         ['POST', '/template'],
@@ -2879,7 +2883,7 @@ test('overlay component scope is opt-in, scopes both intent types, previews one 
   const defaultPayloadBytes = JSON.stringify(internals.payloadForSend());
   assert.equal(
     defaultPayloadBytes,
-    '{"selector":"#action","html":"","rect":{},"styles":{"padding":"8px"},"tokens":[],"stateStyles":{},"tokenIntents":[{"property":"color","oldToken":"primary","oldTokenPath":"colors.primary","newToken":"secondary","newTokenPath":"colors.secondary","newTokenValue":"#222222"}],"styleEdits":[{"property":"padding","oldValue":"8px","newValue":"12px"}],"stateStyleEdits":[],"instruction":""}'
+    '{"selector":"#action","html":"","rect":{},"styles":{"padding":"8px"},"tokens":[],"stateStyles":{},"tokenIntents":[{"property":"color","oldToken":"primary","oldTokenPath":"colors.primary","newToken":"secondary","newTokenPath":"colors.secondary","newTokenValue":"#222222"}],"styleEdits":[{"property":"padding","oldValue":"8px","newValue":"12px"}],"stateStyleEdits":[],"instruction":"","attachments":[]}'
   );
   assert.doesNotMatch(defaultPayloadBytes, /"scope"|"matchSelector"|"matchCount"/);
 
