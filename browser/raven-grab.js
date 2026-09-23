@@ -4343,9 +4343,9 @@
         : '<span class="raven-grab-attachment-thumb" aria-hidden="true"></span>';
       var dims = attachment.width != null && attachment.height != null ? String(attachment.width) + "×" + String(attachment.height) : "";
       return '<div class="raven-grab-attachment-chip" data-attachment-chip data-attachment-id="' + escapeHtml(attachment.id) + '" data-state="' + escapeHtml(attachment.state) + '">' + thumbnail +
-        '<span class="raven-grab-attachment-meta"><span data-attachment-name>' + escapeHtml(attachment.name) + '</span><span data-attachment-dims>' + escapeHtml(dims) + '</span>' +
-        (attachment.state === "error" ? '<span data-attachment-error>' + escapeHtml(attachment.error || "Could not attach image") + '</span>' : '') +
-        '</span><button type="button" data-attachment-remove aria-label="Remove ' + escapeHtml(attachment.name) + '">×</button></div>';
+        '<span class="raven-grab-attachment-meta"><span class="raven-grab-attachment-name" data-attachment-name>' + escapeHtml(attachment.name) + '</span><span class="raven-grab-attachment-dims" data-attachment-dims>' + escapeHtml(dims) + '</span>' +
+        (attachment.state === "error" ? '<span class="raven-grab-attachment-error" data-attachment-error>' + escapeHtml(attachment.error || "Could not attach image") + '</span>' : '') +
+        '</span><button type="button" class="raven-grab-attachment-remove" data-attachment-remove aria-label="Remove ' + escapeHtml(attachment.name) + '">×</button></div>';
     }).join("") + '</div>' + (attachmentNotice ? '<p class="raven-grab-attachment-notice" data-attachment-notice role="status">' + escapeHtml(attachmentNotice) + '</p>' : '<p class="raven-grab-attachment-notice" data-attachment-notice role="status"></p>');
   }
 

@@ -523,3 +523,17 @@ lifecycleTest('multi-select drop belongs only to the primary draft and its image
   assert.equal(body.multiSelect.length, 2);
   assert.ok(body.multiSelect.every((selection) => !('attachments' in selection)));
 });
+
+lifecycleTest('chip stacks the name above the dimensions', async (page) => {
+  await select(page, '#image-a');
+  await transfer(page, 'drop');
+  await readyChip(page);
+  const boxes = await page.evaluate(() => {
+    const root = document.querySelector('[data-raven-grab-overlay]').shadowRoot;
+    const name = root.querySelector('[data-attachment-name]').getBoundingClientRect();
+    const dims = root.querySelector('[data-attachment-dims]').getBoundingClientRect();
+    return { nameBottom: name.bottom, dimsTop: dims.top, nameLeft: name.left, dimsLeft: dims.left };
+  });
+  assert.ok(boxes.dimsTop >= boxes.nameBottom - 1, `dims (top ${boxes.dimsTop}) must sit below the name (bottom ${boxes.nameBottom})`);
+  assert.equal(Math.round(boxes.dimsLeft), Math.round(boxes.nameLeft));
+});
