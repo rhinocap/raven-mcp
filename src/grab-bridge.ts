@@ -1243,11 +1243,14 @@ async function handleGrabRequest(designMdPath: string, key: string, req: Incomin
       : buildAttachmentResponse(key, requestUrl, String(req.headers["content-type"] || ""), attachmentBody);
     setCorsHeaders(res);
     if (attachmentBody === null) {
-      // The unread remainder of an oversized body is never going to be consumed;
-      // close the connection once the 413 has been flushed rather than leaving
-      // the client streaming into a socket nobody reads.
+      // The rest of an oversized body is drained and discarded; the socket
+      // closes after the request ends, or after a bounded wait when a client
+      // declares a length it never sends.
       res.setHeader("Connection", "close");
-      res.once("finish", function () { req.destroy(); });
+      var overflowTimer = setTimeout(function () { req.destroy(); }, 5000);
+      if (typeof overflowTimer.unref === "function") overflowTimer.unref();
+      req.once("end", function () { clearTimeout(overflowTimer); });
+      req.once("close", function () { clearTimeout(overflowTimer); });
     }
     res.statusCode = attachmentResult.status;
     for (var attachmentHeader in attachmentResult.headers) {
@@ -2119,22 +2122,30 @@ async function readJsonBody(req: IncomingMessage): Promise<any> {
   return JSON.parse(text);
 }
 
-async function readAttachmentBody(req: IncomingMessage): Promise<Buffer | null> {
-  var chunks: Buffer[] = [];
-  var total = 0;
-  for await (var chunk of req) {
-    var buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-    total += buf.length;
-    if (total > MAX_ATTACHMENT_BODY_BYTES) {
-      // Stop consuming but leave the socket alive: the caller still owes the
-      // client a 413, and destroying the request here tears the socket down
-      // before that response can be written, so the overlay would see a
-      // network error instead of the reason.
-      return null;
-    }
-    chunks.push(buf);
-  }
-  return Buffer.concat(chunks);
+function readAttachmentBody(req: IncomingMessage): Promise<Buffer | null> {
+  // Event listeners, not `for await`: leaving a for-await loop early calls the
+  // stream iterator's return(), which destroys the request and resets the
+  // socket before the 413 can be written. On overflow the remainder is drained
+  // and discarded so the client still receives the response.
+  return new Promise(function (resolve) {
+    var chunks: Buffer[] = [];
+    var total = 0;
+    var overflow = false;
+    req.on("data", function (chunk: Buffer | string) {
+      if (overflow) return;
+      var buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      total += buf.length;
+      if (total > MAX_ATTACHMENT_BODY_BYTES) {
+        overflow = true;
+        chunks = [];
+        resolve(null);
+        return;
+      }
+      chunks.push(buf);
+    });
+    req.on("end", function () { if (!overflow) resolve(Buffer.concat(chunks)); });
+    req.on("error", function () { if (!overflow) resolve(null); });
+  });
 }
 
 interface GrabResponse {

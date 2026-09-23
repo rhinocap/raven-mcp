@@ -7,7 +7,7 @@ Baseline: npm test 1730 tests, 1727 pass, 3 skipped (baseline.log).
 ## Commits so far
 - 6d48d60 contract stubs src/grab-attachments.ts + src/grab-inbox.ts
 - 150fb95 L4 (Terra) imageTarget + STYLE_PROPERTIES in browser/raven-grab.js
-- L2 (Terra) src/grab-bridge.ts + orchestrator 413 fix (Connection: close, destroy on finish)
+- 9c70bdf L2 (Terra) src/grab-bridge.ts + 413 fix; 13a8cb0 L1; 0689830 L12 fixtures; 0aeb6e3 L3; L7 + payload expectation; 5e42b47 L11 (deepseek truncated → Terra finished)
 - L1 (Terra) src/grab-inbox.ts bodies
 - L12 (deepseek v4.1-flash, $0.0045) test/fixtures/attachments/*
 
@@ -15,15 +15,15 @@ Baseline: npm test 1730 tests, 1727 pass, 3 skipped (baseline.log).
 | leg | model | file(s) | status |
 | L1 | gpt-5.6-terra | src/grab-inbox.ts | done, applied |
 | L2 | gpt-5.6-terra | src/grab-bridge.ts | done, applied |
-| L3 | gpt-5.6-terra | browser/raven-grab.js (composer drop/paste/chips) | running, worktree att-L3 |
+| L3 | gpt-5.6-terra | browser/raven-grab.js (composer drop/paste/chips) | done, applied |
 | L4 | gpt-5.6-terra | browser/raven-grab.js (imageTarget) | done, applied |
-| L5 | gpt-5.6-terra | test/grab-bridge-attachments.test.mjs | prompt written (S/L5.prompt), not launched |
-| L6 | gpt-5.6-terra | test/grab-overlay-attachments.test.mjs | after L3 |
-| L7 | gpt-6-sol | src/index.ts | prompt written (S/L7.prompt), not launched |
+| L5 | gpt-5.6-terra | test/grab-bridge-attachments.test.mjs | running, worktree att-L5 |
+| L6 | gpt-5.6-terra | test/grab-overlay-attachments.test.mjs | running, worktree att-L6 |
+| L7 | gpt-6-sol | src/index.ts | done, applied |
 | L8 | gpt-6-sol | web/public/raven-grab.js + CHANGELOG.md | after L9 |
 | L9 | gpt-6-astra | raven-grab.js lifecycle | after L3 + L6 |
 | L10 | gpt-6-astra | adverse read-only pass | last |
-| L11 | ow-run deepseek | src/grab-attachments.ts + test/grab-attachments.test.mjs | running (S/L11.json) |
+| L11 | deepseek (truncated, $0.0103) then gpt-5.6-terra | src/grab-attachments.ts + test | done, applied |
 | L12 | ow-run deepseek | fixtures | done |
 | map | ow-run kimi-k3 ($0.021) | collision map review | done |
 
