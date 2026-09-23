@@ -192,10 +192,13 @@ test('text/plain drop of an absolute path to hero.png', async (t) => {
     await withOverlay(async (page, _session, projectDir) => {
       // The path route accepts files under the home directory or the session's
       // project directory; a checkout outside both must not fail the test.
+      // The dropped path has to be a realpath (a symlinked one is refused);
+      // the bridge's project dir is the tmpdir form, which on macOS goes through
+      // a symlink, so this also covers containment against a symlinked project.
       const projectHero = path.join(projectDir, 'hero.png');
       writeFileSync(projectHero, readFileSync(heroPath));
       await select(page, '#image-a');
-      await transfer(page, 'drop', { bytes: null, text: projectHero });
+      await transfer(page, 'drop', { bytes: null, text: realpathSync(projectHero) });
       const chip = await readyChip(page);
       assert.deepEqual({ name: chip.name, dims: chip.dims }, { name: 'hero.png', dims: '16×9' });
       assert.equal(await page.evaluate(() => document.querySelector('[data-raven-grab-overlay]').shadowRoot.querySelector('[data-instruction]').value), '');

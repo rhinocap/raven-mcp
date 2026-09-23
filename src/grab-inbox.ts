@@ -212,8 +212,15 @@ function extensionForKind(kind: ImageKind): string {
   return kind === "jpeg" ? "jpg" : kind;
 }
 
+// `path` is already a realpath; the directory must be compared as one too, or a
+// project under a symlinked parent (macOS /tmp, /var/folders) refuses every path.
 function isWithin(path: string, directory: string): boolean {
   var parent = resolve(directory);
+  try {
+    parent = realpathSync(parent);
+  } catch (_error) {
+    // keep the resolved form
+  }
   return path === parent || path.startsWith(parent + "/");
 }
 
