@@ -212,3 +212,13 @@ Verdict: "Claim fails" (stored drafts still carried inbox paths with 32 bits of 
   | anon surface | 45 tools, hash f64bb18…2bb0a6 exact match, measured after the workflow's changelog push to main |
 - Pushes to main this release: ae788e4 (test-only fixture fix, by me under "release minor"); 1a5e563 and a3134d8 (by the workflow). The session-log commit stays local (main ahead 1).
 - Opus falsification pass on the release claim dispatched; disposition recorded below when it returns.
+
+### Opus falsification pass on the release claim: DOES NOT SURVIVE in full
+
+The four surfaces, the no-republish claim, the tag contents (six files, both .mcpb blobs identical, sha f1236e7a…), the Registry first-attempt publish, the site production deployment built from a3134d8, and the anon 45/f64bb18… all held. Criterion 5 (nothing stale or wrong) failed, verified by me against the live artifacts:
+
+- P1: the release broadcast (Resend id 611912ef…, sent by the notify job of run 35925801655) carries the GitHub Release body verbatim: 78 lines, about 70 raw commit subjects including session-log and auto-save commits. `scripts/notify-release.mjs` creates and sends a Resend broadcast; it cannot be recalled. Run 35924989866's notify job was skipped, so exactly one email went out. v2.5.1 used the same body format but a patch release sends no email; 2.6.0 is the first time this format reached subscribers.
+- P2: the email's "Read the full changelog" button (`notify-release.mjs:111`) links https://ravenmcp.ai/changelog.html, which is the `web` project's page built from `web/data/changelog.json`, whose newest entry is v2.5.0 (2026-08-17). The workflow's "Rebuild changelog page" step (`release.yml:447`, `scripts/build-changelog.mjs`) writes only `site/changelog.html`, served at mcp.ravenmcp.ai. Pre-existing gap (2.5.1 is missing too), now behind a link sent to every subscriber.
+- P3: commit 1a5e563 shows a failed "Vercel – site" status because its deployment was cancelled in favour of a3134d8 five seconds later. Cosmetic.
+
+Not fixed in this session: a correction email is Andrew's call (customer-facing send), and changing the release-notes source, the changelog data, and an apex redeploy are new scope beyond "release minor".
