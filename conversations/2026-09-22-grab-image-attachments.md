@@ -125,3 +125,9 @@ Verdict: "Claim fails" on three points; all three fixed, each with the test obse
 | 8 | P3 | Carried chips persist thumbUrl with key into sessionStorage; stale after restart | Open item |
 | 9 | P3 | Proxy protocol branch lacked the gradient sentence | Fixed; asserted in the proxy MCP test |
 | 10 | P3 | Tilde test could pass via project containment | Fixed: fixture under ~/Library/Caches, project dir elsewhere |
+
+### Batch 2 closed (2026-09-23)
+
+- Fix commit after the falsification pass; full suite from the sibling worktree 1798/1795/0/3 exit 0 (batch start 1776/1773/0/3; +22 tests). Overlay followups 11/11, live Chromium check green on all four carriers and four paste forms. Sibling worktree removed.
+- Open items: bridge thumbnail read is whole-file and synchronous per fetch; carried chips persist a keyed thumbUrl into sessionStorage and go stale after a session restart; same bytes under two names dedupe to one disk file; the route-level ELOOP mapping is reachable only by a symlink race.
+- Not pushed.
