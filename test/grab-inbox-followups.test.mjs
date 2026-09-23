@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { execFileSync } from "node:child_process";
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const png = fs.readFileSync(path.join(dirname, "fixtures/attachments/hero.png"));
@@ -17,7 +18,7 @@ const mod = await import("../dist/grab-inbox.js");
   const link = path.join(dir, "link.png");
   fs.writeFileSync(file, png);
   fs.symlinkSync(file, link);
-  assert.throws(() => mod.openAttachmentFile(link));
+  assert.throws(() => mod.openAttachmentFile(link), (error) => error.code === "ELOOP");
   const opened = mod.openAttachmentFile(file);
   try {
     assert.equal(opened.stat.isFile(), true);
@@ -58,7 +59,7 @@ test("path records preserve NFC original leaf names while disk names stay ASCII"
   const third = mod.storeAttachmentPath("names003", { path: japaneseJpeg, projectDir: dir });
   assert.equal(third.name, "写真.jpeg");
   assert.match(path.basename(third.path), /^[a-f0-9]{12}-attachment\.jpeg$/);
-  // A Latin stem with a trailing dropped character keeps its dash and extension.
+  // A dropped character at the end of the stem leaves no trailing dash.
   const cafeJpg = path.join(dir, "Café.jpg");
   fs.writeFileSync(cafeJpg, jpeg);
   const fourth = mod.storeAttachmentPath("names004", { path: cafeJpg, projectDir: dir });
@@ -66,8 +67,51 @@ test("path records preserve NFC original leaf names while disk names stay ASCII"
 });
 
 test("path route expands ~/ inside home but containment still refuses ~/../", () => {
-  const underHome = path.join(os.homedir(), path.relative(os.homedir(), path.join(dirname, "fixtures/attachments/hero.png")));
-  const record = mod.storeAttachmentPath("tilde001", { path: `~/${path.relative(os.homedir(), underHome)}`, projectDir: process.cwd() });
-  assert.equal(record.sourcePath, underHome);
-  assert.throws(() => mod.storeAttachmentPath("tilde002", { path: "~/../outside.png", projectDir: process.cwd() }), /under the home or project directory/);
+  // The fixture lives under a temp dir inside $HOME and the project dir is a
+  // different temp dir, so only home containment can accept the path.
+  const homeDir = fs.mkdtempSync(path.join(os.homedir(), "Library", "Caches", "raven-tilde-test-"));
+  const projectDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "raven-tilde-project-")));
+  try {
+    const file = path.join(homeDir, "hero.png");
+    fs.writeFileSync(file, png);
+    const relative = path.relative(os.homedir(), file);
+    assert.equal(relative.startsWith(".."), false);
+    const record = mod.storeAttachmentPath("tilde001", { path: `~/${relative}`, projectDir });
+    assert.equal(record.sourcePath, path.resolve(os.homedir(), relative));
+    assert.throws(() => mod.storeAttachmentPath("tilde002", { path: "~/../outside.png", projectDir }), /under the home or project directory/);
+  } finally {
+    fs.rmSync(homeDir, { recursive: true, force: true });
+  }
+});
+
+test("path route refuses a FIFO without blocking", { timeout: 5000 }, () => {
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "raven-fifo-attachment-")));
+  const fifo = path.join(dir, "pipe.png");
+  execFileSync("mkfifo", [fifo]);
+  assert.throws(() => mod.storeAttachmentPath("fifo0001", { path: fifo, projectDir: dir }), /regular file/);
+});
+
+test("attachmentOpenError maps ELOOP to a symlink 400, EACCES to 403, ENOENT to 404", () => {
+  const withCode = (code) => Object.assign(new Error(code), { code });
+  const loop = mod.attachmentOpenError(withCode("ELOOP"), "/x/link.png");
+  assert.equal(loop.status, 400);
+  assert.match(loop.message, /symlink escape: \/x\/link\.png/);
+  assert.equal(mod.attachmentOpenError(withCode("EMLINK"), "/x").status, 400);
+  assert.equal(mod.attachmentOpenError(withCode("EACCES"), "/x").status, 403);
+  assert.equal(mod.attachmentOpenError(withCode("EPERM"), "/x").status, 403);
+  assert.equal(mod.attachmentOpenError(withCode("ENOENT"), "/x").status, 404);
+  assert.equal(mod.attachmentOpenError(new Error("plain"), "/x").status, 404);
+});
+
+test("disk names: an extension-only name and an 80-character stem cut", () => {
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "raven-names-edge-")));
+  const dotOnly = path.join(dir, ".png");
+  fs.writeFileSync(dotOnly, png);
+  const first = mod.storeAttachmentPath("edge0001", { path: dotOnly, projectDir: dir });
+  assert.equal(first.name, ".png");
+  assert.match(path.basename(first.path), /^[a-f0-9]{12}-attachment\.png$/);
+  const long = path.join(dir, "a".repeat(79) + "-b.png");
+  fs.writeFileSync(long, png);
+  const second = mod.storeAttachmentPath("edge0002", { path: long, projectDir: dir });
+  assert.match(path.basename(second.path), /^[a-f0-9]{12}-a{79}\.png$/);
 });

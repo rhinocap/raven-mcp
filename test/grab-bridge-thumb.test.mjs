@@ -81,6 +81,8 @@ realHttpTest('GET attachment serves fixture bytes with MIME and no-store', async
     assert.equal(served.headers['content-type'], 'image/png');
     assert.equal(Number(served.headers['content-length']), served.body.length);
     assert.equal(served.headers['cache-control'], 'no-store');
+    assert.equal(served.headers['x-content-type-options'], 'nosniff');
+    assert.equal(served.headers['content-security-policy'], "default-src 'none'; sandbox");
     assert.equal(served.headers['access-control-allow-origin'], '*');
     assert.deepEqual(served.body, await readFile(fixturePath));
   });

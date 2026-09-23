@@ -2214,7 +2214,11 @@ async function buildGrabResponse(designMdPath: string, key: string, method: stri
         headers: {
           "Content-Type": attachmentRecord.mime,
           "Content-Length": String(attachmentBytes.length),
-          "Cache-Control": "no-store"
+          "Cache-Control": "no-store",
+          // An SVG opened as a top-level navigation on a loopback-proxy origin
+          // would otherwise run its scripts with the page's origin.
+          "X-Content-Type-Options": "nosniff",
+          "Content-Security-Policy": "default-src 'none'; sandbox"
         },
         body: attachmentBytes
       };

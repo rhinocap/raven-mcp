@@ -121,7 +121,7 @@ async function readyChip(page) {
   await page.waitForFunction(() => Boolean(document.querySelector('[data-raven-grab-overlay]')?.shadowRoot?.querySelector('[data-attachment-chip][data-state="ready"]')));
   return page.evaluate(() => {
     const chip = document.querySelector('[data-raven-grab-overlay]').shadowRoot.querySelector('[data-attachment-chip][data-state="ready"]');
-    return { id: chip.getAttribute('data-attachment-id'), state: chip.getAttribute('data-state'), thumb: chip.querySelector('img.raven-grab-attachment-thumb')?.getAttribute('src') };
+    return { id: chip.getAttribute('data-attachment-id'), state: chip.getAttribute('data-state'), name: chip.querySelector('[data-attachment-name]')?.textContent, thumb: chip.querySelector('img.raven-grab-attachment-thumb')?.getAttribute('src') };
   });
 }
 
@@ -160,19 +160,22 @@ for (const [input, expected, name] of [
   ["'/abs/My Folder/x.png'", '/abs/My Folder/x.png', 'quoted path'],
   ['"/abs/My Folder/x.png"', '/abs/My Folder/x.png', 'double-quoted path'],
   ['/abs/My\\ Folder/x.png', '/abs/My Folder/x.png', 'shell-escaped path'],
-  ['~/x.png', '~/x.png', 'home path']
+  ['~/x.png', '~/x.png', 'home path'],
+  ["'/abs/back\\slash.png'", '/abs/back\\slash.png', 'single-quoted path keeps its backslash'],
+  ['"/abs/q\\"uote.png"', '/abs/q"uote.png', 'double-quoted path unescapes only the quote']
 ]) {
   overlayTest(`${name} posts normalized path and reaches a ready chip`, async (page) => {
     const posts = [];
     await page.route((url) => url.pathname === '/attachment', async (route) => {
       if (route.request().method() !== 'POST') return route.continue();
       posts.push(route.request().postDataJSON());
-      await route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ id: 'att-path', name: 'x.png', mime: 'image/png', bytes: heroBytes.length, width: 16, height: 9 }) });
+      await route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ id: 'att-path', name: 'Café hero.png', mime: 'image/png', bytes: heroBytes.length, width: 16, height: 9 }) });
     });
     await selectAt(page, '#url', 8, 8);
     await pastePath(page, input);
     const chip = await readyChip(page);
     assert.equal(chip.state, 'ready');
+    assert.equal(chip.name, 'Café hero.png');
     assert.deepEqual(posts, [{ path: expected, origin: 'path' }]);
   });
 }
@@ -206,4 +209,21 @@ overlayTest('path chip renders bridge thumbnail and removal never revokes the br
   assert.equal(await page.evaluate(() => document.querySelector('[data-raven-grab-overlay]').shadowRoot.querySelectorAll('[data-attachment-chip]').length), 0);
   assert.deepEqual(await page.evaluate(() => window.revokedAttachmentUrls), []);
   assert.deepEqual(pageErrors, []);
+});
+
+overlayTest('file chip keeps its blob: thumbnail after the record arrives', async (page) => {
+  await page.route((url) => url.pathname === '/attachment', async (route) => {
+    if (route.request().method() !== 'POST') return route.continue();
+    await route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ id: 'att-file', name: 'Café hero.png', mime: 'image/png', bytes: heroBytes.length, width: 16, height: 9 }) });
+  });
+  await selectAt(page, '#url', 8, 8);
+  await page.evaluate((bytes) => {
+    const root = document.querySelector('[data-raven-grab-overlay]').shadowRoot;
+    const dt = new DataTransfer();
+    dt.items.add(new File([new Uint8Array(bytes)], 'Café hero.png', { type: 'image/png' }));
+    root.querySelector('.raven-grab-composer').dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
+  }, Array.from(heroBytes));
+  const chip = await readyChip(page);
+  assert.equal(chip.name, 'Café hero.png');
+  assert.match(chip.thumb, /^blob:/);
 });

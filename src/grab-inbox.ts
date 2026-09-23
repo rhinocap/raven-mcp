@@ -165,9 +165,7 @@ export function storeAttachmentPath(sessionKey: string, input: { path: string; p
     fd = opened.fd;
     stat = opened.stat;
   } catch (error) {
-    var code = error && typeof error === "object" && "code" in error ? String((error as { code: unknown }).code) : "";
-    if (code === "ELOOP" || code === "EMLINK") throw new AttachmentError(400, "attachment path has a symlink escape: " + resolved);
-    throw new AttachmentError(404, "attachment path was not found");
+    throw attachmentOpenError(error, resolved);
   }
   if (!stat.isFile()) {
     closeSync(fd);
@@ -191,15 +189,26 @@ export function storeAttachmentPath(sessionKey: string, input: { path: string; p
 
 // O_NOFOLLOW protects the final path component. Intermediate directories are
 // not protected (macOS has no O_RESOLVE_BENEATH); third-party proxy routes are
-// already refused by the bridge.
+// already refused by the bridge. O_NONBLOCK makes the open return at once on
+// a FIFO instead of waiting for a writer (the fstat then refuses it as not a
+// regular file); a regular file reads the same with or without it.
 export function openAttachmentFile(path: string): { fd: number; stat: ReturnType<typeof fstatSync> } {
-  var fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  var fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {
     return { fd: fd, stat: fstatSync(fd) };
   } catch (error) {
     closeSync(fd);
     throw error;
   }
+}
+
+// ELOOP is what O_NOFOLLOW returns for a symlink in the final component (EMLINK
+// on some BSDs); a file that exists but cannot be read is a 403, not a 404.
+export function attachmentOpenError(error: unknown, resolved: string): AttachmentError {
+  var code = error && typeof error === "object" && "code" in error ? String((error as { code: unknown }).code) : "";
+  if (code === "ELOOP" || code === "EMLINK") return new AttachmentError(400, "attachment path has a symlink escape: " + resolved);
+  if (code === "EACCES" || code === "EPERM") return new AttachmentError(403, "attachment path is not readable");
+  return new AttachmentError(404, "attachment path was not found");
 }
 
 // Dispatch on contentType: multipart/form-data → storeAttachmentBytes; application/json {path} → storeAttachmentPath.
@@ -280,9 +289,10 @@ function sanitizeFilename(name: string, kind: ImageKind): string {
   // never misstates what the file is. Image extensions were already matched to
   // the content by the caller.
   var dot = leaf.lastIndexOf(".");
-  var stemSource = dot > 0 ? leaf.slice(0, dot) : leaf;
-  var extension = dot > 0 && imageKindForExtension(leaf) ? leaf.slice(dot + 1).toLowerCase() : extensionForKind(kind);
-  var stem = stemSource.replace(/[^A-Za-z0-9._-]/g, "-").replace(/-+/g, "-").replace(/^[.-]+|[.-]+$/g, "").slice(0, 80);
+  var stemSource = dot >= 0 ? leaf.slice(0, dot) : leaf;
+  var extension = dot >= 0 && imageKindForExtension(leaf) ? leaf.slice(dot + 1).toLowerCase() : extensionForKind(kind);
+  // Trim after the cut so an 80-character stem cannot end in "." or "-".
+  var stem = stemSource.replace(/[^A-Za-z0-9._-]/g, "-").replace(/-+/g, "-").slice(0, 80).replace(/^[.-]+|[.-]+$/g, "");
   return (stem || "attachment") + "." + extension;
 }
 

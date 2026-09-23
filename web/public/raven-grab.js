@@ -4336,8 +4336,15 @@
   }
   function attachmentPath(value, origin) {
     var text = String(value || "").trim();
-    if (text.length >= 2 && ((text[0] === "'" && text[text.length - 1] === "'") || (text[0] === '"' && text[text.length - 1] === '"'))) text = text.slice(1, -1);
-    text = text.replace(/\\([\s\S])/g, "$1");
+    // Shell quoting rules: single quotes are literal, double quotes unescape
+    // only \" and \\, and an unquoted path unescapes every \<char>.
+    if (text.length >= 2 && text[0] === "'" && text[text.length - 1] === "'") {
+      text = text.slice(1, -1);
+    } else if (text.length >= 2 && text[0] === '"' && text[text.length - 1] === '"') {
+      text = text.slice(1, -1).replace(/\\(["\\])/g, "$1");
+    } else {
+      text = text.replace(/\\([\s\S])/g, "$1");
+    }
     if (!(/^(?:\/|~\/|file:\/\/)/.test(text) && /\.(?:png|jpe?g|webp|gif|svg|avif)$/i.test(text))) return false;
     var reason = attachmentPrecondition();
     if (reason) { attachmentNoticeNow(reason); return true; }

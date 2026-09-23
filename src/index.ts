@@ -3637,6 +3637,7 @@ server.tool(
         // someone else's page — so no batchCommit will ever arrive, and an
         // agent told to wait for one waits forever. Here the grab IS the outcome.
         protocol = "Tell the user in ONE line that the overlay is capture-only on this proxied site: they can measure and grab, and nothing will be written to the page. Drain sends with get_grabbed_elements whenever control returns to you, keep each selection with capture_reference, and map it onto this project's tokens with map_reference_to_tokens. Do not wait for a batchCommit marker — none is coming.";
+        protocol += " Sends can carry image attachments (file drops only on a third-party site) alongside an imageTarget describing the image to replace. When imageTarget.kind is background and backgroundHasUrl is false the carrier is a generated image (a gradient); replacing it means setting background-image to a url() of the copied asset.";
       } else {
         protocol += " This environment has no HTTP listener for a watcher to poll, so drain sends by calling get_grabbed_elements whenever control returns to you.";
         protocol += " Sends can carry image attachments (absolute paths under ~/.raven/grab-inbox) alongside an imageTarget describing the image to replace; treat the instruction text as authoritative. When imageTarget.kind is background and backgroundHasUrl is false the carrier is a generated image (a gradient); replacing it means setting background-image to a url() of the copied asset.";

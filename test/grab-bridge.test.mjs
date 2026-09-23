@@ -983,6 +983,7 @@ test('proxy mode withholds the authoring routes and forwards paths it does not o
       const started = await client.callTool({ name: 'start_grab_session', arguments: { path: designPath, proxy_target: 'https://fixture.invalid' } });
       const session = JSON.parse(started.content[0].text);
       const key = sessionKey(session);
+      assert.match(session.agent_protocol, /backgroundHasUrl is false the carrier is a generated image \(a gradient\)/);
       const authoringRoutes = [
         ['GET', '/template?page=%2F'],
         ['POST', '/template'],

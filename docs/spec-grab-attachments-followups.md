@@ -50,7 +50,7 @@ Not chosen: dropping gradients from the target. Replacing a gradient with a phot
 
 ### 5a. Non-ASCII names
 
-`sanitizeFilename` keeps `[A-Za-z0-9._-]` only (`src/grab-inbox.ts:234`), so `Café.png` is stored and reported as `Caf-.png` and `スクリーンショット.png` as `png.png`.
+`sanitizeFilename` keeps `[A-Za-z0-9._-]` only (`src/grab-inbox.ts:234`), so `Café.png` is stored and reported as `Caf-.png` (after this change the disk stem drops the trailing dash: `Caf.png`) and `スクリーンショット.png` as `png.png`.
 
 - `record.name` becomes the original leaf name with control characters, `/` and `\` removed, NFC-normalised, capped at 255 bytes. It is what the chip shows and what the agent reads.
 - The on-disk name keeps the current ASCII sanitiser, with one change: an empty stem falls back to `attachment` rather than the bare extension. `スクリーンショット.png` → `<sha12>-attachment.png`.
@@ -82,7 +82,7 @@ Each leg writes its tests first and reports the failing run before the fix.
 | 3 | gradient div → kind background, backgroundHasUrl false; url div → true; layered → true | overlay followups | Chromium |
 | 3 | protocol text contains the new sentence | `test/grab-bridge-thumb.test.mjs` or existing index test | node |
 | 4 | `openAttachmentFile` on a symlink throws; on a regular file returns bytes; a path whose last component is a symlink still gets 400 | `test/grab-inbox-followups.test.mjs` | node |
-| 5a | `Café.png` → record.name `Café.png`, disk `…-Caf-.png`; `スクリーンショット.png` → disk `…-attachment.png`; chip text shows the original name | inbox followups + overlay followups | node + Chromium |
+| 5a | `Café.png` → record.name `Café.png`, disk `…-Caf.png`; `スクリーンショット.png` → disk `…-attachment.png`; chip text shows the original name | inbox followups + overlay followups | node + Chromium |
 | 5b | quoted, escaped and `~/` pastes each produce a ready chip; bridge accepts `~/…` under home and refuses `~/../…` | overlay followups + inbox followups | Chromium + node |
 
 Regression: `RAVEN_NO_USAGE_LOG=1 npm test` from a worktree outside the repo tree (the no-private-paths `..` case), expected 1776 + new tests, 0 fail, 3 skipped. Both `raven-grab.js` copies byte-identical (`cmp`).
