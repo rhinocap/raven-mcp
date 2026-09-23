@@ -185,6 +185,11 @@
   // reclaim vertical space (critical on the mobile sheet). Keyed by section role.
   var changeTrayCollapsed = Object.create(null);
   var instructionDraft = "";
+  // Like the instruction, attachments belong to the active selection's draft,
+  // never to a transient composer node rebuilt by renderPanel().
+  var attachmentDraft = [];
+  var attachmentNotice = "";
+  var attachmentDragDepth = 0;
   // Live dictation session ({ recognizer, targetAttr }) or null. Module scope
   // on purpose: renderPanel() rebuilds panel DOM wholesale, so nothing about
   // an in-flight dictation may live on the button or textarea node.
@@ -971,6 +976,16 @@
     .raven-grab-assets-cta { margin-top: 12px; }
     .raven-grab-composer { margin: 0 0 12px; }
     .raven-grab-composer .raven-grab-textarea { width: 100%; box-sizing: border-box; max-height: 30vh; }
+    .raven-grab-composer[data-drop-active] { outline: 1px solid var(--raven-grab-accent); outline-offset: 3px; }
+    .raven-grab-attachment-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+    .raven-grab-attachment-chip { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 6px; color: var(--raven-grab-text); background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.12); border-radius: 6px; }
+    .raven-grab-attachment-thumb { width: 44px; height: 44px; object-fit: cover; background: rgba(255,255,255,.08); border-radius: 4px; }
+    .raven-grab-attachment-meta { min-width: 0; font: 400 calc(11px * var(--raven-grab-font-scale))/1.35 var(--raven-grab-ui); }
+    .raven-grab-attachment-name, .raven-grab-attachment-dims, .raven-grab-attachment-error { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .raven-grab-attachment-dims { color: var(--raven-grab-muted); }
+    .raven-grab-attachment-error { color: #ff8a8a; }
+    .raven-grab-attachment-remove { min-width: 28px; min-height: 28px; padding: 0; color: var(--raven-grab-muted); background: transparent; border: 1px solid rgba(255,255,255,.12); border-radius: 4px; cursor: pointer; }
+    .raven-grab-attachment-notice { margin: 6px 0 0; color: var(--raven-grab-muted); font: 400 calc(11px * var(--raven-grab-font-scale))/1.35 var(--raven-grab-ui); }
     .raven-grab-voice { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 24px; height: 24px; padding: 0; color: var(--raven-grab-muted); background: transparent; border: 1px solid rgba(255,255,255,.12); border-radius: 6px; cursor: pointer; }
     .raven-grab-voice:hover { color: var(--raven-grab-accent); border-color: rgba(0,191,255,.45); }
     .raven-grab-voice:focus-visible { outline: 2px solid rgba(0, 191, 255, .35); outline-offset: 2px; }
@@ -4139,7 +4154,7 @@
 
   function activeStyleDraft(force) {
     var hasWork = Object.keys(styleEdits).length > 0 || Object.keys(stateStyleEdits).length > 0 || Object.keys(tokenIntents).length > 0 || !!textEdit;
-    if (!force && !hasWork && !instructionDraft.trim()) return null;
+    if (!force && !hasWork && !instructionDraft.trim() && !attachmentDraft.length) return null;
     ensureActiveStyleDraftKey();
     return {
       clientKey: activeStyleDraftKey,
@@ -4161,7 +4176,8 @@
       reactMetadata: reactMetadata,
       // The active draft's instruction lives in the shared box; capture it so a
       // stash (selection switch) persists it and a later activate restores it.
-      instruction: instructionDraft
+      instruction: instructionDraft,
+      attachments: attachmentDraft
     };
   }
 
@@ -4182,7 +4198,7 @@
     // instruction nulled the key, the next activeStyleDraft() minted a FRESH one,
     // and lastConnectedPending still held the snapshot under the old key — so
     // carryDetachedDraft() found nothing when the element left the DOM.
-    if (Object.keys(styleEdits).length || Object.keys(stateStyleEdits).length || Object.keys(tokenIntents).length || textEdit || instructionDraft.trim()) ensureActiveStyleDraftKey();
+    if (Object.keys(styleEdits).length || Object.keys(stateStyleEdits).length || Object.keys(tokenIntents).length || textEdit || instructionDraft.trim() || attachmentDraft.length) ensureActiveStyleDraftKey();
     else activeStyleDraftKey = null;
     // The Versions section's visibility and its refusal note are derived from
     // exactly these four collections, so this is the one function that already
@@ -4221,7 +4237,113 @@
     schedulePersistPending();
   }
 
-  function clearActiveStyleDraftState() {
+  function revokeAttachmentThumb(attachment) {
+    if (attachment && attachment.thumbUrl && window.URL && typeof window.URL.revokeObjectURL === "function") {
+      window.URL.revokeObjectURL(attachment.thumbUrl);
+    }
+  }
+
+  function clearAttachmentDraft(preserveUrls) {
+    if (!preserveUrls) attachmentDraft.forEach(revokeAttachmentThumb);
+    attachmentDraft = [];
+    attachmentNotice = "";
+  }
+
+  function removeAttachment(id) {
+    attachmentDraft = attachmentDraft.filter(function (attachment) {
+      if (attachment.id !== id) return true;
+      revokeAttachmentThumb(attachment);
+      return false;
+    });
+    syncSendButtonDisabled();
+    renderPanel();
+  }
+
+  var ATTACHMENT_MIMES = ["image/png", "image/jpeg", "image/webp", "image/gif", "image/svg+xml", "image/avif"];
+  var ATTACHMENT_EXTENSIONS = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp", gif: "image/gif", svg: "image/svg+xml", avif: "image/avif" };
+  function attachmentMime(file) {
+    var declared = String(file.type || "").toLowerCase();
+    if (ATTACHMENT_MIMES.indexOf(declared) !== -1) return declared;
+    if (declared) return "";
+    var match = String(file.name || "").match(/\.([^.]+)$/);
+    return match ? (ATTACHMENT_EXTENSIONS[match[1].toLowerCase()] || "") : "";
+  }
+  function attachmentNoticeNow(message, kind) {
+    attachmentNotice = message;
+    setGlobalActionStatus(message, kind || "error");
+    renderPanel();
+  }
+  function attachmentPrecondition() {
+    if (!selectedElement) return "Select the image to replace first";
+    if (grabConfig && grabConfig.grabEndpoint) return "Attachments need the local Raven bridge";
+    return "";
+  }
+  function attachmentRecordFromResponse(chip, record) {
+    Object.keys(record || {}).forEach(function (key) { chip[key] = record[key]; });
+    chip.state = "ready";
+    chip.error = "";
+    syncSendButtonDisabled();
+    renderPanel();
+  }
+  function bridgeAttachmentError(response) {
+    return response.text().then(function (text) {
+      try { var parsed = JSON.parse(text); return parsed.error || parsed.message || text; } catch (error) { return text; }
+    });
+  }
+  function uploadAttachmentFile(file, origin) {
+    var reason = attachmentPrecondition();
+    if (reason) { attachmentNoticeNow(reason); return; }
+    if (attachmentDraft.filter(function (attachment) { return attachment.state === "ready" || attachment.state === "uploading"; }).length >= 4) { attachmentNoticeNow("Up to 4 attachments per send"); return; }
+    var mime = attachmentMime(file);
+    if (!mime) { attachmentNoticeNow("Can't attach " + (file.type || "unknown") + " — images only"); return; }
+    if (file.size > 25 * 1024 * 1024) { attachmentNoticeNow((file.name || "File") + " is over 25 MiB"); return; }
+    var chip = { id: "local-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8), name: file.name || "image", mime: mime, bytes: file.size, width: null, height: null, path: null, origin: origin, state: "uploading", error: "", thumbUrl: window.URL.createObjectURL(file) };
+    attachmentDraft.push(chip);
+    syncSendButtonDisabled();
+    renderPanel();
+    var form = new FormData();
+    form.append("file", file, file.name);
+    form.append("origin", origin);
+    fetch(bridgeUrl("/attachment"), { method: "POST", body: form }).then(function (response) {
+      if (response.status !== 202) return bridgeAttachmentError(response).then(function (message) { throw new Error(message || ("Bridge returned " + response.status)); });
+      return response.json();
+    }).then(function (record) { attachmentRecordFromResponse(chip, record); }).catch(function (error) {
+      chip.state = "error";
+      chip.error = error && error.message ? error.message : "Could not attach image";
+      syncSendButtonDisabled();
+      renderPanel();
+    });
+  }
+  function attachmentPath(value, origin) {
+    var text = String(value || "").trim();
+    if (!(/^(?:\/|file:\/\/)/.test(text) && /\.(?:png|jpe?g|webp|gif|svg|avif)$/i.test(text))) return false;
+    var reason = attachmentPrecondition();
+    if (reason) { attachmentNoticeNow(reason); return true; }
+    if (attachmentDraft.filter(function (attachment) { return attachment.state === "ready" || attachment.state === "uploading"; }).length >= 4) { attachmentNoticeNow("Up to 4 attachments per send"); return true; }
+    var name = text.replace(/^file:\/\//, "").split("/").pop() || "image";
+    var chip = { id: "local-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8), name: name, mime: "", bytes: null, width: null, height: null, path: text, origin: "path", state: "uploading", error: "", thumbUrl: null };
+    attachmentDraft.push(chip);
+    syncSendButtonDisabled(); renderPanel();
+    fetch(bridgeUrl("/attachment"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path: text, origin: "path" }) }).then(function (response) {
+      if (response.status !== 202) return bridgeAttachmentError(response).then(function (message) { throw new Error(message || ("Bridge returned " + response.status)); });
+      return response.json();
+    }).then(function (record) { attachmentRecordFromResponse(chip, record); }).catch(function (error) { chip.state = "error"; chip.error = error && error.message ? error.message : "Could not attach image"; syncSendButtonDisabled(); renderPanel(); });
+    return true;
+  }
+  function attachmentListMarkup() {
+    return '<div data-attachment-list>' + attachmentDraft.map(function (attachment) {
+      var thumbnail = attachment.thumbUrl
+        ? '<img class="raven-grab-attachment-thumb" src="' + escapeHtml(attachment.thumbUrl) + '" alt="">'
+        : '<span class="raven-grab-attachment-thumb" aria-hidden="true"></span>';
+      var dims = attachment.width != null && attachment.height != null ? String(attachment.width) + "×" + String(attachment.height) : "";
+      return '<div class="raven-grab-attachment-chip" data-attachment-chip data-attachment-id="' + escapeHtml(attachment.id) + '" data-state="' + escapeHtml(attachment.state) + '">' + thumbnail +
+        '<span class="raven-grab-attachment-meta"><span data-attachment-name>' + escapeHtml(attachment.name) + '</span><span data-attachment-dims>' + escapeHtml(dims) + '</span>' +
+        (attachment.state === "error" ? '<span data-attachment-error>' + escapeHtml(attachment.error || "Could not attach image") + '</span>' : '') +
+        '</span><button type="button" data-attachment-remove aria-label="Remove ' + escapeHtml(attachment.name) + '">×</button></div>';
+    }).join("") + '</div>' + (attachmentNotice ? '<p class="raven-grab-attachment-notice" data-attachment-notice role="status">' + escapeHtml(attachmentNotice) + '</p>' : '<p class="raven-grab-attachment-notice" data-attachment-notice role="status"></p>');
+  }
+
+  function clearActiveStyleDraftState(preserveAttachmentUrls) {
     tokenIntents = Object.create(null);
     styleEdits = Object.create(null);
     stateStyleEdits = Object.create(null);
@@ -4233,17 +4355,18 @@
     styleEditTarget = null;
     previewOriginals = Object.create(null);
     activeStyleDraftKey = null;
+    clearAttachmentDraft(preserveAttachmentUrls);
     renderStatePreviewStyles();
   }
 
   function stashActiveStyleDraft() {
-    if (!Object.keys(styleEdits).length && !Object.keys(stateStyleEdits).length && !Object.keys(tokenIntents).length && !textEdit && !instructionDraft.trim()) {
+    if (!Object.keys(styleEdits).length && !Object.keys(stateStyleEdits).length && !Object.keys(tokenIntents).length && !textEdit && !instructionDraft.trim() && !attachmentDraft.length) {
       activeStyleDraftKey = null;
       return null;
     }
     var draft = activeStyleDraft();
     styleDrafts[draft.clientKey] = draft;
-    clearActiveStyleDraftState();
+    clearActiveStyleDraftState(true);
     return draft;
   }
 
@@ -4280,6 +4403,7 @@
     // rebuilt active draft. Assign like the send path does, rather than calling
     // clearInstructionText(), whose field animation is pointless before a render.
     instructionDraft = "";
+    attachmentDraft = [];
     persistPendingNow();
     renderPanel();
     return true;
@@ -4318,7 +4442,8 @@
   // stash contract, not a leak in the queue.
   function queueDraftBlocker() {
     if (!selectedElement) return "Select an element first";
-    if (!Object.keys(styleEdits).length && !Object.keys(stateStyleEdits).length && !Object.keys(tokenIntents).length && !textEdit && !instructionDraft.trim()) {
+    if (attachmentDraft.some(function (attachment) { return attachment.state === "uploading"; })) return "Wait for the upload to finish";
+    if (!Object.keys(styleEdits).length && !Object.keys(stateStyleEdits).length && !Object.keys(tokenIntents).length && !textEdit && !instructionDraft.trim() && !attachmentDraft.some(function (attachment) { return attachment.state === "ready"; })) {
       return QUEUE_NEEDS_WORK;
     }
     // The bank is a STASH, and the very next sweep DROPS a stashed draft whose
@@ -4467,6 +4592,8 @@
       instructionDraft = draft.instruction;
       delete draft.instruction;
     }
+    attachmentDraft = draft.attachments || [];
+    delete draft.attachments;
     // Stashing cleared the shared state-preview stylesheet; re-render it so a
     // reactivated draft's hover/focus edits preview again.
     renderStatePreviewStyles();
@@ -10868,6 +10995,10 @@
     // carries its own on draft.instruction. Resolve by which this draft is.
     var effectiveInstruction = isActive ? instructionDraft : (draft.instruction || "");
     if (effectiveInstruction.trim()) rows.push({ id: "draft-instruction:" + draft.clientKey, kind: "instruction", type: "Instruction", target: selector + " · " + effectiveInstruction.trim(), status: "Pending", removable: true, local: true });
+    var effectiveAttachments = isActive ? attachmentDraft : (draft.attachments || []);
+    effectiveAttachments.filter(function (attachment) { return attachment.state === "ready"; }).forEach(function (attachment) {
+      rows.push({ id: "draft-attachment:" + draft.clientKey + ":" + attachment.id, kind: "attachment", type: "Attachment", target: selector + " · " + attachment.name, status: "Pending", removable: true, local: true });
+    });
     return rows;
   }
 
@@ -11062,14 +11193,14 @@
   function pruneEmptyStyleDraft(draft) {
     // stateStyleEdits (hover/focus edits) count as real work too — a draft holding
     // only those must survive pruning (pre-existing omission alongside styleEdits/tokens).
-    if (!draft || Object.keys(draft.styleEdits).length || Object.keys(draft.tokenIntents).length || Object.keys(draft.stateStyleEdits || {}).length || draft.textEdit) return;
+    if (!draft || Object.keys(draft.styleEdits).length || Object.keys(draft.tokenIntents).length || Object.keys(draft.stateStyleEdits || {}).length || draft.textEdit || (draft.attachments && draft.attachments.length)) return;
     if (draft.clientKey === activeStyleDraftKey) {
-      if (!instructionDraft.trim()) activeStyleDraftKey = null;
+      if (!instructionDraft.trim() && !attachmentDraft.length) activeStyleDraftKey = null;
     }
     // A stored draft may hold only a carried instruction (e.g. a retry whose last
     // style edit was removed) — keep it so the instruction still sends, mirroring
     // the active-draft branch that keeps the key alive while the box has text.
-    else if (!(draft.instruction && draft.instruction.trim())) delete styleDrafts[draft.clientKey];
+    else if (!(draft.instruction && draft.instruction.trim()) && !(draft.attachments && draft.attachments.length)) delete styleDrafts[draft.clientKey];
   }
 
   function removeChange(id) {
@@ -11135,6 +11266,20 @@
         delete instrDraft.instruction;
         pruneEmptyStyleDraft(instrDraft);
       }
+    } else if (id.indexOf("draft-attachment:") === 0) {
+      var attachmentParts = id.slice("draft-attachment:".length).split(":");
+      var attachmentClientKey = attachmentParts.shift();
+      var attachmentId = attachmentParts.join(":");
+      var attachmentDraftOwner = styleDraftForClientKey(attachmentClientKey);
+      if (!attachmentDraftOwner) return;
+      var attachmentsToRemove = attachmentClientKey === activeStyleDraftKey ? attachmentDraft : (attachmentDraftOwner.attachments || []);
+      attachmentsToRemove.forEach(function (attachment) {
+        if (attachment.id === attachmentId) revokeAttachmentThumb(attachment);
+      });
+      attachmentsToRemove = attachmentsToRemove.filter(function (attachment) { return attachment.id !== attachmentId; });
+      if (attachmentClientKey === activeStyleDraftKey) attachmentDraft = attachmentsToRemove;
+      else attachmentDraftOwner.attachments = attachmentsToRemove;
+      pruneEmptyStyleDraft(attachmentDraftOwner);
     } else if (layerOrderDrafts[id]) {
       var clearedDraft = layerOrderDrafts[id];
       var clearedElement = clearedDraft ? clearedDraft.movedElement : null;
@@ -11354,7 +11499,8 @@
       previewOriginals: draft.previewOriginals,
       editScope: draft.editScope,
       reactMetadata: draft.reactMetadata,
-      instructionDraft: instruction || ""
+      instructionDraft: instruction || "",
+      attachments: draft.attachments || []
     };
   }
 
@@ -11414,7 +11560,8 @@
         || Object.keys(draft.stateStyleEdits || {}).length
         || Object.keys(draft.tokenIntents || {}).length
         || !!draft.textEdit
-        || !!instruction.trim();
+        || !!instruction.trim()
+        || (draft.attachments || []).some(function (attachment) { return attachment.state === "ready"; });
       if (!hasWork) return;
       try {
         var ctx = styleDraftContextForFreeze(draft, instruction);
@@ -11544,6 +11691,7 @@
     if (styleRecords.length) {
       frozenDrafts.forEach(function (draft) {
         restoreStyleDraftPreview(draft, false); // keep sent copy visible on the page
+        (draft.attachments || []).forEach(revokeAttachmentThumb);
         if (styleDrafts[draft.clientKey] === draft) delete styleDrafts[draft.clientKey];
       });
       instructionDraft = "";
@@ -12177,7 +12325,8 @@
     var instructionsMarkup = `
       <section class="raven-grab-section raven-grab-composer">
         <div class="raven-grab-section-heading"><h2 class="raven-grab-section-title">Instructions</h2></div>
-        <textarea class="raven-grab-textarea" data-instruction spellcheck="true" aria-label="Instructions" placeholder="Tell the agent what to change…">${escapeHtml(instructionDraft)}</textarea>
+        <textarea class="raven-grab-textarea" data-instruction spellcheck="true" aria-label="Instructions" placeholder="${attachmentDraft.length && !instructionDraft ? "Replace this image with the attached one" : "Tell the agent what to change…"}">${escapeHtml(instructionDraft)}</textarea>
+        ${attachmentListMarkup()}
         <div class="raven-grab-queue">${voiceButtonMarkup("data-instruction", "instructions")}
           <button type="button" class="raven-grab-queue-add" data-queue-draft${queueNoteAtRender ? ' aria-disabled="true" title="' + escapeHtml(queueNoteAtRender) + '"' : ""}>Add to queue</button>
         </div>
@@ -12545,6 +12694,7 @@
     closeSettingsModal();
     expandedSections = { styles: true };
     instructionDraft = "";
+    clearAttachmentDraft();
     componentRequestStep = "form";
     componentRequest = { issueType: "", issueSize: "", useCase: "", email: "" };
     componentRequestId = "";
@@ -12659,6 +12809,7 @@
     var payloadTokenIntents;
     var payloadTextEdit;
     var payloadInstruction;
+    var payloadAttachments;
     var payloadMetadata;
     var payloadSelectionElements;
     if (draftContext) {
@@ -12674,6 +12825,7 @@
       payloadTokenIntents = draftContext.tokenIntents;
       payloadTextEdit = draftContext.textEdit || null;
       payloadInstruction = draftContext.instructionDraft || "";
+      payloadAttachments = draftContext.attachments || [];
       payloadMetadata = draftContext.reactMetadata;
       payloadSelectionElements = draftContext.selectionElements || [payloadTarget];
     } else {
@@ -12687,6 +12839,7 @@
       payloadTokenIntents = tokenIntents;
       payloadTextEdit = textEdit;
       payloadInstruction = instructionDraft;
+      payloadAttachments = attachmentDraft;
       payloadMetadata = reactMetadata;
       payloadSelectionElements = orderedSelection();
     }
@@ -12705,7 +12858,8 @@
       tokenIntents: Object.keys(payloadTokenIntents).map(function (key) { return scopedIntentForSend(payloadTokenIntents[key], payloadTarget, draftContext); }),
       styleEdits: styleEditsForSend(payloadStyleEdits).map(function (intent) { return scopedIntentForSend(intent, payloadTarget, draftContext); }),
       stateStyleEdits: stateStyleEditsForSend(draftContext ? draftContext.stateStyleEdits : stateStyleEdits).map(function (intent) { return scopedIntentForSend(intent, payloadTarget, draftContext); }),
-      instruction: payloadInstruction
+      instruction: payloadInstruction,
+      attachments: payloadAttachments.filter(function (attachment) { return attachment.state === "ready"; }).map(function (attachment) { return { id: attachment.id }; })
     };
     if (payloadTextEdit && payloadTextEdit.newText !== payloadTextEdit.oldText) {
       payload.textEdit = { oldText: payloadTextEdit.oldText, newText: payloadTextEdit.newText };
@@ -12833,6 +12987,7 @@
 
   function clearInstructionText() {
     instructionDraft = "";
+    clearAttachmentDraft();
     var field = panelQuery("[data-instruction]");
     if (!field || !field.value) return;
     var reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -13138,6 +13293,12 @@
       activeGlobalActionSurface = event.currentTarget === panelLeft ? activeTabB : activeTabA;
       mountGlobalActions();
     }
+    var attachmentRemove = event.target.closest("[data-attachment-remove]");
+    if (attachmentRemove) {
+      var attachmentChip = attachmentRemove.closest("[data-attachment-chip]");
+      if (attachmentChip) removeAttachment(attachmentChip.getAttribute("data-attachment-id"));
+      return;
+    }
     var layerToggle = event.target.closest("[data-layer-toggle]");
     if (layerToggle) {
       toggleLayerNode(layerToggle.getAttribute("data-layer-toggle"));
@@ -13277,6 +13438,53 @@
     }
     var radiusExpand = event.target.closest("[data-radius-expand]");
     if (radiusExpand) beginRadiusEdit(radiusExpand.closest("[data-style-property]"));
+  });
+
+  function attachmentTransferKind(dataTransfer) {
+    if (!dataTransfer) return "";
+    var types = Array.prototype.slice.call(dataTransfer.types || []);
+    return types.indexOf("Files") !== -1 || types.indexOf("text/plain") !== -1 ? "attachment" : "";
+  }
+  function composerForEvent(event) {
+    return event.target && event.target.closest ? event.target.closest(".raven-grab-composer") : null;
+  }
+  onPanels("dragenter", function (event) {
+    var composer = composerForEvent(event);
+    if (!composer || !attachmentTransferKind(event.dataTransfer)) return;
+    attachmentDragDepth += 1;
+    composer.setAttribute("data-drop-active", "");
+  });
+  onPanels("dragover", function (event) {
+    var composer = composerForEvent(event);
+    if (!composer || !attachmentTransferKind(event.dataTransfer)) return;
+    event.preventDefault();
+    composer.setAttribute("data-drop-active", "");
+  });
+  onPanels("dragleave", function (event) {
+    var composer = composerForEvent(event);
+    if (!composer || !attachmentDragDepth) return;
+    attachmentDragDepth = Math.max(0, attachmentDragDepth - 1);
+    if (!attachmentDragDepth) composer.removeAttribute("data-drop-active");
+  });
+  onPanels("drop", function (event) {
+    var composer = composerForEvent(event);
+    if (!composer || !attachmentTransferKind(event.dataTransfer)) return;
+    var files = Array.prototype.slice.call(event.dataTransfer.files || []);
+    var text = event.dataTransfer.getData ? event.dataTransfer.getData("text/plain") : "";
+    if (!files.length && !attachmentPath(text, "path")) return;
+    event.preventDefault();
+    attachmentDragDepth = 0;
+    composer.removeAttribute("data-drop-active");
+    files.forEach(function (file) { uploadAttachmentFile(file, "drop"); });
+  });
+  onPanels("paste", function (event) {
+    if (!event.target || event.target.getAttribute("data-instruction") === null) return;
+    var data = event.clipboardData;
+    var files = Array.prototype.slice.call((data && data.files) || []);
+    var text = data && data.getData ? data.getData("text/plain") : "";
+    if (!files.length && !attachmentPath(text, "path")) return;
+    event.preventDefault();
+    files.forEach(function (file) { uploadAttachmentFile(file, "paste"); });
   });
 
   onPanels("keydown", function (event) {
@@ -14133,12 +14341,12 @@
     // truly changes, transfer its singleton maps into a persistent element draft;
     // previews stay applied until removal, dispatch, detachment, or dismissal.
     var previousPrimary = selectedElement;
-    var hasUnsentEdits = Object.keys(styleEdits).length > 0 || Object.keys(stateStyleEdits).length > 0 || Object.keys(tokenIntents).length > 0 || !!textEdit || instructionDraft !== "" || componentRequestHasDraft();
+    var hasUnsentEdits = Object.keys(styleEdits).length > 0 || Object.keys(stateStyleEdits).length > 0 || Object.keys(tokenIntents).length > 0 || !!textEdit || instructionDraft !== "" || attachmentDraft.length > 0 || componentRequestHasDraft();
     if (hasUnsentEdits && selectedElement && elements.indexOf(selectedElement) !== -1) primary = selectedElement;
     if (previousPrimary !== primary) {
       if (activeStyleEditorFlush) activeStyleEditorFlush();
       capturePanelDrafts();
-      if (Object.keys(styleEdits).length || Object.keys(stateStyleEdits).length || Object.keys(tokenIntents).length || !!textEdit || instructionDraft.trim()) stashActiveStyleDraft();
+      if (Object.keys(styleEdits).length || Object.keys(stateStyleEdits).length || Object.keys(tokenIntents).length || !!textEdit || instructionDraft.trim() || attachmentDraft.length) stashActiveStyleDraft();
       resetSelectionContext();
     }
     multiSelections = elements.slice();
