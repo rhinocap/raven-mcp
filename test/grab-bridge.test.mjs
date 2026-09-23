@@ -2879,7 +2879,7 @@ test('overlay component scope is opt-in, scopes both intent types, previews one 
   const defaultPayloadBytes = JSON.stringify(internals.payloadForSend());
   assert.equal(
     defaultPayloadBytes,
-    '{"selector":"#action","html":"","rect":{},"styles":{"padding":"8px"},"tokens":[],"stateStyles":{},"tokenIntents":[{"property":"color","oldToken":"primary","oldTokenPath":"colors.primary","newToken":"secondary","newTokenPath":"colors.secondary","newTokenValue":"#222222"}],"styleEdits":[{"property":"padding","oldValue":"8px","newValue":"12px"}],"stateStyleEdits":[],"instruction":""}'
+    '{"selector":"#action","html":"","rect":{},"styles":{"padding":"8px"},"tokens":[],"stateStyles":{},"tokenIntents":[{"property":"color","oldToken":"primary","oldTokenPath":"colors.primary","newToken":"secondary","newTokenPath":"colors.secondary","newTokenValue":"#222222"}],"styleEdits":[{"property":"padding","oldValue":"8px","newValue":"12px"}],"stateStyleEdits":[],"instruction":"","attachments":[]}'
   );
   assert.doesNotMatch(defaultPayloadBytes, /"scope"|"matchSelector"|"matchCount"/);
 
