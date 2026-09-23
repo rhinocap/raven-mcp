@@ -39,7 +39,7 @@ Baseline: npm test 1730 tests, 1727 pass, 3 skipped (baseline.log).
 - Full suite before L9 (S/pre-L9.log): 1752 tests, 1747 pass, 2 fail, 3 skipped. Fails: byte-mirror (cleared by L8) and no-private-paths.test.mjs:592, which resolves `repoRoot/../private.claude/...` — inside a nested worktree `..` is still under raven-mcp, so the finding is absent. Passes in the main checkout at 74cfb7b. Final suite must run from a worktree outside the repo tree.
 
 ## Next commands (updated 2026-09-23)
-1. Read S/final4.log (full suite at 1f2a386, sibling worktree /Users/accunliffe/projects/raven-mcp-att-final with node_modules symlinked from att-main): expect 1776 tests / 1773 pass / 0 fail / 3 skipped (baseline three), `exit=0` as last line.
+1. DONE: S/final4.log at 1f2a386: 1776 tests, 1773 pass, 0 fail, 3 skipped (baseline three at log lines 121/889/890), exit=0. Sibling worktree removed.
 2. Remove the sibling worktree raven-mcp-att-final (git worktree remove, forced, from the main repo path).
 3. Handoff (no push). Restart Claude Code afterwards so the session runs 2.1.280 (Opus 5.5 for in-session agents).
 
