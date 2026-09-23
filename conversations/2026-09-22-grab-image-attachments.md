@@ -197,3 +197,18 @@ Verdict: "Claim fails" (stored drafts still carried inbox paths with 32 bits of 
 - Surfaces at that point: npm 2.6.0 published but not yet visible; Registry NOT updated; no v2.6.0 tag on origin; no version-bump commit (origin/main = ae788e4, package.json 2.5.1); no GitHub Release; changelog not rebuilt; apex .mcpb not deployed.
 - 21:59Z: `npm view raven-mcp@2.6.0 dist.shasum` = `d475d12f…` and dist-tags.latest = 2.6.0. Propagated.
 - Resume path: `resume_version` requires an existing tag (`detect-release-scope.mjs`: "A resume FINISHES an existing release; it can never create one"), so it does not apply. Plan: re-dispatch `bump=minor`; release.sh detects 2.6.0 on npm, checks `npm pack --dry-run` shasum against the published one, and resumes through the Registry, commit, tag, push, GitHub Release, changelog and apex deploy.
+
+### Release 2.6.0 complete: run 35925801655 (2026-09-23 22:00–22:06Z)
+
+- Re-dispatched `gh workflow run release.yml --field bump=minor` on ae788e4 after npm propagation. Run 35925801655 conclusion success: preflight 25s, release 22:00:36–22:05:38Z, notify 15s (release email sent).
+- release.sh resumed rather than republished. Log lines: "raven-mcp@2.6.0 is already on npm — resuming a partial release." and "published artifact matches this tree (d475d12faf9b1e0e84b2300ef64cc9ecdd435f70) — continuing." No registry retry lines; the Registry publish succeeded on attempt 1.
+- Four surfaces measured live at ~22:07Z:
+  | Surface | Measured |
+  |---|---|
+  | npm | 2.6.0, dist-tags.latest 2.6.0, time.modified 2026-09-23T21:57:54.935Z, shasum d475d12f… |
+  | MCP Registry | ai.ravenmcp/raven-mcp 2.6.0 isLatest true, updatedAt 2026-09-23T22:04:08Z; 2.5.1 isLatest false |
+  | git tag | v2.6.0 on origin at 1a5e5631d27543383088beb00172c6aa6ff3b1bb ("Release v2.6.0"); origin/main a3134d8 ("Update changelog for v2.6.0") |
+  | apex .mcpb | 200, last-modified 22:06:30 GMT, 5,495,018 B, sha256 f1236e7aaf549ddda7d7ce45eb2882b31cdc62e20f2b1ffd0058c094c19a2343 (matches the workflow's own "apex .mcpb verified" line); manifest from the downloaded bytes = 2.6.0 / 111 tools |
+  | anon surface | 45 tools, hash f64bb18…2bb0a6 exact match, measured after the workflow's changelog push to main |
+- Pushes to main this release: ae788e4 (test-only fixture fix, by me under "release minor"); 1a5e563 and a3134d8 (by the workflow). The session-log commit stays local (main ahead 1).
+- Opus falsification pass on the release claim dispatched; disposition recorded below when it returns.
