@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { request as httpRequest } from 'node:http';
 import {
-  access, mkdtemp, mkdir, readFile, readdir, realpath, rm, symlink,
+  access, mkdtemp, mkdir, readFile, readdir, realpath, rm, stat, symlink,
   utimes, writeFile
 } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
@@ -282,18 +282,24 @@ test('session startup prunes inbox directories older than seven days only', asyn
   const inbox = await realpath(await mkdtemp(path.join(tmpdir(), 'raven-grab-inbox-')));
   const oldInbox = process.env.RAVEN_GRAB_INBOX;
   process.env.RAVEN_GRAB_INBOX = inbox;
-  const oldDir = path.join(inbox, 'old-session');
-  const freshDir = path.join(inbox, 'fresh-session');
+  const oldDir = path.join(inbox, 'deadbeef');
+  const freshDir = path.join(inbox, 'cafef00d');
+  // RAVEN_GRAB_INBOX may point at a directory the user also keeps other things
+  // in; only directories shaped like a session key are ever removed.
+  const foreignDir = path.join(inbox, 'photos');
   try {
     await writeFile(path.join(project, 'DESIGN.md'), '# Attachment prune fixture\n');
     await mkdir(oldDir);
     await mkdir(freshDir);
+    await mkdir(foreignDir);
     const now = Date.now() / 1000;
     await utimes(oldDir, now - 8 * 24 * 60 * 60, now - 8 * 24 * 60 * 60);
     await utimes(freshDir, now - 6 * 24 * 60 * 60, now - 6 * 24 * 60 * 60);
+    await utimes(foreignDir, now - 8 * 24 * 60 * 60, now - 8 * 24 * 60 * 60);
     await grabBridge.startGrabSession(path.join(project, 'DESIGN.md'));
     await assert.rejects(access(oldDir), { code: 'ENOENT' }, 'expected the eight-day-old inbox directory to be pruned');
     await access(freshDir);
+    await access(foreignDir);
   } finally {
     await grabBridge.stopGrabSession();
     if (oldInbox === undefined) delete process.env.RAVEN_GRAB_INBOX;
@@ -413,4 +419,96 @@ realHttpTest('a Content-Length above the cap is answered 413 without waiting for
     assert.equal(outcome, 'status:413', `expected the server to answer 413 on the header alone; got ${outcome}`);
     assert.deepEqual(await inboxEntries(inbox, key), []);
   });
+});
+
+// ---- falsification-pass findings (Opus 5.5) ----
+
+async function withLocalSession(prefix, fn) {
+  assert.ok(grabBridge, 'expected dist/grab-bridge.js to be built before attachment tests run');
+  const project = await realpath(await mkdtemp(path.join(__dirname, 'fixtures', prefix)));
+  const inbox = await realpath(await mkdtemp(path.join(tmpdir(), 'raven-grab-inbox-')));
+  const oldInbox = process.env.RAVEN_GRAB_INBOX;
+  process.env.RAVEN_GRAB_INBOX = inbox;
+  try {
+    await writeFile(path.join(project, 'DESIGN.md'), '# fixture\n');
+    const session = await grabBridge.startGrabSession(path.join(project, 'DESIGN.md'));
+    await fn({ session, key: keyFor(session), project, inbox });
+  } finally {
+    await grabBridge.stopGrabSession();
+    if (oldInbox === undefined) delete process.env.RAVEN_GRAB_INBOX; else process.env.RAVEN_GRAB_INBOX = oldInbox;
+    await rm(project, { recursive: true, force: true });
+    await rm(inbox, { recursive: true, force: true });
+  }
+}
+
+realHttpTest('a session refuses its 33rd attachment record', async () => {
+  await withLocalSession('attachment-cap-', async ({ session, key }) => {
+    const base = await readFile(path.join(fixtureDir, 'hero.png'));
+    // Bytes after IEND keep the PNG valid and give each upload a distinct sha.
+    const post = async (i) => {
+      const upload = multipart([filePart(`hero-${i}.png`, 'image/png', Buffer.concat([base, Buffer.from([i])]))]);
+      return responseJson(attachmentUrl(session, key), upload.body, { 'Content-Type': upload.contentType });
+    };
+    for (let i = 0; i < 32; i += 1) {
+      assert.equal((await post(i)).status, 202, `expected upload ${i} to be accepted`);
+    }
+    const refused = await post(32);
+    assert.equal(refused.status, 413, 'expected the 33rd record in one session to be refused');
+    assert.match(refused.json.error, /32/);
+  });
+});
+
+realHttpTest('a stored name always carries the extension of the sniffed image type', async () => {
+  await withLocalSession('attachment-ext-', async ({ session, key, inbox }) => {
+    const bytes = await readFile(path.join(fixtureDir, 'hero.png'));
+    let salt = 0;
+    // Each send gets distinct bytes so the sha dedupe does not fold them together.
+    const send = async (name) => {
+      const upload = multipart([filePart(name, 'image/png', Buffer.concat([bytes, Buffer.from([salt += 1])]))]);
+      return responseJson(attachmentUrl(session, key), upload.body, { 'Content-Type': upload.contentType });
+    };
+    const html = await send('evil.html');
+    assert.equal(html.status, 202);
+    assert.ok(html.json.path.endsWith('-evil.png'), `expected .html on PNG bytes to be stored as .png, got ${html.json.path}`);
+    const bare = await send('image');
+    assert.equal(bare.status, 202);
+    assert.ok(bare.json.path.endsWith('-image.png'), `expected a bare name to gain .png, got ${bare.json.path}`);
+    const mismatch = await send('hero.jpg');
+    assert.equal(mismatch.status, 415, 'expected an image extension that contradicts the bytes to stay refused');
+    assert.ok((await inboxEntries(inbox, key)).every((entry) => entry.endsWith('.png')));
+  });
+});
+
+realHttpTest('path route answers the same for a missing and a present file outside the permitted roots', async () => {
+  await withLocalSession('attachment-oracle-', async ({ session, key }) => {
+    const present = '/etc/hosts';
+    const missing = '/etc/raven-does-not-exist.png';
+    const a = await responseJson(attachmentUrl(session, key), Buffer.from(JSON.stringify({ path: present })), { 'Content-Type': 'application/json' });
+    const b = await responseJson(attachmentUrl(session, key), Buffer.from(JSON.stringify({ path: missing })), { 'Content-Type': 'application/json' });
+    assert.equal(a.status, 400);
+    assert.equal(b.status, 400, 'expected a missing path outside the roots to be refused as out of bounds, not reported missing');
+    assert.equal(a.json.error, b.json.error);
+    assert.ok(!a.json.error.includes(present), 'expected the error not to echo the path');
+  });
+});
+
+test('a dedupe hit touches the session inbox directory', async () => {
+  assert.ok(grabInbox, 'expected dist/grab-inbox.js to be built');
+  const inbox = await realpath(await mkdtemp(path.join(tmpdir(), 'raven-grab-inbox-')));
+  const oldInbox = process.env.RAVEN_GRAB_INBOX;
+  process.env.RAVEN_GRAB_INBOX = inbox;
+  try {
+    const key = 'abcdef0123456789';
+    const bytes = await readFile(path.join(fixtureDir, 'hero.png'));
+    grabInbox.storeAttachmentBytes(key, { name: 'hero.png', declaredMime: 'image/png', bytes, origin: 'drop' });
+    const dir = path.join(inbox, key.slice(0, 8));
+    const old = Date.now() / 1000 - 8 * 24 * 60 * 60;
+    await utimes(dir, old, old);
+    grabInbox.storeAttachmentBytes(key, { name: 'again.png', declaredMime: 'image/png', bytes, origin: 'drop' });
+    const { mtimeMs } = await stat(dir);
+    assert.ok(Date.now() - mtimeMs < 60 * 1000, 'expected the dedupe hit to refresh the directory mtime so a sibling session cannot prune it');
+  } finally {
+    if (oldInbox === undefined) delete process.env.RAVEN_GRAB_INBOX; else process.env.RAVEN_GRAB_INBOX = oldInbox;
+    await rm(inbox, { recursive: true, force: true });
+  }
 });

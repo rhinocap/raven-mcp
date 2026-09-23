@@ -2,7 +2,7 @@
 // storage under ~/.raven/grab-inbox, and pruning. Contract stub — L1 replaces
 // every body. Pure of session state: the bridge owns the id→record map.
 import { homedir } from "node:os";
-import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { createHash, randomBytes } from "node:crypto";
 import { basename, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -42,7 +42,11 @@ export function sessionInboxDir(sessionKey: string): string {
   return join(grabInboxRoot(), sessionKey.slice(0, 8));
 }
 
+export var MAX_SESSION_ATTACHMENTS = 32;
+
 // Removes inbox session directories whose mtime is older than maxAgeMs. Missing root is not an error.
+// Only directories named like a session key (8 lowercase hex) are candidates: RAVEN_GRAB_INBOX may
+// point at a directory that holds other things, and those are never removed.
 export function pruneGrabInbox(now?: number, maxAgeMs?: number): { removed: string[] } {
   var root = grabInboxRoot();
   var removed: string[] = [];
@@ -55,6 +59,7 @@ export function pruneGrabInbox(now?: number, maxAgeMs?: number): { removed: stri
     return { removed: removed };
   }
   for (var entry of entries) {
+    if (!/^[0-9a-f]{8}$/.test(entry)) continue;
     var path = join(root, entry);
     try {
       if (statSync(path).isDirectory() && statSync(path).mtimeMs < cutoff) {
@@ -139,12 +144,17 @@ export function storeAttachmentPath(sessionKey: string, input: { path: string; p
   }
   if (!isAbsolute(requested)) throw new AttachmentError(400, "path must be absolute");
   var resolved = resolve(requested);
-  if (!existsSync(resolved)) throw new AttachmentError(404, "attachment path was not found: " + resolved);
+  // Containment is checked before existence so the route cannot be used to
+  // probe which files exist outside the permitted roots.
+  if (!isWithin(resolved, homedir()) && !isWithin(resolved, input.projectDir)) {
+    throw new AttachmentError(400, "attachment path must be under the home or project directory");
+  }
+  if (!existsSync(resolved)) throw new AttachmentError(404, "attachment path was not found");
   var stat;
   try {
     stat = statSync(resolved);
   } catch (_error) {
-    throw new AttachmentError(404, "attachment path was not found: " + resolved);
+    throw new AttachmentError(404, "attachment path was not found");
   }
   if (!stat.isFile()) throw new AttachmentError(400, "attachment path must be a regular file");
   // Size is checked before the read: a multi-gigabyte file would otherwise be
@@ -157,15 +167,10 @@ export function storeAttachmentPath(sessionKey: string, input: { path: string; p
     throw new AttachmentError(400, "attachment path could not be resolved");
   }
   if (real !== resolved) throw new AttachmentError(400, "attachment path has a symlink escape: " + resolved);
-  if (!isWithin(resolved, homedir()) && !isWithin(resolved, input.projectDir)) {
-    throw new AttachmentError(400, "attachment path must be under the home or project directory");
-  }
   var bytes = readFileSync(resolved);
   if (bytes.length > MAX_ATTACHMENT_BYTES) throw new AttachmentError(413, "attachment exceeds the 25 MiB limit");
   var kind = sniffImageKind(bytes);
   if (!kind) throw new AttachmentError(415, "attachment is not a supported image");
-  var extensionKind = imageKindForExtension(basename(resolved));
-  if (extensionKind && extensionKind !== kind) throw new AttachmentError(415, "attachment extension does not match image content");
   return storeVerifiedAttachment(sessionKey, basename(resolved), bytes, kind, "path", resolved, IMAGE_MIME_BY_KIND[kind]);
 }
 
@@ -199,6 +204,10 @@ function storeVerifiedAttachment(sessionKey: string, originalName: string, bytes
   if (!sniffed || sniffed !== kind) {
     throw new AttachmentError(415, "declared image type " + declaredMime + " does not match actual image type " + (sniffed ? IMAGE_MIME_BY_KIND[sniffed] : "unknown"));
   }
+  // A name whose extension names another image type, or a non-image type
+  // (.html on PNG bytes), is refused on both routes.
+  var extensionKind = imageKindForExtension(basename(originalName));
+  if (extensionKind && extensionKind !== kind) throw new AttachmentError(415, "attachment extension does not match image content");
   var name = sanitizeFilename(originalName, kind);
   var sha256 = createHash("sha256").update(bytes).digest("hex");
   var dimensions = readImageDimensions(bytes, kind);
@@ -210,15 +219,31 @@ function storeVerifiedAttachment(sessionKey: string, originalName: string, bytes
   var existing = readdirSync(directory).find(function (entry) {
     return entry.indexOf(sha256.slice(0, 12) + "-") === 0 && statSync(join(directory, entry)).size === bytes.length;
   });
-  if (existing) path = join(directory, existing);
-  else writeFileSync(path, bytes);
+  if (existing) {
+    path = join(directory, existing);
+    // A dedupe hit writes nothing, so the directory mtime is refreshed by hand:
+    // the prune on another session's startup goes by that mtime.
+    var now = new Date();
+    try { utimesSync(directory, now, now); } catch (_error) { /* read-only inbox still serves the record */ }
+  } else {
+    writeFileSync(path, bytes);
+  }
   return { id: "att_" + randomBytes(8).toString("hex"), origin: origin, name: name, mime: IMAGE_MIME_BY_KIND[kind], bytes: bytes.length, sha256: sha256, width: dimensions.width, height: dimensions.height, path: path, sourcePath: sourcePath };
 }
 
 function sanitizeFilename(name: string, kind: ImageKind): string {
   var leaf = name.split(/[\\/]+/).pop() || "";
   var sanitized = leaf.replace(/[\x00-\x1f\x7f]/g, "").replace(/[^A-Za-z0-9._-]/g, "-").replace(/-+/g, "-").replace(/^[.-]+/, "").slice(0, 80);
-  return sanitized || "attachment." + extensionForKind(kind);
+  if (!sanitized) return "attachment." + extensionForKind(kind);
+  // The stored name always ends with the sniffed type's extension: a name with
+  // no extension ("image" from a paste) gains one, and a non-image extension
+  // (.html on PNG bytes) is replaced, so the path handed to the agent never
+  // misstates what the file is. Image extensions were already matched to the
+  // content by the caller.
+  if (imageKindForExtension(sanitized)) return sanitized;
+  var dot = sanitized.lastIndexOf(".");
+  var stem = dot > 0 ? sanitized.slice(0, dot) : sanitized;
+  return stem + "." + extensionForKind(kind);
 }
 
 function extensionForKind(kind: ImageKind): string {

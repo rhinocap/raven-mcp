@@ -8,7 +8,7 @@ import { fileURLToPath } from "url";
 import { tmpdir } from "os";
 import { z } from "zod";
 import { flattenDesignTokens, parseDesignMd, readDesignMd, updateDesignMd, type DesignMdNode } from "./designmd.js";
-import { handleAttachmentRequest, MAX_ATTACHMENT_BODY_BYTES, pruneGrabInbox, type GrabAttachmentRecord } from "./grab-inbox.js";
+import { handleAttachmentRequest, MAX_ATTACHMENT_BODY_BYTES, MAX_SESSION_ATTACHMENTS, pruneGrabInbox, type GrabAttachmentRecord } from "./grab-inbox.js";
 
 var __dirname = dirname(fileURLToPath(import.meta.url));
 var PKG_ROOT = resolve(join(__dirname, ".."));
@@ -2169,6 +2169,11 @@ function buildAttachmentResponse(key: string, url: string, contentType: string, 
   // image under the home directory. Bytes the page already holds are fine.
   if (proxyCaptureOnly(session.proxyTarget) && /^application\/json/i.test(contentType)) {
     return jsonResponse(403, { error: "Path attachments are only accepted for a local page; drop the file itself" });
+  }
+  // The 4-per-send cap bounds a payload, not the inbox: a proxied page holding
+  // the key could otherwise fill the disk one upload at a time.
+  if (session.attachments.size >= MAX_SESSION_ATTACHMENTS) {
+    return jsonResponse(413, { error: "Session attachment limit (" + MAX_SESSION_ATTACHMENTS + ") reached; send or remove attachments first" });
   }
   var result = handleAttachmentRequest(session.key, dirname(session.path), contentType, body);
   if (result.status === 202) {
