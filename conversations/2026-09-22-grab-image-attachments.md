@@ -108,3 +108,20 @@ Next: as each lands, `git -C .worktrees/fu-X diff HEAD --stat`, read the diff, a
 - Verification: node suites 321/318/0/2 (grab-bridge, attachments, thumb, inbox followups); overlay suites 30/30; live Chromium check on scratchpad fu/live: gradient false, url() true, layered true, img kind; four pastes (quoted, escaped, ~/, double-quoted) reached ready chips with NFC names and bridge thumbnails (naturalWidth 16), GET direct 200 image/png no-store, unknown id 404, no page errors; chip screenshot viewed. Full suite from sibling worktree raven-mcp-att-final: 1792/1789/0/3 exit 0 (was 1776/1773/0/3).
 - Observed: same bytes pasted under two names dedupe to one disk file (batch-1 sha dedupe); each record keeps its own name. Noted as an open item, not changed.
 - Falsification on claude-opus-5-5 launched (scratchpad fu/opus55.log). Leg worktrees fu-A..D removed.
+
+### Batch 2 falsification (claude-opus-5-5, cold context, report-only)
+
+Verdict: "Claim fails" on three points; all three fixed, each with the test observed failing first.
+
+| # | Sev | Finding | Disposition |
+|---|-----|---------|-------------|
+| 1 | P1 | FIFO named *.png hangs the bridge: stat pre-check removed, openSync blocks for a writer | Fixed: open with O_NONBLOCK; fstat refuses non-regular files. Test hung the runner pre-fix (killed), passes post-fix |
+| 2 | P2 | Final-component symlink test passes without the change (realpath check fires first) | Mapping extracted to exported attachmentOpenError and tested (ELOOP/EMLINK 400, EACCES/EPERM 403, else 404); symlink test now asserts ELOOP from openAttachmentFile. The route-level ELOOP path is only reachable by a race and stays untested by design |
+| 3 | P2 | Chip original name and file-chip blob thumb untested | Two overlay assertions added (name on path chip; blob: thumb kept on a file chip) |
+| 4 | P3 | .png -> png.png; 80-char stem can end in . or -; spec said Caf-.png | Fixed (dot >= 0; trim after cut); spec examples updated to Caf.png |
+| 5 | P3 | EACCES reported as 404 | Fixed via attachmentOpenError (403) |
+| 6 | P3 | Backslash unescaped inside single quotes | Fixed: single quotes literal, double quotes unescape only \" and \\, unquoted unescapes all; two overlay cases added |
+| 7 | P3 | SVG served without nosniff/CSP; whole-file sync read per fetch | Headers added (nosniff; CSP default-src 'none'; sandbox) and asserted. Sync read left as an open item |
+| 8 | P3 | Carried chips persist thumbUrl with key into sessionStorage; stale after restart | Open item |
+| 9 | P3 | Proxy protocol branch lacked the gradient sentence | Fixed; asserted in the proxy MCP test |
+| 10 | P3 | Tilde test could pass via project containment | Fixed: fixture under ~/Library/Caches, project dir elsewhere |
