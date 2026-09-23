@@ -84,3 +84,13 @@ Q1 inbox at ~/.raven/grab-inbox (implemented). Q2 no blob live-preview in v1. Q3
 
 ## Per-leg model / cost
 L1–L6, L11 (finish) gpt-5.6-terra $0 marginal (Codex sub; Andrew's correction: should have been GPT-6 tier); L7, L8 gpt-6-sol/gpt-5.6-sol $0; L9, L10 gpt-6-astra $0; L11 deepseek $0.0103 (truncated); L12 deepseek $0.0045; map kimi-k3 $0.021; falsification claude-opus-5-5 (Anthropic). Total paid: $0.036.
+
+## Batch 2 (2026-09-23): docs/spec-grab-attachments-followups.md, committed f848010
+Goal: implement items 1, 3, 4, 5a, 5b via four codex legs; orchestrator applies, builds, runs loopback + Chromium suites, mirrors, live check, one Opus 5.5 falsification pass. Not pushed.
+Scratch: S/fu (prompts L{A,B,C,D}.prompt, logs L*.log, reports L*.last.md, live page S/fu/live).
+Legs (worktrees .worktrees/fu-A..D detached at f848010, node_modules symlinked):
+| A | gpt-6-luna | src/grab-inbox.ts + test/grab-inbox-followups.test.mjs | items 4, 5a, 5b-bridge | running |
+| B | gpt-6-luna | src/grab-bridge.ts + test/grab-bridge-thumb.test.mjs | item 1 GET | running |
+| C | gpt-6-sol | browser/raven-grab.js + test/grab-overlay-followups.test.mjs | items 1, 3, 5b overlay | running |
+| D | gpt-6-luna | src/index.ts + CHANGELOG.md | item 3 text | running |
+Next: as each lands, `git -C .worktrees/fu-X diff HEAD --stat`, read the diff, apply with `git -C fu-X diff HEAD | git apply` in att-main, build, run node-only suites; after all four: mirror cp+cmp, overlay suites, live check (S/fu/live), full suite in a sibling worktree, commit explicit paths, Opus 5.5 pass, handoff.
