@@ -1,7 +1,7 @@
 import { afterEach, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { request as httpRequest } from 'node:http';
-import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, rm, truncate, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -128,6 +128,31 @@ realHttpTest('GET attachment streams a multi-MiB PNG with its exact Content-Leng
     assert.equal(served.headers['content-type'], 'image/png');
     assert.equal(Number(served.headers['content-length']), png.length);
     assert.deepEqual(served.body, png);
+  });
+});
+
+realHttpTest('GET attachment streams a 256 MiB file without buffering it in memory', async () => {
+  await withSession(async ({ session, key }) => {
+    const record = await upload(session, key);
+    const size = 256 * 1024 * 1024;
+    await truncate(record.path, size);
+    const baseline = process.memoryUsage().arrayBuffers;
+    let peak = baseline;
+    let received = 0;
+    const status = await new Promise((resolve, reject) => {
+      httpRequest(`${session.url}/attachment?key=${key}&id=${encodeURIComponent(record.id)}`, (res) => {
+        assert.equal(Number(res.headers['content-length']), size);
+        res.on('data', (chunk) => {
+          received += chunk.length;
+          peak = Math.max(peak, process.memoryUsage().arrayBuffers);
+        });
+        res.on('end', () => resolve(res.statusCode));
+        res.on('error', reject);
+      }).on('error', reject).end();
+    });
+    assert.equal(status, 200);
+    assert.equal(received, size);
+    assert.ok(peak - baseline < 64 * 1024 * 1024, `server buffered the file: arrayBuffers grew by ${peak - baseline} bytes`);
   });
 });
 

@@ -250,6 +250,105 @@ overlayTest('path chip reloads with a fresh blob thumbnail without persisting a 
   assert.deepEqual(pageErrors, []);
 });
 
+overlayTest('stored attachment drafts carry no inbox path, source path, hash or key', async (page) => {
+  await page.route((url) => url.pathname === '/attachment', async (route) => {
+    if (route.request().method() === 'POST') {
+      await route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ id: 'att-fields', name: 'fields.png', mime: 'image/png', bytes: heroBytes.length, width: 16, height: 9, sha256: 'feedfacefeedface', path: '/Users/me/.raven/grab-inbox/deadbeef/feedfacefeed-fields.png', sourcePath: '/Users/me/Desktop/fields.png' }) });
+    } else {
+      await route.fulfill({ status: 200, contentType: 'image/png', body: heroBytes });
+    }
+  });
+  await selectAt(page, '#url', 8, 8);
+  await pastePath(page, '/Users/me/Desktop/fields.png');
+  await readyChip(page);
+  await typeInstruction(page, 'Keep it');
+  await page.waitForFunction(() => {
+    const memo = sessionStorage.getItem('raven-grab-pending-v1');
+    return memo && JSON.parse(memo).some((entry) => entry.draft?.attachments?.[0]?.id === 'att-fields');
+  });
+  const memo = await page.evaluate(() => sessionStorage.getItem('raven-grab-pending-v1'));
+  assert.doesNotMatch(memo, /"path":|"sourcePath"|"sha256"|deadbeef|feedface|Desktop|key=|thumbUrl/);
+  const stored = JSON.parse(memo).find((entry) => entry.draft?.attachments?.[0]?.id === 'att-fields');
+  assert.deepEqual(Object.keys(stored.draft.attachments[0]).sort(), ['bytes', 'height', 'id', 'mime', 'name', 'origin', 'state', 'width']);
+  assert.equal(stored.endpoint, '/grab');
+});
+
+overlayTest('a carried draft from another page drains to the bridge grab endpoint with the key', async (page) => {
+  await page.route((url) => url.pathname === '/attachment', async (route) => {
+    if (route.request().method() === 'POST') {
+      await route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ id: 'att-drain', name: 'drain.png', mime: 'image/png', bytes: heroBytes.length, width: 16, height: 9 }) });
+    } else {
+      await route.fulfill({ status: 200, contentType: 'image/png', body: heroBytes });
+    }
+  });
+  await selectAt(page, '#url', 8, 8);
+  await pastePath(page, '/abs/drain.png');
+  await readyChip(page);
+  await typeInstruction(page, 'Send from elsewhere');
+  await page.waitForFunction(() => {
+    const memo = sessionStorage.getItem('raven-grab-pending-v1');
+    return memo && JSON.parse(memo).some((entry) => entry.draft?.attachments?.[0]?.id === 'att-drain');
+  });
+  const origin = new URL(page.url()).origin;
+  await page.goto(origin + '/other-page', { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => Boolean(document.querySelector('[data-raven-grab-overlay]')?.shadowRoot?.querySelector('[data-remove-change^="carried:"]')), null, { timeout: 15000 });
+  assert.equal(await page.evaluate(() => document.querySelector('[data-raven-grab-overlay]').shadowRoot.querySelectorAll('[data-attachment-chip]').length), 0, 'a different page keeps the draft as a carried row');
+  const grab = page.waitForRequest((request) => new URL(request.url()).pathname === '/grab' && request.method() === 'POST');
+  await page.evaluate(() => document.querySelector('[data-raven-grab-overlay]').shadowRoot.querySelector('[data-send-batch]').click());
+  const url = new URL((await grab).url());
+  assert.equal(url.origin, origin);
+  assert.match(url.searchParams.get('key') || '', /^[a-f0-9]{16,}$/);
+  assert.deepEqual((await grab).postDataJSON().attachments, [{ id: 'att-drain' }]);
+});
+
+overlayTest('a carried draft with style edits stays a frozen row after reload', async (page) => {
+  await page.route((url) => url.pathname === '/attachment', async (route) => {
+    if (route.request().method() === 'POST') {
+      await route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ id: 'att-styled', name: 'styled.png', mime: 'image/png', bytes: heroBytes.length, width: 16, height: 9 }) });
+    } else {
+      await route.fulfill({ status: 200, contentType: 'image/png', body: heroBytes });
+    }
+  });
+  await selectAt(page, '#url', 8, 8);
+  await pastePath(page, '/abs/styled.png');
+  await readyChip(page);
+  await typeInstruction(page, 'Styled');
+  await page.waitForFunction(() => {
+    const memo = sessionStorage.getItem('raven-grab-pending-v1');
+    return memo && JSON.parse(memo).some((entry) => entry.draft?.attachments?.[0]?.id === 'att-styled');
+  });
+  // Give the stored entry a style edit the composer cannot rebuild on load. The
+  // overlay persists again at pagehide, so the edited memo is seeded by an init
+  // script that runs before the overlay reads storage on the next load.
+  const entries = JSON.parse(await page.evaluate(() => sessionStorage.getItem('raven-grab-pending-v1')));
+  entries.forEach((entry) => { entry.payload.styleEdits = [{ property: 'color', value: 'red' }]; });
+  await page.addInitScript((memo) => { sessionStorage.setItem('raven-grab-pending-v1', memo); }, JSON.stringify(entries));
+  await page.goto(page.url(), { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => Boolean(document.querySelector('[data-raven-grab-overlay]')?.shadowRoot?.querySelector('[data-remove-change^="carried:"]')), null, { timeout: 15000 });
+  assert.equal(await page.evaluate(() => document.querySelector('[data-raven-grab-overlay]').shadowRoot.querySelectorAll('[data-attachment-chip]').length), 0);
+});
+
+overlayTest('a failed thumbnail is not refetched when the draft is reactivated', async (page) => {
+  const gets = [];
+  await page.route((url) => url.pathname === '/attachment', async (route) => {
+    if (route.request().method() === 'POST') {
+      await route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ id: 'att-failed', name: 'failed.png', mime: 'image/png', bytes: heroBytes.length, width: 16, height: 9 }) });
+    } else {
+      gets.push(route.request().url());
+      await route.fulfill({ status: 403, contentType: 'application/json', body: '{"error":"Forbidden"}' });
+    }
+  });
+  await selectAt(page, '#url', 8, 8);
+  await pastePath(page, '/abs/failed.png');
+  await page.waitForFunction(() => document.querySelector('[data-raven-grab-overlay]')?.shadowRoot?.querySelector('[data-attachment-chip][data-state="ready"] span.raven-grab-attachment-thumb'));
+  assert.equal(gets.length, 1);
+  await selectAt(page, '#gradient', 8, 8);
+  await selectAt(page, '#url', 8, 8);
+  await page.waitForFunction(() => document.querySelector('[data-raven-grab-overlay]')?.shadowRoot?.querySelector('[data-attachment-chip][data-state="ready"] span.raven-grab-attachment-thumb'));
+  await page.waitForTimeout(300);
+  assert.equal(gets.length, 1);
+});
+
 overlayTest('a thumbnail that arrives after its chip was removed creates no blob URL', async (page) => {
   const pageErrors = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));

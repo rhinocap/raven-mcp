@@ -4312,7 +4312,7 @@
     });
   }
   function hydrateAttachmentThumb(chip) {
-    if (!chip || chip.state !== "ready" || !chip.id || (chip.thumbUrl && String(chip.thumbUrl).indexOf("blob:") === 0) || chip.thumbLoading) return;
+    if (!chip || chip.state !== "ready" || !chip.id || (chip.thumbUrl && String(chip.thumbUrl).indexOf("blob:") === 0) || chip.thumbLoading || chip.thumbFailed) return;
     chip.thumbLoading = true;
     fetch(bridgeUrl("/attachment") + "&id=" + encodeURIComponent(chip.id)).then(function (response) {
       if (!response.ok) throw new Error("Bridge returned " + response.status);
@@ -4324,7 +4324,10 @@
       chip.thumbUrl = window.URL.createObjectURL(blob);
       renderPanel();
     }).catch(function () {
-      chip.thumbUrl = null;
+      // A blob URL created above is revoked if the render after it threw; a
+      // failed fetch is remembered so re-renders and reactivation do not retry.
+      revokeAttachmentThumb(chip);
+      chip.thumbFailed = true;
       renderPanel();
     }).finally(function () { chip.thumbLoading = false; });
   }
@@ -11623,6 +11626,9 @@
         // Index-based so it is stateless and cannot itself collide.
         .map(function (entry, index) {
           entry.key = "stored:" + (index + 1);
+          // Entries stored before the endpoint was symbolic carry the keyed bridge
+          // URL; rewrite so the key leaves storage on the next persist.
+          if (/\/grab\?key=/.test(String(entry.endpoint))) entry.endpoint = "/grab";
           return entry;
         });
     } catch (error) { return []; }
@@ -11653,11 +11659,11 @@
           draft: (draft.attachments || []).length ? {
             selector: draft.selector || payload.selector,
             instruction: instruction,
+            // Only what the composer needs to show the chip again. The bridge record
+            // also carries path, sourcePath and sha256; the inbox path embeds part of
+            // the session key, and none of them belong in page-origin storage.
             attachments: (draft.attachments || []).filter(function (attachment) { return attachment.state === "ready"; }).map(function (attachment) {
-              var copy = Object.assign({}, attachment);
-              delete copy.thumbUrl;
-              delete copy.thumbLoading;
-              return copy;
+              return { id: attachment.id, name: attachment.name, mime: attachment.mime, bytes: attachment.bytes, width: attachment.width, height: attachment.height, origin: attachment.origin, state: "ready" };
             })
           } : null
         };

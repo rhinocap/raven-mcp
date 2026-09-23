@@ -155,7 +155,9 @@ export function storeAttachmentPath(sessionKey: string, input: { path: string; p
   var realParent: string;
   try {
     realParent = realpathSync(dirname(resolved));
-  } catch (_error) {
+  } catch (error) {
+    var parentCode = error && typeof error === "object" ? (error as NodeJS.ErrnoException).code : undefined;
+    if (parentCode === "ENOENT" || parentCode === "ENOTDIR") throw new AttachmentError(404, "attachment path not found: " + resolved);
     throw new AttachmentError(400, "attachment path could not be resolved");
   }
   if (realParent !== dirname(resolved)) throw new AttachmentError(400, "attachment path has a symlink escape: " + resolved);
@@ -253,11 +255,14 @@ function storeVerifiedAttachment(sessionKey: string, originalName: string, bytes
   var dimensions = readImageDimensions(bytes, kind);
   var directory = sessionInboxDir(sessionKey);
   mkdirSync(directory, { recursive: true });
-  // Same sha within a session dedupes to one file, whatever name it arrived
-  // under; the record keeps the name the user gave.
+  // Same sha prefix, same sanitized disk name and same size within a session
+  // dedupe to one file; the record keeps the name the user gave.
   var path = join(directory, sha256.slice(0, 12) + "-" + name);
   var existingName = sha256.slice(0, 12) + "-" + name;
-  var existing = readdirSync(directory).find(function (entry) { return entry === existingName; });
+  var existing = readdirSync(directory).find(function (entry) {
+    if (entry !== existingName) return false;
+    try { return statSync(join(directory, entry)).size === bytes.length; } catch (_error) { return false; }
+  });
   if (existing) {
     path = join(directory, existing);
     // A dedupe hit writes nothing, so the directory mtime is refreshed by hand:

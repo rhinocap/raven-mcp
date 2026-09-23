@@ -2,7 +2,7 @@ import { createServer, request as httpRequest, type IncomingMessage, type Server
 import { request as httpsRequest } from "https";
 import type { Duplex } from "stream";
 import { randomBytes } from "crypto";
-import { createReadStream, existsSync, readFileSync, statSync, writeFileSync } from "fs";
+import { closeSync, createReadStream, existsSync, fstatSync, openSync, readFileSync, statSync, writeFileSync } from "fs";
 import { basename, join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import { tmpdir } from "os";
@@ -1274,8 +1274,11 @@ async function handleGrabRequest(designMdPath: string, key: string, req: Incomin
     res.setHeader(headerName, result.headers[headerName]);
   }
   if (result.file) {
-    var fileStream = createReadStream(result.file);
+    // Stream from the already-open descriptor (autoClose closes it on end or
+    // error); a client that disconnects mid-body must release it too.
+    var fileStream = createReadStream(result.file, result.fd !== undefined ? { fd: result.fd } : undefined);
     fileStream.once("error", function () { res.destroy(); });
+    res.once("close", function () { fileStream.destroy(); });
     fileStream.pipe(res);
   } else {
     res.end(result.body);
@@ -2162,6 +2165,7 @@ interface GrabResponse {
   headers: Record<string, string>;
   body: string | Buffer;
   file?: string;
+  fd?: number;
 }
 
 function buildAttachmentResponse(key: string, url: string, contentType: string, body: Buffer): GrabResponse {
@@ -2190,6 +2194,11 @@ function buildAttachmentResponse(key: string, url: string, contentType: string, 
   return jsonResponse(result.status, result.body);
 }
 
+function readStreamedFile(result: GrabResponse): Buffer {
+  if (result.fd === undefined) return readFileSync(result.file as string);
+  try { return readFileSync(result.fd); } finally { closeSync(result.fd); }
+}
+
 async function buildGrabResponse(designMdPath: string, key: string, method: string, url: string, bodyText: string): Promise<GrabResponse> {
   var parsedUrl = new URL(url, "http://127.0.0.1");
   var pathname = parsedUrl.pathname;
@@ -2212,9 +2221,17 @@ async function buildGrabResponse(designMdPath: string, key: string, method: stri
     var attachmentId = parsedUrl.searchParams.get("id");
     var attachmentRecord = attachmentId ? attachmentSession.attachments.get(attachmentId) : undefined;
     if (!attachmentRecord) return jsonResponse(404, { error: "Attachment not found" });
+    var attachmentFd: number;
     try {
-      var attachmentStats = statSync(attachmentRecord.path);
-      if (!attachmentStats.isFile()) return jsonResponse(404, { error: "Attachment file not found" });
+      attachmentFd = openSync(attachmentRecord.path, "r");
+    } catch (_err) {
+      return jsonResponse(404, { error: "Attachment file not found" });
+    }
+    try {
+      // fstat on the descriptor that is streamed, so Content-Length and the bytes
+      // describe the same file even if the path is replaced meanwhile.
+      var attachmentStats = fstatSync(attachmentFd);
+      if (!attachmentStats.isFile()) { closeSync(attachmentFd); return jsonResponse(404, { error: "Attachment file not found" }); }
       return {
         status: 200,
         headers: {
@@ -2227,9 +2244,11 @@ async function buildGrabResponse(designMdPath: string, key: string, method: stri
           "Content-Security-Policy": "default-src 'none'; sandbox"
         },
         body: "",
-        file: attachmentRecord.path
+        file: attachmentRecord.path,
+        fd: attachmentFd
       };
     } catch (_err) {
+      closeSync(attachmentFd);
       return jsonResponse(404, { error: "Attachment file not found" });
     }
   }
@@ -2450,7 +2469,7 @@ function installFetchShim(): void {
       headers.set("Access-Control-Allow-Origin", "*");
       headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
       headers.set("Access-Control-Allow-Headers", "Content-Type");
-      var responseBody = result.file ? new Uint8Array(readFileSync(result.file)) : typeof result.body === "string" ? result.body : new Uint8Array(result.body);
+      var responseBody = result.file ? new Uint8Array(readStreamedFile(result)) : typeof result.body === "string" ? result.body : new Uint8Array(result.body);
       return new Response(responseBody, { status: result.status, headers: headers });
     }
     return originalFetch!(input, init);

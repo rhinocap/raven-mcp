@@ -56,6 +56,25 @@ test("path route maps an open-time ENOENT to 404", () => {
   assert.match(result.body.error, /not found/);
 });
 
+test("path route maps a missing parent directory to 404, not 400", () => {
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "raven-missing-parent-")));
+  const missing = path.join(dir, "no-such-dir", "x.png");
+  const result = mod.handleAttachmentRequest("missing02", dir, "application/json", Buffer.from(JSON.stringify({ path: missing })));
+  assert.equal(result.status, 404);
+  assert.match(result.body.error, /not found/);
+});
+
+test("same sha prefix and disk name still write a new file when the size differs", () => {
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "raven-dedupe-size-")));
+  const first = mod.storeAttachmentBytes("dedupe02", { name: "a.png", declaredMime: "image/png", bytes: png, origin: "paste" });
+  // Forge a collision: a different, longer file already sitting under the exact name the next store will pick.
+  const longer = Buffer.concat([png, Buffer.from("trailing")]);
+  fs.writeFileSync(first.path, longer);
+  const second = mod.storeAttachmentBytes("dedupe02", { name: "a.png", declaredMime: "image/png", bytes: png, origin: "paste" });
+  assert.equal(second.path, first.path, "the disk name is the dedupe key");
+  assert.equal(fs.statSync(second.path).size, png.length, "the mismatched file is replaced, not reused");
+});
+
 test("path records preserve NFC original leaf names while disk names stay ASCII", () => {
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "raven-names-")));
   const cafe = path.join(dir, "Café.png");

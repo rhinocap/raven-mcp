@@ -15,7 +15,7 @@ The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/cha
 - An attachment-only draft on the same page resumes in the composer after a reload, with its thumbnails fetched again from the bridge.
 
 ### Changed
-- `GET /attachment` streams the file from disk instead of buffering it; the overlay fetches each thumbnail once into a `blob:` URL and no longer stores the bridge capability key in `sessionStorage`.
+- `GET /attachment` streams the file from an open descriptor instead of buffering it; the overlay fetches each thumbnail once into a `blob:` URL, and the pending-changes memo in `sessionStorage` no longer holds the bridge capability key, inbox paths, source paths or hashes.
 - Identical attachment bytes dedupe to one inbox file only when the stored filename also matches.
 - The attachment path route resolves the parent directory before opening the file, so a symlinked parent is refused before any read.
 - **Every tool now states all four MCP annotation hints explicitly — `readOnlyHint`, `destructiveHint`, `idempotentHint` and `openWorldHint` — with no value left to a spec default.** A consumer that reads annotations as a flat capability record sees an omitted hint as unanswered rather than as the documented default, so each one is answered outright and each answer is derived from what the handler actually does.
