@@ -216,7 +216,11 @@ function isContentLine(line) {
  *     occurrence from the top, whichever section the tag actually carried it in;
  *   - the match is exact (trailing whitespace aside), so a tagged bullet that
  *     was re-worded after the tag is announced again under [Unreleased] — the
- *     next release repeats a sentence, which is visible and cheap to fix.
+ *     next release repeats a sentence, which is visible and cheap to fix;
+ *   - the same exact match applies to a `<!-- web: -->` meta line: one edited
+ *     after the tag stays under [Unreleased], and because parseWebMeta takes
+ *     the FIRST meta line, the next release inherits its title/category unless
+ *     the author notices the stale comment above their new bullets.
  */
 function subtractBody(current, tagged) {
   const remove = tagged.split("\n").filter(isContentLine).map((l) => l.trimEnd());
@@ -244,6 +248,15 @@ function subtractBody(current, tagged) {
 }
 
 /**
+ * A refilled stub keeps the date its heading already carries, but only a real
+ * one: a hand-written `## [1.1.0] - TBD` would otherwise put "TBD" into
+ * changelog.json, where the page sorts and renders it as a date.
+ */
+function keptDate(existing, fallback) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(existing || "") ? existing : fallback;
+}
+
+/**
  * Move `[Unreleased]` under `## [version] - date`. Idempotent.
  * With `taggedMd` (CHANGELOG.md at the version's tag) the promoted block is
  * the TAGGED `[Unreleased]` and the new `[Unreleased]` keeps whatever landed
@@ -262,7 +275,7 @@ export function promoteChangelogMd(md, version, date, taggedMd) {
     // reporting "nothing to promote" over an empty section.
     if (existing.bullets.length > 0 || !tagged || tagged.bullets.length === 0) return md;
     md = removeReleaseBlock(md, v);
-    date = existing.date || date;
+    date = keptDate(existing.date, date);
   }
   const current = parseUnreleased(md);
   const source = tagged && tagged.bullets.length > 0 ? tagged : current;
@@ -274,6 +287,11 @@ export function promoteChangelogMd(md, version, date, taggedMd) {
   const next = RELEASE_HEADING.exec(rest);
   const tail = next ? rest.slice(next.index) : "";
   const unreleased = remainder ? `## [Unreleased]\n\n${remainder}\n\n` : "## [Unreleased]\n\n";
+  // The promoted block is the RAW source text, so every HTML comment in it —
+  // the `<!-- web: -->` meta line and any note an author left — moves under
+  // `## [v]` with its bullets, tagged copy or not. Nothing renders a comment,
+  // and keeping the meta line beside the bullets it describes is what lets a
+  // resume back-fill changelog.json from the promoted block.
   return `${md.slice(0, match.index)}${unreleased}## [${v}] - ${date}\n\n${source.raw}\n\n${tail}`;
 }
 
@@ -319,8 +337,15 @@ function defaultTitle(lead) {
 /** Prepend an entry to the parsed changelog.json. Idempotent by version. */
 export function prependChangelogJson(json, entry) {
   if (!entry) return json;
-  if (json.releases.some((r) => r.version === entry.version)) return json;
-  return { ...json, releases: [entry, ...json.releases] };
+  const i = json.releases.findIndex((r) => r.version === entry.version);
+  if (i === -1) return { ...json, releases: [entry, ...json.releases] };
+  // Idempotent by version — except that an entry with no changes is the json
+  // half of a stub, and a stub refill has to reach both files or the page shows
+  // an empty release under a heading CHANGELOG.md has since filled in.
+  if ((json.releases[i].changes || []).length > 0) return json;
+  const releases = json.releases.slice();
+  releases[i] = entry;
+  return { ...json, releases };
 }
 
 /** Both files in one pass; returns the new contents (unchanged when nothing to promote). */
@@ -370,7 +395,7 @@ export function promoteChangelog({ changelogMd, changelogJson, version, bump, da
     if (bump !== "patch") throw emptyNotesError(bump, where);
     return { changelogMd, changelogJson, promoted: false };
   }
-  if (stub) date = promoted.date || date;
+  if (stub) date = keptDate(promoted.date, date);
   const entry = webEntryFromBlock(block, v, date, bump);
   return {
     changelogMd: promoteChangelogMd(changelogMd, v, date, taggedChangelogMd),
@@ -378,6 +403,13 @@ export function promoteChangelog({ changelogMd, changelogJson, version, bump, da
     promoted: true,
     entry,
   };
+}
+
+/** The email body's lead sentence, by bump — a patch resend must not read "A minor release". */
+export function releaseKindSentence(bump) {
+  if (bump === "major") return "A major release";
+  if (bump === "patch") return "A patch release";
+  return "A minor release";
 }
 
 /** X.Y.0 with Y>0 → minor, X.0.0 → major, else patch. Used when no bump output exists (resume). */

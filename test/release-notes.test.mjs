@@ -39,6 +39,7 @@ import {
   prependChangelogJson,
   promoteChangelog,
   bumpFromVersion,
+  releaseKindSentence,
   escapeHtml,
   renderNotesHtml,
   compareVersions,
@@ -409,7 +410,9 @@ test("a bullet-less [v] stub is refilled from the tagged copy on a resume, keepi
   assert.equal(parseReleaseBlock(jsonDone.changelogMd, "2.6.0").bullets.length, 5);
   assert.equal(jsonDone.changelogJson.releases.filter((x) => x.version === "v2.6.0").length, 1, "prepend stays idempotent by version");
   // promoteChangelogMd alone does the same; a stub with NO tagged bullets is left alone.
-  assert.equal(parseReleaseBlock(promoteChangelogMd(stub, "2.6.0", "2026-09-23", FULL), "2.6.0").bullets.length, 5);
+  const mdOnly = parseReleaseBlock(promoteChangelogMd(stub, "2.6.0", "2026-09-23", FULL), "2.6.0");
+  assert.equal(mdOnly.bullets.length, 5);
+  assert.equal(mdOnly.date, "2026-09-20", "promoteChangelogMd keeps the stub's date on its own, not only via promoteChangelog");
   assert.equal(promoteChangelogMd(stub, "2.6.0", "2026-09-23", EMPTY), stub);
   assert.equal(promoteChangelogMd(stub, "2.6.0", "2026-09-23"), stub);
 });
@@ -430,6 +433,45 @@ test("renderNotesHtml skips only the generated title line, and does not double-l
   assert.match(html, /<a [^>]*href="https:\/\/example\.com\/t"[^>]*>issue #7 thread<\/a>/, "#7 inside link text is literal");
   assert.doesNotMatch(html, /issues\/7"/);
   assert.match(html, /issues\/8"/);
+});
+
+test("a stub whose heading carries no real date takes the run's date, in both files", () => {
+  const stub = LATER.replace("## [2.5.0]", "## [2.6.0] - TBD\n\n### Added\n\n## [2.5.0]");
+  assert.equal(parseReleaseBlock(stub, "2.6.0").date, "TBD", "fixture: the stub's date is not a date");
+  const r = promoteChangelog({ changelogMd: stub, changelogJson: JSON_FIXTURE, version: "2.6.0", bump: "minor", date: "2026-09-23", taggedChangelogMd: FULL });
+  assert.equal(r.promoted, true);
+  assert.equal(r.entry.date, "2026-09-23");
+  assert.equal(parseReleaseBlock(r.changelogMd, "2.6.0").date, "2026-09-23");
+  assert.equal(parseReleaseBlock(promoteChangelogMd(stub, "2.6.0", "2026-09-23", FULL), "2.6.0").date, "2026-09-23");
+});
+
+test("a stub refill also replaces a changes-less json entry, and never a filled one", () => {
+  const stub = LATER.replace("## [2.5.0]", "## [2.6.0] - 2026-09-20\n\n### Added\n\n## [2.5.0]");
+  const emptyEntry = { version: "v2.6.0", date: "2026-09-20", category: "tooling", kind: "feature", title: "Stub", changes: [] };
+  const json = { ...JSON_FIXTURE, releases: [emptyEntry, ...JSON_FIXTURE.releases] };
+  const r = promoteChangelog({ changelogMd: stub, changelogJson: json, version: "2.6.0", bump: "minor", date: "2026-09-23", taggedChangelogMd: FULL });
+  assert.equal(r.promoted, true);
+  const entries = r.changelogJson.releases.filter((x) => x.version === "v2.6.0");
+  assert.equal(entries.length, 1, "replaced in place, not prepended beside the empty one");
+  assert.equal(entries[0].changes.length, 5, "the json half of the stub is refilled with the md half");
+  assert.equal(entries[0].date, "2026-09-20");
+  assert.equal(r.changelogJson.releases[0].version, "v2.6.0", "position kept");
+  assert.equal(r.changelogJson.releases[1].version, "v2.5.0");
+  // A filled entry is never touched, whatever the md says.
+  const filled = { ...emptyEntry, changes: ["kept."] };
+  const keep = prependChangelogJson({ ...JSON_FIXTURE, releases: [filled] }, { ...filled, changes: ["new."] });
+  assert.equal(keep.releases[0].changes[0], "kept.");
+  assert.equal(prependChangelogJson(JSON_FIXTURE, null), JSON_FIXTURE);
+});
+
+test("the email's lead sentence follows the bump, including a patch resend", () => {
+  assert.equal(releaseKindSentence("major"), "A major release");
+  assert.equal(releaseKindSentence("minor"), "A minor release");
+  assert.equal(releaseKindSentence("patch"), "A patch release");
+  assert.equal(releaseKindSentence(bumpFromVersion("2.6.1")), "A patch release");
+  const notifyScript = readFileSync(new URL("../scripts/notify-release.mjs", import.meta.url), "utf8");
+  assert.match(notifyScript, /\$\{releaseKindSentence\(bump\)\} landed on npm/, "the body reads the shared sentence");
+  assert.doesNotMatch(notifyScript, /"A minor release"/, "no hand-written minor/major ternary left in the template");
 });
 
 test("the CLI and the workflow pass the tagged changelog through, and the workflow never lets GitHub write the body", () => {

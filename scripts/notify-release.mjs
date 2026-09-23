@@ -20,7 +20,7 @@
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { Resend } from "resend";
-import { bumpFromVersion, escapeHtml, releaseNotesFor, renderNotesHtml } from "./release-notes.mjs";
+import { bumpFromVersion, escapeHtml, releaseKindSentence, releaseNotesFor, renderNotesHtml } from "./release-notes.mjs";
 
 const {
   RESEND_API_KEY,
@@ -79,7 +79,7 @@ const html = `<!DOCTYPE html>
           Raven v${escapeHtml(RELEASE_VERSION)} is out
         </td></tr>
         <tr><td style="color:#9498A0;font-size:15px;line-height:1.7;padding-bottom:24px;">
-          ${bump === "major" ? "A major release" : "A minor release"} landed on npm and ravenmcp.ai.
+          ${releaseKindSentence(bump)} landed on npm and ravenmcp.ai.
         </td></tr>
         <tr><td bgcolor="#212129" style="background:#212129;border-radius:12px;border:1px solid rgba(255,255,255,0.06);padding:24px;color:#9498A0;font-size:14px;">
           ${renderNotesHtml(RELEASE_NOTES)}
