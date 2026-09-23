@@ -94,3 +94,10 @@ Legs (worktrees .worktrees/fu-A..D detached at f848010, node_modules symlinked):
 | C | gpt-6-sol | browser/raven-grab.js + test/grab-overlay-followups.test.mjs | items 1, 3, 5b overlay | running |
 | D | gpt-6-luna | src/index.ts + CHANGELOG.md | item 3 text | running |
 Next: as each lands, `git -C .worktrees/fu-X diff HEAD --stat`, read the diff, apply with `git -C fu-X diff HEAD | git apply` in att-main, build, run node-only suites; after all four: mirror cp+cmp, overlay suites, live check (S/fu/live), full suite in a sibling worktree, commit explicit paths, Opus 5.5 pass, handoff.
+
+### Batch 2 checkpoint (post-compaction, 2026-09-23)
+
+- Leg D (gpt-6-luna) applied: CHANGELOG + three protocol sentences in src/index.ts. No test from the leg; orchestrator adds the assertion in test/grab-bridge.test.mjs.
+- Leg A (gpt-6-luna) applied: O_NOFOLLOW open, ~/ expansion, NFC record name, ASCII disk name. Orchestrator fixes: sanitizeFilename now splits stem/extension (a non-ASCII stem on .jpeg becomes attachment.jpeg, not jpeg.jpg); recordName falls back to the disk name when empty. Two assertions added to test/grab-inbox-followups.test.mjs.
+- Legs B (gpt-6-luna, bridge GET /attachment) and C (gpt-6-sol, overlay) exited 0; diffs not yet read or applied.
+- Next: read B and C diffs, git apply --check, build, node-only suites, mirror cp+cmp, overlay suites, live Chromium check on scratchpad fu/live, full suite in sibling worktree, commit explicit paths, Opus 5.5 falsification.
