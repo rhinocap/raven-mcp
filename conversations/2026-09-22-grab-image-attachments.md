@@ -222,3 +222,28 @@ The four surfaces, the no-republish claim, the tag contents (six files, both .mc
 - P3: commit 1a5e563 shows a failed "Vercel – site" status because its deployment was cancelled in favour of a3134d8 five seconds later. Cosmetic.
 
 Not fixed in this session: a correction email is Andrew's call (customer-facing send), and changing the release-notes source, the changelog data, and an apex redeploy are new scope beyond "release minor".
+
+### /goal: release notes + apex changelog pipeline (decision 2)
+
+Andrew: "Wite yourself a /goal to do 2 and then execute". Decision 2 = generate the Release body and email from curated notes instead of `git log`, and have the changelog step also write web/data/changelog.json plus an apex redeploy.
+
+Root causes, verified in source:
+- P1: `scripts/detect-release-scope.mjs:298` falls back to raw `git log --oneline` subjects when no merged PR lands in a section. This repo ships by direct push, so that fallback is the normal path, and the v2.6.0 / v2.5.1 Release bodies and the 2.6.0 email are that output.
+- P2: `release.yml` "Rebuild changelog page" runs `scripts/build-changelog.mjs`, which writes only `site/changelog.html` from GitHub Releases. `web/data/changelog.json` (the apex `/changelog` source) and `CHANGELOG.md` are never written by the pipeline. `scripts/gen-changelog-html.mjs` is a second producer of `site/changelog.html` from changelog.json, unreferenced by the workflow.
+- The detector comment claiming "CHANGELOG.md is written by `release.sh` BEFORE the tag" is false: release.sh mentions CHANGELOG only in comments (:275, :319) and never writes it.
+- `RESUME_SAFE_PATHS` holds `site/changelog.html` and `CHANGELOG.md`; once the pipeline commits `web/data/changelog.json` after the tag, that path must be in the set or every rerun cuts a spurious version.
+- `scripts/check-site-drift.mjs:251–280` requires CHANGELOG.md's first `## [X]` and changelog.json `releases[0].version` to match (both 2.5.0 now). A promote must write both in one pass.
+- `scripts/prepare-marketing-preview.mjs` becomes a no-op once changelog.json holds the version.
+- `notify-release.mjs:111` links `https://ravenmcp.ai/changelog.html`; `renderNotes` trims every line and closes the list on a blank line, so indented continuation paragraphs inside a bullet break the list, and plain paragraphs are not run through `inline()`.
+- No tests reference detect-release-scope / notify-release / build-changelog / gen-changelog-html. v2.5.0 has no GitHub Release. Tag dates: v2.6.0 2026-09-23T22:04:08Z, v2.5.1 2026-08-22T23:28:52Z.
+
+Spec:
+1. `scripts/lib/release-notes.mjs`: pure functions — parse `[Unreleased]` from CHANGELOG.md, render the Release body, promote CHANGELOG.md, build the changelog.json entry.
+2. `scripts/promote-changelog.mjs`: CLI that writes `## [X.Y.Z] - date` into CHANGELOG.md and prepends the entry to changelog.json in one pass.
+3. detect-release-scope.mjs: notes come from Unreleased; no raw git log fallback; empty Unreleased fails a minor/major, patch gets a short maintenance body; changelog.json joins RESUME_SAFE_PATHS; fix the false comment.
+4. release.yml: changelog step runs promote + build-changelog, commits CHANGELOG.md, changelog.json and site/changelog.html before the existing apex deploy.
+5. notify-release.mjs: link `/changelog`; continuation paragraphs stay in their `<li>`; `inline()` on paragraphs.
+6. Data: promote Unreleased → 2.6.0 (2026-09-23) in both files; `npm run check:site` passes.
+7. `test/release-notes.test.mjs`; full suite from 1811/1808/0/3.
+
+Not authorized in this turn: pushing main, apex deploy, workflow dispatch, `gh release edit v2.6.0`, any email send.
