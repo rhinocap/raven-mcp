@@ -101,3 +101,10 @@ Next: as each lands, `git -C .worktrees/fu-X diff HEAD --stat`, read the diff, a
 - Leg A (gpt-6-luna) applied: O_NOFOLLOW open, ~/ expansion, NFC record name, ASCII disk name. Orchestrator fixes: sanitizeFilename now splits stem/extension (a non-ASCII stem on .jpeg becomes attachment.jpeg, not jpeg.jpg); recordName falls back to the disk name when empty. Two assertions added to test/grab-inbox-followups.test.mjs.
 - Legs B (gpt-6-luna, bridge GET /attachment) and C (gpt-6-sol, overlay) exited 0; diffs not yet read or applied.
 - Next: read B and C diffs, git apply --check, build, node-only suites, mirror cp+cmp, overlay suites, live Chromium check on scratchpad fu/live, full suite in sibling worktree, commit explicit paths, Opus 5.5 falsification.
+
+### Batch 2 committed (2026-09-23)
+
+- d980422: items 1, 3, 4, 5a, 5b. Legs A/B/D gpt-6-luna, C gpt-6-sol; orchestrator fixes to sanitizeFilename (stem/extension split) and the record-name fallback; protocol assertion added to test/grab-bridge.test.mjs inside the start_grab_session MCP test (the first placement, on the batch-commit drain, asserted the wrong protocol string and failed).
+- Verification: node suites 321/318/0/2 (grab-bridge, attachments, thumb, inbox followups); overlay suites 30/30; live Chromium check on scratchpad fu/live: gradient false, url() true, layered true, img kind; four pastes (quoted, escaped, ~/, double-quoted) reached ready chips with NFC names and bridge thumbnails (naturalWidth 16), GET direct 200 image/png no-store, unknown id 404, no page errors; chip screenshot viewed. Full suite from sibling worktree raven-mcp-att-final: 1792/1789/0/3 exit 0 (was 1776/1773/0/3).
+- Observed: same bytes pasted under two names dedupe to one disk file (batch-1 sha dedupe); each record keeps its own name. Noted as an open item, not changed.
+- Falsification on claude-opus-5-5 launched (scratchpad fu/opus55.log). Leg worktrees fu-A..D removed.
