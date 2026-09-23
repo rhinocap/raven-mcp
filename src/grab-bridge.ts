@@ -8,6 +8,7 @@ import { fileURLToPath } from "url";
 import { tmpdir } from "os";
 import { z } from "zod";
 import { flattenDesignTokens, parseDesignMd, readDesignMd, updateDesignMd, type DesignMdNode } from "./designmd.js";
+import { handleAttachmentRequest, MAX_ATTACHMENT_BODY_BYTES, pruneGrabInbox, type GrabAttachmentRecord } from "./grab-inbox.js";
 
 var __dirname = dirname(fileURLToPath(import.meta.url));
 var PKG_ROOT = resolve(join(__dirname, ".."));
@@ -103,7 +104,9 @@ var GrabPayloadSchema = z.object({
   componentName: z.string().optional(),
   filePath: z.string().optional(),
   line: z.number().optional(),
-  column: z.number().optional()
+  column: z.number().optional(),
+  attachments: z.array(z.object({ id: z.string().min(1) }).passthrough()).optional(),
+  imageTarget: z.unknown().optional()
 }).passthrough();
 
 var TemplateSlotSchema = z.object({
@@ -280,6 +283,8 @@ export interface GrabBridgeSelection extends GrabChangeEnvelope {
   filePath?: string;
   line?: number;
   column?: number;
+  attachments?: GrabAttachmentRecord[];
+  imageTarget?: unknown;
   drainedAt?: string;
   supersededProperties?: string[];
 }
@@ -349,6 +354,7 @@ interface BridgeSession {
   currentBatchId: string | null;
   nextSequence: number;
   batchCommits: Record<string, GrabBatchCommit>;
+  attachments: Map<string, GrabAttachmentRecord>;
 }
 
 var currentSession: BridgeSession | null = null;
@@ -382,6 +388,11 @@ function grabConfigTag(role: GrabRole, projectName: string, bridgeOrigin: string
 
 export async function startGrabSession(path?: string, port?: number, proxyTarget?: string, role: GrabRole = "consumer"): Promise<GrabBridgeStartResult> {
   await stopGrabSession();
+  try {
+    pruneGrabInbox();
+  } catch (_err) {
+    // Inbox cleanup is best-effort and must not stop a new grab session.
+  }
   var normalizedTarget: string | undefined;
   if (proxyTarget !== undefined) {
     var targetUrl: URL;
@@ -455,7 +466,8 @@ export async function startGrabSession(path?: string, port?: number, proxyTarget
       operations: [],
       currentBatchId: null,
       nextSequence: 1,
-      batchCommits: Object.create(null)
+      batchCommits: Object.create(null),
+      attachments: new Map()
     };
   } catch (err) {
     if (server.listening) {
@@ -484,7 +496,8 @@ export async function startGrabSession(path?: string, port?: number, proxyTarget
       operations: [],
       currentBatchId: null,
       nextSequence: 1,
-      batchCommits: Object.create(null)
+      batchCommits: Object.create(null),
+      attachments: new Map()
     };
   }
 
@@ -620,9 +633,15 @@ export function queueGrabSelection(selection: unknown): GrabBridgeSelection {
     throw new Error("Grab queue is full (" + MAX_QUEUE_LENGTH + "); drain with get_grabbed_elements");
   }
   var parsed = GrabPayloadSchema.parse(selection);
+  var attachments = parsed.attachments === undefined ? undefined : parsed.attachments.map(function (attachment) {
+    var record = currentSession!.attachments.get(attachment.id);
+    if (!record) throw new Error("attachment " + attachment.id + " not found; re-drop it");
+    return record;
+  });
   var now = new Date().toISOString();
   var batch = nextChangePosition(currentSession);
   var payload = { ...parsed } as Record<string, unknown>;
+  if (attachments !== undefined) payload.attachments = attachments;
   var item: GrabBridgeSelection = {
     id: randomBytes(16).toString("hex"),
     batchId: batch.batchId,
@@ -652,6 +671,8 @@ export function queueGrabSelection(selection: unknown): GrabBridgeSelection {
     updatedAt: now
   };
   if (parsed.multiSelect !== undefined) item.multiSelect = parsed.multiSelect;
+  if (attachments !== undefined) item.attachments = attachments;
+  if (parsed.imageTarget !== undefined) item.imageTarget = parsed.imageTarget;
   supersedeOlderStyleProperties(currentSession, item);
   currentSession.queue.push(item);
   resolveWaiters(currentSession);
@@ -1153,7 +1174,7 @@ async function handleGrabRequest(designMdPath: string, key: string, req: Incomin
     return;
   }
   var pathname = new URL(requestUrl, "http://127.0.0.1").pathname;
-  var bridgeRoute = pathname === "/raven-grab.js" || pathname === "/tokens" || pathname === "/grab" || pathname === "/batch" || pathname === "/batch-commit" || pathname === "/agent/wait"
+  var bridgeRoute = pathname === "/raven-grab.js" || pathname === "/tokens" || pathname === "/grab" || pathname === "/attachment" || pathname === "/batch" || pathname === "/batch-commit" || pathname === "/agent/wait"
     || pathname === "/template" || pathname === "/template-validation" || pathname === "/components" || pathname === "/layers" || pathname === "/layers-intent" || pathname === "/layers-operation";
   var withheldRoute = false;
   if (proxyTarget && bridgeRoute) {
@@ -1165,7 +1186,7 @@ async function handleGrabRequest(designMdPath: string, key: string, req: Incomin
     // Second, /tokens and /components are ordinary paths a real site may own, so
     // a request without the key is not ours: forward it upstream instead of
     // answering 403 and breaking the site the designer came to measure.
-    var overlayRoute = pathname === "/raven-grab.js" || pathname === "/tokens" || pathname === "/grab";
+    var overlayRoute = pathname === "/raven-grab.js" || pathname === "/tokens" || pathname === "/grab" || pathname === "/attachment";
     var keyed = new URL(requestUrl, "http://127.0.0.1").searchParams.get("key") === key;
     if (proxyCaptureOnly(proxyTarget)) {
       bridgeRoute = overlayRoute && keyed;
@@ -1198,6 +1219,41 @@ async function handleGrabRequest(designMdPath: string, key: string, req: Incomin
     res.statusCode = 404;
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     res.end("Not available while proxying a third-party site");
+    return;
+  }
+  if (method === "POST" && pathname === "/attachment") {
+    if (new URL(requestUrl, "http://127.0.0.1").searchParams.get("key") !== key) {
+      setCorsHeaders(res);
+      res.statusCode = 403;
+      res.setHeader("Content-Type", "text/plain; charset=utf-8");
+      res.end("Forbidden");
+      return;
+    }
+    if (!currentSession) {
+      var unavailableAttachment = jsonResponse(503, { error: "No active grab session" });
+      setCorsHeaders(res);
+      res.statusCode = unavailableAttachment.status;
+      res.setHeader("Content-Type", unavailableAttachment.headers["Content-Type"]);
+      res.end(unavailableAttachment.body);
+      return;
+    }
+    var attachmentBody = await readAttachmentBody(req);
+    var attachmentResult = attachmentBody === null
+      ? jsonResponse(413, { error: "Request body exceeds " + MAX_ATTACHMENT_BODY_BYTES + " bytes" })
+      : buildAttachmentResponse(key, requestUrl, String(req.headers["content-type"] || ""), attachmentBody);
+    setCorsHeaders(res);
+    if (attachmentBody === null) {
+      // The unread remainder of an oversized body is never going to be consumed;
+      // close the connection once the 413 has been flushed rather than leaving
+      // the client streaming into a socket nobody reads.
+      res.setHeader("Connection", "close");
+      res.once("finish", function () { req.destroy(); });
+    }
+    res.statusCode = attachmentResult.status;
+    for (var attachmentHeader in attachmentResult.headers) {
+      res.setHeader(attachmentHeader, attachmentResult.headers[attachmentHeader]);
+    }
+    res.end(attachmentResult.body);
     return;
   }
   var bodyText = await readJsonBody(req).then(function (body) {
@@ -2063,10 +2119,43 @@ async function readJsonBody(req: IncomingMessage): Promise<any> {
   return JSON.parse(text);
 }
 
+async function readAttachmentBody(req: IncomingMessage): Promise<Buffer | null> {
+  var chunks: Buffer[] = [];
+  var total = 0;
+  for await (var chunk of req) {
+    var buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    total += buf.length;
+    if (total > MAX_ATTACHMENT_BODY_BYTES) {
+      // Stop consuming but leave the socket alive: the caller still owes the
+      // client a 413, and destroying the request here tears the socket down
+      // before that response can be written, so the overlay would see a
+      // network error instead of the reason.
+      return null;
+    }
+    chunks.push(buf);
+  }
+  return Buffer.concat(chunks);
+}
+
 interface GrabResponse {
   status: number;
   headers: Record<string, string>;
   body: string;
+}
+
+function buildAttachmentResponse(key: string, url: string, contentType: string, body: Buffer): GrabResponse {
+  var parsedUrl = new URL(url, "http://127.0.0.1");
+  if (parsedUrl.searchParams.get("key") !== key) {
+    return { status: 403, headers: { "Content-Type": "text/plain; charset=utf-8" }, body: "Forbidden" };
+  }
+  var session = currentSession;
+  if (!session) return jsonResponse(503, { error: "No active grab session" });
+  var result = handleAttachmentRequest(session.key, dirname(session.path), contentType, body);
+  if (result.status === 202) {
+    var record = result.body as GrabAttachmentRecord;
+    session.attachments.set(record.id, record);
+  }
+  return jsonResponse(result.status, result.body);
 }
 
 async function buildGrabResponse(designMdPath: string, key: string, method: string, url: string, bodyText: string): Promise<GrabResponse> {
@@ -2077,7 +2166,7 @@ async function buildGrabResponse(designMdPath: string, key: string, method: stri
   }
 
   var protectedRoute = (method === "GET" && (pathname === "/raven-grab.js" || pathname === "/tokens" || pathname === "/template" || pathname === "/components" || pathname === "/batch" || pathname === "/agent/wait" || pathname === "/layers-operation"))
-    || (method === "POST" && (pathname === "/grab" || pathname === "/batch-commit" || pathname === "/template" || pathname === "/template-validation" || pathname === "/components" || pathname === "/layers" || pathname === "/layers-intent"));
+    || (method === "POST" && (pathname === "/grab" || pathname === "/attachment" || pathname === "/batch-commit" || pathname === "/template" || pathname === "/template-validation" || pathname === "/components" || pathname === "/layers" || pathname === "/layers-intent"));
   if (protectedRoute && parsedUrl.searchParams.get("key") !== key) {
     return { status: 403, headers: { "Content-Type": "text/plain; charset=utf-8" }, body: "Forbidden" };
   }
@@ -2284,6 +2373,14 @@ function installFetchShim(): void {
     var request = new Request(input, init);
     var url = new URL(request.url);
     if (currentSession && url.hostname === "127.0.0.1" && Number(url.port || "0") === currentSession.port) {
+      if (request.method === "POST" && url.pathname === "/attachment") {
+        var attachmentResult = buildAttachmentResponse(currentSession.key, url.pathname + url.search, request.headers.get("content-type") || "", Buffer.from(await request.arrayBuffer()));
+        var attachmentHeaders = new Headers(attachmentResult.headers);
+        attachmentHeaders.set("Access-Control-Allow-Origin", "*");
+        attachmentHeaders.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+        attachmentHeaders.set("Access-Control-Allow-Headers", "Content-Type");
+        return new Response(attachmentResult.body, { status: attachmentResult.status, headers: attachmentHeaders });
+      }
       var bodyText = request.method === "GET" || request.method === "HEAD" ? "" : await request.text();
       var result = await buildGrabResponse(currentSession.path, currentSession.key, request.method, url.pathname + url.search, bodyText);
       var headers = new Headers(result.headers);
