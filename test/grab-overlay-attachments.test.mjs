@@ -38,6 +38,7 @@ const HOST_PAGE = `<!doctype html><html><head><title>attachment host</title><sty
   <img id="image-a" src="/old-a.png" alt="A">
   <picture id="picture-b"><source srcset="/old-b.webp" type="image/webp"><img id="picture-image" src="/old-b.png" alt="B"></picture>
   <div id="background-c"></div>
+  <div id="wrapper-d" style="padding: 24px; border: 1px dashed #999"><picture><source srcset="/old-d.webp" type="image/webp"><img id="wrapper-image" src="/old-d.png" alt="D"></picture></div>
 </div></body></html>`;
 
 function standalonePage() {
@@ -543,4 +544,53 @@ lifecycleTest('chip stacks the name above the dimensions', async (page) => {
   });
   assert.ok(boxes.dimsTop >= boxes.nameBottom - 1, `dims (top ${boxes.dimsTop}) must sit below the name (bottom ${boxes.nameBottom})`);
   assert.equal(Math.round(boxes.dimsLeft), Math.round(boxes.nameLeft));
+});
+
+// ---- adverse-pass findings (L10) ----
+
+// Click inside the padding so the wrapper itself, not its image, is hit.
+async function selectAt(page, selector, dx, dy) {
+  const at = await page.evaluate(({ sel, dx, dy }) => {
+    const rect = document.querySelector(sel).getBoundingClientRect();
+    return { x: rect.left + dx, y: rect.top + dy };
+  }, { sel: selector, dx, dy });
+  await page.mouse.click(at.x, at.y);
+  await page.waitForFunction(() => {
+    const root = document.querySelector('[data-raven-grab-overlay]')?.shadowRoot;
+    return root && root.querySelector('.raven-grab-label')?.style.display === 'block';
+  }, null, { timeout: 5000 });
+}
+
+lifecycleTest('a wrapper around a single <picture> reports that picture as the target', async (page) => {
+  await selectAt(page, '#wrapper-d', 6, 6);
+  const request = page.waitForRequest((r) => new URL(r.url()).pathname === '/grab' && r.method() === 'POST');
+  await typeInstruction(page, 'Swap this');
+  await send(page);
+  const body = (await request).postDataJSON();
+  assert.equal(body.selector, '#wrapper-d');
+  assert.equal(body.imageTarget?.kind, 'picture', `expected a picture target, got ${JSON.stringify(body.imageTarget)}`);
+  assert.equal(body.imageTarget.selector, '#wrapper-image');
+});
+
+lifecycleTest('a File with an empty MIME type uploads with the type inferred from its name', async (page) => {
+  await select(page, '#image-a');
+  await transfer(page, 'drop', { type: '' });
+  const chip = await readyChip(page);
+  assert.equal(chip.name, 'hero.png');
+  assert.equal(chip.dims, '16×9');
+});
+
+lifecycleTest('a stored draft keeps its own React source file in imageTarget', async (page) => {
+  await select(page, '#image-a');
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('react-grab:element-selected', { detail: { componentName: 'HeroA', filePath: 'src/HeroA.tsx', line: 3 } })));
+  await transfer(page, 'drop');
+  await readyChip(page);
+  await clickOverlay(page, '[data-queue-draft]');
+  await select(page, '#picture-b');
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('react-grab:element-selected', { detail: { componentName: 'HeroB', filePath: 'src/HeroB.tsx', line: 9 } })));
+  const request = page.waitForRequest((r) => new URL(r.url()).pathname === '/grab' && r.method() === 'POST');
+  await clickOverlay(page, '[data-send-batch]');
+  const body = (await request).postDataJSON();
+  assert.equal(body.filePath, 'src/HeroA.tsx');
+  assert.equal(body.imageTarget?.sourceFile?.filePath, 'src/HeroA.tsx', `expected the draft's own source file, got ${JSON.stringify(body.imageTarget?.sourceFile)}`);
 });

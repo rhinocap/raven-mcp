@@ -105,7 +105,7 @@ var GrabPayloadSchema = z.object({
   filePath: z.string().optional(),
   line: z.number().optional(),
   column: z.number().optional(),
-  attachments: z.array(z.object({ id: z.string().min(1) }).passthrough()).optional(),
+  attachments: z.array(z.object({ id: z.string().min(1) }).passthrough()).max(4, "Up to 4 attachments per send").optional(),
   imageTarget: z.unknown().optional()
 }).passthrough();
 
@@ -1237,7 +1237,10 @@ async function handleGrabRequest(designMdPath: string, key: string, req: Incomin
       res.end(unavailableAttachment.body);
       return;
     }
-    var attachmentBody = await readAttachmentBody(req);
+    // A declared length above the cap is refused on the header alone; waiting
+    // for a body that may never arrive would hold the connection open.
+    var declaredLength = Number(req.headers["content-length"]);
+    var attachmentBody = Number.isFinite(declaredLength) && declaredLength > MAX_ATTACHMENT_BODY_BYTES ? null : await readAttachmentBody(req);
     var attachmentResult = attachmentBody === null
       ? jsonResponse(413, { error: "Request body exceeds " + MAX_ATTACHMENT_BODY_BYTES + " bytes" })
       : buildAttachmentResponse(key, requestUrl, String(req.headers["content-type"] || ""), attachmentBody);
@@ -2161,6 +2164,12 @@ function buildAttachmentResponse(key: string, url: string, contentType: string, 
   }
   var session = currentSession;
   if (!session) return jsonResponse(503, { error: "No active grab session" });
+  // A page proxied from a third-party origin runs its own scripts with the
+  // same key the overlay uses, so a JSON path body from it would read any
+  // image under the home directory. Bytes the page already holds are fine.
+  if (proxyCaptureOnly(session.proxyTarget) && /^application\/json/i.test(contentType)) {
+    return jsonResponse(403, { error: "Path attachments are only accepted for a local page; drop the file itself" });
+  }
   var result = handleAttachmentRequest(session.key, dirname(session.path), contentType, body);
   if (result.status === 202) {
     var record = result.body as GrabAttachmentRecord;

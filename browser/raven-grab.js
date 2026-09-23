@@ -3615,7 +3615,7 @@
     return output;
   }
 
-  function imageTargetFor(element) {
+  function imageTargetFor(element, metadata) {
     try {
       if (!element || element.nodeType !== 1) return null;
 
@@ -3649,7 +3649,11 @@
           backgroundImage = computed.backgroundImage;
         } else {
           // Do not scan descendants for background images: only explicit media carriers qualify.
-          var descendants = element.querySelectorAll("img, picture, svg, video[poster]");
+          // An <img> inside a <picture> is that picture's own child, not a second carrier.
+          var descendants = Array.prototype.filter.call(element.querySelectorAll("img, picture, svg, video[poster]"), function (node) {
+            var parent = node.parentElement;
+            return !(String(node.tagName || "").toLowerCase() === "img" && parent && String(parent.tagName || "").toLowerCase() === "picture" && element.contains(parent));
+          });
           if (descendants.length !== 1) return null;
           var descendant = descendants[0];
           var descendantTagName = String(descendant.tagName || "").toLowerCase();
@@ -3674,8 +3678,10 @@
 
       var carrierStyle = getComputedStyle(carrier);
       var carrierRect = carrier.getBoundingClientRect();
-      var sourceFile = reactMetadata && reactMetadata.filePath
-        ? { filePath: reactMetadata.filePath, line: reactMetadata.line, column: reactMetadata.column }
+      // A stored draft passes its own metadata; the live selection uses the module's.
+      var sourceMetadata = metadata === undefined ? reactMetadata : metadata;
+      var sourceFile = sourceMetadata && sourceMetadata.filePath
+        ? { filePath: sourceMetadata.filePath, line: sourceMetadata.line, column: sourceMetadata.column }
         : null;
       var target = {
         kind: kind,
@@ -3717,7 +3723,7 @@
     }
   }
 
-  function selectionFor(element) {
+  function selectionFor(element, metadata) {
     var html = element.outerHTML || "";
     if (html.length > MAX_HTML) html = html.slice(0, MAX_HTML - 1) + "…";
     var selection = {
@@ -3729,7 +3735,7 @@
       stateStyles: interactiveStylesFor(element),
       componentScope: componentScopeFor(element, reactMetadata)
     };
-    var imageTarget = imageTargetFor(element);
+    var imageTarget = imageTargetFor(element, metadata);
     if (imageTarget) selection.imageTarget = imageTarget;
     return selection;
   }
@@ -4307,7 +4313,10 @@
     syncSendButtonDisabled();
     renderPanel();
     var form = new FormData();
-    form.append("file", file, file.name);
+    // A File with no type (some drag sources) would post as octet-stream and be
+    // refused; carry the type inferred from the name instead.
+    var upload = file.type ? file : new File([file], file.name || "image", { type: mime });
+    form.append("file", upload, upload.name);
     form.append("origin", origin);
     fetch(bridgeUrl("/attachment"), { method: "POST", body: form }).then(function (response) {
       if (response.status !== 202) return bridgeAttachmentError(response).then(function (message) { throw new Error(message || ("Bridge returned " + response.status)); });
@@ -12848,7 +12857,7 @@
         draftSelectionGoneError.ravenSelectionGone = true;
         throw draftSelectionGoneError;
       }
-      selection = selectionFor(payloadTarget);
+      selection = selectionFor(payloadTarget, draftContext.reactMetadata || null);
       draftContext.selection = selection;
       draftContext.selector = selection.selector;
       payloadStyleEdits = draftContext.styleEdits;

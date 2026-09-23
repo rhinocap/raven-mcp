@@ -190,11 +190,12 @@ realHttpTest('multipart body cap refuses oversized and falsely long requests wit
         response.resume();
         response.on('end', () => resolve(`status:${response.statusCode}`));
       });
-      request.on('error', () => resolve('socket-close'));
-      request.setTimeout(750, () => { request.destroy(); resolve('socket-close'); });
+      request.on('error', (error) => resolve(`error:${error.code}`));
+      // A client-side timeout is a failure: the server must answer or close.
+      request.setTimeout(5000, () => { request.destroy(); resolve('client-timeout'); });
       request.end(Buffer.from(`--raven-attachment-boundary\r\n`));
     });
-    assert.ok(outcome === 'status:413' || outcome === 'socket-close', `expected falsely long Content-Length request to end with 413 or socket close; got ${outcome}`);
+    assert.ok(outcome === 'status:413' || outcome === 'error:ECONNRESET', `expected falsely long Content-Length request to end with 413 or a server close; got ${outcome}`);
     assert.deepEqual(await inboxEntries(inbox, key), [], 'expected falsely long request to write no inbox files');
   });
 });
@@ -300,4 +301,116 @@ test('session startup prunes inbox directories older than seven days only', asyn
     await rm(project, { recursive: true, force: true });
     await rm(inbox, { recursive: true, force: true });
   }
+});
+
+// ---- adverse-pass findings (L10) ----
+
+const grabInbox = grabBridge ? await import(path.resolve(__dirname, '../dist/grab-inbox.js')) : null;
+
+realHttpTest('path route is refused while proxying a third-party origin; multipart still works', async () => {
+  const project = await realpath(await mkdtemp(path.join(__dirname, 'fixtures', 'attachment-proxy-')));
+  const inbox = await realpath(await mkdtemp(path.join(tmpdir(), 'raven-grab-inbox-')));
+  const oldInbox = process.env.RAVEN_GRAB_INBOX;
+  process.env.RAVEN_GRAB_INBOX = inbox;
+  try {
+    await writeFile(path.join(project, 'DESIGN.md'), '# proxy fixture\n');
+    const source = path.join(project, 'hero-copy.png');
+    await writeFile(source, await readFile(path.join(fixtureDir, 'hero.png')));
+    const session = await grabBridge.startGrabSession(path.join(project, 'DESIGN.md'), undefined, 'https://example.invalid', 'consumer');
+    assert.equal(session.mode, 'server');
+    const key = keyFor(session);
+    // A page proxied from a third-party origin shares the key with its own scripts,
+    // so a JSON path body would let that page read any image under the home directory.
+    const refused = await responseJson(attachmentUrl(session, key), Buffer.from(JSON.stringify({ path: source })), { 'Content-Type': 'application/json' });
+    assert.equal(refused.status, 403, 'expected a path attachment on a third-party proxy to be refused');
+    assert.match(refused.json.error, /local page/i);
+    assert.deepEqual(await inboxEntries(inbox, key), []);
+    const upload = multipart([filePart('hero.png', 'image/png', await readFile(path.join(fixtureDir, 'hero.png')))]);
+    const accepted = await responseJson(attachmentUrl(session, key), upload.body, { 'Content-Type': upload.contentType });
+    assert.equal(accepted.status, 202, 'expected multipart bytes to stay accepted on a third-party proxy');
+  } finally {
+    await grabBridge.stopGrabSession();
+    if (oldInbox === undefined) delete process.env.RAVEN_GRAB_INBOX; else process.env.RAVEN_GRAB_INBOX = oldInbox;
+    await rm(project, { recursive: true, force: true });
+    await rm(inbox, { recursive: true, force: true });
+  }
+});
+
+test('path route checks the file size before reading it', async () => {
+  const project = await realpath(await mkdtemp(path.join(tmpdir(), 'raven-grab-huge-')));
+  const inbox = await realpath(await mkdtemp(path.join(tmpdir(), 'raven-grab-inbox-')));
+  const oldInbox = process.env.RAVEN_GRAB_INBOX;
+  process.env.RAVEN_GRAB_INBOX = inbox;
+  try {
+    // A sparse 3 GiB file costs no disk; reading it whole would throw
+    // ERR_FS_FILE_TOO_LARGE (a 400) instead of the size refusal.
+    const huge = path.join(project, 'huge.png');
+    await writeFile(huge, '');
+    const { truncate } = await import('node:fs/promises');
+    await truncate(huge, 3 * 1024 * 1024 * 1024);
+    const result = grabInbox.handleAttachmentRequest('0123456789abcdef', project, 'application/json', Buffer.from(JSON.stringify({ path: huge })));
+    assert.equal(result.status, 413, `expected a 3 GiB path to be refused as oversized, got ${result.status} ${JSON.stringify(result.body)}`);
+  } finally {
+    if (oldInbox === undefined) delete process.env.RAVEN_GRAB_INBOX; else process.env.RAVEN_GRAB_INBOX = oldInbox;
+    await rm(project, { recursive: true, force: true });
+    await rm(inbox, { recursive: true, force: true });
+  }
+});
+
+realHttpTest('multipart keeps file bytes that contain the boundary string', async () => {
+  await withSession(async ({ session, key }) => {
+    const boundary = 'raven-attachment-boundary';
+    const svg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><text>--${boundary}--</text></svg>`);
+    const upload = multipart([filePart('marker.svg', 'image/svg+xml', svg)], boundary);
+    const accepted = await responseJson(attachmentUrl(session, key), upload.body, { 'Content-Type': upload.contentType });
+    assert.equal(accepted.status, 202, `expected the SVG to be accepted, got ${accepted.status} ${JSON.stringify(accepted.json)}`);
+    assert.equal(accepted.json.bytes, svg.length, 'expected the stored size to equal the full file');
+    assert.deepEqual(await readFile(accepted.json.path), svg, 'expected the stored bytes to equal the full file');
+  });
+});
+
+realHttpTest('same bytes under two names dedupe to one inbox file', async () => {
+  await withSession(async ({ session, inbox, key }) => {
+    const bytes = await readFile(path.join(fixtureDir, 'hero.png'));
+    const first = await responseJson(attachmentUrl(session, key), multipart([filePart('a.png', 'image/png', bytes)]).body, { 'Content-Type': multipart([]).contentType });
+    const second = await responseJson(attachmentUrl(session, key), multipart([filePart('b.png', 'image/png', bytes)]).body, { 'Content-Type': multipart([]).contentType });
+    assert.equal(first.status, 202); assert.equal(second.status, 202);
+    assert.equal(second.json.path, first.json.path, 'expected the second upload to reuse the first file');
+    assert.equal(second.json.name, 'b.png', 'expected the record to keep the name the user gave');
+    assert.equal((await inboxEntries(inbox, key)).length, 1, 'expected one inbox file for one sha');
+  });
+});
+
+realHttpTest('/grab refuses more than four attachments', async () => {
+  await withSession(async ({ session, key }) => {
+    const bytes = await readFile(path.join(fixtureDir, 'hero.png'));
+    const ids = [];
+    for (const name of ['a.png', 'b.png', 'c.png', 'd.png', 'e.png']) {
+      const accepted = await responseJson(attachmentUrl(session, key), multipart([filePart(name, 'image/png', bytes)]).body, { 'Content-Type': multipart([]).contentType });
+      ids.push({ id: accepted.json.id });
+    }
+    const grabUrl = `${session.url}/grab?key=${key}`;
+    const refused = await responseJson(grabUrl, Buffer.from(JSON.stringify({ selector: '#hero', attachments: ids })), { 'Content-Type': 'application/json' });
+    assert.equal(refused.status, 400, 'expected five attachments to be refused');
+    const accepted = await responseJson(grabUrl, Buffer.from(JSON.stringify({ selector: '#hero', attachments: ids.slice(0, 4) })), { 'Content-Type': 'application/json' });
+    assert.equal(accepted.status, 202, 'expected four attachments to be accepted');
+  });
+});
+
+realHttpTest('a Content-Length above the cap is answered 413 without waiting for the body', async () => {
+  await withSession(async ({ session, inbox, key }) => {
+    const outcome = await new Promise((resolve) => {
+      const request = httpRequest(attachmentUrl(session, key), {
+        method: 'POST', headers: { 'Content-Type': multipart([]).contentType, 'Content-Length': 30 * 1024 * 1024 }
+      }, (response) => {
+        response.resume();
+        response.on('end', () => resolve(`status:${response.statusCode}`));
+      });
+      request.on('error', (error) => resolve(`error:${error.code}`));
+      request.setTimeout(5000, () => { request.destroy(); resolve('client-timeout'); });
+      request.write(Buffer.from('--raven-attachment-boundary\r\n'));
+    });
+    assert.equal(outcome, 'status:413', `expected the server to answer 413 on the header alone; got ${outcome}`);
+    assert.deepEqual(await inboxEntries(inbox, key), []);
+  });
 });

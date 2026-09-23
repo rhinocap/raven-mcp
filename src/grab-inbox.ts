@@ -79,16 +79,20 @@ export function parseMultipartFile(contentType: string, body: Buffer): { name: s
   var start = body.indexOf(marker);
   if (start < 0) throw new AttachmentError(400, "multipart boundary was not found");
   start += marker.length;
+  // A boundary only counts at the start of a line: the delimiter is the line
+  // break plus the marker, so file bytes that contain "--boundary" survive.
+  // The break style is fixed by the first one seen (RFC 2046 says CRLF; LF is
+  // tolerated for hand-built bodies).
+  var lineBreak = body.subarray(start, start + 2).equals(Buffer.from("\r\n")) ? "\r\n" : "\n";
+  var delimiter = Buffer.concat([Buffer.from(lineBreak), marker]);
   while (start < body.length) {
     if (body.subarray(start, start + 2).equals(Buffer.from("--"))) break;
     if (body.subarray(start, start + 2).equals(Buffer.from("\r\n"))) start += 2;
     else if (body[start] === 0x0a) start += 1;
     else throw new AttachmentError(400, "malformed multipart body");
-    var next = body.indexOf(marker, start);
+    var next = body.indexOf(delimiter, start);
     if (next < 0) throw new AttachmentError(400, "multipart closing boundary is missing");
     var rawPart = body.subarray(start, next);
-    if (rawPart.subarray(-2).equals(Buffer.from("\r\n"))) rawPart = rawPart.subarray(0, rawPart.length - 2);
-    else if (rawPart[rawPart.length - 1] === 0x0a) rawPart = rawPart.subarray(0, rawPart.length - 1);
     var separator = rawPart.indexOf(Buffer.from("\r\n\r\n"));
     var separatorLength = 4;
     if (separator < 0) {
@@ -104,7 +108,7 @@ export function parseMultipartFile(contentType: string, body: Buffer): { name: s
     var filenameMatch = /(?:^|;)\s*filename="([^"]*)"/i.exec(disposition[1]);
     var mimeMatch = /^content-type:\s*([^\r\n;]+)/im.exec(headers);
     parts.push({ name: nameMatch[1], filename: filenameMatch ? filenameMatch[1] : undefined, mime: mimeMatch ? mimeMatch[1].trim() : "application/octet-stream", bytes: rawPart.subarray(separator + separatorLength) });
-    start = next + marker.length;
+    start = next + delimiter.length;
   }
 
   var files = parts.filter(function(part) { return part.name === "file" && part.filename !== undefined; });
@@ -143,6 +147,9 @@ export function storeAttachmentPath(sessionKey: string, input: { path: string; p
     throw new AttachmentError(404, "attachment path was not found: " + resolved);
   }
   if (!stat.isFile()) throw new AttachmentError(400, "attachment path must be a regular file");
+  // Size is checked before the read: a multi-gigabyte file would otherwise be
+  // loaded whole (or fail as too large to read) before the 25 MiB refusal.
+  if (stat.size > MAX_ATTACHMENT_BYTES) throw new AttachmentError(413, "attachment exceeds the 25 MiB limit");
   var real: string;
   try {
     real = realpathSync(resolved);
@@ -197,8 +204,14 @@ function storeVerifiedAttachment(sessionKey: string, originalName: string, bytes
   var dimensions = readImageDimensions(bytes, kind);
   var directory = sessionInboxDir(sessionKey);
   mkdirSync(directory, { recursive: true });
+  // Same sha within a session dedupes to one file, whatever name it arrived
+  // under; the record keeps the name the user gave.
   var path = join(directory, sha256.slice(0, 12) + "-" + name);
-  if (!existsSync(path) || statSync(path).size !== bytes.length) writeFileSync(path, bytes);
+  var existing = readdirSync(directory).find(function (entry) {
+    return entry.indexOf(sha256.slice(0, 12) + "-") === 0 && statSync(join(directory, entry)).size === bytes.length;
+  });
+  if (existing) path = join(directory, existing);
+  else writeFileSync(path, bytes);
   return { id: "att_" + randomBytes(8).toString("hex"), origin: origin, name: name, mime: IMAGE_MIME_BY_KIND[kind], bytes: bytes.length, sha256: sha256, width: dimensions.width, height: dimensions.height, path: path, sourcePath: sourcePath };
 }
 
