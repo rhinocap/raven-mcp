@@ -1,0 +1,58 @@
+[
+  {
+    "name": "hero.png",
+    "mime": "image/png",
+    "width": 16,
+    "height": 9,
+    "bytes": 79,
+    "sha256": "079c43db348a6421b76e9a9c3431f2b2e8e7780b8251b3aa823a047f5700c06c"
+  },
+  {
+    "name": "photo.jpg",
+    "mime": "image/jpeg",
+    "width": 640,
+    "height": 480,
+    "bytes": 110,
+    "sha256": "da8836cbb6cbc664a58b38a6b5243b5e9f18de94183a727255fc50e9ceecc8cd"
+  },
+  {
+    "name": "tile.webp",
+    "mime": "image/webp",
+    "width": 5,
+    "height": 7,
+    "bytes": 34,
+    "sha256": "8c249f780fa992a8818b6e5073b9a216ea21c09f31e0d34d7a278afa5c68fd1f"
+  },
+  {
+    "name": "dot.gif",
+    "mime": "image/gif",
+    "width": 3,
+    "height": 2,
+    "bytes": 37,
+    "sha256": "d9f65ce278fa988fd99662b9283545e00baa20f74a1c7d4fa3132643b65f52d9"
+  },
+  {
+    "name": "still.avif",
+    "mime": "image/avif",
+    "width": 1280,
+    "height": 720,
+    "bytes": 209,
+    "sha256": "9fb324f55c70b53d415d56e480062e558cc7c795a7473bd452b03c8e660c217f"
+  },
+  {
+    "name": "logo.svg",
+    "mime": "image/svg+xml",
+    "width": 120,
+    "height": 80,
+    "bytes": 176,
+    "sha256": "8cdf067e5e015344943e31ab6423ad40f1eefff25e384ef24b7b1235f4c6245a"
+  },
+  {
+    "name": "notes.txt",
+    "mime": "text/plain",
+    "width": null,
+    "height": null,
+    "bytes": 13,
+    "sha256": "c04bee9d659201c6647cbc29f7c2e1556b8370c54f4a50a32d84ceab2fddf6cd"
+  }
+]
