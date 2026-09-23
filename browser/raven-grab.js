@@ -3625,7 +3625,10 @@
       var backgroundImage = null;
       var tagName = String(element.tagName || "").toLowerCase();
       if (tagName === "img") {
-        kind = "img";
+        // A click on a <picture> always lands on its <img>; the agent still has
+        // to rewrite the sibling <source> candidates, so report the picture.
+        var imgParent = element.parentElement;
+        kind = imgParent && String(imgParent.tagName || "").toLowerCase() === "picture" ? "picture" : "img";
         carrier = element;
         imageElement = element;
       } else if (tagName === "picture") {
@@ -12861,6 +12864,7 @@
       instruction: payloadInstruction,
       attachments: payloadAttachments.filter(function (attachment) { return attachment.state === "ready"; }).map(function (attachment) { return { id: attachment.id }; })
     };
+    if (selection.imageTarget) payload.imageTarget = selection.imageTarget;
     if (payloadTextEdit && payloadTextEdit.newText !== payloadTextEdit.oldText) {
       payload.textEdit = { oldText: payloadTextEdit.oldText, newText: payloadTextEdit.newText };
     }
