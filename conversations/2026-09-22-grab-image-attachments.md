@@ -38,12 +38,10 @@ Baseline: npm test 1730 tests, 1727 pass, 3 skipped (baseline.log).
 - L9 first launch sat 5 min on "Reading additional input from stdin..." (stdin was a unix socket). Killed, relaunched with `< /dev/null`. Rule: every background `codex exec` gets `< /dev/null`. Memory written: reference-codex-exec-background-needs-stdin-closed.
 - Full suite before L9 (S/pre-L9.log): 1752 tests, 1747 pass, 2 fail, 3 skipped. Fails: byte-mirror (cleared by L8) and no-private-paths.test.mjs:592, which resolves `repoRoot/../private.claude/...` — inside a nested worktree `..` is still under raven-mcp, so the finding is absent. Passes in the main checkout at 74cfb7b. Final suite must run from a worktree outside the repo tree.
 
-## Next commands (updated)
-0. L10 running (S/L10.log); full suite running in S/../att-final (outside the repo tree, so the no-private-paths `..` case is valid) → S/final1.log. After L10 fixes: rerun suite, delete test/_live-attachments.mjs, handoff.
-1. (old) L9 lands → `git -C ../att-L9 diff HEAD browser/raven-grab.js test/grab-overlay-attachments.test.mjs` → apply → node --check → node --test overlay attachments + voice-input → commit → drop worktree.
-2. L8 (Sol, prompt S/L8.prompt): cp + cmp + CHANGELOG → commit.
-3. L10 (Astra, read-only, prompt S/L10.prompt) on a frozen worktree → fix each finding with test + mutant → commit.
-4. Final: worktree outside repo tree, `nohup env RAVEN_NO_USAGE_LOG=1 npm test > S/final.log`; live Chromium check on S/live/index.html; chip screenshot; handoff.
+## Next commands (updated 2026-09-23)
+1. Read S/final4.log (full suite at 1f2a386, sibling worktree /Users/accunliffe/projects/raven-mcp-att-final with node_modules symlinked from att-main): expect 1776 tests / 1773 pass / 0 fail / 3 skipped (baseline three), `exit=0` as last line.
+2. Remove the sibling worktree raven-mcp-att-final (git worktree remove, forced, from the main repo path).
+3. Handoff (no push). Restart Claude Code afterwards so the session runs 2.1.280 (Opus 5.5 for in-session agents).
 
 ## Open questions (defaults, left for Andrew)
 Q1 inbox at ~/.raven/grab-inbox (implemented). Q2 no blob live-preview in v1. Q3 cap 4 kept.
@@ -67,3 +65,22 @@ Q1 inbox at ~/.raven/grab-inbox (implemented). Q2 no blob live-preview in v1. Q3
 
 ## Correction (Andrew, 2026-09-23)
 - "Why are you using 5.6 terra, you should be using GPT 6 terra. Also, Opus 5.5 is out, we should use it too." Legs L1–L6, L11 ran on gpt-5.6-terra; lesson: codex legs default to the GPT-6 tier. Probe on codex 0.156.1: gpt-6-terra not supported on the ChatGPT account; gpt-6-sol and gpt-6-astra are. claude-opus-5-5 needs Claude Code ≥ 2.1.280 (installed 2.1.278). Memory: feedback-legs-on-gpt6-tier-and-opus-5-5.
+
+## L10 (Astra adverse pass) applied — 1dce362
+- 10 findings; 1–8 and 10 fixed with a failing test observed first. #5 background-image descendant wrappers and #9 path-route thumbnail left open as deviations.
+- Also 75d7651 (path-drop test writes its fixture under the session project dir) and 473c794 (isWithin realpaths the project dir; macOS /tmp symlink).
+- Overlay regression at 1dce362: 172/172 (S/L10.overlay-all.log). Full suite at 1dce362 (S/final3.log): 1772 tests, 1769 pass, 0 fail, 3 skipped, exit=0; skips at log lines 121/885/886 = baseline three. Delta over baseline +42 = 14 bridge + 22 overlay + 6 grab-attachments unit tests (names diffed against baseline.log).
+
+## Falsification pass (claude-opus-5-5, report-only, S/opus55.log) — VERDICT claim holds, P1 none
+- Fixed in 1f2a386, each with a failing test observed first (bridge suite 18/18 after, grab-attachments 6/6, overlay attachments 22/22 in S/overlay4.log):
+  P2.1 prune removed any old directory under RAVEN_GRAB_INBOX → only `^[0-9a-f]{8}$` names; dedupe hit now touches the session dir mtime so a sibling session's prune cannot remove a live inbox.
+  P2.2 no per-session cap → /attachment refuses the 33rd record with 413 (MAX_SESSION_ATTACHMENTS = 32).
+  P3.1 stored name kept any extension → stored name always ends with the sniffed type's extension (evil.html → evil.png, image → image.png); contradicting image extensions still 415.
+  P3.3 path route existence oracle → containment checked before existence; 404 no longer echoes the path.
+- Left open (report in handoff): P3.2 gradient background-image counts as kind "background"; P3.4 realpath→read race on the path route; P3.5 non-ASCII names sanitise to "-"; P3.6 shell-escaped/quoted pasted paths fail; P3.7 fetch-shim path reads the body before the size check (in-process only).
+
+## Cleanup done
+- test/_live-attachments.mjs deleted; worktrees att-L10 and the first raven-mcp-att-final removed. Untouched: /tmp/wt-p4, release-marketing-preview.
+
+## Per-leg model / cost
+L1–L6, L11 (finish) gpt-5.6-terra $0 marginal (Codex sub; Andrew's correction: should have been GPT-6 tier); L7, L8 gpt-6-sol/gpt-5.6-sol $0; L9, L10 gpt-6-astra $0; L11 deepseek $0.0103 (truncated); L12 deepseek $0.0045; map kimi-k3 $0.021; falsification claude-opus-5-5 (Anthropic). Total paid: $0.036.
