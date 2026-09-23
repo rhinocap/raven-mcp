@@ -127,6 +127,11 @@
       if (STYLE_PROPERTIES.indexOf(property) === -1) STYLE_PROPERTIES.push(property);
     });
   });
+  // Captured for imageTarget context, not panel rows: these values do not have
+  // sane standalone controls in the current panel.
+  ["background-image", "object-position", "aspect-ratio"].forEach(function (property) {
+    if (STYLE_PROPERTIES.indexOf(property) === -1) STYLE_PROPERTIES.push(property);
+  });
   var INTERACTIVE_STATES = ["hover", "focus", "active", "disabled"];
 
   var bridgeTokens = [];
@@ -3595,10 +3600,109 @@
     return output;
   }
 
+  function imageTargetFor(element) {
+    try {
+      if (!element || element.nodeType !== 1) return null;
+
+      var kind = null;
+      var carrier = null;
+      var imageElement = null;
+      var backgroundImage = null;
+      var tagName = String(element.tagName || "").toLowerCase();
+      if (tagName === "img") {
+        kind = "img";
+        carrier = element;
+        imageElement = element;
+      } else if (tagName === "picture") {
+        kind = "picture";
+        carrier = element.querySelector("img");
+        imageElement = carrier;
+      } else if (tagName === "svg") {
+        kind = "svg";
+        carrier = element;
+      } else if (tagName === "video" && element.hasAttribute("poster")) {
+        kind = "video-poster";
+        carrier = element;
+      } else {
+        var computed = getComputedStyle(element);
+        if (computed.backgroundImage !== "none") {
+          kind = "background";
+          carrier = element;
+          backgroundImage = computed.backgroundImage;
+        } else {
+          // Do not scan descendants for background images: only explicit media carriers qualify.
+          var descendants = element.querySelectorAll("img, picture, svg, video[poster]");
+          if (descendants.length !== 1) return null;
+          var descendant = descendants[0];
+          var descendantTagName = String(descendant.tagName || "").toLowerCase();
+          if (descendantTagName === "img") {
+            kind = "img";
+            carrier = descendant;
+            imageElement = descendant;
+          } else if (descendantTagName === "picture") {
+            kind = "picture";
+            carrier = descendant.querySelector("img");
+            imageElement = carrier;
+          } else if (descendantTagName === "svg") {
+            kind = "svg";
+            carrier = descendant;
+          } else if (descendantTagName === "video") {
+            kind = "video-poster";
+            carrier = descendant;
+          }
+        }
+      }
+      if (!kind || !carrier) return null;
+
+      var carrierStyle = getComputedStyle(carrier);
+      var carrierRect = carrier.getBoundingClientRect();
+      var sourceFile = reactMetadata && reactMetadata.filePath
+        ? { filePath: reactMetadata.filePath, line: reactMetadata.line, column: reactMetadata.column }
+        : null;
+      var target = {
+        kind: kind,
+        selector: stableSelector(carrier),
+        currentSrc: imageElement && imageElement.currentSrc ? new URL(imageElement.currentSrc, document.baseURI).href : "",
+        src: imageElement ? imageElement.getAttribute("src") : null,
+        srcset: imageElement ? imageElement.getAttribute("srcset") : null,
+        sizes: imageElement ? imageElement.getAttribute("sizes") : null,
+        alt: imageElement ? imageElement.getAttribute("alt") : null,
+        loading: imageElement ? imageElement.getAttribute("loading") : null,
+        decoding: imageElement ? imageElement.getAttribute("decoding") : null,
+        naturalWidth: imageElement ? imageElement.naturalWidth : null,
+        naturalHeight: imageElement ? imageElement.naturalHeight : null,
+        renderedWidth: carrierRect.width,
+        renderedHeight: carrierRect.height,
+        objectFit: carrierStyle.objectFit,
+        objectPosition: carrierStyle.objectPosition,
+        aspectRatio: carrierStyle.aspectRatio,
+        sourceFile: sourceFile
+      };
+      if (kind === "picture") {
+        var picture = carrier.parentElement && String(carrier.parentElement.tagName || "").toLowerCase() === "picture"
+          ? carrier.parentElement
+          : element;
+        target.sources = Array.prototype.filter.call(picture.children || [], function (child) {
+          return String(child.tagName || "").toLowerCase() === "source";
+        }).map(function (source) {
+          return {
+            srcset: source.getAttribute("srcset"),
+            media: source.getAttribute("media"),
+            type: source.getAttribute("type")
+          };
+        });
+      }
+      if (kind === "background") target.backgroundImage = backgroundImage;
+      return target;
+    } catch (error) {
+      return null;
+    }
+  }
+
   function selectionFor(element) {
     var html = element.outerHTML || "";
     if (html.length > MAX_HTML) html = html.slice(0, MAX_HTML - 1) + "…";
-    return {
+    var selection = {
       selector: stableSelector(element),
       html: html,
       rect: rectFor(element),
@@ -3607,6 +3711,9 @@
       stateStyles: interactiveStylesFor(element),
       componentScope: componentScopeFor(element, reactMetadata)
     };
+    var imageTarget = imageTargetFor(element);
+    if (imageTarget) selection.imageTarget = imageTarget;
+    return selection;
   }
 
   function setHighlight(element) {
