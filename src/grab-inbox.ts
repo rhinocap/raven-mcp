@@ -4,7 +4,7 @@
 import { homedir } from "node:os";
 import { closeSync, constants, existsSync, fstatSync, mkdirSync, openSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { createHash, randomBytes } from "node:crypto";
-import { basename, isAbsolute, join, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { IMAGE_MIME_BY_KIND, imageKindForExtension, imageKindForMime, readImageDimensions, sniffImageKind, type ImageKind } from "./grab-attachments.js";
 
@@ -150,14 +150,15 @@ export function storeAttachmentPath(sessionKey: string, input: { path: string; p
   if (!isWithin(resolved, homedir()) && !isWithin(resolved, input.projectDir)) {
     throw new AttachmentError(400, "attachment path must be under the home or project directory");
   }
-  if (!existsSync(resolved)) throw new AttachmentError(404, "attachment path was not found");
-  var real: string;
+  // Resolve only the parent: O_NOFOLLOW below must be what refuses a symlink
+  // in the final component. Intermediate directories are checked here.
+  var realParent: string;
   try {
-    real = realpathSync(resolved);
+    realParent = realpathSync(dirname(resolved));
   } catch (_error) {
     throw new AttachmentError(400, "attachment path could not be resolved");
   }
-  if (real !== resolved) throw new AttachmentError(400, "attachment path has a symlink escape: " + resolved);
+  if (realParent !== dirname(resolved)) throw new AttachmentError(400, "attachment path has a symlink escape: " + resolved);
   var fd: number;
   var stat;
   try {
@@ -255,9 +256,8 @@ function storeVerifiedAttachment(sessionKey: string, originalName: string, bytes
   // Same sha within a session dedupes to one file, whatever name it arrived
   // under; the record keeps the name the user gave.
   var path = join(directory, sha256.slice(0, 12) + "-" + name);
-  var existing = readdirSync(directory).find(function (entry) {
-    return entry.indexOf(sha256.slice(0, 12) + "-") === 0 && statSync(join(directory, entry)).size === bytes.length;
-  });
+  var existingName = sha256.slice(0, 12) + "-" + name;
+  var existing = readdirSync(directory).find(function (entry) { return entry === existingName; });
   if (existing) {
     path = join(directory, existing);
     // A dedupe hit writes nothing, so the directory mtime is refreshed by hand:

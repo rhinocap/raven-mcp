@@ -48,6 +48,30 @@ function multipartPng(bytes) {
   return { body, contentType: `multipart/form-data; boundary=${boundary}` };
 }
 
+function crc32(bytes) {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) crc = (crc >>> 1) ^ ((crc & 1) ? 0xedb88320 : 0);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function largeValidPng(baseBytes, minimumSize) {
+  const iendOffset = baseBytes.lastIndexOf(Buffer.from('IEND')) - 4;
+  assert.ok(iendOffset >= 8, 'fixture should contain an IEND chunk');
+  const dataSize = minimumSize - baseBytes.length + 32;
+  const textData = Buffer.alloc(dataSize, 0x61);
+  textData[0] = 0x6b;
+  textData[1] = 0;
+  const typeAndData = Buffer.concat([Buffer.from('tEXt'), textData]);
+  const chunk = Buffer.alloc(12 + dataSize);
+  chunk.writeUInt32BE(dataSize, 0);
+  typeAndData.copy(chunk, 4);
+  chunk.writeUInt32BE(crc32(typeAndData), 4 + typeAndData.length);
+  return Buffer.concat([baseBytes.subarray(0, iendOffset), chunk, baseBytes.subarray(iendOffset)]);
+}
+
 async function withSession(run, proxyTarget, role) {
   assert.ok(grabBridge, 'expected dist/grab-bridge.js to be built');
   const project = await realpath(await mkdtemp(path.join(__dirname, 'fixtures', 'thumb-session-')));
@@ -85,6 +109,25 @@ realHttpTest('GET attachment serves fixture bytes with MIME and no-store', async
     assert.equal(served.headers['content-security-policy'], "default-src 'none'; sandbox");
     assert.equal(served.headers['access-control-allow-origin'], '*');
     assert.deepEqual(served.body, await readFile(fixturePath));
+  });
+});
+
+realHttpTest('GET attachment streams a multi-MiB PNG with its exact Content-Length', async () => {
+  await withSession(async ({ session, key }) => {
+    const png = largeValidPng(await readFile(fixturePath), 4 * 1024 * 1024 + 1);
+    assert.ok(png.length > 4 * 1024 * 1024);
+    const form = multipartPng(png);
+    const uploaded = await request(`${session.url}/attachment?key=${key}`, 'POST', form.body, {
+      'Content-Type': form.contentType,
+      'Content-Length': form.body.length
+    });
+    assert.equal(uploaded.status, 202, 'expected multi-MiB fixture upload to return 202');
+    const record = JSON.parse(uploaded.body.toString('utf8'));
+    const served = await request(`${session.url}/attachment?key=${key}&id=${encodeURIComponent(record.id)}`);
+    assert.equal(served.status, 200);
+    assert.equal(served.headers['content-type'], 'image/png');
+    assert.equal(Number(served.headers['content-length']), png.length);
+    assert.deepEqual(served.body, png);
   });
 });
 

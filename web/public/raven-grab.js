@@ -4271,6 +4271,7 @@
       return false;
     });
     syncSendButtonDisabled();
+    persistPendingNow();
     renderPanel();
   }
 
@@ -4295,11 +4296,37 @@
   }
   function attachmentRecordFromResponse(chip, record) {
     Object.keys(record || {}).forEach(function (key) { chip[key] = record[key]; });
-    if (!chip.thumbUrl && record && record.id) chip.thumbUrl = bridgeUrl("/attachment") + "&id=" + encodeURIComponent(record.id);
     chip.state = "ready";
     chip.error = "";
     syncSendButtonDisabled();
+    // Hydrate before the persist/render below: either can sweep a detached draft,
+    // which revokes and nulls a file chip's own blob thumb, and a chip with no
+    // blob thumb would otherwise be refetched for a draft that no longer exists.
+    hydrateAttachmentThumb(chip);
+    persistPendingNow();
     renderPanel();
+  }
+  function attachmentChipOwned(chip) {
+    return attachmentDraft.indexOf(chip) !== -1 || localStyleDrafts().some(function (draft) {
+      return (draft.attachments || []).indexOf(chip) !== -1;
+    });
+  }
+  function hydrateAttachmentThumb(chip) {
+    if (!chip || chip.state !== "ready" || !chip.id || (chip.thumbUrl && String(chip.thumbUrl).indexOf("blob:") === 0) || chip.thumbLoading) return;
+    chip.thumbLoading = true;
+    fetch(bridgeUrl("/attachment") + "&id=" + encodeURIComponent(chip.id)).then(function (response) {
+      if (!response.ok) throw new Error("Bridge returned " + response.status);
+      return response.blob();
+    }).then(function (blob) {
+      // The draft may have been sent, removed, or carried while the bytes were in
+      // flight; a blob URL nobody can revoke would leak for the page's lifetime.
+      if (!attachmentChipOwned(chip)) return;
+      chip.thumbUrl = window.URL.createObjectURL(blob);
+      renderPanel();
+    }).catch(function () {
+      chip.thumbUrl = null;
+      renderPanel();
+    }).finally(function () { chip.thumbLoading = false; });
   }
   function bridgeAttachmentError(response) {
     return response.text().then(function (text) {
@@ -4623,6 +4650,7 @@
       delete draft.instruction;
     }
     attachmentDraft = draft.attachments || [];
+    attachmentDraft.forEach(hydrateAttachmentThumb);
     delete draft.attachments;
     // Stashing cleared the shared state-preview stylesheet; re-render it so a
     // reactivated draft's hover/focus edits preview again.
@@ -11619,9 +11647,19 @@
         var entry = {
           key: "live:" + draft.clientKey,
           pathname: location.pathname,
-          endpoint: grabConfig ? grabConfig.grabEndpoint : bridgeUrl("/grab"),
+          endpoint: grabConfig ? grabConfig.grabEndpoint : "/grab",
           label: payload.selector || draft.selector || "element",
-          payload: payload
+          payload: payload,
+          draft: (draft.attachments || []).length ? {
+            selector: draft.selector || payload.selector,
+            instruction: instruction,
+            attachments: (draft.attachments || []).filter(function (attachment) { return attachment.state === "ready"; }).map(function (attachment) {
+              var copy = Object.assign({}, attachment);
+              delete copy.thumbUrl;
+              delete copy.thumbLoading;
+              return copy;
+            })
+          } : null
         };
         // Remember it while the node is still connected. carryDetachedDraft()
         // promotes this exact object later if the element disappears without a
@@ -11657,7 +11695,7 @@
     persistPendingNow();
     renderPanel();
     batch.forEach(function (entry) {
-      fetch(entry.endpoint, {
+      fetch(entry.endpoint === "/grab" ? bridgeUrl("/grab") : entry.endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(entry.payload)
@@ -15197,6 +15235,26 @@
   // Restore un-sent changes from a prior page load before the first render so
   // they show in the tray immediately (see the persistence block).
   carriedPending = readCarriedPending();
+  // A same-page attachment draft can resume in the composer; other carried
+  // changes remain frozen rows because their live edit context cannot be rebuilt.
+  for (var restoredIndex = carriedPending.length - 1; restoredIndex >= 0; restoredIndex -= 1) {
+    var restoredEntry = carriedPending[restoredIndex];
+    var restoredDraft = restoredEntry.draft;
+    var restoredPayload = restoredEntry.payload || {};
+    if (!restoredDraft || restoredEntry.pathname !== location.pathname ||
+        (restoredPayload.styleEdits || []).length || (restoredPayload.stateStyleEdits || []).length ||
+        (restoredPayload.tokenIntents || []).length || restoredPayload.textEdit) continue;
+    var restoredTarget = null;
+    try { restoredTarget = document.querySelector(restoredDraft.selector); } catch (error) { /* keep carried row */ }
+    if (!restoredTarget) continue;
+    carriedPending.splice(restoredIndex, 1);
+    selectTarget(restoredTarget, false, "canvas");
+    instructionDraft = restoredDraft.instruction || "";
+    attachmentDraft = restoredDraft.attachments || [];
+    attachmentDraft.forEach(hydrateAttachmentThumb);
+    renderPanel();
+    break;
+  }
   hydrateStyleVersions();
 
   renderPanel();

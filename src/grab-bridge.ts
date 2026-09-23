@@ -2,7 +2,7 @@ import { createServer, request as httpRequest, type IncomingMessage, type Server
 import { request as httpsRequest } from "https";
 import type { Duplex } from "stream";
 import { randomBytes } from "crypto";
-import { existsSync, readFileSync, statSync, writeFileSync } from "fs";
+import { createReadStream, existsSync, readFileSync, statSync, writeFileSync } from "fs";
 import { basename, join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import { tmpdir } from "os";
@@ -1273,7 +1273,13 @@ async function handleGrabRequest(designMdPath: string, key: string, req: Incomin
   for (var headerName in result.headers) {
     res.setHeader(headerName, result.headers[headerName]);
   }
-  res.end(result.body);
+  if (result.file) {
+    var fileStream = createReadStream(result.file);
+    fileStream.once("error", function () { res.destroy(); });
+    fileStream.pipe(res);
+  } else {
+    res.end(result.body);
+  }
 }
 
 function setCorsHeaders(res: ServerResponse): void {
@@ -2155,6 +2161,7 @@ interface GrabResponse {
   status: number;
   headers: Record<string, string>;
   body: string | Buffer;
+  file?: string;
 }
 
 function buildAttachmentResponse(key: string, url: string, contentType: string, body: Buffer): GrabResponse {
@@ -2208,19 +2215,19 @@ async function buildGrabResponse(designMdPath: string, key: string, method: stri
     try {
       var attachmentStats = statSync(attachmentRecord.path);
       if (!attachmentStats.isFile()) return jsonResponse(404, { error: "Attachment file not found" });
-      var attachmentBytes = readFileSync(attachmentRecord.path);
       return {
         status: 200,
         headers: {
           "Content-Type": attachmentRecord.mime,
-          "Content-Length": String(attachmentBytes.length),
+          "Content-Length": String(attachmentStats.size),
           "Cache-Control": "no-store",
           // An SVG opened as a top-level navigation on a loopback-proxy origin
           // would otherwise run its scripts with the page's origin.
           "X-Content-Type-Options": "nosniff",
           "Content-Security-Policy": "default-src 'none'; sandbox"
         },
-        body: attachmentBytes
+        body: "",
+        file: attachmentRecord.path
       };
     } catch (_err) {
       return jsonResponse(404, { error: "Attachment file not found" });
@@ -2443,7 +2450,8 @@ function installFetchShim(): void {
       headers.set("Access-Control-Allow-Origin", "*");
       headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
       headers.set("Access-Control-Allow-Headers", "Content-Type");
-      return new Response(typeof result.body === "string" ? result.body : new Uint8Array(result.body), { status: result.status, headers: headers });
+      var responseBody = result.file ? new Uint8Array(readFileSync(result.file)) : typeof result.body === "string" ? result.body : new Uint8Array(result.body);
+      return new Response(responseBody, { status: result.status, headers: headers });
     }
     return originalFetch!(input, init);
   }) as typeof fetch;

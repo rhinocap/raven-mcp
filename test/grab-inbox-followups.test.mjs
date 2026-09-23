@@ -39,6 +39,23 @@ test("path route rejects a final-component symlink with 400", () => {
   assert.match(result.body.error, /symlink escape/);
 });
 
+test("same bytes dedupe only when the sanitized disk name matches", () => {
+  const first = mod.storeAttachmentBytes("dedupe01", { name: "Café.png", declaredMime: "image/png", bytes: png, origin: "paste" });
+  const differentName = mod.storeAttachmentBytes("dedupe01", { name: "スクリーンショット.png", declaredMime: "image/png", bytes: png, origin: "paste" });
+  const sameName = mod.storeAttachmentBytes("dedupe01", { name: "Café.png", declaredMime: "image/png", bytes: png, origin: "paste" });
+  assert.notEqual(first.path, differentName.path);
+  assert.equal(first.path, sameName.path);
+  assert.equal(fs.readdirSync(path.dirname(first.path)).filter((name) => name.startsWith(first.sha256.slice(0, 12) + "-")).length, 2);
+});
+
+test("path route maps an open-time ENOENT to 404", () => {
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "raven-missing-attachment-")));
+  const missing = path.join(dir, "missing.png");
+  const result = mod.handleAttachmentRequest("missing01", dir, "application/json", Buffer.from(JSON.stringify({ path: missing })));
+  assert.equal(result.status, 404);
+  assert.match(result.body.error, /not found/);
+});
+
 test("path records preserve NFC original leaf names while disk names stay ASCII", () => {
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "raven-names-")));
   const cafe = path.join(dir, "Café.png");

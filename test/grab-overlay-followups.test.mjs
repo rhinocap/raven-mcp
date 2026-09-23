@@ -180,14 +180,16 @@ for (const [input, expected, name] of [
   });
 }
 
-overlayTest('path chip renders bridge thumbnail and removal never revokes the bridge URL', async (page) => {
+overlayTest('path chip fetches one blob thumbnail across rerenders and removal revokes it', async (page) => {
   const id = 'att-with-id';
+  const gets = [];
   const pageErrors = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));
   await page.route((url) => url.pathname === '/attachment', async (route) => {
     if (route.request().method() === 'POST') {
       await route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ id, name: 'x.png', mime: 'image/png', bytes: heroBytes.length, width: 16, height: 9 }) });
     } else {
+      gets.push(route.request().url());
       await route.fulfill({ status: 200, contentType: 'image/png', body: heroBytes });
     }
   });
@@ -198,16 +200,113 @@ overlayTest('path chip renders bridge thumbnail and removal never revokes the br
     URL.revokeObjectURL = (url) => { window.revokedAttachmentUrls.push(url); revoke(url); };
   });
   await pastePath(page, '/abs/x.png');
+  await readyChip(page);
+  await page.waitForFunction(() => document.querySelector('[data-raven-grab-overlay]')?.shadowRoot?.querySelector('[data-attachment-chip][data-state="ready"] img.raven-grab-attachment-thumb')?.getAttribute('src')?.startsWith('blob:'));
   const chip = await readyChip(page);
   assert.ok(chip.thumb, 'ready chip has an img.raven-grab-attachment-thumb');
-  assert.match(chip.thumb, /\/attachment\?key=[^&]*&id=att-with-id$/);
+  assert.match(chip.thumb, /^blob:/);
   await page.waitForFunction(() => {
     const img = document.querySelector('[data-raven-grab-overlay]')?.shadowRoot?.querySelector('img.raven-grab-attachment-thumb');
     return img?.naturalWidth === 16;
   });
+  for (const instruction of ['One', 'Two', 'Three']) await typeInstruction(page, instruction);
+  assert.deepEqual(gets.map((url) => new URL(url).searchParams.get('id')), [id]);
+  assert.equal((await readyChip(page)).thumb, chip.thumb);
   await page.evaluate(() => document.querySelector('[data-raven-grab-overlay]').shadowRoot.querySelector('[data-attachment-remove]').click());
   assert.equal(await page.evaluate(() => document.querySelector('[data-raven-grab-overlay]').shadowRoot.querySelectorAll('[data-attachment-chip]').length), 0);
-  assert.deepEqual(await page.evaluate(() => window.revokedAttachmentUrls), []);
+  assert.deepEqual(await page.evaluate(() => window.revokedAttachmentUrls), [chip.thumb]);
+  assert.deepEqual(pageErrors, []);
+});
+
+overlayTest('path chip reloads with a fresh blob thumbnail without persisting a keyed URL', async (page) => {
+  const gets = [];
+  const pageErrors = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  await page.route((url) => url.pathname === '/attachment', async (route) => {
+    if (route.request().method() === 'POST') {
+      await route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ id: 'att-reload', name: 'reload.png', mime: 'image/png', bytes: heroBytes.length, width: 16, height: 9 }) });
+    } else {
+      gets.push(route.request().url());
+      await route.fulfill({ status: 200, contentType: 'image/png', body: heroBytes });
+    }
+  });
+  await selectAt(page, '#url', 8, 8);
+  await pastePath(page, '/abs/reload.png');
+  await page.waitForFunction(() => document.querySelector('[data-raven-grab-overlay]')?.shadowRoot?.querySelector('[data-attachment-chip][data-state="ready"] img.raven-grab-attachment-thumb')?.getAttribute('src')?.startsWith('blob:'));
+  const original = await readyChip(page);
+  await typeInstruction(page, 'Use this image');
+  await page.waitForFunction(() => {
+    const memo = sessionStorage.getItem('raven-grab-pending-v1');
+    return memo && JSON.parse(memo).some((entry) => entry.draft?.instruction === 'Use this image' && entry.draft.attachments[0]?.state === 'ready');
+  });
+  const memo = await page.evaluate(() => sessionStorage.getItem('raven-grab-pending-v1'));
+  assert.doesNotMatch(memo, /thumbUrl|key=/);
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => document.querySelector('[data-raven-grab-overlay]')?.shadowRoot?.querySelector('[data-attachment-chip][data-state="ready"] img.raven-grab-attachment-thumb')?.getAttribute('src')?.startsWith('blob:'));
+  const restored = await readyChip(page);
+  assert.match(restored.thumb, /^blob:/);
+  assert.notEqual(restored.thumb, original.thumb);
+  assert.equal(gets.length, 2);
+  assert.deepEqual(pageErrors, []);
+});
+
+overlayTest('a thumbnail that arrives after its chip was removed creates no blob URL', async (page) => {
+  const pageErrors = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  let releaseGet;
+  const held = new Promise((resolve) => { releaseGet = resolve; });
+  const getRequested = new Promise((resolve) => { page.on('request', (request) => { if (request.method() === 'GET' && new URL(request.url()).pathname === '/attachment') resolve(); }); });
+  await page.route((url) => url.pathname === '/attachment', async (route) => {
+    if (route.request().method() === 'POST') {
+      await route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ id: 'att-orphan', name: 'orphan.png', mime: 'image/png', bytes: heroBytes.length, width: 16, height: 9 }) });
+    } else {
+      await held;
+      await route.fulfill({ status: 200, contentType: 'image/png', body: heroBytes });
+    }
+  });
+  await page.evaluate(() => {
+    window.createdAttachmentUrls = [];
+    const create = URL.createObjectURL.bind(URL);
+    URL.createObjectURL = (blob) => { const url = create(blob); window.createdAttachmentUrls.push(url); return url; };
+  });
+  await selectAt(page, '#url', 8, 8);
+  await pastePath(page, '/abs/orphan.png');
+  await readyChip(page);
+  await getRequested;
+  await page.evaluate(() => document.querySelector('[data-raven-grab-overlay]').shadowRoot.querySelector('[data-attachment-remove]').click());
+  assert.equal(await page.evaluate(() => document.querySelector('[data-raven-grab-overlay]').shadowRoot.querySelectorAll('[data-attachment-chip]').length), 0);
+  releaseGet();
+  await page.waitForFunction(() => !document.querySelector('[data-raven-grab-overlay]').shadowRoot.querySelector('[data-attachment-chip]'));
+  await page.waitForTimeout(300);
+  assert.deepEqual(await page.evaluate(() => window.createdAttachmentUrls), []);
+  assert.deepEqual(pageErrors, []);
+});
+
+overlayTest('restored path chip shows a placeholder when its thumbnail GET is forbidden', async (page) => {
+  const gets = [];
+  const pageErrors = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  let forbid = false;
+  await page.route((url) => url.pathname === '/attachment', async (route) => {
+    if (route.request().method() === 'POST') {
+      await route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ id: 'att-forbidden', name: 'forbidden.png', mime: 'image/png', bytes: heroBytes.length, width: 16, height: 9 }) });
+    } else {
+      gets.push(route.request().url());
+      await route.fulfill(forbid ? { status: 403, contentType: 'application/json', body: '{"error":"Forbidden"}' } : { status: 200, contentType: 'image/png', body: heroBytes });
+    }
+  });
+  await selectAt(page, '#url', 8, 8);
+  await pastePath(page, '/abs/forbidden.png');
+  await page.waitForFunction(() => document.querySelector('[data-raven-grab-overlay]')?.shadowRoot?.querySelector('[data-attachment-chip][data-state="ready"] img.raven-grab-attachment-thumb')?.getAttribute('src')?.startsWith('blob:'));
+  forbid = true;
+  const forbiddenGet = page.waitForResponse((response) => new URL(response.url()).pathname === '/attachment' && response.request().method() === 'GET' && response.status() === 403);
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await forbiddenGet;
+  await readyChip(page);
+  await page.waitForFunction(() => document.querySelector('[data-raven-grab-overlay]')?.shadowRoot?.querySelector('[data-attachment-chip][data-state="ready"] span.raven-grab-attachment-thumb'));
+  const chip = await readyChip(page);
+  assert.equal(chip.thumb, undefined);
+  assert.equal(gets.length, 2);
   assert.deepEqual(pageErrors, []);
 });
 

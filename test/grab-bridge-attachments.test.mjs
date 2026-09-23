@@ -375,15 +375,19 @@ realHttpTest('multipart keeps file bytes that contain the boundary string', asyn
   });
 });
 
-realHttpTest('same bytes under two names dedupe to one inbox file', async () => {
+realHttpTest('same bytes dedupe to one inbox file only under the same name', async () => {
   await withSession(async ({ session, inbox, key }) => {
     const bytes = await readFile(path.join(fixtureDir, 'hero.png'));
     const first = await responseJson(attachmentUrl(session, key), multipart([filePart('a.png', 'image/png', bytes)]).body, { 'Content-Type': multipart([]).contentType });
     const second = await responseJson(attachmentUrl(session, key), multipart([filePart('b.png', 'image/png', bytes)]).body, { 'Content-Type': multipart([]).contentType });
-    assert.equal(first.status, 202); assert.equal(second.status, 202);
-    assert.equal(second.json.path, first.json.path, 'expected the second upload to reuse the first file');
+    const third = await responseJson(attachmentUrl(session, key), multipart([filePart('a.png', 'image/png', bytes)]).body, { 'Content-Type': multipart([]).contentType });
+    assert.equal(first.status, 202); assert.equal(second.status, 202); assert.equal(third.status, 202);
+    // The path the agent copies must carry the name the user gave, so a
+    // second name for the same bytes gets its own file.
+    assert.notEqual(second.json.path, first.json.path, 'expected a different name to get its own file');
     assert.equal(second.json.name, 'b.png', 'expected the record to keep the name the user gave');
-    assert.equal((await inboxEntries(inbox, key)).length, 1, 'expected one inbox file for one sha');
+    assert.equal(third.json.path, first.json.path, 'expected the same name and bytes to reuse the first file');
+    assert.equal((await inboxEntries(inbox, key)).length, 2, 'expected one inbox file per distinct name');
   });
 });
 
