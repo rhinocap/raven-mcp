@@ -17,11 +17,11 @@ Baseline: npm test 1730 tests, 1727 pass, 3 skipped (baseline.log).
 | L2 | gpt-5.6-terra | src/grab-bridge.ts | done, applied |
 | L3 | gpt-5.6-terra | browser/raven-grab.js (composer drop/paste/chips) | done, applied |
 | L4 | gpt-5.6-terra | browser/raven-grab.js (imageTarget) | done, applied |
-| L5 | gpt-5.6-terra | test/grab-bridge-attachments.test.mjs | running, worktree att-L5 |
-| L6 | gpt-5.6-terra | test/grab-overlay-attachments.test.mjs | running, worktree att-L6 |
+| L5 | gpt-5.6-terra | test/grab-bridge-attachments.test.mjs | done, applied (+ reader fix 1bb5053) |
+| L6 | gpt-5.6-terra | test/grab-overlay-attachments.test.mjs | done, applied (+ 2 overlay fixes cb358c0) |
 | L7 | gpt-6-sol | src/index.ts | done, applied |
 | L8 | gpt-6-sol | web/public/raven-grab.js + CHANGELOG.md | after L9 |
-| L9 | gpt-6-astra | raven-grab.js lifecycle | after L3 + L6 |
+| L9 | gpt-6-astra | raven-grab.js lifecycle | running, worktree att-L9 |
 | L10 | gpt-6-astra | adverse read-only pass | last |
 | L11 | deepseek (truncated, $0.0103) then gpt-5.6-terra | src/grab-attachments.ts + test | done, applied |
 | L12 | ow-run deepseek | fixtures | done |
@@ -43,3 +43,8 @@ Baseline: npm test 1730 tests, 1727 pass, 3 skipped (baseline.log).
 
 ## Open questions (defaults, left for Andrew)
 Q1 inbox at ~/.raven/grab-inbox (implemented). Q2 no blob live-preview in v1. Q3 cap 4 kept.
+
+## Orchestrator fixes so far (each with a test and an observed mutant)
+- 1bb5053 bridge body reader: for-await early return destroyed the request (ECONNRESET before 413). Test: oversized multipart case.
+- cb358c0 overlay: payloadForSend omitted imageTarget; img inside picture reported kind img. Test: overlay send case.
+- L6 harness: locator.click blocked by overlay host; fixture placement; one session per send.
