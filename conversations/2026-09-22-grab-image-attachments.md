@@ -138,3 +138,10 @@ Spec fdd15f5 docs/spec-grab-attachments-open-items.md. Legs in .worktrees/oi-E (
 - E applied (leg self-reported "GPT-6 Astra"; launched with -m gpt-6-luna): exact-name dedupe, parent-only realpath, open-first symlink refusal. Mutation check: with O_NOFOLLOW removed from dist, both symlink tests fail (2/9); restored by rebuild. The batch-1 bridge test "same bytes under two names dedupe to one inbox file" encoded the old behaviour and was rewritten to per-name dedupe.
 - G applied (gpt-6-luna): GrabResponse.file, createReadStream pipe in the HTTP handler, readFileSync in the sandbox shim, 4 MiB PNG streamed test. Node suites after E+G: 327/325/0/2.
 - F (gpt-6-sol) still running.
+
+### Batch 3 checkpoint (after compaction, leg F landed)
+
+- Leg F (gpt-6-sol) exit 0; diff applied to att-main and mirrored to `web/public/raven-grab.js`. Orchestrator edit: restored draft attachments filtered to `state === "ready"`.
+- Spec B premise correction: `serializeLivePending` never stored `thumbUrl` (the payload maps attachments to `{ id }`); the key leaked through `entry.endpoint = bridgeUrl("/grab")`. F stores `"/grab"` and resolves at drain; older keyed endpoints still drain verbatim. F also adds same-page composer resume for an attachment-only carried draft (one draft, first match), which is what "reload restores blob thumbs" needs.
+- Dirty, uncommitted: src/grab-bridge.ts, src/grab-inbox.ts, browser/raven-grab.js, web/public/raven-grab.js, test/grab-bridge-attachments.test.mjs, test/grab-bridge-thumb.test.mjs, test/grab-inbox-followups.test.mjs, test/grab-overlay-followups.test.mjs.
+- Next: overlay suites (`$S/oi/overlay-F.log`), node suites, live check (`node $S/oi/live-check.mjs "$S/fu/live" "$S/oi"` with the `~/Library/Caches/raven-live-check` fixture), full suite in `raven-mcp-att-final`, commit explicit paths, Opus 5.5 falsification, remove oi-* worktrees, handoff.
