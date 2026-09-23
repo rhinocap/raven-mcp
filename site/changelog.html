@@ -240,6 +240,100 @@
     
     <article class="release">
       <header class="release-head">
+        <h2>v2.6.0</h2>
+        <span class="badge badge-minor">minor</span>
+        <time datetime="2026-09-23T22:04:13Z">September 23, 2026</time>
+      </header>
+      <div class="release-body">
+        <p>Raven v2.6.0 — minor release</p>
+
+<h3>Changes</h3>
+<ul>
+<li>ae788e4 Make the tilde inbox fixture portable to the Linux release gate</li>
+<li>4762706 Log merge, push and deploy state for grab image attachments</li>
+<li>ec22ca2 Merge feat/grab-image-attachments: Grab overlay image attachments</li>
+<li>2952df0 session log: batch 3 closed at aab3fc8</li>
+<li>aab3fc8 Grab attachments: falsification fixes for the open-items batch</li>
+<li>6351006 session log: batch 3 committed as b6ff46c</li>
+<li>b6ff46c Grab attachments: stream thumbnails, fetch each once into a blob URL, exact dedupe, open-first path route</li>
+<li>5f01760 session log: batch 3 checkpoint, leg F applied</li>
+<li>fcc06c4 session log: batch 3 legs E and G applied</li>
+<li>6b55c0a session log: batch 3 legs launched</li>
+<li>fdd15f5 Spec: grab attachments open items (streamed thumbnails, one fetch per chip, exact dedupe, open-first symlink refusal)</li>
+<li>5dee518 session log: batch 2 closed</li>
+<li>ba9fbb6 Grab attachments: refuse FIFOs without blocking, map open errors, harden thumbnail headers and quoted paths</li>
+<li>ef9281a session log: batch 2 falsification dispositions</li>
+<li>0b30673 session log: batch 2 committed and verified</li>
+<li>d980422 Grab attachments: thumbnails via bridge, gradient flag, O_NOFOLLOW, original names, shell-style paths</li>
+<li>63b2229 session log: batch 2 legs A and D applied, B and C exited</li>
+<li>1112f2c session log: batch 2 legs launched</li>
+<li>f848010 docs: spec for grab attachments follow-ups (thumbnail, gradient flag, no-follow read, names, pasted paths)</li>
+<li>e45014c session log: final suite 1776/1773/0/3 at 1f2a386, handoff</li>
+<li>78b3f17 session log: Opus 5.5 falsification pass applied (1f2a386), final suite pending</li>
+<li>1f2a386 grab attachments: fixes from the Opus 5.5 falsification pass</li>
+<li>3a3a5fc session log: model-routing correction (GPT-6 tier, Opus 5.5)</li>
+<li>1dce362 grab attachments: fixes from the adverse pass</li>
+<li>473c794 grab inbox: compare path containment against the realpath of the project dir</li>
+<li>75d7651 grab overlay test: path drop writes its fixture under the session project dir</li>
+<li>718681c session log: L9/L8 applied, chip fix, live check, L10 + final suite running</li>
+<li>3dcc70b grab overlay: mirror browser/raven-grab.js to web/public; changelog entry for image attachments</li>
+<li>a8993bf grab overlay: attachment chip name/dims/error spans carry their CSS classes</li>
+<li>32e6832 grab overlay: attachment lifecycle across rebuilds, selection switches, detached drafts</li>
+<li>e315c62 session log: L9 stdin incident, pre-L9 suite result, next commands</li>
+<li>55fd9a3 session log: leg status through L6</li>
+<li>cb358c0 grab overlay: Chromium attachment tests; send payload carries imageTarget; img inside picture reports kind picture</li>
+<li>1bb5053 grab bridge: attachment tests; drain oversized bodies instead of resetting the socket before the 413</li>
+<li>5e42b47 grab attachments: magic-byte sniffers and header dimension readers (png/jpeg/webp/gif/avif/svg) with unit tests</li>
+<li>64f849a grab: agent_protocol attachment sentence, start_grab_session attachment hint; payload expectation gains attachments</li>
+<li>0aeb6e3 grab overlay: composer drop/paste attachments, chips, refusal notices, draft plumbing</li>
+<li>0689830 grab attachments: test fixtures (png/jpg/webp/gif/avif/svg/txt) + generator + manifest; session log</li>
+<li>13a8cb0 grab inbox: multipart parse, path-route validation, sha-deduped storage, 7-day prune</li>
+<li>9c70bdf grab bridge: POST /attachment, session attachments map, id expansion on queue, drain passthrough</li>
+<li>150fb95 grab overlay: imageTarget on every selection, capture background-image/object-position/aspect-ratio</li>
+<li>6d48d60 grab attachments: contract stubs for grab-attachments and grab-inbox modules</li>
+<li>74cfb7b auto-save: .claude/linear-backlog-queue.jsonl +2 more</li>
+<li>974934a Record round 52: OpenAI resubmission submitted</li>
+<li>7f00a0d Record rounds 49-51: Skills empty, Prompts measured reachable, and Sol narrows P1b</li>
+<li>5a9d1f6 auto-save: .claude/linear-backlog-queue.jsonl</li>
+<li>c4f50de Record rounds 44-48: three scanner artifacts, and P1b closed in CI</li>
+<li>51620fe Record round 43: Sol&#39;s verdict dispositioned, and the authed partition separated in both directions</li>
+<li>b934c9b Record round 42: four annotation partitions, a refuted defect, a real coverage gap</li>
+<li>c7ec300 Record round 41: the live-endpoint deploy re-verified, and the hash that could not see it</li>
+<li>295f544 Guard the stdio half of the openWorldHint partition with two mutants</li>
+<li>4c0eb7a Log rounds 36-39: the wizard audited end to end, stopping before Submit</li>
+<li>8aa3507 Assert the hosted/stdio openWorldHint split as a partition over every name</li>
+<li>fda5e5d Record the annotation reversal and close the last two submission contradictions</li>
+<li>6e73198 Record round 31: the annotation flip, its push, and the in-transition deploy measurement</li>
+<li>2f0bba9 Publish openWorldHint: true on the four hosted tools that render a caller-supplied URL</li>
+<li>2ea73be Log rounds 26-28 and correct two stale annotation rows in SUBMISSION.md</li>
+<li>83e55c1 Log round 24: the anon-hash re-check, and Sol r22 breaking the amended wizard claim</li>
+<li>1fc6b96 auto-save: .claude/linear-backlog-queue.jsonl +1 more</li>
+<li>4f22b3e Log rounds 22-23: Sol returned REFUTED on the wizard claim; both P1s closed</li>
+<li>633238c Log the Submit screen audit: release notes claimed &#39;First submission&#39;</li>
+<li>80b6610 Log round 21: the wizard&#39;s negative test cases, one refuted by a live SVG</li>
+<li>a16f59d Log round 20: the rest of the OpenAI wizard audited and two defects fixed</li>
+<li>2f24f00 Record the wizard justification audit and its instrument error</li>
+<li>7f17714 Record the post-push frozen-surface measurement</li>
+<li>4ef47d5 Narrow the preflight credential claim after the falsification pass</li>
+<li>7348784 Record the preflight run and disposition the C3 and C6 findings</li>
+<li>2d9268d Validate release credentials in their own job, and guard the gate list against drift</li>
+<li>e540e68 Record the durable Vercel token replacing the expiring CLI credential</li>
+<li>b1aca39 Fail closed when the published shasum cannot be read back</li>
+<li>14ce959 Update changelog for v2.5.1</li>
+</ul>
+
+<p><strong>Install:</strong> <code>claude mcp add raven -- npx -y raven-mcp@latest</code></p>
+<p><strong>Claude Desktop:</strong> <a href="https://ravenmcp.ai/raven.mcpb">download raven.mcpb</a></p>
+
+
+      </div>
+      <footer class="release-foot">
+        <a href="https://github.com/rhinocap/raven-mcp/releases/tag/v2.6.0" target="_blank" rel="noopener">View on GitHub &rarr;</a>
+      </footer>
+    </article>
+
+    <article class="release">
+      <header class="release-head">
         <h2>v2.5.1</h2>
         <span class="badge badge-major">major</span>
         <time datetime="2026-08-22T23:28:56Z">August 22, 2026</time>
