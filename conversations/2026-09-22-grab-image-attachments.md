@@ -135,3 +135,6 @@ Verdict: "Claim fails" on three points; all three fixed, each with the test obse
 ## Batch 3: open items (2026-09-23)
 
 Spec fdd15f5 docs/spec-grab-attachments-open-items.md. Legs in .worktrees/oi-E (gpt-6-luna: inbox dedupe + open-first symlink), oi-F (gpt-6-sol: overlay blob hydrate + memo without thumbUrl), oi-G (gpt-6-luna: streamed GET /attachment). Logs in scratchpad oi/L{E,F,G}.log. Live check extended (scratchpad oi/live-check.mjs): counts GET /attachment per chip, reloads, screenshots chips after reload. Next: read diffs, apply, build, mirror, suites, live check, mutation check for D, full suite in sibling worktree, commit, Opus 5.5 falsification.
+- E applied (leg self-reported "GPT-6 Astra"; launched with -m gpt-6-luna): exact-name dedupe, parent-only realpath, open-first symlink refusal. Mutation check: with O_NOFOLLOW removed from dist, both symlink tests fail (2/9); restored by rebuild. The batch-1 bridge test "same bytes under two names dedupe to one inbox file" encoded the old behaviour and was rewritten to per-name dedupe.
+- G applied (gpt-6-luna): GrabResponse.file, createReadStream pipe in the HTTP handler, readFileSync in the sandbox shim, 4 MiB PNG streamed test. Node suites after E+G: 327/325/0/2.
+- F (gpt-6-sol) still running.
