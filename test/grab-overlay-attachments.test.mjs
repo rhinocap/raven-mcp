@@ -78,7 +78,7 @@ async function withOverlay(fn, hostPage = HOST_PAGE) {
     const page = await browser.newPage();
     await page.goto(session.url + '/', { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => Boolean(document.querySelector('[data-raven-grab-overlay]')?.shadowRoot), null, { timeout: 15000 });
-    return await fn(page, session);
+    return await fn(page, session, fixtureDir);
   } finally {
     if (browser) await browser.close();
     await bridge.stopGrabSession();
@@ -189,9 +189,13 @@ test('paste with clipboardData.files', async (t) => {
 
 test('text/plain drop of an absolute path to hero.png', async (t) => {
   try {
-    await withOverlay(async (page) => {
+    await withOverlay(async (page, _session, projectDir) => {
+      // The path route accepts files under the home directory or the session's
+      // project directory; a checkout outside both must not fail the test.
+      const projectHero = path.join(projectDir, 'hero.png');
+      writeFileSync(projectHero, readFileSync(heroPath));
       await select(page, '#image-a');
-      await transfer(page, 'drop', { bytes: null, text: heroPath });
+      await transfer(page, 'drop', { bytes: null, text: projectHero });
       const chip = await readyChip(page);
       assert.deepEqual({ name: chip.name, dims: chip.dims }, { name: 'hero.png', dims: '16×9' });
       assert.equal(await page.evaluate(() => document.querySelector('[data-raven-grab-overlay]').shadowRoot.querySelector('[data-instruction]').value), '');
