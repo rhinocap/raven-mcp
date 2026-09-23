@@ -145,3 +145,10 @@ Spec fdd15f5 docs/spec-grab-attachments-open-items.md. Legs in .worktrees/oi-E (
 - Spec B premise correction: `serializeLivePending` never stored `thumbUrl` (the payload maps attachments to `{ id }`); the key leaked through `entry.endpoint = bridgeUrl("/grab")`. F stores `"/grab"` and resolves at drain; older keyed endpoints still drain verbatim. F also adds same-page composer resume for an attachment-only carried draft (one draft, first match), which is what "reload restores blob thumbs" needs.
 - Dirty, uncommitted: src/grab-bridge.ts, src/grab-inbox.ts, browser/raven-grab.js, web/public/raven-grab.js, test/grab-bridge-attachments.test.mjs, test/grab-bridge-thumb.test.mjs, test/grab-inbox-followups.test.mjs, test/grab-overlay-followups.test.mjs.
 - Next: overlay suites (`$S/oi/overlay-F.log`), node suites, live check (`node $S/oi/live-check.mjs "$S/fu/live" "$S/oi"` with the `~/Library/Caches/raven-live-check` fixture), full suite in `raven-mcp-att-final`, commit explicit paths, Opus 5.5 falsification, remove oi-* worktrees, handoff.
+
+### Batch 3 committed: b6ff46c
+
+- Orchestrator fix on top of leg F: `hydrateAttachmentThumb` skipped chips no longer owned by any draft (a detached draft carried and dropped mid-hydrate leaked a blob URL; found by the batch-1 lifecycle test "active multi-select draft detached during upload keeps its context in the carried attachment"), and hydrate now runs before persist/render in `attachmentRecordFromResponse`. Regression test "a thumbnail that arrives after its chip was removed creates no blob URL" fails without the guard (mutation check).
+- Suites: overlay 36/36/0/0; node bridge+inbox 321/319/0/2; live check four chips blob thumbs before and after reload, one GET per chip each side, memo has no key, direct GET 200 image/png no-store, unknown id 404, no page errors; full suite in raven-mcp-att-final 1804/1801/0/3 (was 1798/1795/0/3).
+- Leg worktrees oi-E/F/G removed after their diffs were saved to the scratchpad. Sibling raven-mcp-att-final kept until the falsification pass closes.
+- Falsification: claude-opus-5-5 report-only on b6ff46c, log `$S/oi/opus55.log`.
