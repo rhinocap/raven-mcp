@@ -64,3 +64,6 @@ Q1 inbox at ~/.raven/grab-inbox (implemented). Q2 no blob live-preview in v1. Q3
 - 1bb5053 bridge body reader: for-await early return destroyed the request (ECONNRESET before 413). Test: oversized multipart case.
 - cb358c0 overlay: payloadForSend omitted imageTarget; img inside picture reported kind img. Test: overlay send case.
 - L6 harness: locator.click blocked by overlay host; fixture placement; one session per send.
+
+## Correction (Andrew, 2026-09-23)
+- "Why are you using 5.6 terra, you should be using GPT 6 terra. Also, Opus 5.5 is out, we should use it too." Legs L1–L6, L11 ran on gpt-5.6-terra; lesson: codex legs default to the GPT-6 tier. Probe on codex 0.156.1: gpt-6-terra not supported on the ChatGPT account; gpt-6-sol and gpt-6-astra are. claude-opus-5-5 needs Claude Code ≥ 2.1.280 (installed 2.1.278). Memory: feedback-legs-on-gpt6-tier-and-opus-5-5.
