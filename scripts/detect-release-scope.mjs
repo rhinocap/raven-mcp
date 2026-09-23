@@ -3,6 +3,13 @@
 // should be. Emits GitHub Actions outputs: released, resume, explicit_resume,
 // resume_version, bump, version, notes.
 //
+// `notes` is the GitHub Release body AND the release email. It is built from
+// CHANGELOG.md's `## [Unreleased]` block by scripts/release-notes.mjs, never
+// from commit subjects: v2.6.0 shipped a Release body and an email carrying
+// ~70 raw commit subjects because the previous fallback was `git log` whenever
+// no merged PR existed, and this repo ships by direct push. A minor or major
+// release with an empty [Unreleased] block fails here, before anything is cut.
+//
 // Bump rules:
 //   - INPUT_BUMP explicit (major|minor|patch)  → use that
 //   - Any merged PR labelled `breaking` or `major` → major
@@ -22,7 +29,25 @@
 // changelog commit.
 
 import { execSync, spawnSync } from "node:child_process";
+import { bumpFromVersion, releaseNotesFor } from "./release-notes.mjs";
 import { readFileSync, appendFileSync } from "node:fs";
+
+// A resume re-runs the tail (Release body, email) for a version that already
+// exists, and the previous run's changelog commit may already have emptied
+// [Unreleased] — so the notes come from the promoted `## [version]` block
+// (releaseNotesFor reads that first). v2.6.0's resume set no `notes` output at
+// all, so the Release step fell through to `--generate-notes` and the notify
+// job read ~70 commit subjects back off the Release. A resume never throws on
+// empty notes: the release exists, and an empty output is what the Release
+// step checks for.
+function resumeNotes(version) {
+  try {
+    return releaseNotesFor(version, bumpFromVersion(version), readFileSync("CHANGELOG.md", "utf8"));
+  } catch (err) {
+    console.log(`No curated notes for v${version} on resume (${err.message}); notes output left empty.`);
+    return "";
+  }
+}
 
 function sh(cmd) {
   return execSync(cmd, { encoding: "utf8", stdio: ["pipe", "pipe", "inherit"] }).trim();
@@ -131,6 +156,7 @@ if (rawInput) {
   setOutput("resume", "true");
   setOutput("explicit_resume", "true");
   setOutput("resume_version", explicitResume);
+  setOutput("notes", resumeNotes(explicitResume));
   process.exit(0);
 }
 
@@ -179,17 +205,22 @@ const resumeVersion = lastTag.replace(/^v/, "");
 // The question the resume actually turns on is whether main's tree differs from
 // the tag's tree in anything releasable, and `git diff --name-only` answers
 // exactly that, for any number of commits and for merge commits alike.
-// `site/changelog.html` is the only path the tail itself writes after the tag
-// (`.github/workflows/release.yml`, "Commit changelog + push"), and CHANGELOG.md
-// is written by `release.sh` BEFORE the tag so it never appears in this range —
-// it is listed anyway so a reordering upstream degrades to a resume rather than
-// to a spurious cut.
+// The three paths below are exactly what the tail itself writes AFTER the tag
+// (`.github/workflows/release.yml`, "Promote changelog" then "Commit changelog +
+// push"): CHANGELOG.md gets its `## [X.Y.Z]` heading, web/data/changelog.json
+// gets the apex /changelog entry, and site/changelog.html is rebuilt from the
+// GitHub Release. A range holding nothing else is that tag's own changelog
+// commit, and re-running against it is a resume, not a new version.
 //
 // An EMPTY changed-path set with a non-empty commit range (an empty commit, or
 // commits that cancel out) is vacuously true here, and that is correct rather
 // than an oversight: the tree is identical to the tag's, which is the resume
 // state seen at its most unambiguous.
-const RESUME_SAFE_PATHS = new Set(["site/changelog.html", "CHANGELOG.md"]);
+const RESUME_SAFE_PATHS = new Set([
+  "site/changelog.html",
+  "CHANGELOG.md",
+  "web/data/changelog.json",
+]);
 const changedSinceTag = lastTag
   ? sh(`git diff --name-only ${lastTag} HEAD`).split("\n").filter(Boolean)
   : [];
@@ -208,6 +239,7 @@ if (lastTag && (commits.length === 0 || onlyChangelog)) {
   setOutput("resume", "true");
   setOutput("explicit_resume", "false");
   setOutput("resume_version", resumeVersion);
+  setOutput("notes", resumeNotes(resumeVersion));
   process.exit(0);
 }
 
@@ -272,43 +304,18 @@ if (bump === "major") nextVersion = `${maj + 1}.0.0`;
 else if (bump === "minor") nextVersion = `${maj}.${min + 1}.0`;
 else nextVersion = `${maj}.${min}.${pat + 1}`;
 
-// Build release notes from merged PR titles grouped by label.
-const groups = {
-  breaking: [],
-  feature: [],
-  fix: [],
-  knowledge: [],
-  other: [],
-};
-for (const pr of mergedPRs) {
-  const labels = pr.labels.map((l) => l.name.toLowerCase());
-  const line = `- ${pr.title} (#${pr.number})`;
-  if (labels.includes("breaking") || labels.includes("major")) groups.breaking.push(line);
-  else if (labels.includes("feature") || labels.includes("minor")) groups.feature.push(line);
-  else if (labels.includes("bug") || labels.includes("fix")) groups.fix.push(line);
-  else if (labels.includes("knowledge-request") || labels.includes("drafted") || /^knowledge\//.test(pr.title.toLowerCase())) groups.knowledge.push(line);
-  else groups.other.push(line);
-}
-const sections = [];
-if (groups.breaking.length) sections.push(`### Breaking\n${groups.breaking.join("\n")}`);
-if (groups.feature.length) sections.push(`### Features\n${groups.feature.join("\n")}`);
-if (groups.knowledge.length) sections.push(`### New design knowledge\n${groups.knowledge.join("\n")}`);
-if (groups.fix.length) sections.push(`### Fixes\n${groups.fix.join("\n")}`);
-if (groups.other.length) sections.push(`### Changes\n${groups.other.join("\n")}`);
-if (sections.length === 0) {
-  sections.push(`### Changes\n${commits.map((c) => `- ${c}`).join("\n")}`);
+// Release notes come from CHANGELOG.md's [Unreleased] block, curated by hand.
+// Merged PRs above decide only the BUMP; they never become notes text, and the
+// commit list never does either.
+let notes;
+try {
+  notes = releaseNotesFor(nextVersion, bump, readFileSync("CHANGELOG.md", "utf8"));
+} catch (err) {
+  console.error(`::error::${err.message}`);
+  process.exit(1);
 }
 
-const notes = [
-  `Raven v${nextVersion} — ${bump} release`,
-  "",
-  sections.join("\n\n"),
-  "",
-  "**Install:** `claude mcp add raven -- npx -y raven-mcp@latest`",
-  "**Claude Desktop:** [download raven.mcpb](https://ravenmcp.ai/raven.mcpb)",
-].join("\n");
-
-console.log(`Releasing v${nextVersion} (${bump}) — ${mergedPRs.length} PRs, ${commits.length} commits.`);
+console.log(`Releasing v${nextVersion} (${bump}) — notes from CHANGELOG.md [Unreleased] (${commits.length} commits since ${lastTag || "the start"}).`);
 setOutput("released", "true");
 setOutput("resume", "false");
 setOutput("explicit_resume", "false");

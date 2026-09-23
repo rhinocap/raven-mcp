@@ -2,9 +2,11 @@
 
 All notable changes to Raven MCP are documented here. Format follows [Keep a Changelog](https://keepachangelog.com). This project adheres to [Semantic Versioning](https://semver.org).
 
-The public web changelog at [ravenmcp.ai/changelog.html](https://ravenmcp.ai/changelog.html) is the authoritative source — this file mirrors it for offline reading and downstream packagers.
+This file is the curated source. Notes for the next release are written under `[Unreleased]` as they land; the release pipeline promotes that block into the version heading, the GitHub Release body, the release email, and the public changelog at [ravenmcp.ai/changelog](https://ravenmcp.ai/changelog).
 
 ## [Unreleased]
+
+## [2.6.0] - 2026-09-23
 
 ### Added
 - The Grab overlay accepts image attachments dropped or pasted into the composer: PNG, JPEG, WebP, GIF, SVG, and AVIF files up to 25 MiB each, with up to four per send. It also accepts an absolute image path. The bridge stores attachments under `~/.raven/grab-inbox` (`RAVEN_GRAB_INBOX` overrides the location) and prunes inboxes older than seven days when a session starts. Each selection carries an `imageTarget` block with its kind (`img`, `picture`, `background`, `svg`, or `video-poster`), `currentSrc`, `srcset`, `sources`, natural and rendered size, and `object-fit`. `get_grabbed_elements` returns `attachments[]` with absolute paths and `imageTarget`; `agent_protocol` tells the agent how to apply a replacement. The bridge adds `POST /attachment` for multipart uploads or a JSON path. Attachments are available through the bridge only; hosted endpoints refuse them.

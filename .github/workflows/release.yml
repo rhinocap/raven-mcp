@@ -312,7 +312,7 @@ jobs:
       # is only as good as the detector's classification. An AUTOMATIC resume is
       # entered when main carries zero commits since the tag, or when
       # `git diff --name-only <tag> HEAD` shows nothing outside
-      # `site/changelog.html` / `CHANGELOG.md` -- a CONTENT comparison, so the
+      # `site/changelog.html` / `CHANGELOG.md` / `web/data/changelog.json` -- a CONTENT comparison, so the
       # tracked bundle in this checkout provably IS the released one and
       # rebuilding it buys nothing. That argument was FALSE for one round while
       # the detector classified by commit SUBJECT: a commit titled
@@ -444,6 +444,20 @@ jobs:
             fi
           fi
 
+      # Promote CHANGELOG.md's [Unreleased] block to `## [X.Y.Z]` and prepend the
+      # same entry to web/data/changelog.json, which is what the apex /changelog
+      # page reads. Before this step existed the apex page stayed on the previous
+      # release forever (v2.6.0 shipped with /changelog still showing v2.5.0),
+      # because the deploy below only rebuilt site/changelog.html from the
+      # GitHub Release. Idempotent: a resume finds the heading already present
+      # and writes nothing.
+      - name: Promote CHANGELOG.md + changelog.json
+        if: steps.release.outputs.released == 'true' || steps.release.outputs.resume == 'true'
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          BUMP: ${{ steps.release.outputs.bump }}
+        run: node scripts/promote-changelog.mjs --version "$VERSION" ${BUMP:+--bump "$BUMP"}
+
       - name: Rebuild changelog page
         if: steps.release.outputs.released == 'true' || steps.release.outputs.resume == 'true'
         env:
@@ -455,7 +469,7 @@ jobs:
         env:
           VERSION: ${{ steps.ver.outputs.version }}
         run: |
-          git add site/changelog.html
+          git add CHANGELOG.md web/data/changelog.json site/changelog.html
           if ! git diff --cached --quiet; then
             git commit -m "Update changelog for v$VERSION"
             git push

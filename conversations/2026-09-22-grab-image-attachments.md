@@ -247,3 +247,53 @@ Spec:
 7. `test/release-notes.test.mjs`; full suite from 1811/1808/0/3.
 
 Not authorized in this turn: pushing main, apex deploy, workflow dispatch, `gh release edit v2.6.0`, any email send.
+
+Design refinements before the first edit (post-compaction checkpoint):
+- Notes body = the `[Unreleased]` sections verbatim; `### Added/Changed/Fixed` map to the email's uppercase labels through the existing h3 handling. No git log anywhere.
+- `web/data/changelog.json` `changes[]` are plain text (ChangelogFeed renders raw strings), so bold/backticks/links are stripped from each bullet's lead paragraph; continuation paragraphs stay out of the entry.
+- Entry meta comes from an optional `<!-- web: category=… kind=… title="…" -->` line under `## [Unreleased]`; kind defaults major→new, minor→feature, patch→fix; category defaults tooling. The comment is stripped from the Release body and from the promoted CHANGELOG.md section.
+- A patch with an empty `[Unreleased]` promotes nothing (both files unchanged, matching v2.5.1's absence) and gets a short maintenance body. A minor/major with an empty block fails the detector with `::error::`.
+- `renderNotes` moves into `scripts/release-notes.mjs` so it is testable; `notify-release.mjs` imports it.
+- Promote CLI derives the bump from the version when `--bump` is absent (a resume has no bump output).
+
+### Checkpoint (post-compaction, decision 2 in progress)
+
+- Created `scripts/release-notes.mjs` (parse/promote/render module) and `scripts/promote-changelog.mjs` (CLI).
+- Patched `scripts/detect-release-scope.mjs` (notes from CHANGELOG.md via `releaseNotesFor`; commit-subject fallback deleted; RESUME_SAFE_PATHS gains `web/data/changelog.json`; false :182–186 comment rewritten), `scripts/notify-release.mjs` (imports `escapeHtml`/`renderNotesHtml`; local copies deleted; link → `/changelog`), `.github/workflows/release.yml` (new "Promote CHANGELOG.md + changelog.json" step before the rebuild; `git add` covers all three files).
+- Ran `promote-changelog --version 2.6.0 --bump minor --date 2026-09-23`: CHANGELOG.md now has `## [2.6.0]`, changelog.json has the v2.6.0 entry (16 changes, kind feature). Second run found the CLI erroring on "[Unreleased] is empty" — resume idempotence bug; fixed by checking the version heading before the empty check. Re-run reports "already carry this release".
+- CHANGELOG.md line 5 rewritten: this file is the curated source; link → `https://ravenmcp.ai/changelog`.
+- Next: `test/release-notes.test.mjs`, `npm run check:site`, `npm run marketing:preview`, full suite, commit by pathspec. No push, no apex deploy, no email, no `gh release edit`.
+
+## Checkpoint 2026-09-23 — decision 2 (curated release notes), tests green
+
+- `test/release-notes.test.mjs` written: 13 tests, 13 pass after loosening the issue linker in `scripts/release-notes.mjs` (`(^|[\s(])#N` so `(#123)` links).
+- `lastTag` in detect-release-scope.mjs verified defined before the log line.
+- Next: `npm run check:site`, `npm run marketing:preview`, full suite (`RAVEN_NO_USAGE_LOG=1 npm test`, baseline 1811/1808/0/3 + 13), commit by pathspec, Opus falsification pass. No push, no apex deploy, no Release edit, no email without approval.
+
+## Checkpoint 2026-09-23 — decision 2, full suite green, Opus pass in flight
+
+- Full suite (`RAVEN_NO_USAGE_LOG=1 npm test`, log `$SP/full-suite-release-notes.log`): 1824 tests / 1821 pass / 0 fail / 3 skipped, `EXIT=0` read from inside the log. +13 over the 1811/1808/0/3 baseline is exactly `test/release-notes.test.mjs`.
+- `npm run check:site` → FAIL on one pre-existing item: COVERAGE, `web/components/tools/ToolsSection.tsx` lacks `design_gauntlet` (file last touched 2026-08-12, not in this diff). CHANGELOG section (CHANGELOG.md top `## [2.6.0]` == changelog.json `v2.6.0`) and BUNDLE (v2.6.0) both PASS. Not fixed — out of scope.
+- `npm run marketing:preview` is not a check: it spawns codex, a worktree, `npm run build` and `next dev` and never exits. Started by mistake in a chained command, stopped; no leftover processes; pre-existing worktrees untouched.
+- Opus (`claude-opus-5-5`) report-only falsification pass launched on the uncommitted diff.
+- Remaining: disposition Opus findings, commit by pathspec (9 files) with the session trailer, report "committed locally, not yet pushed". No push, no apex deploy, no `gh release edit`, no email without approval.
+
+## Opus falsification result (decision 2, pre-commit) — DOES NOT SURVIVE
+
+P2 findings and dispositions:
+1. Live state (apex /changelog at v2.5.0, v2.6.0 Release body = commit subjects) — expected, nothing pushed; approval-gated follow-ups.
+2. Resume path never computes curated notes (`--generate-notes`) and never replaces a non-empty body — FIX: detector sets `notes` on both resume exits from the promoted `## [X]` block (or `[Unreleased]` if not yet promoted); existing non-empty body still untouched on resume — documented narrowing (public-Release rewrite stays a human `gh release edit`).
+3. Stub-only `[Unreleased]` (`### Added` with no bullets) passes the minor guard — FIX: guard on `bullets.length`, test.
+4. Half-promoted (md heading present, json lacks version) throws — FIX: back-fill json from the promoted block, test.
+5. Explicit resume of an older version misfiles current `[Unreleased]` — FIX: refuse when version < top dated heading, test.
+
+P3: CRLF normalise (fix), `#N`/links inside code spans (fix: placeholder code spans), nested bullets / h3 backticks / href scheme (accepted: curated input), raw `version` to promoteChangelogMd (fix: strip `v`), weak "never reads git" regex + vacuous assertion (fix), check:site design_gauntlet gap (pre-existing, report only).
+
+## Checkpoint 2026-09-23 — Opus P2/P3 fixes applied, unit suite green, full suite running
+
+- `scripts/release-notes.mjs`: `normalize()` (CRLF→LF), `parseReleaseBlock()`, `topReleasedVersion()`, `compareVersions()`; `releaseNotesFor` reads the promoted `## [X.Y.Z]` block when `[Unreleased]` is empty (resume) and refuses a minor/major on `bullets.length === 0` (a stub heading is not notes); `promoteChangelog` back-fills changelog.json from the promoted block on a half-done resume and refuses to file `[Unreleased]` under a version older than the top dated heading; `inline()` renders code spans first so `#N`/links inside them stay literal; link href restricted to `https?://`; `v` prefix stripped at every entry.
+- `scripts/detect-release-scope.mjs`: `resumeNotes()` sets the `notes` output on both resume exits (explicit and implicit).
+- `test/release-notes.test.mjs`: 18 tests / 18 pass / 0 fail. New: promoted-block preference on resume + `v` strip, CRLF, half-done resume back-fill, older-version refusal, code-span linking; "never reads git" now scans comment-stripped source and pins both detector resume exits to `resumeNotes(`.
+- `node scripts/promote-changelog.mjs --version 2.6.0 --bump minor` on the real tree: "already carry this release — nothing to do (resume)", no writes. `releaseNotesFor("2.6.0","minor", CHANGELOG.md)` yields the curated 2.6.0 block, not commit subjects.
+- Full suite running to `$SP/full-suite-release-notes-r2.log` (expect 1829/1826/0/3, EXIT=0).
+- Next: read the suite log, commit the 9 files by pathspec, report "committed locally, not yet pushed". No push, no apex deploy, no `gh release edit`, no email without approval.
