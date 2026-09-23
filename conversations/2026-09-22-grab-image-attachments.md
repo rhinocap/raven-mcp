@@ -181,3 +181,11 @@ Verdict: "Claim fails" (stored drafts still carried inbox paths with 32 bits of 
 - Merge commit ec22ca2 on main; full suite on main 1811/1808/0/3; pushed 974934a..ec22ca2, origin/main = ec22ca2. Feature branch and worktrees removed.
 - Vercel `site` production deployment site-d80zb8tvt Ready (43s), alias mcp.ravenmcp.ai. Post-push anon `tools/list`: 45 tools, hash f64bb18…2bb0a6 unchanged.
 - https://ravenmcp.ai/raven-grab.js still serves the pre-merge overlay (794426 B, last-modified 2026-09-12, 0 × `hydrateAttachmentThumb`; repo mirror 820422 B, 4 ×). Apex is the `web` project, no git integration; it only moves on `cd web && vercel deploy --prod`. Not run: a separate prod deploy needing its own approval. Local bridges serve `browser/raven-grab.js` directly, so the npm/stdio path carries the new overlay once released; npm untouched (still 2.5.1).
+
+### Web deploy, npm question, release attempt (2026-09-23)
+
+- Andrew: "Deploy web". `cd web && vercel deploy --prod --yes` → deployment web-mktn3kvk5, aliased to https://ravenmcp.ai, EXIT=0. https://ravenmcp.ai/raven-grab.js now 820422 B and `cmp`-identical to `browser/raven-grab.js`.
+- Andrew: "WE need to deploy to NPM too right?" — yes; npm was still 2.5.1 and the stdio/local bridge path only carries the new overlay once released. Recommended a minor bump.
+- Andrew: "release minor". Dispatched `gh workflow run release.yml --field bump=minor` (the guard blocks `-f`). Run 35924157062 (headSha 4762706) FAILED at "Run tests (release gate)" before any publish: CI suite 1811 tests / 1807 pass / 1 fail / 3 skipped. npm still 2.5.1, tags v2.5.0/v2.5.1 only, origin/main = 4762706.
+- Sole failure: `path route expands ~/ inside home but containment still refuses ~/../` in `test/grab-inbox-followups.test.mjs:105`. The fixture is `fs.mkdtempSync(path.join(os.homedir(), "Library", "Caches", "raven-tilde-test-"))`; `~/Library/Caches` exists only on macOS, so the ubuntu runner throws `ENOENT … mkdtemp '/home/runner/Library/Caches/raven-tilde-test-XXXXXX'`. Test-only defect; `src/grab-inbox.ts` unchanged.
+- Fix: create the fixture directly under `os.homedir()` (`.raven-tilde-test-` prefix), keep the `relative.startsWith("..") === false` precondition. Then full suite locally, commit, push main (test-only; anon surface unaffected), re-dispatch bump=minor.

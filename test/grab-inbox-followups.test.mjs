@@ -104,8 +104,10 @@ test("path records preserve NFC original leaf names while disk names stay ASCII"
 
 test("path route expands ~/ inside home but containment still refuses ~/../", () => {
   // The fixture lives under a temp dir inside $HOME and the project dir is a
-  // different temp dir, so only home containment can accept the path.
-  const homeDir = fs.mkdtempSync(path.join(os.homedir(), "Library", "Caches", "raven-tilde-test-"));
+  // different temp dir, so only home containment can accept the path. It sits
+  // directly under the home directory: ~/Library/Caches exists only on macOS and
+  // the release gate runs on Linux.
+  const homeDir = fs.mkdtempSync(path.join(os.homedir(), ".raven-tilde-test-"));
   const projectDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "raven-tilde-project-")));
   try {
     const file = path.join(homeDir, "hero.png");
