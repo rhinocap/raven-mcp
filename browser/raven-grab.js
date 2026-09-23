@@ -4243,6 +4243,7 @@
   function revokeAttachmentThumb(attachment) {
     if (attachment && attachment.thumbUrl && window.URL && typeof window.URL.revokeObjectURL === "function") {
       window.URL.revokeObjectURL(attachment.thumbUrl);
+      attachment.thumbUrl = null;
     }
   }
 
@@ -4302,6 +4303,7 @@
     if (file.size > 25 * 1024 * 1024) { attachmentNoticeNow((file.name || "File") + " is over 25 MiB"); return; }
     var chip = { id: "local-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8), name: file.name || "image", mime: mime, bytes: file.size, width: null, height: null, path: null, origin: origin, state: "uploading", error: "", thumbUrl: window.URL.createObjectURL(file) };
     attachmentDraft.push(chip);
+    serializeLivePending(); // Capture full selection context before an upload can outlive its target.
     syncSendButtonDisabled();
     renderPanel();
     var form = new FormData();
@@ -4326,6 +4328,7 @@
     var name = text.replace(/^file:\/\//, "").split("/").pop() || "image";
     var chip = { id: "local-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8), name: name, mime: "", bytes: null, width: null, height: null, path: text, origin: "path", state: "uploading", error: "", thumbUrl: null };
     attachmentDraft.push(chip);
+    serializeLivePending(); // Capture full selection context before an upload can outlive its target.
     syncSendButtonDisabled(); renderPanel();
     fetch(bridgeUrl("/attachment"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path: text, origin: "path" }) }).then(function (response) {
       if (response.status !== 202) return bridgeAttachmentError(response).then(function (message) { throw new Error(message || ("Bridge returned " + response.status)); });
@@ -4643,6 +4646,7 @@
   function dropStyleDraft(draft, restore) {
     if (!draft) return;
     if (restore) restoreStyleDraftPreview(draft);
+    (draft.attachments || []).forEach(revokeAttachmentThumb);
     if (styleDrafts[draft.clientKey] === draft) delete styleDrafts[draft.clientKey];
     if (activeStyleDraftKey === draft.clientKey) clearActiveStyleDraftState();
     // Clear the rescue snapshot LAST, and unconditionally. Every route out of a
@@ -4706,7 +4710,8 @@
       tokenIntents: Object.keys(ctx.tokenIntents || {}).map(function (key) { return scopedIntentForSend(ctx.tokenIntents[key], ctx.target, ctx); }),
       styleEdits: styleEditsForSend(ctx.styleEdits).map(function (intent) { return scopedIntentForSend(intent, ctx.target, ctx); }),
       stateStyleEdits: stateStyleEditsForSend(ctx.stateStyleEdits).map(function (intent) { return scopedIntentForSend(intent, ctx.target, ctx); }),
-      instruction: ctx.instructionDraft || ""
+      instruction: ctx.instructionDraft || "",
+      attachments: (ctx.attachments || []).filter(function (attachment) { return attachment.state === "ready"; }).map(function (attachment) { return { id: attachment.id }; })
     };
     if (ctx.textEdit && ctx.textEdit.newText !== ctx.textEdit.oldText) {
       edits.textEdit = { oldText: ctx.textEdit.oldText, newText: ctx.textEdit.newText };
@@ -4728,7 +4733,7 @@
   }
 
   function carryDetachedDraft(draft) {
-    if (!draft) return false;
+    if (!draft || !rowsForStyleDraft(draft, false).length) return false;
     var entry = lastConnectedPending[draft.clientKey];
     if (!entry) return false;
     entry = freshenedCarryEntry(entry, draft);
@@ -4748,6 +4753,7 @@
   // bug would have looked half-fixed and intermittent.
   function sweepStaleStyleDrafts() {
     localStyleDrafts().forEach(function (draft) {
+      if ((draft.attachments || []).some(function (attachment) { return attachment.state === "uploading"; })) return;
       if (!draft.target) { carryDetachedDraft(draft); dropStyleDraft(draft, true); return; }
       if (draft.target.isConnected === false && !draftAwaitingReconnect(draft)) {
         carryDetachedDraft(draft);
@@ -4773,6 +4779,7 @@
     clearActiveStyleDraftState();
     localStyleDrafts().forEach(function (draft) {
       if (restore) restoreStyleDraftPreview(draft);
+      (draft.attachments || []).forEach(revokeAttachmentThumb);
       delete styleDrafts[draft.clientKey];
     });
   }
@@ -9240,14 +9247,22 @@
     if (live.indexOf(selectedElement) === -1) selectedElement = live.length ? live[live.length - 1] : null;
     if (selectionAnchor && selectionAnchor.isConnected === false) selectionAnchor = selectedElement;
     if (previousPrimary !== selectedElement) {
-      // Detached-primary work is explicit cancellation: restore/drop its active
-      // or stored preview before promoting a fallback. A same-selector replacement
-      // is a different element and must never inherit this draft.
+      // Preserve attachment work in the tray before promoting a fallback.
+      // A same-selector replacement is a different element and must never
+      // inherit this draft.
       if (previousPrimary && previousPrimary.isConnected === false) {
         var detachedActiveDraft = previousActiveDraft;
-        if (detachedActiveDraft && detachedActiveDraft.target === previousPrimary) dropStyleDraft(detachedActiveDraft, true);
+        if (detachedActiveDraft && detachedActiveDraft.target === previousPrimary) {
+          if ((detachedActiveDraft.attachments || []).length) {
+            styleDrafts[detachedActiveDraft.clientKey] = detachedActiveDraft;
+            clearActiveStyleDraftState(true);
+          } else dropStyleDraft(detachedActiveDraft, true);
+        }
         var detachedStoredDraft = styleDraftForElement(previousPrimary);
-        if (detachedStoredDraft) dropStyleDraft(detachedStoredDraft, true);
+        if (detachedStoredDraft && !(detachedStoredDraft.attachments || []).some(function (attachment) { return attachment.state === "uploading"; })) {
+          carryDetachedDraft(detachedStoredDraft);
+          dropStyleDraft(detachedStoredDraft, true);
+        }
         resetSelectionLocalContext();
       }
       currentSelection = selectedElement ? selectionFor(selectedElement) : null;
@@ -11062,9 +11077,16 @@
     return counts;
   }
 
+  function hasUploadingAttachments() {
+    return allStyleDrafts().some(function (draft) {
+      return (draft.attachments || []).some(function (attachment) { return attachment.state === "uploading"; });
+    });
+  }
+
   function batchUiState() {
     var nextCount = pendingLogicalCount();
     var activeCount = activeDispatch ? activeDispatch.logicalCount : 0;
+    if (hasUploadingAttachments()) return { state: "pending-upload", label: "Wait for the upload to finish", enabled: false, count: nextCount };
     var counts;
     if (dispatchState === "registering") return { state: "registering", label: "Sending " + activeCount + " changes…", enabled: false, count: activeCount };
     if (dispatchState === "committing") return { state: "committing", label: "Sending " + activeCount + " changes…", enabled: false, count: activeCount };
@@ -11565,7 +11587,8 @@
         || !!draft.textEdit
         || !!instruction.trim()
         || (draft.attachments || []).some(function (attachment) { return attachment.state === "ready"; });
-      if (!hasWork) return;
+      var hasUpload = (draft.attachments || []).some(function (attachment) { return attachment.state === "uploading"; });
+      if (!hasWork && !hasUpload) return;
       try {
         var ctx = styleDraftContextForFreeze(draft, instruction);
         var payload = JSON.parse(JSON.stringify(payloadForSend(true, draft.target, ctx)));
@@ -11580,7 +11603,7 @@
         // promotes this exact object later if the element disappears without a
         // navigation, which is the only moment the payload is still buildable.
         lastConnectedPending[draft.clientKey] = entry;
-        out.push(entry);
+        if (hasWork) out.push(entry);
       } catch (error) { /* selection resolved to nothing mid-serialize — skip it */ }
     });
     return out;
@@ -11876,6 +11899,10 @@
   }
 
   function dispatchPendingBatch() {
+    if (hasUploadingAttachments()) {
+      setGlobalActionStatus("Wait for the upload to finish", "");
+      return;
+    }
     // Carried rows send independently of the dispatch state machine — POST their
     // frozen payloads straight away, even mid-flight, so Send always flushes them.
     if (carriedPending.length) drainCarriedPending();
@@ -12991,7 +13018,6 @@
 
   function clearInstructionText() {
     instructionDraft = "";
-    clearAttachmentDraft();
     var field = panelQuery("[data-instruction]");
     if (!field || !field.value) return;
     var reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;

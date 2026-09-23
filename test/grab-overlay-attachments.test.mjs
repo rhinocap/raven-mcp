@@ -286,3 +286,240 @@ test('window.RavenGrabConfig = { mode: "standalone", grabEndpoint: "https://exam
     }, standalonePage());
   } catch (err) { if (skipIfNoBrowser(t, err)) return; throw err; }
 });
+
+// Observe ownership through the real DOM and URL API; no overlay internals are exposed.
+async function trackThumbs(page) {
+  await page.evaluate(() => {
+    window.attachmentUrls = { created: [], revoked: [] };
+    const create = URL.createObjectURL.bind(URL);
+    const revoke = URL.revokeObjectURL.bind(URL);
+    URL.createObjectURL = (blob) => {
+      const url = create(blob);
+      window.attachmentUrls.created.push(url);
+      return url;
+    };
+    URL.revokeObjectURL = (url) => { window.attachmentUrls.revoked.push(url); revoke(url); };
+  });
+}
+
+async function clickOverlay(page, selector) {
+  await page.evaluate((selector) => {
+    const button = document.querySelector('[data-raven-grab-overlay]').shadowRoot.querySelector(selector);
+    if (!button) throw new Error(`Missing overlay control: ${selector}`);
+    button.click();
+  }, selector);
+}
+
+async function typeInstruction(page, text) {
+  await page.evaluate((text) => {
+    const field = document.querySelector('[data-raven-grab-overlay]').shadowRoot.querySelector('[data-instruction]');
+    field.value = text;
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+  }, text);
+}
+
+async function holdUpload(page) {
+  let release;
+  let started;
+  const held = new Promise((resolve) => { release = resolve; });
+  const requested = new Promise((resolve) => { started = resolve; });
+  await page.route((url) => url.pathname === '/attachment', async (route) => {
+    started();
+    await held;
+    await route.continue();
+  });
+  return { requested, release };
+}
+
+function lifecycleTest(name, fn) {
+  test(name, async (t) => {
+    try { await withOverlay(fn); }
+    catch (err) { if (skipIfNoBrowser(t, err)) return; throw err; }
+  });
+}
+
+lifecycleTest('mid-upload panel rebuild and A→B→A preserve the stashed chip identity', async (page) => {
+  await trackThumbs(page);
+  await select(page, '#image-a');
+  const upload = await holdUpload(page);
+  try {
+    await transfer(page, 'drop');
+    await upload.requested;
+    await clickOverlay(page, '[data-tab="assets"]');
+    await clickOverlay(page, '[data-tab="layers"]');
+    assert.equal(await page.locator('[data-attachment-chip][data-state="uploading"]').count(), 1);
+    await select(page, '#picture-b');
+    assert.equal(await page.locator('[data-attachment-chip]').count(), 0);
+    const response = page.waitForResponse((r) => new URL(r.url()).pathname === '/attachment' && r.request().method() === 'POST');
+    upload.release();
+    await response;
+    await select(page, '#image-a');
+    assert.equal((await readyChip(page)).name, 'hero.png');
+    assert.deepEqual(await page.evaluate(() => window.attachmentUrls.revoked), []);
+  } finally { upload.release(); }
+});
+
+lifecycleTest('removing the active instruction tray row preserves its attachment', async (page) => {
+  await trackThumbs(page);
+  await select(page, '#image-a');
+  await transfer(page, 'drop');
+  const chip = await readyChip(page);
+  await typeInstruction(page, 'Replace this');
+  await clickOverlay(page, '[data-remove-change^="draft-instruction:"]');
+  assert.equal((await readyChip(page)).id, chip.id);
+  assert.equal(await page.locator('[data-instruction]').inputValue(), '');
+  assert.deepEqual(await page.evaluate(() => window.attachmentUrls.revoked), []);
+});
+
+lifecycleTest('A→B tray removal of A’s stashed attachment does not resurrect on A', async (page) => {
+  await trackThumbs(page);
+  await select(page, '#image-a');
+  await transfer(page, 'drop');
+  await readyChip(page);
+  await select(page, '#picture-b');
+  await clickOverlay(page, '[data-remove-change^="draft-attachment:"]');
+  await select(page, '#image-a');
+  assert.equal(await page.locator('[data-attachment-chip]').count(), 0);
+  assert.deepEqual(await page.evaluate(() => window.attachmentUrls.revoked), await page.evaluate(() => window.attachmentUrls.created));
+});
+
+lifecycleTest('direct tray send of an active attachment revokes its thumbnail exactly once', async (page) => {
+  await trackThumbs(page);
+  await select(page, '#image-a');
+  await transfer(page, 'drop');
+  const chip = await readyChip(page);
+  const request = page.waitForRequest((r) => new URL(r.url()).pathname === '/grab' && r.method() === 'POST');
+  // Deliberately bypass Add to queue: active and frozen snapshots share the chip.
+  await clickOverlay(page, '[data-send-batch]');
+  assert.deepEqual((await request).postDataJSON().attachments, [{ id: chip.id }]);
+  assert.equal(await page.locator('[data-attachment-chip]').count(), 0);
+  assert.deepEqual(await page.evaluate(() => window.attachmentUrls.revoked), await page.evaluate(() => window.attachmentUrls.created));
+});
+
+lifecycleTest('dismiss clears both active and stashed attachment URLs exactly once', async (page) => {
+  await trackThumbs(page);
+  await select(page, '#image-a');
+  await transfer(page, 'drop');
+  await readyChip(page);
+  await select(page, '#picture-b');
+  await transfer(page, 'drop');
+  await readyChip(page);
+  await page.keyboard.press('Alt+g');
+  const urls = await page.evaluate(() => window.attachmentUrls);
+  assert.equal(urls.created.length, 2);
+  assert.deepEqual([...urls.revoked].sort(), [...urls.created].sort());
+});
+
+lifecycleTest('batch send blocks an upload in a stashed draft while another draft has work', async (page) => {
+  await select(page, '#image-a');
+  const upload = await holdUpload(page);
+  try {
+    await transfer(page, 'drop');
+    await upload.requested;
+    assert.equal(await page.locator('[data-queue-draft]').getAttribute('title'), 'Wait for the upload to finish');
+    await select(page, '#picture-b');
+    await typeInstruction(page, 'Keep this image');
+    assert.equal(await page.locator('[data-send-batch]').isDisabled(), true);
+    assert.equal(await page.locator('[data-send-batch]').textContent(), 'Wait for the upload to finish');
+    const requests = [];
+    page.on('request', (r) => { if (new URL(r.url()).pathname === '/grab' && r.method() === 'POST') requests.push(r); });
+    // Also exercise the handler, even if a stale button was enabled before upload.
+    await page.evaluate(() => {
+      const button = document.querySelector('[data-raven-grab-overlay]').shadowRoot.querySelector('[data-send-batch]');
+      button.disabled = false;
+      button.click();
+    });
+    assert.equal(requests.length, 0);
+    await select(page, '#image-a');
+    upload.release();
+    await readyChip(page);
+    assert.equal(await page.locator('[data-send-batch]').isDisabled(), false);
+  } finally { upload.release(); }
+});
+
+lifecycleTest('error-only draft is not queue work and error chips never reach a payload', async (page) => {
+  await page.route((url) => url.pathname === '/attachment', (route) => route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ error: 'Invalid image' }) }));
+  await select(page, '#image-a');
+  await transfer(page, 'drop');
+  await page.waitForFunction(() => document.querySelector('[data-raven-grab-overlay]').shadowRoot.querySelector('[data-attachment-chip][data-state="error"]'));
+  assert.equal(await page.locator('[data-queue-draft]').getAttribute('aria-disabled'), 'true');
+  assert.equal(await page.locator('[data-send-batch]').isDisabled(), true);
+  assert.equal(await page.locator('[data-remove-change^="draft-attachment:"]').count(), 0);
+  await typeInstruction(page, 'Keep the original');
+  const request = page.waitForRequest((r) => new URL(r.url()).pathname === '/grab' && r.method() === 'POST');
+  await send(page);
+  assert.deepEqual((await request).postDataJSON().attachments, []);
+});
+
+lifecycleTest('detached queued draft refreshes attachment IDs after tray removal and revokes URLs', async (page) => {
+  await trackThumbs(page);
+  await select(page, '#image-a');
+  await transfer(page, 'drop');
+  const first = await readyChip(page);
+  await transfer(page, 'paste', { name: 'second.png' });
+  await page.waitForFunction(() => document.querySelector('[data-raven-grab-overlay]').shadowRoot.querySelectorAll('[data-attachment-chip][data-state="ready"]').length === 2);
+  const ids = await page.locator('[data-attachment-chip]').evaluateAll((chips) => chips.map((chip) => chip.getAttribute('data-attachment-id')));
+  await clickOverlay(page, '[data-queue-draft]');
+  // Remove and detach in one task, before the debounced persistence can freshen.
+  await page.evaluate((id) => {
+    const root = document.querySelector('[data-raven-grab-overlay]').shadowRoot;
+    root.querySelector(`[data-remove-change$=":${id}"]`).click();
+    document.querySelector('#image-a').remove();
+    root.querySelector('[data-tab="assets"]').click();
+  }, first.id);
+  const request = page.waitForRequest((r) => new URL(r.url()).pathname === '/grab' && r.method() === 'POST');
+  await clickOverlay(page, '[data-send-batch]');
+  assert.deepEqual((await request).postDataJSON().attachments, [{ id: ids.find((id) => id !== first.id) }]);
+  const urls = await page.evaluate(() => window.attachmentUrls);
+  assert.deepEqual([...urls.revoked].sort(), [...urls.created].sort());
+});
+
+lifecycleTest('active multi-select draft detached during upload keeps its context in the carried attachment', async (page) => {
+  await trackThumbs(page);
+  await select(page, '#image-a');
+  await page.keyboard.down('Shift');
+  try { await select(page, '#picture-b'); } finally { await page.keyboard.up('Shift'); }
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('react-grab:element-selected', {
+    detail: { componentName: 'Hero', filePath: 'src/Hero.tsx', line: 12 }
+  })));
+  const upload = await holdUpload(page);
+  try {
+    await transfer(page, 'drop');
+    await upload.requested;
+    await page.evaluate(() => {
+      document.querySelector('#picture-b').remove();
+      document.querySelector('[data-raven-grab-overlay]').shadowRoot.querySelector('[data-tab="assets"]').click();
+    });
+    assert.deepEqual(await page.evaluate(() => window.attachmentUrls.revoked), []);
+    upload.release();
+    await page.waitForFunction(() => document.querySelector('[data-raven-grab-overlay]').shadowRoot.querySelector('[data-remove-change^="carried:"]'));
+    const request = page.waitForRequest((r) => new URL(r.url()).pathname === '/grab' && r.method() === 'POST');
+    await clickOverlay(page, '[data-send-batch]');
+    const body = (await request).postDataJSON();
+    assert.equal(body.selector, '#picture-image');
+    assert.equal(body.imageTarget.kind, 'picture');
+    assert.equal(body.componentName, 'Hero');
+    assert.equal(body.filePath, 'src/Hero.tsx');
+    assert.equal(body.line, 12);
+    assert.equal(body.multiSelect.length, 2);
+    assert.deepEqual(body.multiSelect.map((item) => item.selector), ['#image-a', '#picture-image']);
+    assert.equal(body.attachments.length, 1);
+    assert.deepEqual(Object.keys(body.attachments[0]), ['id']);
+    assert.deepEqual(await page.evaluate(() => window.attachmentUrls.revoked), await page.evaluate(() => window.attachmentUrls.created));
+  } finally { upload.release(); }
+});
+
+lifecycleTest('multi-select drop belongs only to the primary draft and its imageTarget', async (page) => {
+  await select(page, '#image-a');
+  await page.keyboard.down('Shift');
+  try { await select(page, '#picture-b'); } finally { await page.keyboard.up('Shift'); }
+  await transfer(page, 'drop');
+  const chip = await readyChip(page);
+  const request = page.waitForRequest((r) => new URL(r.url()).pathname === '/grab' && r.method() === 'POST');
+  await send(page);
+  const body = (await request).postDataJSON();
+  assert.deepEqual(body.attachments, [{ id: chip.id }]);
+  assert.equal(body.imageTarget.kind, 'picture');
+  assert.equal(body.multiSelect.length, 2);
+  assert.ok(body.multiSelect.every((selection) => !('attachments' in selection)));
+});
