@@ -132,6 +132,7 @@ const ACTS: Act[] = [
       { name: "audit_asset_integrity", desc: "Detect content sliced off inside a correctly-sized export—luminance variance flags a Figma export that ended mid-form" },
       { name: "audit_device_frame", desc: "Catch content cropped inside a device mockup—aspect-ratio cover loss, baked-in pan/zoom drift, and edges sliced at the frame" },
       { name: "audit_consistency", desc: "Audit multiple routes for cross-page consistency—content-container width and hero heading tier against the inferred canonical" },
+      { name: "design_gauntlet", desc: "Measure your page against a benchmark from live computed CSS—surfaces, hairlines, text roles, type scale—and return the fixes that close the gap" },
       { name: "audit_video_playback", desc: "Render in headless Chromium and check every <video> actually advances—classifies each clip playing, paused, stalled, empty, or error" },
       { name: "suggest_contrast_fix", desc: "Given failing WCAG pairs, return the minimal color change that clears the target ratio—the smallest foreground shift, with a background alternative" },
       { name: "audit_screen", desc: "Score a rendered iOS or Android screen from an accessibility snapshot—44/48pt targets, contrast, visual rhythm" },

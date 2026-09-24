@@ -527,7 +527,7 @@ cd raven-mcp && npm install && npm run build`}</code></pre></div>
               </article>
             </div>
 
-            <div className="rd-layer-head"><h3>Render &amp; Audit Layer <span className="rd-layer-ver">v1.7–v1.10</span></h3><span className="rd-layer-count">14 tools</span></div>
+            <div className="rd-layer-head"><h3>Render &amp; Audit Layer <span className="rd-layer-ver">v1.7–v1.10</span></h3><span className="rd-layer-count">15 tools</span></div>
             <div className="rd-tool-list">
               <article className="rd-tool" id="tool-audit">
                 <h3 className="rd-tool-name"><a className="rd-tool-anchor" href="#tool-audit" aria-label="Link to audit">#</a><code>audit</code></h3>
@@ -680,6 +680,18 @@ cd raven-mcp && npm install && npm run build`}</code></pre></div>
                   <div className="rd-param"><dt><code>endpoint_url</code><span className="rd-required">required</span></dt><dd>string</dd></div>
                   <div className="rd-param"><dt><code>queries</code><span className="rd-required">required</span></dt><dd>array</dd></div>
                   <div className="rd-param"><dt><code>expected_shape_schema</code><span className="rd-required">required</span></dt><dd>object</dd></div>
+                </dl>
+              </article>
+              <article className="rd-tool" id="tool-design_gauntlet">
+                <h3 className="rd-tool-name"><a className="rd-tool-anchor" href="#tool-design_gauntlet" aria-label="Link to design_gauntlet">#</a><code>design_gauntlet</code></h3>
+                <p className="rd-tool-desc">Answers &ldquo;why does my page look less polished than theirs?&rdquo; with numbers. Renders your page and a page you admire headless and measures their live computed CSS across nine dimensions: surfaces, hairlines, text roles, letter spacing, accent, type scale, radii, elevation, rhythm. Returns both sets of measurements, a per-dimension diff, a bar derived from the reference&rsquo;s own values (e.g. &ldquo;at most 4 surface colors — yours has 11&rdquo;), fixes split into mechanical replacements and decisions a person has to make, and one boolean, verdict.on_par. The reference is a standard, not a source: never copy its copy, marks, imagery or brand color. Requires headless chromium; local install only.</p>
+                <p className="rd-param-heading">Parameters</p>
+                <dl className="rd-params">
+                  <div className="rd-param"><dt><code>subject_url</code><span className="rd-required">required</span></dt><dd>The page being improved — rendered headless and measured live.</dd></div>
+                  <div className="rd-param"><dt><code>reference_url</code><span className="rd-required">required</span></dt><dd>The benchmark page (e.g. https://linear.app) — measured the same way; its values derive the bar.</dd></div>
+                  <div className="rd-param"><dt><code>viewport</code><span className="rd-optional">optional</span></dt><dd>&#123;width, height&#125; for both measurements. Default 1440×900.</dd></div>
+                  <div className="rd-param"><dt><code>color_scheme</code><span className="rd-optional">optional</span></dt><dd>light | dark, emulated for both pages. Default light.</dd></div>
+                  <div className="rd-param"><dt><code>device_scale_factor</code><span className="rd-optional">optional</span></dt><dd>Device pixel ratio for both measurements, range (0, 4]. Default 1.</dd></div>
                 </dl>
               </article>
             </div>
