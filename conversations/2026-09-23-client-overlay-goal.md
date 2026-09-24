@@ -26,3 +26,5 @@ Facts checked before writing:
 - Both must go onto WIP branches before any worktree is created.
 
 No code changed in either repo.
+
+Update: added a second paste-ready prompt, Provisioning G1–G5, which uses Andrew's Mac, Chrome MCP and the CLIs. The build goal's step 3 now reads its status from raven-review/PROVISIONING.md.
