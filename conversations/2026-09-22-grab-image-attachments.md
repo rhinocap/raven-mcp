@@ -373,3 +373,10 @@ Andrew: "write yourself a /goal to fix these" over the list naming push + apex d
 - Tests: focused 31/31; full 1842/1839/0/3. Mutants: drop continuation (4 fail), title uses whole change (2 fail), every indented line opens a paragraph (4 fail).
 - Pushed 727a24e..27d9327 (no workflow triggers on push; no email). site deploy Ready. web deploy dpl_FnYPVxC1q8deUaFfaP2676GjtJBc Ready, aliased ravenmcp.ai. Live: v2.6.0 bullets show paragraph 2; Raven audit_url dark iphone+desktop: 0 contrast errors (was 96), 6 inconclusive page heuristics.
 - Pre-existing, not fixed: npm run check:site fails because design_gauntlet is missing from web/components/tools/ToolsSection.tsx.
+
+## 2026-09-24 — design_gauntlet on the site
+- Ask: "add the design_gauntlet card, push and deploy".
+- Commit 1564162 on origin/main: ToolsSection Audit act lists design_gauntlet, TOOL_COUNT 110 → 111, docs card `#tool-design_gauntlet`, Render & Audit layer 14 → 15. Built on origin/main with plumbing so the other session's auto-save commit was not shipped.
+- Web deploy dpl_B63r7rLL4f5CjtXuAFDbJCeSCDVZ, aliased to ravenmcp.ai. check:site PASS. Full suite 1842 / 1839 pass / 0 fail / 3 skipped.
+- Live check: the home tool lists are collapsed accordions, so a visibility check must open the act first. After opening Audit (27 tools), the card is visible. Docs card renders with five params and "111 tools · 19 layers".
+- Open: docs FAQ still names only audit_url/audit_page as page-fetching tools (P3, pre-existing).
