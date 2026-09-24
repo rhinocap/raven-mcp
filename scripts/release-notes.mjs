@@ -86,15 +86,13 @@ function sectionHeadings(body) {
  * Text of every top-level bullet, in order. A continuation paragraph (after a
  * blank line, indented by two or more spaces) belongs to the bullet above it
  * and is appended after "\n\n", so the web entry carries the whole bullet.
- * An indented line straight after the lead also opens a continuation
- * paragraph; wrapped lines within a paragraph join with a space. A nested list item, a
+ * Wrapped lines within a paragraph, indented or not, join with a space. A nested list item, a
  * heading, or an unindented line after a blank ends the bullet.
  */
 function bulletParagraphs(body) {
   const out = [];
   let paras = null; // paragraphs of the open bullet
   let afterBlank = false;
-  let inContinuation = false;
   const close = () => {
     if (paras !== null) out.push(paras.join("\n\n"));
     paras = null;
@@ -105,7 +103,6 @@ function bulletParagraphs(body) {
       close();
       paras = [li[1].trim()];
       afterBlank = false;
-      inContinuation = false;
     } else if (paras === null) {
       continue;
     } else if (line.trim() === "") {
@@ -113,11 +110,10 @@ function bulletParagraphs(body) {
     } else if (/^\s{2,}[-*]\s/.test(line) || /^###/.test(line)) {
       close();
     } else if (/^\s{2,}\S/.test(line)) {
-      // An indented line opens a continuation paragraph unless it wraps the
-      // indented line above it (renderNotesHtml draws the same boundary).
-      if (afterBlank || !inContinuation) paras.push(line.trim());
+      // CommonMark: only a blank line opens a new paragraph; an indented
+      // line without one wraps the paragraph above it.
+      if (afterBlank) paras.push(line.trim());
       else paras[paras.length - 1] += " " + line.trim();
-      inContinuation = true;
       afterBlank = false;
     } else if (!afterBlank) {
       // Soft-wrapped line at column 0.
@@ -356,7 +352,9 @@ export function webEntryFromBlock(block, version, date, bump) {
   };
 }
 
-function defaultTitle(lead) {
+function defaultTitle(change) {
+  // First paragraph only: a lead with no full stop must not reach paragraph 2.
+  const lead = change.split("\n\n")[0];
   const sentence = lead.split(/(?<=\.)\s/)[0].replace(/\.$/, "");
   return sentence.split(":")[0].trim().slice(0, 80);
 }

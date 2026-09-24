@@ -61,6 +61,7 @@ const UNRELEASED = `## [Unreleased]
 
 ### Changed
 - **Every tool states all four MCP hints** explicitly.
+
   A second paragraph explaining why, indented by two spaces, belongs to the
   bullet above and is not a separate change.
 
@@ -540,4 +541,26 @@ test("webEntryFromBlock keeps blank-line continuation paragraphs, as CHANGELOG 2
     "Plain bullet.",
     "Last bullet.",
   ]);
+});
+
+test("bulletParagraphs follows CommonMark: an indented wrap without a blank line stays in its paragraph, and the default title reads paragraph 1 only", () => {
+  const md = [
+    "## [Unreleased]",
+    "",
+    "### Changed",
+    "- Lead sentence that wraps",
+    "  onto an indented line.",
+    "- Lead with no period",
+    "",
+    "  Second para. More",
+    "",
+  ].join("\n");
+  const entry = webEntryFromUnreleased(md, "2.7.0", "2026-10-01", "minor");
+  assert.deepEqual(entry.changes, [
+    "Lead sentence that wraps onto an indented line.",
+    "Lead with no period\n\nSecond para. More",
+  ]);
+  assert.equal(entry.title, "Lead sentence that wraps onto an indented line");
+  const noPeriod = webEntryFromUnreleased(md.replace(/- Lead sentence[^\n]*\n[^\n]*\n/, ""), "2.7.0", "2026-10-01", "minor");
+  assert.equal(noPeriod.title, "Lead with no period");
 });

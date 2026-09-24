@@ -54,7 +54,7 @@ const items = releases
             </header>
             <h2 class="cl-title">${esc(r.title)}</h2>
             <ul class="cl-changes">
-${r.changes.map((c) => `              <li>${esc(c)}</li>`).join('\n')}
+${r.changes.map((c) => `              <li>${c.split('\n\n').map((para) => `<p class="cl-change-p">${esc(para)}</p>`).join('')}</li>`).join('\n')}
             </ul>
           </article>
         </li>`,
