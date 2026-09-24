@@ -14,8 +14,8 @@
 //
 //   - a minor/major release with nothing curated FAILS rather than inventing
 //     a body; a patch gets a maintenance body;
-//   - the web entry carries plain-text leads (no markdown, no continuation
-//     paragraphs) and never a commit subject;
+//   - the web entry carries each bullet whole as plain text (no markdown;
+//     continuation paragraphs kept after "\n\n") and never a commit subject;
 //   - promotion is idempotent, including on a resume where [Unreleased] is
 //     already empty (the first CLI run tripped exactly that);
 //   - the email renderer keeps a multi-paragraph bullet inside its <li> and
@@ -98,7 +98,8 @@ test("parseUnreleased returns the block between the heading and the next release
   assert.deepEqual(meta, { category: "tooling", kind: "feature", title: "Image attachments in Grab" });
   assert.equal(bullets.length, 5, "five top-level bullets; the continuation paragraph is not a sixth");
   assert.ok(bullets[2].startsWith("**Every tool"), bullets[2]);
-  assert.ok(!bullets.some((b) => b.includes("second paragraph")), "continuation paragraph is not a bullet");
+  assert.match(bullets[2], /explicitly\.\n\nA second paragraph/, "continuation paragraph stays with its bullet");
+  assert.equal(bullets.filter((b) => b.includes("second paragraph")).length, 1, "continuation paragraph is not a bullet of its own");
 });
 
 test("parseUnreleased throws when the heading is missing", () => {
@@ -181,7 +182,7 @@ test("promoteChangelogMd moves the block under a dated heading and leaves an emp
   assert.equal(promoteChangelogMd(EMPTY, "2.6.0", "2026-09-23"), EMPTY, "nothing to promote leaves the file alone");
 });
 
-test("webEntryFromUnreleased: plain-text leads, meta title/kind/category, no markdown and no continuation text", () => {
+test("webEntryFromUnreleased: whole bullets as plain text, meta title/kind/category, continuation kept after a paragraph break", () => {
   const entry = webEntryFromUnreleased(FULL, "2.6.0", "2026-09-23", "minor");
   assert.equal(entry.version, "v2.6.0");
   assert.equal(entry.date, "2026-09-23");
@@ -194,7 +195,10 @@ test("webEntryFromUnreleased: plain-text leads, meta title/kind/category, no mar
   }
   assert.equal(entry.changes[0], "The Grab overlay accepts image attachments dropped into the composer: PNG and JPEG up to 25 MiB.");
   assert.equal(entry.changes[3], "Empty input is refused instead of scored (#123).");
-  assert.ok(!entry.changes.some((c) => c.includes("second paragraph")));
+  assert.equal(
+    entry.changes[2],
+    "Every tool states all four MCP hints explicitly.\n\nA second paragraph explaining why, indented by two spaces, belongs to the bullet above and is not a separate change.",
+  );
   assert.equal(webEntryFromUnreleased(EMPTY, "2.6.1", "2026-09-24", "patch"), null);
 });
 
@@ -509,4 +513,31 @@ test("the CLI and the workflow pass the tagged changelog through, and the workfl
   assert.doesNotMatch(notifyScript, /RELEASE_BUMP = "minor"/);
   assert.match(notifyScript, /releaseNotesFor\(RELEASE_VERSION, bump, readFileSync\("CHANGELOG\.md"/);
   assert.doesNotMatch(notifyScript, /RELEASE_BUMP === "major"/, "subject and body read the derived bump");
+});
+
+test("webEntryFromBlock keeps blank-line continuation paragraphs, as CHANGELOG 2.6.0 writes them", () => {
+  const md = [
+    "## [Unreleased]",
+    "",
+    "### Changed",
+    "- **Hints are explicit.** Lead sentence.",
+    "",
+    "  Second paragraph with `code`,",
+    "  wrapped onto a second line.",
+    "",
+    "  Third paragraph.",
+    "",
+    "- Plain bullet.",
+    "  - nested item ends the bullet",
+    "- Last bullet.",
+    "",
+    "Unindented prose after a blank is not part of the bullet.",
+    "",
+  ].join("\n");
+  const entry = webEntryFromUnreleased(md, "2.7.0", "2026-10-01", "minor");
+  assert.deepEqual(entry.changes, [
+    "Hints are explicit. Lead sentence.\n\nSecond paragraph with code, wrapped onto a second line.\n\nThird paragraph.",
+    "Plain bullet.",
+    "Last bullet.",
+  ]);
 });

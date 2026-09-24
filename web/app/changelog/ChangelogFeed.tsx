@@ -64,7 +64,14 @@ export default function ChangelogFeed() {
               <h2 className="cl-title">{r.title}</h2>
               <ul className="cl-changes">
                 {r.changes.map((c, ci) => (
-                  <li key={ci}>{c}</li>
+                  <li key={ci}>
+                    {/* A multi-paragraph bullet arrives joined by a blank line. */}
+                    {c.split('\n\n').map((para, pi) => (
+                      <p key={pi} className="cl-change-p">
+                        {para}
+                      </p>
+                    ))}
+                  </li>
                 ))}
               </ul>
             </article>

@@ -34,7 +34,7 @@ function parseBlock(raw) {
   // `raw` keeps the `<!-- web: -->` meta lines that `body` strips: the
   // tag-anchored remainder is computed over raw text so a meta line written
   // for the NEXT release survives promotion instead of being deleted.
-  return { raw: raw.trim(), body, meta, bullets: leadParagraphs(body), sections: sectionHeadings(body) };
+  return { raw: raw.trim(), body, meta, bullets: bulletParagraphs(body), sections: sectionHeadings(body) };
 }
 
 /** Return the text of the `## [Unreleased]` block (without its heading). */
@@ -83,34 +83,50 @@ function sectionHeadings(body) {
 }
 
 /**
- * Lead paragraph of every top-level bullet, in order. A continuation
- * paragraph (indented by two or more spaces) belongs to the bullet above it
- * and is not returned; the web entry carries leads only.
+ * Text of every top-level bullet, in order. A continuation paragraph (after a
+ * blank line, indented by two or more spaces) belongs to the bullet above it
+ * and is appended after "\n\n", so the web entry carries the whole bullet.
+ * An indented line straight after the lead also opens a continuation
+ * paragraph; wrapped lines within a paragraph join with a space. A nested list item, a
+ * heading, or an unindented line after a blank ends the bullet.
  */
-function leadParagraphs(body) {
+function bulletParagraphs(body) {
   const out = [];
-  let current = null;
+  let paras = null; // paragraphs of the open bullet
+  let afterBlank = false;
+  let inContinuation = false;
+  const close = () => {
+    if (paras !== null) out.push(paras.join("\n\n"));
+    paras = null;
+  };
   for (const line of body.split("\n")) {
     const li = /^[-*]\s+(.*)$/.exec(line);
     if (li) {
-      if (current !== null) out.push(current);
-      current = li[1].trim();
-    } else if (current !== null && /^\s{2,}\S/.test(line) && !/^\s{2,}[-*]\s/.test(line)) {
-      // Continuation paragraph — stop extending the lead.
-      out.push(current);
-      current = null;
-    } else if (current !== null && line.trim() === "") {
-      out.push(current);
-      current = null;
-    } else if (current !== null && /^\S/.test(line) && !/^###/.test(line)) {
-      // Soft-wrapped lead line.
-      current += " " + line.trim();
-    } else if (current !== null) {
-      out.push(current);
-      current = null;
+      close();
+      paras = [li[1].trim()];
+      afterBlank = false;
+      inContinuation = false;
+    } else if (paras === null) {
+      continue;
+    } else if (line.trim() === "") {
+      afterBlank = true;
+    } else if (/^\s{2,}[-*]\s/.test(line) || /^###/.test(line)) {
+      close();
+    } else if (/^\s{2,}\S/.test(line)) {
+      // An indented line opens a continuation paragraph unless it wraps the
+      // indented line above it (renderNotesHtml draws the same boundary).
+      if (afterBlank || !inContinuation) paras.push(line.trim());
+      else paras[paras.length - 1] += " " + line.trim();
+      inContinuation = true;
+      afterBlank = false;
+    } else if (!afterBlank) {
+      // Soft-wrapped line at column 0.
+      paras[paras.length - 1] += " " + line.trim();
+    } else {
+      close();
     }
   }
-  if (current !== null) out.push(current);
+  close();
   return out;
 }
 
@@ -323,7 +339,11 @@ export function webEntryFromUnreleased(changelogMd, version, date, bump) {
 /** Same, from an already-parsed block (the promoted `## [version]` block on a half-done resume). */
 export function webEntryFromBlock(block, version, date, bump) {
   const { meta, bullets } = block;
-  const changes = bullets.map(stripMarkdown).filter(Boolean);
+  // Each paragraph is stripped on its own so the "\n\n" between them
+  // survives stripMarkdown's whitespace collapse.
+  const changes = bullets
+    .map((b) => b.split("\n\n").map(stripMarkdown).filter(Boolean).join("\n\n"))
+    .filter(Boolean);
   if (changes.length === 0) return null;
   const title = meta.title ? stripMarkdown(meta.title) : defaultTitle(changes[0] || "");
   return {

@@ -5,6 +5,10 @@
 
 :root {
   --text-tertiary: var(--text-muted-deep);
+  /* Meta text (eyebrow, date, badge) — #A6AAB2 clears WCAG AA on the card
+     (5.99:1) and on the badge's 3% white fill (5.5:1); --text-tertiary above
+     stays for the decorative dots only. */
+  --cl-text-meta: #A6AAB2;
   --font-body: var(--font-inter, "Untitled Sans"), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: ui-monospace, "SF Mono", "Cascadia Code", monospace;
   --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
@@ -44,7 +48,7 @@
   font-weight: 500;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: var(--text-tertiary);
+  color: var(--cl-text-meta, #A6AAB2);
   margin-bottom: var(--space-6);
 }
 .cl-headline {
@@ -169,7 +173,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--text-secondary);
+  color: var(--cl-text-meta, #A6AAB2);
   background: rgba(255, 255, 255, 0.03);
 }
 .cl-badge.kind-new {
@@ -185,7 +189,7 @@
 .cl-date {
   margin-left: auto;
   font-size: 14px;
-  color: var(--text-tertiary);
+  color: var(--cl-text-meta, #A6AAB2);
 }
 .cl-title {
   font-size: clamp(18px, 2.2vw, 22px);
@@ -206,6 +210,9 @@
   font-size: 15px;
   line-height: 1.6;
   color: var(--text-secondary);
+}
+.cl-change-p + .cl-change-p {
+  margin-top: var(--space-2);
 }
 .cl-changes li::before {
   content: "";
