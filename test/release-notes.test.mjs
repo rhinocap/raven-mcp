@@ -443,20 +443,34 @@ test("a stub whose heading carries no real date takes the run's date, in both fi
   assert.equal(r.entry.date, "2026-09-23");
   assert.equal(parseReleaseBlock(r.changelogMd, "2.6.0").date, "2026-09-23");
   assert.equal(parseReleaseBlock(promoteChangelogMd(stub, "2.6.0", "2026-09-23", FULL), "2.6.0").date, "2026-09-23");
+  // The half-promoted resume copies the heading's date too, and must not copy "TBD".
+  const half = promoteChangelogMd(LATER, "2.6.0", "2026-09-23", FULL).replace("## [2.6.0] - 2026-09-23", "## [2.6.0] - TBD");
+  assert.equal(parseReleaseBlock(half, "2.6.0").bullets.length, 5, "fixture: a filled block, not a stub");
+  const h = promoteChangelog({ changelogMd: half, changelogJson: JSON_FIXTURE, version: "2.6.0", bump: "minor", date: "2026-09-23" });
+  assert.equal(h.promoted, true);
+  assert.equal(h.entry.date, "2026-09-23", "half-promoted path takes the run's date over TBD");
+  // A well-shaped impossible date is not a date either.
+  const impossible = half.replace("## [2.6.0] - TBD", "## [2.6.0] - 2026-13-45");
+  assert.equal(promoteChangelog({ changelogMd: impossible, changelogJson: JSON_FIXTURE, version: "2.6.0", bump: "minor", date: "2026-09-23" }).entry.date, "2026-09-23", "2026-13-45 is refused");
+  const leap = half.replace("## [2.6.0] - TBD", "## [2.6.0] - 2024-02-29");
+  assert.equal(promoteChangelog({ changelogMd: leap, changelogJson: JSON_FIXTURE, version: "2.6.0", bump: "minor", date: "2026-09-23" }).entry.date, "2024-02-29", "a real date is kept");
 });
 
 test("a stub refill also replaces a changes-less json entry, and never a filled one", () => {
   const stub = LATER.replace("## [2.5.0]", "## [2.6.0] - 2026-09-20\n\n### Added\n\n## [2.5.0]");
   const emptyEntry = { version: "v2.6.0", date: "2026-09-20", category: "tooling", kind: "feature", title: "Stub", changes: [] };
-  const json = { ...JSON_FIXTURE, releases: [emptyEntry, ...JSON_FIXTURE.releases] };
+  // The empty entry sits SECOND so "replaced in place" is separable from "moved to the front".
+  const [newest, ...older] = JSON_FIXTURE.releases;
+  const json = { ...JSON_FIXTURE, releases: [newest, emptyEntry, ...older] };
   const r = promoteChangelog({ changelogMd: stub, changelogJson: json, version: "2.6.0", bump: "minor", date: "2026-09-23", taggedChangelogMd: FULL });
   assert.equal(r.promoted, true);
   const entries = r.changelogJson.releases.filter((x) => x.version === "v2.6.0");
   assert.equal(entries.length, 1, "replaced in place, not prepended beside the empty one");
   assert.equal(entries[0].changes.length, 5, "the json half of the stub is refilled with the md half");
   assert.equal(entries[0].date, "2026-09-20");
-  assert.equal(r.changelogJson.releases[0].version, "v2.6.0", "position kept");
-  assert.equal(r.changelogJson.releases[1].version, "v2.5.0");
+  assert.equal(r.changelogJson.releases[0].version, newest.version, "position kept: the entry ahead of it stays ahead");
+  assert.equal(r.changelogJson.releases[1].version, "v2.6.0", "replaced at its own index, not moved to the front");
+  assert.equal(r.changelogJson.releases.length, JSON_FIXTURE.releases.length + 1);
   // A filled entry is never touched, whatever the md says.
   const filled = { ...emptyEntry, changes: ["kept."] };
   const keep = prependChangelogJson({ ...JSON_FIXTURE, releases: [filled] }, { ...filled, changes: ["new."] });
@@ -471,7 +485,7 @@ test("the email's lead sentence follows the bump, including a patch resend", () 
   assert.equal(releaseKindSentence(bumpFromVersion("2.6.1")), "A patch release");
   const notifyScript = readFileSync(new URL("../scripts/notify-release.mjs", import.meta.url), "utf8");
   assert.match(notifyScript, /\$\{releaseKindSentence\(bump\)\} landed on npm/, "the body reads the shared sentence");
-  assert.doesNotMatch(notifyScript, /"A minor release"/, "no hand-written minor/major ternary left in the template");
+  assert.doesNotMatch(notifyScript, /['"`]A (major|minor|patch) release['"`]/, "no hand-written bump sentence left in the script, whatever the quote");
 });
 
 test("the CLI and the workflow pass the tagged changelog through, and the workflow never lets GitHub write the body", () => {

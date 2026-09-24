@@ -248,12 +248,19 @@ function subtractBody(current, tagged) {
 }
 
 /**
- * A refilled stub keeps the date its heading already carries, but only a real
- * one: a hand-written `## [1.1.0] - TBD` would otherwise put "TBD" into
- * changelog.json, where the page sorts and renders it as a date.
+ * A block that already carries a date keeps it, but only a real one: a
+ * hand-written `## [1.1.0] - TBD` or `- 2026-13-45` would otherwise reach
+ * changelog.json, where the page renders it as "Invalid Date". Used wherever a
+ * heading's date is copied into the json — a stub refill and a half-promoted
+ * resume alike.
  */
 function keptDate(existing, fallback) {
-  return /^\d{4}-\d{2}-\d{2}$/.test(existing || "") ? existing : fallback;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(existing || "");
+  if (!m) return fallback;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const t = new Date(Date.UTC(y, mo - 1, d));
+  const real = t.getUTCFullYear() === y && t.getUTCMonth() === mo - 1 && t.getUTCDate() === d;
+  return real ? existing : fallback;
 }
 
 /**
@@ -369,7 +376,7 @@ export function promoteChangelog({ changelogMd, changelogJson, version, bump, da
     // Half-promoted: the previous run wrote CHANGELOG.md and died before
     // changelog.json (or the commit). Back-fill the web entry from the
     // promoted block — [Unreleased] is empty now, or holds the NEXT release.
-    const entry = webEntryFromBlock(promoted, v, promoted.date || date, bump);
+    const entry = webEntryFromBlock(promoted, v, keptDate(promoted.date, date), bump);
     if (!entry) {
       if (bump !== "patch") throw emptyNotesError(bump, `[${v}]`);
       return { changelogMd, changelogJson, promoted: false, alreadyPromoted: true };

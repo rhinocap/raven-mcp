@@ -13,9 +13,10 @@
 //                         the notes are computed here from CHANGELOG.md the same
 //                         way — never from the GitHub Release body, which is a
 //                         copy that can be edited or stale.
-//   RELEASE_BUMP        — "minor" | "major"; EMPTY on a resend/resume (the
-//                         job output only exists on a fresh release), in which
-//                         case it is derived from the version shape.
+//   RELEASE_BUMP        — "major" | "minor" | "patch" (a patch reaches here
+//                         only on a resend); EMPTY on a resend/resume (the job
+//                         output only exists on a fresh release), in which case
+//                         it is derived from the version shape.
 
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
