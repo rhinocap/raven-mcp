@@ -344,3 +344,13 @@ Blockers (approval-gated, untouched): push main (= mcp.ravenmcp.ai deploy, would
 - #7/#8 no change: mutants independent; the empty-entry replace on the fresh path is intended.
 - Mutants M1–M4 in `$SP/mut4`: each reddens exactly one named test, baseline 29/29 restored. Full suite running → `$SP/full-suite-fix4.log`.
 - Full suite `$SP/full-suite-fix4.log`: 1840 tests / 1837 pass / 0 fail / 3 skipped (lines 121/895/896, same three), EXIT=0 read inside the log; the three edited tests confirmed run by name at lines 1568–1570.
+
+## Push, Release edit, apex deploy (2026-09-23, approved "push, edit, and deploy. Don't send an email")
+
+- Decision 1 resolved by Andrew: NO correction email. `scripts/notify-release.mjs` never run; no Resend/Outseta send.
+- Pushed `a3134d8..727a24e` to `origin/main` (10 commits, 0 behind before push, no `src/` or `api/` path in the range). Endpoint deployment `dpl_2psU9nXZf8ZPcsFUi7uX6Yykuwxa` Ready; anon `tools/list` = 45 tools, sha256 `f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7782bb0a6` exact.
+- `gh release edit v2.6.0` body = curated notes (`$SP/notes-2.6.0.md`, 35 lines from CHANGELOG [Unreleased] at the tag). Read-back `$SP/release-body-after.md` differs only by trailing newline; 0 raw `- <sha>` lines (was 78).
+- Web deploy attempt 1 (`vercel deploy --prod --yes` from `web/`, `$SP/web-deploy.log`): `deploy_failed: Not authorized`, EXIT=1. `whoami` fine, same team; cause not established.
+- Attempt 2 with `--scope cunliffeandrewc-8712s-projects --debug` (`$SP/web-deploy2.log`): EXIT=0, `dpl_5RkEysTHik8dGBiVFHP1GuzJpcWd`, `▲ Aliased https://ravenmcp.ai`. `vercel inspect https://ravenmcp.ai` → that id, ● Ready.
+- Live https://ravenmcp.ai/changelog (cache-busted, http 200, 69,208 B): first three versions in page order `v2.6.0 v2.5.0 v2.4.1`. Pre-deploy read showed 2.5.5 / v2.5.0 at the top. `/raven.mcpb` http 200, 5,495,018 B.
+- Not pushed: this log commit. No further push approval requested or held.
