@@ -354,3 +354,13 @@ Blockers (approval-gated, untouched): push main (= mcp.ravenmcp.ai deploy, would
 - Attempt 2 with `--scope cunliffeandrewc-8712s-projects --debug` (`$SP/web-deploy2.log`): EXIT=0, `dpl_5RkEysTHik8dGBiVFHP1GuzJpcWd`, `▲ Aliased https://ravenmcp.ai`. `vercel inspect https://ravenmcp.ai` → that id, ● Ready.
 - Live https://ravenmcp.ai/changelog (cache-busted, http 200, 69,208 B): first three versions in page order `v2.6.0 v2.5.0 v2.4.1`. Pre-deploy read showed 2.5.5 / v2.5.0 at the top. `/raven.mcpb` http 200, 5,495,018 B.
 - Not pushed: this log commit. No further push approval requested or held.
+
+## Completion gate (2026-09-23, after push/edit/deploy)
+
+- Opus falsification (Agent aa5caac84087b4733, model opus, report-only): VERDICT SURVIVES. All five claim parts hold: origin/main tip 727a24e/c488771/048bc76, 8be1dab unpushed (only this log differs); anon 45 tools, hash f64bb18…2bb0a6 exact; Release v2.6.0 body curated, 0 raw sha lines, published 22:04:13Z; live /changelog v2.6.0 first, dpl_5RkEysTHik8dGBiVFHP1GuzJpcWd Ready, all 16 changes from HEAD web/data/changelog.json present.
+- P2 (Path C, not fixed): changelog.json keeps only the first paragraph of each multi-paragraph bullet, so the web changelog omits the idempotentHint/openWorldHint paragraph and the hosted `click`-refused paragraph. Fix is in promoteChangelog (scripts/release-notes.mjs) + regenerate json + push + apex deploy — needs fresh approval.
+- P2 (accepted): CHANGELOG at tag v2.6.0 still lists the notes under [Unreleased]; HEAD has empty [Unreleased] + [2.6.0] - 2026-09-23. Pipeline promotes after the tag by design; notify-release.mjs reads the tagged file via releaseNotesFor(..., tagged).
+- P1 PRE-EXISTING: run 35925801655 notify job (22:05:41Z, broadcast 611912ef-…) emailed 71 raw git-log lines for v2.6.0 before 048bc76 existed. No email sent this window; no correction email (Andrew: "Don't send an email").
+- Caveat: x-vercel-cache HIT age 154 with a query string; content verified current anyway (v2.6.0 first, screenshot).
+- Raven audit_url on live /changelog (dark, iphone+desktop): 102 findings, 96 confirmed contrast/aa errors — every card's date <time> at 2.19:1 (rgb(92,95,104) on rgb(43,43,56), 14px) and the Improvement/Fix pill text at 4.37:1; 6 inconclusive page-level warnings (flex-wrap, clamp, custom-properties). Template CSS in web/, pre-existing (this deploy changed data only); fix needs a web/ CSS edit + push + apex deploy — fresh approval (Path C).
+- design-judge: Target $SP/changelog-live.png + https://ravenmcp.ai/changelog; Layers global; Surface product-site (raven-mcp binding), monochrome scope inactive; 1 raven-sourced block finding (contrast/aa, pre-existing template); Verdict: BLOCK (1 block, 0 warn) — pre-existing, Path C.
