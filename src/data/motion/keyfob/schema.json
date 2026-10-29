@@ -1,0 +1,245 @@
+{
+  "schemaVersion": "1.0",
+  "id": "keyfob",
+  "title": "911 key hover-jingle",
+  "concept": "On hover or click, the ring moves and a 964/993-era Porsche 911 key and its remote fob swing from it as chained damped pendulums under gravity, then settle at their original hanging angles.",
+  "source": {
+    "kind": "prompt",
+    "prompt": "Draw an air-cooled Porsche 911 key from the 964/993 years (1989-98): a black-headed key with a plain round badge, and its separate black remote fob, on one steel ring. Make it jingle on hover: the ring is the hinge, the fob and key swing under gravity and settle. Keep all the shading."
+  },
+  "motif": "object-physics",
+  "renderer": "svg+waapi",
+  "canvas": {
+    "width": 480,
+    "height": 480,
+    "background": "#E8E9EC"
+  },
+  "interaction": {
+    "events": [
+      "hover",
+      "click"
+    ],
+    "hinges": [
+      {
+        "target": "ring-1-3",
+        "origin": "50% 0%"
+      },
+      {
+        "target": "fob-1-4",
+        "origin": "50% 0%",
+        "parent": "ring-1-3"
+      },
+      {
+        "target": "key-1-5",
+        "origin": "50% 0%",
+        "parent": "ring-1-3"
+      }
+    ]
+  },
+  "seed": 2718,
+  "groups": [
+    {
+      "id": "jingle",
+      "label": "Jingle"
+    },
+    {
+      "id": "pendants",
+      "label": "Hanging pieces"
+    },
+    {
+      "id": "finish",
+      "label": "Fob and metal"
+    }
+  ],
+  "params": [
+    {
+      "id": "hoverAngle",
+      "label": "Hover swing",
+      "type": "number",
+      "group": "jingle",
+      "role": "amplitude",
+      "min": 2,
+      "max": 20,
+      "step": 1,
+      "default": 9,
+      "unit": "deg",
+      "help": "How far the keys swing when the pointer passes over them."
+    },
+    {
+      "id": "clickStrength",
+      "label": "Click strength",
+      "type": "number",
+      "group": "jingle",
+      "role": "amplitude",
+      "min": 1,
+      "max": 2,
+      "step": 0.1,
+      "default": 1.5,
+      "unit": "x",
+      "help": "How much harder a click swings them than a hover."
+    },
+    {
+      "id": "settleTime",
+      "label": "Settle time",
+      "type": "number",
+      "group": "jingle",
+      "role": "duration",
+      "min": 600,
+      "max": 2400,
+      "step": 100,
+      "default": 1400,
+      "unit": "ms",
+      "help": "How long until the keys hang still again."
+    },
+    {
+      "id": "swingFeel",
+      "label": "Swing finish",
+      "type": "enum",
+      "group": "jingle",
+      "role": "easing",
+      "options": [
+        {
+          "value": "soft",
+          "label": "Soft settle"
+        },
+        {
+          "value": "firm",
+          "label": "Firm settle"
+        }
+      ],
+      "default": "soft",
+      "widget": "segmented",
+      "help": "Soft keeps swinging longer; Firm calms down sooner."
+    },
+    {
+      "id": "ringAngle",
+      "label": "Ring tilt",
+      "type": "number",
+      "group": "pendants",
+      "role": "amplitude",
+      "min": 0,
+      "max": 6,
+      "step": 0.5,
+      "default": 2,
+      "unit": "deg",
+      "help": "How much the ring itself rocks on its pin."
+    },
+    {
+      "id": "fobPeriod",
+      "label": "Fob swing time",
+      "type": "number",
+      "group": "pendants",
+      "role": "speed",
+      "min": 400,
+      "max": 1000,
+      "step": 20,
+      "default": 640,
+      "unit": "ms",
+      "help": "Time for the remote to swing out and back once. Longer feels heavier."
+    },
+    {
+      "id": "keyPeriod",
+      "label": "Key swing time",
+      "type": "number",
+      "group": "pendants",
+      "role": "speed",
+      "min": 300,
+      "max": 800,
+      "step": 20,
+      "default": 480,
+      "unit": "ms",
+      "help": "Keep it quicker than the remote so the two don’t move as one."
+    },
+    {
+      "id": "keyDelay",
+      "label": "Key response delay",
+      "type": "number",
+      "group": "pendants",
+      "role": "delay",
+      "min": 0,
+      "max": 120,
+      "step": 10,
+      "default": 30,
+      "unit": "ms",
+      "help": "A short lag before the key reacts, so the two pieces don’t start together."
+    },
+    {
+      "id": "fobColor",
+      "label": "Fob colour",
+      "type": "color",
+      "group": "finish",
+      "role": "color",
+      "default": "#1C1C1E",
+      "swatches": [
+        "#1C1C1E",
+        "#3A3A3C",
+        "#6E1F1F",
+        "#30485D"
+      ],
+      "help": "Colour of the remote and the key head. The shading stays."
+    },
+    {
+      "id": "bevelLight",
+      "label": "Metal edge light",
+      "type": "number",
+      "group": "finish",
+      "role": "other",
+      "min": 50,
+      "max": 120,
+      "step": 5,
+      "default": 100,
+      "unit": "%",
+      "help": "Brightness of the light catching the metal edges.",
+      "clientSafe": false
+    },
+    {
+      "id": "innerShade",
+      "label": "Fob inset shade",
+      "type": "number",
+      "group": "finish",
+      "role": "other",
+      "min": 50,
+      "max": 120,
+      "step": 5,
+      "default": 100,
+      "unit": "%",
+      "help": "Depth of the shading around the remote’s edge.",
+      "clientSafe": false
+    },
+    {
+      "id": "dropShadow",
+      "label": "Hanging shadows",
+      "type": "number",
+      "group": "finish",
+      "role": "other",
+      "min": 40,
+      "max": 120,
+      "step": 5,
+      "default": 100,
+      "unit": "%",
+      "help": "Strength of the shadow the keys cast on the wall.",
+      "clientSafe": false
+    }
+  ],
+  "exports": [
+    "params-json",
+    "svg-frame",
+    "waapi-snippet"
+  ],
+  "constraints": [
+    {
+      "a": "settleTime",
+      "op": "gte",
+      "b": "fobPeriod",
+      "factor": 1.82,
+      "why": "Keeps the fob damping ratio at or below 0.7 with Firm settle, so a swing stays visible."
+    },
+    {
+      "a": "keyPeriod",
+      "op": "lte",
+      "b": "fobPeriod",
+      "factor": 0.9,
+      "why": "The key swings faster than the fob so the two read as separate pieces."
+    }
+  ]
+}

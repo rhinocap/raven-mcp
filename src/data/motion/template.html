@@ -1,0 +1,640 @@
+<title>911 Key Jingle</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: a quiet tool. Fixed-width control panel on the left, the stage takes the rest; one column on phones. */
+@font-face { font-family: "Untitled Sans"; font-weight: 400; font-style: normal; font-display: swap; src: url(data:font/woff2;base64,__FONT_REG__) format("woff2"); }
+@font-face { font-family: "Untitled Sans"; font-weight: 500; font-style: normal; font-display: swap; src: url(data:font/woff2;base64,__FONT_MED__) format("woff2"); }
+:root {
+  --bg: #17171d;
+  --panel: #1f1f26;
+  --raised: #2a2a33;
+  --line: #34343e;
+  --fg: #f0f0f2;
+  --fg-2: #a6aab3;
+  --fg-3: #80848e;
+  --focus: #00bfff;
+  --warn: #ffab40;
+  --wall: #e8e9ec;
+  --wall-ink: #5b5f66;
+  --wall-btn: #ffffff;
+  --wall-btn-fg: #1f1f26;
+  --wall-line: #cfd1d6;
+  --wall-line-hover: #8a8e96;
+  --swatch-ring: rgba(255, 255, 255, .18);
+  --font: "Untitled Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --t-xs: 11px; --t-sm: 12px; --t-md: 13px; --t-lg: 15px;
+  --r: 6px;
+  --hit: 44px;
+  --panel-w: 340px;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font); font-size: var(--t-md); line-height: 1.4; -webkit-font-smoothing: antialiased; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+button, input, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.app { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+header#summary { display: flex; align-items: center; gap: 16px; padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); border-bottom: 1px solid var(--line); min-width: 0; }
+header h1 { font-size: var(--t-lg); font-weight: 500; margin: 0; white-space: nowrap; }
+header p { margin: 0; color: var(--fg-2); font-size: var(--t-sm); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+#status { color: var(--fg-2); font-size: var(--t-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40%; }
+
+.work { display: grid; grid-template-columns: var(--panel-w) minmax(0, 1fr); min-height: 0; }
+aside#panel { background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+.tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+.tabs button { height: 32px; min-height: var(--hit); border: 0; background: transparent; color: var(--fg-2); border-radius: var(--r); cursor: pointer; font-weight: 500; }
+.tabs button:hover, .seg button:hover { color: var(--fg); }
+.swatches button:hover { background: var(--raised); }
+.tabs button[aria-selected="true"] { background: var(--raised); color: var(--fg); }
+.view { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 16px 24px; display: flex; flex-direction: column; gap: 16px; }
+
+#global-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.btn { min-height: var(--hit); padding: 0 14px; border-radius: var(--r); border: 1px solid var(--line); background: var(--raised); cursor: pointer; font-weight: 500; }
+.btn:hover { border-color: var(--fg-3); }
+.btn.ghost { background: transparent; }
+.btn.primary { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.btn[disabled] { opacity: .45; cursor: not-allowed; }
+
+.group { display: flex; flex-direction: column; }
+.group h2 { font-size: var(--t-xs); font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--fg-3); margin: 4px 0 2px; }
+.ctl { position: relative; display: flex; flex-direction: column; border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent); padding-block: 2px; }
+.ctl:last-child { border-bottom: 0; }
+.ctl .row { display: grid; grid-template-columns: minmax(0, 1fr) auto var(--hit); align-items: center; gap: 4px; min-height: var(--hit); }
+.ctl label.name { color: var(--fg); min-width: 0; }
+/* Help sits over the row below, so showing it never moves a control under the pointer. */
+.ctl .help { position: absolute; top: 100%; min-height: var(--hit); left: 0; right: 0; z-index: 1; margin: 0; padding: var(--help-pad, 6px 8px); color: var(--fg-2); font-size: var(--t-sm); background: var(--raised); border: 1px solid var(--line); border-radius: var(--r); pointer-events: none; visibility: hidden; }
+/* Help follows the pointer while it moves and keyboard focus while keys are in use (data-input set by script). */
+.ctl.help-up .help { top: auto; bottom: 100%; }
+:root:not([data-input="key"]) .ctl:hover .help, :root[data-input="key"] .ctl:focus-within .help { visibility: visible; transition: visibility 0s linear var(--help-delay, .3s); }
+.ctl .note { color: var(--warn); font-size: var(--t-sm); margin: 0 0 6px; }
+.num { display: flex; align-items: center; height: var(--hit); cursor: text; }
+.num input { width: 66px; height: 28px; text-align: right; background: var(--bg); border: 1px solid transparent; border-radius: 4px; padding: 0 6px; font-variant-numeric: tabular-nums; }
+.num input:hover { border-color: var(--line); }
+.num span { color: var(--fg-3); font-size: var(--t-sm); width: 26px; padding-left: 4px; }
+.lock { width: var(--hit); height: var(--hit); display: grid; place-items: center; background: transparent; border: 0; color: var(--fg-3); cursor: pointer; border-radius: var(--r); }
+.lock:hover { color: var(--fg-2); }
+.lock[aria-pressed="true"] { color: var(--fg); }
+.lock svg { width: 14px; height: 14px; }
+
+input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: var(--hit); background: transparent; margin: -8px 0 -4px; cursor: pointer; --p: 50%; }
+input[type="range"]::-webkit-slider-runnable-track { height: 3px; border-radius: 2px; background: linear-gradient(to right, var(--fg-2) var(--p), var(--line) var(--p)); }
+input[type="range"]::-moz-range-track { height: 3px; border-radius: 2px; background: linear-gradient(to right, var(--fg-2) var(--p), var(--line) var(--p)); }
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; margin-top: -5.5px; border-radius: 50%; background: var(--fg); border: 0; }
+input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--fg); border: 0; }
+input[type="range"]:focus-visible { outline: none; }
+input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px var(--focus); }
+input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px var(--focus); }
+
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 2px; background: var(--bg); border-radius: var(--r); padding: 2px; margin-bottom: 6px; }
+.seg button { min-height: var(--hit, 44px); border: 0; border-radius: 4px; background: transparent; color: var(--fg-2); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--raised); color: var(--fg); }
+.swatches { position: relative; display: flex; gap: 2px; align-items: center; margin-bottom: 6px; flex-wrap: wrap; }
+.swatches button, .swatches label { width: var(--hit); height: var(--hit); display: grid; place-items: center; background: transparent; border: 0; border-radius: var(--r); cursor: pointer; padding: 0; }
+.swatches i { display: block; width: 22px; height: 22px; border-radius: 50%; box-shadow: inset 0 0 0 1px var(--swatch-ring, rgba(255,255,255,.18)); }
+.swatches button[aria-pressed="true"] i { box-shadow: 0 0 0 2px var(--panel), 0 0 0 3.5px var(--fg); }
+.swatches label { color: var(--fg-2); }
+.swatches label:hover { color: var(--fg); background: var(--raised); }
+.swatches label svg { width: 18px; height: 18px; }
+.swatches input[type="color"] { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+.swatches code { color: var(--fg-3); font-size: var(--t-sm); margin-left: 6px; font-variant-numeric: tabular-nums; }
+
+.block { display: flex; flex-direction: column; gap: 8px; }
+.block h3 { margin: 0; font-size: var(--t-md); font-weight: 500; }
+.block p { margin: 0; color: var(--fg-2); font-size: var(--t-sm); }
+.block textarea { width: 100%; height: 120px; resize: vertical; background: var(--bg); border: 1px solid var(--line); border-radius: var(--r); padding: 8px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; color: var(--fg-2); }
+.block .row2 { display: flex; gap: 8px; flex-wrap: wrap; }
+.field { display: grid; grid-template-columns: minmax(0, 1fr) 128px; align-items: center; gap: 8px; min-height: var(--hit); }
+.field input { height: 32px; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 0 8px; font-variant-numeric: tabular-nums; min-width: 0; }
+details#raw-json summary { cursor: pointer; min-height: var(--hit); display: flex; align-items: center; color: var(--fg-2); }
+details#raw-json pre { margin: 0; max-height: 280px; overflow: auto; background: var(--bg); border: 1px solid var(--line); border-radius: var(--r); padding: 8px; font-size: 11px; color: var(--fg-2); }
+.banner { background: var(--raised); border-radius: var(--r); padding: 10px 12px; font-size: var(--t-sm); color: var(--fg-2); display: flex; flex-direction: column; gap: 8px; }
+.banner strong { color: var(--fg); font-weight: 500; }
+
+main#preview { display: flex; flex-direction: column; min-height: 0; min-width: 0; background: var(--wall); color: var(--wall-ink); }
+.stage { flex: 1; min-height: 0; display: grid; place-items: center; padding: 16px; }
+.stage svg { width: min(100%, 520px); height: auto; max-height: 100%; aspect-ratio: 15 / 16; display: block; overflow: visible; }
+.stage svg:focus-visible { outline-offset: -4px; }
+.stagebar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-block: 8px 12px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); font-size: var(--t-sm); }
+.stagebar .hint { flex: 1; min-width: 160px; }
+.stagebar .btn { background: var(--wall-btn, #fff); color: var(--wall-btn-fg, #1f1f26); border-color: var(--wall-line, #cfd1d6); }
+.stagebar .btn:hover { border-color: var(--wall-line-hover, #8a8e96); }
+.switch { display: inline-flex; align-items: center; gap: 8px; min-height: var(--hit); cursor: pointer; }
+.switch input { width: 18px; height: 18px; }
+
+@media (max-width: 800px) {
+  .app { height: auto; min-height: 100%; }
+  .work { grid-template-columns: minmax(0, 1fr); }
+  main#preview { order: -1; }
+  .stage svg { width: min(100%, 340px); }
+  aside#panel { border-right: 0; border-top: 1px solid var(--line); }
+  .view { overflow: visible; }
+  header p { display: none; }
+  #status { max-width: 60%; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<script type="application/json" id="schema">__SCHEMA__</script>
+
+<div class="app">
+  <header id="summary">
+    <h1 id="title"></h1>
+    <p id="concept"></p>
+    <div id="status" role="status" aria-live="polite"></div>
+  </header>
+  <div class="work">
+    <aside id="panel" aria-label="Controls">
+      <div class="tabs" role="tablist">
+        <button role="tab" id="tab-controls" aria-controls="view-controls" aria-selected="true">Controls</button>
+        <button role="tab" id="tab-code" aria-controls="view-code" aria-selected="false">Get code</button>
+        <button role="tab" id="tab-more" aria-controls="view-more" aria-selected="false">More</button>
+      </div>
+      <div class="view" id="view-controls" role="tabpanel" aria-labelledby="tab-controls">
+        <div class="banner" id="review-banner" hidden>
+          <span><strong>Review mode.</strong> These are the controls the designer shared with you. Change anything, then copy your changes and send them back.</span>
+          <button class="btn" id="copy-changes">Copy my changes</button>
+        </div>
+        <div id="global-actions">
+          <button class="btn" id="randomise">Randomise</button>
+          <button class="btn ghost" id="reset">Reset</button>
+        </div>
+        <div id="groups"></div>
+      </div>
+      <div class="view" id="view-code" role="tabpanel" aria-labelledby="tab-code" hidden>
+        <div id="export-menu" class="block-list" style="display:flex;flex-direction:column;gap:20px"></div>
+      </div>
+      <div class="view" id="view-more" role="tabpanel" aria-labelledby="tab-more" hidden>
+        <div class="block">
+          <h3>Embed size</h3>
+          <p>Width of the embed on your site. Height follows the width.</p>
+          <div class="field"><label for="canvas-w">Width (px)</label><input id="canvas-w" type="number" min="120" max="1200" step="10"></div>
+        </div>
+        <div class="block">
+          <h3>Seeds</h3>
+          <p>Value seed is the Randomise result on screen. To get the same result again, set it one lower and press Randomise, or import the settings JSON. This playground has no generated shapes, so Seed and Reroll don’t change anything here.</p>
+          <div class="field"><label for="value-seed">Value seed</label><input id="value-seed" type="number" min="0" max="4294967295" step="1"></div>
+          <div class="field"><label for="seed">Seed</label><input id="seed" type="number" min="0" max="4294967295" step="1"></div>
+          <div class="row2"><button class="btn" id="reroll" disabled title="No generated shapes in this playground">Reroll</button></div>
+        </div>
+        <div class="block">
+          <h3>Import settings</h3>
+          <p>Paste settings JSON from Get code, or a review someone sent you.</p>
+          <textarea id="import-text" aria-label="Settings JSON to import" spellcheck="false"></textarea>
+          <div class="row2"><button class="btn" id="import">Import</button></div>
+        </div>
+        <div class="block" id="review-share">
+          <h3>Share for review</h3>
+          <p>Copies settings that open in review mode, with only the client-safe controls showing. Your locks aren’t included.</p>
+          <div class="row2"><button class="btn" id="copy-review">Copy review settings</button></div>
+        </div>
+        <details id="raw-json">
+          <summary>Raw JSON</summary>
+          <pre id="raw-pre"></pre>
+        </details>
+      </div>
+    </aside>
+    <main id="preview">
+      <div class="stage">
+        <svg id="art" viewBox="90 80 300 320" role="img" aria-label="An air-cooled Porsche 911 key and its remote on a ring, hanging from a pin" tabindex="0"></svg>
+      </div>
+      <div class="stagebar">
+        <span class="hint" id="hint">Move the pointer across the keys, or click them.</span>
+        <label class="switch" id="rm-switch" hidden><input type="checkbox" id="preview-motion"> Preview motion</label>
+        <button class="btn" id="do-hover">Hover</button>
+        <button class="btn" id="do-click">Click</button>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script>
+__RUNTIME__
+</script>
+<script>
+(function () {
+  'use strict';
+  var schema = JSON.parse(document.getElementById('schema').textContent);
+  var params = schema.params.filter(function (p) { return p.type !== 'action'; });
+  var byId = {}; params.forEach(function (p) { byId[p.id] = p; });
+  var U32 = 4294967295;
+
+  function defaults() { var v = {}; params.forEach(function (p) { v[p.id] = p.default; }); return v; }
+  var state = { values: defaults(), seed: schema.seed >>> 0, valueSeed: schema.seed >>> 0, mode: 'author', locks: new Set(), imported: null, width: schema.canvas.width };
+
+  var $ = function (id) { return document.getElementById(id); };
+  var statusEl = $('status');
+  function say(msg) { statusEl.textContent = msg; }
+
+  $('title').textContent = schema.title;
+  $('concept').textContent = 'Tune how the keys swing, then copy the code into your site.';
+
+  // ---------- artwork + motion ----------
+  var svg = $('art');
+  svg.innerHTML = mlArtwork();
+  var rm = window.matchMedia('(prefers-reduced-motion: reduce)');
+  var previewMotion = false;
+  function allowMotion() { return !rm.matches || previewMotion; }
+  var jingle = mlJingle(svg, state.values, { allowMotion: allowMotion });
+  mlApplyLook(svg, state.values);
+  function syncReducedMotion() {
+    $('rm-switch').hidden = !rm.matches;
+    $('hint').textContent = rm.matches && !previewMotion
+      ? 'Your system asks for reduced motion, so the keys stay still. Turn on Preview motion to tune them.'
+      : 'Move the pointer across the keys, or click them.';
+    if (!allowMotion()) jingle.stop();
+  }
+  rm.addEventListener('change', syncReducedMotion);
+  $('preview-motion').addEventListener('change', function (e) { previewMotion = e.target.checked; syncReducedMotion(); });
+  syncReducedMotion();
+  $('do-hover').addEventListener('click', function () { jingle.trigger('hover', 1); });
+  $('do-click').addEventListener('click', function () { jingle.trigger('click', 1); });
+
+  // ---------- values ----------
+  function quantize(p, v) {
+    v = Math.min(p.max, Math.max(p.min, v));
+    if (p.step > 0) v = p.min + Math.round((v - p.min) / p.step) * p.step;
+    var d = String(p.step).split('.')[1]; return Number(v.toFixed(d ? d.length : 0));
+  }
+  function validValue(p, v) {
+    if (p.type === 'number') return typeof v === 'number' && isFinite(v) && v >= p.min && v <= p.max && Math.abs(quantize(p, v) - v) < 1e-9;
+    if (p.type === 'enum') return p.options.some(function (o) { return o.value === v; });
+    if (p.type === 'color') return typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v);
+    if (p.type === 'boolean') return typeof v === 'boolean';
+    return false;
+  }
+  function constraintHolds(c, v) {
+    var a = v[c.a], b = v[c.b] * (c.factor == null ? 1 : c.factor);
+    return c.op === 'lte' ? a <= b + 1e-9 : c.op === 'gte' ? a >= b - 1e-9 : v[c.a] !== v[c.b];
+  }
+  function broken() { return (schema.constraints || []).filter(function (c) { return !constraintHolds(c, state.values); }); }
+  // Settle time has a floor set by Fob swing time. Raise it to the nearest step that clears the floor; returns true if it moved.
+  function fitSettle(v) {
+    var p = byId.settleTime;
+    var c = (schema.constraints || []).filter(function (k) { return k.a === 'settleTime' && k.op === 'gte'; })[0];
+    if (!p || !c || constraintHolds(c, v)) return false;
+    var need = v[c.b] * (c.factor == null ? 1 : c.factor);
+    var up = p.min + Math.ceil((need - p.min) / p.step - 1e-9) * p.step;
+    v.settleTime = quantize(p, Math.min(p.max, up));
+    return true;
+  }
+  function fitNote() {
+    return 'Settle time moved up to ' + state.values.settleTime + ' ms so the fob can finish its swing.';
+  }
+
+  var renderQueued = false;
+  function changed() {
+    jingle.setParams(state.values);
+    mlApplyLook(svg, state.values);
+    if (renderQueued) return; renderQueued = true;
+    requestAnimationFrame(function () { renderQueued = false; syncControls(); refreshExports(); placeOpenHelp(); });
+  }
+  function setParam(id, v) {
+    var p = byId[id]; if (!p) throw new Error('No control bound for ' + id);
+    if (p.type === 'number') { v = Number(v); if (!isFinite(v)) return; v = quantize(p, v); }
+    if (!validValue(p, v)) return;
+    state.values = Object.assign({}, state.values); state.values[id] = v;
+    var fit = (id === 'settleTime' || id === 'fobPeriod') && fitSettle(state.values);
+    changed();
+    previewEdit(p);
+    if (fit) gestureLift = true;
+    if (fit) say(fitNote());
+  }
+  // Double-click reset. The Settle floor can lift the default, so the status and the focused box report where the value actually landed.
+  // A double-click's first clicks already move the slider, which can lift Settle; record any lift from the gesture's first press on.
+  // A typed Settle value committed on blur is the user's own edit, so only a lift by the floor counts, including one applied to that typed value.
+  var gestureLift = false;
+  function markGesture(e) { if (e.detail === 1) gestureLift = false; }
+
+  // Help follows whichever input is in use, and opens upward when the panel has no room below the row.
+  document.addEventListener('keydown', function () { document.documentElement.setAttribute('data-input', 'key'); }, true);
+  ['pointermove', 'pointerdown'].forEach(function (t) { document.addEventListener(t, function () { document.documentElement.removeAttribute('data-input'); }, true); });
+  function placeHelp(e) { if (e.target.closest) placeHelpFor(e.target.closest('.ctl')); }
+  function placeHelpFor(c) {
+    var h = c && c.querySelector('.help'); if (!h) return;
+    var v = c.closest('.view'), room = Math.min(innerHeight, v ? v.getBoundingClientRect().bottom : innerHeight);
+    c.classList.toggle('help-up', c.getBoundingClientRect().bottom + h.offsetHeight > room);
+  }
+  document.addEventListener('pointerover', placeHelp);
+  document.addEventListener('focusin', placeHelp);
+  // Scrolling, a resize, or a warning that grows a row moves it without a new pointerover or focusin, so place its help again.
+  function placeOpenHelp() {
+    var a = document.activeElement; if (a && a.closest) placeHelpFor(a.closest('.ctl'));
+    var hov = document.querySelectorAll('.ctl:hover'); if (hov.length) placeHelpFor(hov[hov.length - 1]);
+  }
+  document.addEventListener('scroll', placeOpenHelp, true);
+  window.addEventListener('resize', placeOpenHelp);
+
+  function resetParam(p) {
+    setParam(p.id, p.default);
+    var v = state.values[p.id], lifted = p.id !== 'settleTime' && gestureLift;
+    gestureLift = false;
+    if (v === p.default) say(p.label + ' back to ' + p.default + unitText(p) + '.' + (lifted ? ' ' + fitNote() : ''));
+    var c = ui[p.id]; if (c && c.num) c.num.value = v;
+    syncControls();
+  }
+  // Editing a motion control replays a hover swing whenever the keys are hanging still, so every drag shows its effect.
+  function previewEdit(p) {
+    if (p.type === 'color' || p.clientSafe === false || jingle.active()) return;
+    jingle.trigger('hover', 1);
+  }
+
+  // ---------- panel ----------
+  var lockIcon = '<svg viewBox="0 0 256 256" aria-hidden="true"><path fill="currentColor" d="M208 80h-32V56a48 48 0 0 0-96 0v24H48a16 16 0 0 0-16 16v112a16 16 0 0 0 16 16h160a16 16 0 0 0 16-16V96a16 16 0 0 0-16-16ZM96 56a32 32 0 0 1 64 0v24H96Zm112 152H48V96h160Z"/></svg>';
+  var unlockIcon = '<svg viewBox="0 0 256 256" aria-hidden="true"><path fill="currentColor" d="M208 80H96V56a32 32 0 0 1 61.47-12.46 8 8 0 1 0 14.73-6.22A48 48 0 0 0 80 56v24H48a16 16 0 0 0-16 16v112a16 16 0 0 0 16 16h160a16 16 0 0 0 16-16V96a16 16 0 0 0-16-16Zm0 128H48V96h160Z"/></svg>';
+  var ui = {};
+  function unitText(p) { return p.unit === 'deg' ? '°' : p.unit === '%' ? '%' : p.unit || ''; }
+  function el(tag, attrs, html) { var e = document.createElement(tag); for (var k in attrs || {}) e.setAttribute(k, attrs[k]); if (html != null) e.innerHTML = html; return e; }
+
+  function buildPanel() {
+    var root = $('groups'); root.innerHTML = '';
+    schema.groups.forEach(function (g) {
+      var members = params.filter(function (p) { return p.group === g.id; });
+      if (!members.length) return;
+      var sec = el('section', { 'class': 'group', 'data-group': g.id });
+      sec.appendChild(el('h2', null, '')).textContent = g.label;
+      members.forEach(function (p) { sec.appendChild(buildControl(p)); });
+      root.appendChild(sec);
+    });
+  }
+  function lockButton(p) {
+    var b = el('button', { 'class': 'lock', 'aria-pressed': 'false', 'aria-label': 'Lock ' + p.label + ' so Randomise skips it' }, unlockIcon);
+    b.addEventListener('click', function () {
+      if (state.locks.has(p.id)) state.locks.delete(p.id); else state.locks.add(p.id);
+      syncControls(); say(p.label + (state.locks.has(p.id) ? ' locked.' : ' unlocked.'));
+    });
+    return b;
+  }
+  function buildControl(p) {
+    var wrap = el('div', { 'class': 'ctl', 'data-id': p.id });
+    var row = el('div', { 'class': 'row' });
+    var name = el('label', { 'class': 'name', 'for': 'in-' + p.id }); name.textContent = p.label;
+    row.appendChild(name);
+    var c = { wrap: wrap };
+    if (p.type === 'number') {
+      var box = el('label', { 'class': 'num', 'for': 'num-' + p.id });
+      var num = el('input', { id: 'num-' + p.id, type: 'number', min: p.min, max: p.max, step: p.step, inputmode: 'decimal', 'aria-label': p.label + ' value' });
+      box.appendChild(num); box.appendChild(el('span', null, '')).textContent = unitText(p);
+      row.appendChild(box);
+      row.appendChild(c.lock = lockButton(p));
+      wrap.appendChild(row);
+      var range = el('input', { id: 'in-' + p.id, type: 'range', min: p.min, max: p.max, step: p.step });
+      range.addEventListener('input', function () { setParam(p.id, range.value); });
+      range.addEventListener('mousedown', markGesture);
+      range.addEventListener('dblclick', function () { resetParam(p); });
+      num.addEventListener('change', function () { setParam(p.id, num.value); num.value = state.values[p.id]; syncControls(); });
+      num.addEventListener('mousedown', markGesture);
+      num.addEventListener('dblclick', function () { resetParam(p); });
+      c.range = range; c.num = num;
+      wrap.appendChild(range);
+    } else if (p.type === 'enum') {
+      row.appendChild(el('span'));
+      row.appendChild(c.lock = lockButton(p));
+      wrap.appendChild(row);
+      var seg = el('div', { 'class': 'seg', role: 'group', id: 'in-' + p.id, 'aria-label': p.label });
+      c.opts = p.options.map(function (o) {
+        var b = el('button', { 'aria-pressed': 'false' }); b.textContent = o.label;
+        b.addEventListener('click', function () { setParam(p.id, o.value); });
+        b.addEventListener('dblclick', function () { setParam(p.id, p.default); });
+        seg.appendChild(b); return { b: b, v: o.value };
+      });
+      wrap.appendChild(seg);
+    } else if (p.type === 'color') {
+      row.appendChild(el('span'));
+      row.appendChild(c.lock = lockButton(p));
+      wrap.appendChild(row);
+      var sw = el('div', { 'class': 'swatches', role: 'group', id: 'in-' + p.id, 'aria-label': p.label });
+      c.opts = (p.swatches || []).map(function (hex) {
+        var b = el('button', { 'aria-pressed': 'false', 'aria-label': hex }, '<i style="background:' + hex + '"></i>');
+        b.addEventListener('click', function () { setParam(p.id, hex); });
+        sw.appendChild(b); return { b: b, v: hex };
+      });
+      var pick = el('label', { title: 'Pick any colour' }, '<svg viewBox="0 0 256 256" aria-hidden="true"><path fill="currentColor" d="M224 67.3a35.79 35.79 0 0 0-11.26-25.66c-14-13.28-36.72-12.78-50.62 1.13L142.8 62.2a24 24 0 0 0-33.14.77l-9 9a16 16 0 0 0 0 22.64l2 2.06-51 51a39.75 39.75 0 0 0-10.53 38l-8 18.41A13.68 13.68 0 0 0 36 219.3a15.92 15.92 0 0 0 17.71 3.35L71.23 215a39.89 39.89 0 0 0 37.06-10.75l51-51 2.06 2.06a16 16 0 0 0 22.62 0l9-9a24 24 0 0 0 .74-33.18l19.75-19.87A35.75 35.75 0 0 0 224 67.3ZM97 193a24 24 0 0 1-24 6 8 8 0 0 0-5.55.31l-18.1 7.91L57 189.41a8 8 0 0 0 .25-6.17 23.88 23.88 0 0 1 5.82-25.06l51-51 33.94 34Zm103.85-105.4-25.43 25.53a8 8 0 0 0 0 11.31l4.89 4.88a8 8 0 0 1 0 11.32l-9 9L112 108l9-9a8 8 0 0 1 11.31 0l4.89 4.89a8 8 0 0 0 5.65 2.34 8 8 0 0 0 5.66-2.36l24.94-25.09c7.81-7.82 20.5-8.18 28.29-.81a20 20 0 0 1 .39 28.7Z"/></svg>');
+      var picker = el('input', { type: 'color', 'aria-label': p.label + ', any colour' });
+      picker.addEventListener('input', function () { setParam(p.id, picker.value.toUpperCase()); });
+      pick.appendChild(picker); sw.appendChild(pick);
+      c.picker = picker; c.hex = el('code'); sw.appendChild(c.hex);
+      wrap.appendChild(sw);
+    }
+    if (p.help) { var h = el('p', { 'class': 'help', id: 'help-' + p.id }); h.textContent = p.help; wrap.appendChild(h); }
+    c.note = el('p', { 'class': 'note', hidden: '' }); wrap.appendChild(c.note);
+    ui[p.id] = c;
+    return wrap;
+  }
+  function syncControls() {
+    var bad = broken();
+    params.forEach(function (p) {
+      var c = ui[p.id], v = state.values[p.id];
+      if (!c) throw new Error('Missing control for ' + p.id);
+      c.wrap.hidden = state.mode === 'review' && p.clientSafe === false;
+      if (c.range) {
+        if (document.activeElement !== c.range || Number(c.range.value) !== v) c.range.value = v;
+        if (document.activeElement !== c.num) c.num.value = v;
+        c.range.style.setProperty('--p', ((v - p.min) / (p.max - p.min) * 100) + '%');
+      }
+      if (c.opts) c.opts.forEach(function (o) { o.b.setAttribute('aria-pressed', String(o.v === v)); });
+      if (c.picker) { c.picker.value = v.toLowerCase(); c.hex.textContent = v.toUpperCase(); }
+      var locked = state.locks.has(p.id);
+      c.lock.setAttribute('aria-pressed', String(locked));
+      c.lock.innerHTML = locked ? lockIcon : unlockIcon;
+      c.lock.setAttribute('aria-label', (locked ? 'Unlock ' : 'Lock ') + p.label + (locked ? '' : ' so Randomise skips it'));
+      var mine = bad.filter(function (k) { return k.a === p.id; });
+      c.note.hidden = !mine.length;
+      if (mine.length) c.note.textContent = 'Heads up: ' + mine.map(function (k) { return lowerFirst(k.why) + ' ' + ruleText(k); }).join(' ');
+    });
+    $('value-seed').value = state.valueSeed; $('seed').value = state.seed; $('canvas-w').value = state.width;
+    $('review-banner').hidden = state.mode !== 'review';
+    $('raw-json').hidden = state.mode === 'review';
+    $('review-share').hidden = state.mode === 'review';
+    $('raw-pre').textContent = JSON.stringify({ schema: schema, state: envelope(state.mode) }, null, 2);
+  }
+  function lowerFirst(s) { return s.charAt(0).toLowerCase() + s.slice(1); }
+  function ruleText(k) {
+    var a = byId[k.a].label, b = byId[k.b].label, f = k.factor == null ? 1 : k.factor;
+    var rel = k.op === 'gte' ? 'at least' : k.op === 'lte' ? 'at most' : 'different from';
+    return '(' + a + ' should be ' + rel + (f !== 1 ? ' ' + f + ' × ' : ' ') + b + ', ' + Math.round(state.values[k.b] * f) + unitText(byId[k.b]) + '.)';
+  }
+
+  // ---------- Randomise / Reset / seeds ----------
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  function eligible(p) {
+    return !state.locks.has(p.id) && p.randomize !== false && !(state.mode === 'review' && p.clientSafe === false);
+  }
+  function sample(p, rnd) {
+    if (p.type === 'number') {
+      var lo = p.safeMin != null ? p.safeMin : p.min + 0.15 * (p.max - p.min);
+      var hi = p.safeMax != null ? p.safeMax : p.min + 0.85 * (p.max - p.min);
+      return quantize(p, lo + rnd() * (hi - lo));
+    }
+    if (p.type === 'enum') return p.options[Math.floor(rnd() * p.options.length)].value;
+    if (p.type === 'boolean') return rnd() < 0.5;
+    if (p.type === 'color') return p.swatches && p.swatches.length ? p.swatches[Math.floor(rnd() * p.swatches.length)] : state.values[p.id];
+  }
+  $('randomise').addEventListener('click', function () {
+    state.valueSeed = (state.valueSeed + 1) >>> 0;
+    var rnd = mulberry32(state.valueSeed), pool = params.filter(eligible);
+    for (var i = 0; i < 20; i++) {
+      var v = Object.assign({}, state.values);
+      pool.forEach(function (p) { v[p.id] = sample(p, rnd); });
+      if ((schema.constraints || []).every(function (c) { return constraintHolds(c, v); })) {
+        state.values = v; changed(); jingle.trigger('hover', 1);
+        say('Randomised with value seed ' + state.valueSeed + '.');
+        return;
+      }
+    }
+    syncControls(); say('Heads up: no random mix fit the rules in 20 tries, so nothing changed.');
+  });
+  $('reset').addEventListener('click', function () {
+    state.locks.clear();
+    if (state.mode === 'review' && state.imported) {
+      state.values = Object.assign({}, state.imported); changed(); say('Back to the settings you were sent.'); return;
+    }
+    state.values = defaults(); state.seed = schema.seed >>> 0; state.valueSeed = schema.seed >>> 0; state.width = schema.canvas.width;
+    changed(); say('Back to the starting settings.');
+  });
+  function seedInput(id, key) {
+    $(id).addEventListener('change', function (e) {
+      var n = Number(e.target.value);
+      if (!Number.isInteger(n) || n < 0 || n > U32) { e.target.value = state[key]; say('Seeds are whole numbers from 0 to 4294967295.'); return; }
+      state[key] = n; syncControls(); refreshExports();
+    });
+  }
+  seedInput('value-seed', 'valueSeed'); seedInput('seed', 'seed');
+  $('canvas-w').addEventListener('change', function (e) {
+    var n = Math.round(Number(e.target.value));
+    if (!isFinite(n)) return;
+    state.width = Math.min(1200, Math.max(120, n)); syncControls(); refreshExports();
+  });
+
+  // ---------- envelope, import, review ----------
+  function envelope(mode) {
+    return { exportVersion: '1.0', schemaVersion: schema.schemaVersion, playgroundId: schema.id, revision: 'r1', engineVersion: '1.0.0', seed: state.seed, valueSeed: state.valueSeed, mode: mode || 'author', canvas: { width: state.width }, values: Object.assign({}, state.values) };
+  }
+  function major(v) { return String(v || '').split('.')[0]; }
+  function importText(text) {
+    var env;
+    try { env = JSON.parse(text); } catch (e) { return 'That isn’t valid JSON. Copy it again from Get code and paste the whole thing.'; }
+    if (env && typeof env === 'object' && env.changes && env.settings) env = env.settings;
+    var isObj = function (o) { return !!o && typeof o === 'object' && !Array.isArray(o); };
+    if (!isObj(env) || !isObj(env.values)) return 'That JSON doesn’t look like Motion Lab settings: it has no values.';
+    if (env.playgroundId !== schema.id) return 'Those settings are for a different playground (' + env.playgroundId + ').';
+    var ver = function (v, re) { return typeof v === 'string' && re.test(v); };
+    if (!ver(env.exportVersion, /^1\.\d+$/) || !ver(env.schemaVersion, /^1\.\d+$/) || !ver(env.engineVersion, /^1\.\d+\.\d+$/)) return 'Those settings come from a Motion Lab version this page can’t read.';
+    if (env.revision !== 'r1') return 'Those settings are for a different version of this artwork (' + env.revision + ').';
+    var width = schema.canvas.width;
+    if (env.canvas != null) {
+      if (!isObj(env.canvas) || !Number.isInteger(env.canvas.width) || env.canvas.width < 120 || env.canvas.width > 1200) return 'Embed width must be a whole number from 120 to 1200.';
+      width = env.canvas.width;
+    }
+    if (env.mode !== 'author' && env.mode !== 'review') return 'Mode must be author or review.';
+    var seeds = ['seed', 'valueSeed'];
+    for (var s = 0; s < 2; s++) { var n = env[seeds[s]]; if (!Number.isInteger(n) || n < 0 || n > U32) return seeds[s] + ' must be a whole number from 0 to 4294967295.'; }
+    var next = defaults(), keys = Object.keys(env.values);
+    for (var i = 0; i < keys.length; i++) {
+      var p = byId[keys[i]];
+      if (!p) return 'Unknown control “' + keys[i] + '”.';
+      if (!validValue(p, env.values[keys[i]])) return p.label + ' has a value this playground can’t use: ' + JSON.stringify(env.values[keys[i]]) + '.';
+      next[keys[i]] = env.values[keys[i]];
+    }
+    state.fitted = fitSettle(next);
+    state.values = next; state.seed = env.seed; state.valueSeed = env.valueSeed; state.mode = env.mode; state.width = width; state.locks.clear();
+    state.imported = env.mode === 'review' ? Object.assign({}, next) : null;
+    jingle.stop(); changed();
+    return null;
+  }
+  $('import').addEventListener('click', function () {
+    var err = importText($('import-text').value);
+    if (err) { say(err); return; }
+    $('import-text').value = '';
+    showTab('controls');
+    say((state.mode === 'review' ? 'Imported. You’re in review mode.' : 'Imported. All controls are back.') + (state.fitted ? ' ' + fitNote() : ''));
+  });
+  $('copy-review').addEventListener('click', function () {
+    copy(JSON.stringify(envelope('review'), null, 2), null, 'Review settings copied. Send them to your client to paste into Import.');
+  });
+  $('copy-changes').addEventListener('click', function () {
+    var diff = {};
+    params.forEach(function (p) { if (state.imported && state.values[p.id] !== state.imported[p.id]) diff[p.id] = { label: p.label, from: state.imported[p.id], to: state.values[p.id] }; });
+    if (!Object.keys(diff).length) { say('You haven’t changed anything yet.'); return; }
+    copy(JSON.stringify({ playgroundId: schema.id, changes: diff, settings: envelope('author') }, null, 2), null, 'Your changes are copied. Paste them into a message to the designer.');
+  });
+
+  // ---------- exports ----------
+  function frameSVG() {
+    var clone = svg.cloneNode(true);
+    clone.removeAttribute('tabindex'); clone.removeAttribute('id');
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    clone.setAttribute('width', state.width); clone.setAttribute('height', Math.round(state.width * 16 / 15));
+    var hit = clone.querySelector('[data-part="hit"]'); if (hit) hit.remove();
+    return clone.outerHTML;
+  }
+  function embedCode() {
+    // Everything interpolated here lands inside an HTML comment, an attribute or a script, so each piece is reduced to a form that cannot close its context.
+    var w = Math.min(1200, Math.max(120, Math.round(Number(state.width)) || schema.canvas.width));
+    var id = String(schema.id).toLowerCase().replace(/[^a-z0-9-]/g, '');
+    var data = JSON.stringify(state.values).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
+    return '<!-- Motion Lab: ' + id + ' r1. Paste into a Webflow or Framer Embed, or any HTML page. -->\n' +
+      '<div class="ml911" style="width:100%;max-width:' + w + 'px;aspect-ratio:15/16">\n' +
+      '<svg viewBox="90 80 300 320" style="width:100%;height:100%;display:block;overflow:visible" role="img" tabindex="0" aria-label="Porsche 911 key and remote on a ring. Press Enter to jingle."></svg>\n' +
+      '</div>\n<script>\n(function(){\n' +
+      'var P=' + data + ';\n' +
+      mlArtwork.toString() + '\n' + mlApplyLook.toString() + '\n' + mlJingle.toString() + '\n' +
+      'var root=document.currentScript.previousElementSibling,svg=root.querySelector("svg");\n' +
+      'svg.innerHTML=mlArtwork("ml911-"+Math.random().toString(36).slice(2,8));mlApplyLook(svg,P);\n' +
+      'var rm=window.matchMedia("(prefers-reduced-motion: reduce)");\n' +
+      'mlJingle(svg,P,{allowMotion:function(){return !rm.matches;}});\n' +
+      '})();\n<\/script>';
+  }
+  var exportsDef = [
+    { id: 'waapi-snippet', title: 'Embed on your site', text: 'The artwork and the motion with your settings, in one block of HTML. Paste it into a Webflow Embed, a Framer Embed or any web page. It respects reduced motion.', make: embedCode, copyLabel: 'Copy embed code' },
+    { id: 'params-json', title: 'Settings JSON', text: 'Your settings. Paste them into Import later to pick up where you left off.', make: function () { return JSON.stringify(envelope('author'), null, 2); }, copyLabel: 'Copy settings' },
+    { id: 'svg-frame', title: 'Still frame (SVG)', text: 'The frame on screen right now as an SVG file, for a poster or a Figma mock-up.', make: frameSVG, copyLabel: 'Copy SVG' }
+  ].filter(function (x) { return schema.exports.indexOf(x.id) !== -1; });
+  var exportUI = {};
+  (function buildExports() {
+    var root = $('export-menu');
+    exportsDef.forEach(function (x) {
+      var b = el('div', { 'class': 'block' });
+      b.appendChild(el('h3')).textContent = x.title;
+      b.appendChild(el('p')).textContent = x.text;
+      var ta = el('textarea', { readonly: '', id: 'out-' + x.id, 'aria-label': x.title, spellcheck: 'false' });
+      b.appendChild(ta);
+      var r = el('div', { 'class': 'row2' });
+      var btn = el('button', { 'class': x.id === 'waapi-snippet' ? 'btn primary' : 'btn' }); btn.textContent = x.copyLabel;
+      btn.addEventListener('click', function () { ta.value = x.make(); copy(ta.value, ta, x.title + ' copied.'); });
+      r.appendChild(btn); b.appendChild(r); root.appendChild(b);
+      exportUI[x.id] = { ta: ta, make: x.make };
+    });
+  })();
+  function refreshExports() {
+    if ($('view-code').hidden) return;
+    exportsDef.forEach(function (x) { exportUI[x.id].ta.value = x.make(); });
+  }
+  function copy(text, ta, okMsg) {
+    var fallback = function () {
+      if (!ta) { ta = $('import-text'); showTab('more'); ta.value = text; }
+      ta.focus(); ta.select();
+      say('Your browser blocked copying. The text is selected: press ' + (/Mac/.test(navigator.platform) ? '⌘C' : 'Ctrl+C') + '.');
+    };
+    try {
+      navigator.clipboard.writeText(text).then(function () { say(okMsg); }, fallback);
+    } catch (e) { fallback(); }
+  }
+
+  // ---------- tabs ----------
+  var tabs = ['controls', 'code', 'more'];
+  function showTab(name) {
+    tabs.forEach(function (t) {
+      $('tab-' + t).setAttribute('aria-selected', String(t === name));
+      $('view-' + t).hidden = t !== name;
+    });
+    refreshExports();
+  }
+  tabs.forEach(function (t) { $('tab-' + t).addEventListener('click', function () { showTab(t); }); });
+
+  buildPanel();
+  syncControls();
+  window.__ml = { state: state, jingle: jingle, setParam: setParam, importText: importText, envelope: envelope, embedCode: embedCode };
+})();
+</script>
