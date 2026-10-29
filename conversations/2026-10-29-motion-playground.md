@@ -29,3 +29,32 @@ Full detail: spec docs/spec-motion-playground.md v0.2; prior transcript ~/.claud
 - Steps 1-2 done (a84ee7d). Step 3 done: src/motion-playground/{validate,taste-map,index}.ts written, tsc --noEmit clean. node_modules in this worktree is a symlink to ../raven-mcp/node_modules (lockfiles identical; ignored by info/exclude).
 - v1 deviations (report to Andrew): keyfob only; no artwork input and no sanitize-svg; no presets/advanced overrides; grab_url never returned; rejected is string[] (spec correction); font is a literal Untitled Sans stack, not from the binding; "no bounce" is unreachable for keyfob (max damping ratio 0.70) and returns a warning.
 - Next: step 4 (src/index.ts registration + classification sets).
+
+## Checkpoint 2026-10-29 (second compaction)
+- Steps 4-6 done in 0d4a774 "Register create_motion_playground (stdio 112, gated 68)". Full suite 1856/1853/0/3, EXIT=0 in log; skips are the known three.
+- Also fixed in that commit: decision-graph healthy test used fixture date 2026-07-12 that aged past the 90-day stale threshold (fails on main too) -> created_at now; main's stale "66 gated" comment corrected to 68.
+- Step 7 uncommitted: scripts/build-motion-gallery.mjs, web/public/playgrounds/keyfob.html (60565 B, deterministic), check-site-drift gallery section (proven to fail on missing /motion sitemap entry), sitemap /motion, nav.js Motion link, ToolsSection entry, docs page article (Taste Engine 11->12), llms.txt line in site/ and web/public/ (cmp-identical).
+- Next: web/app/motion/{page.tsx,motion.css,MotionFrame.tsx}; drift PASS + stale-gallery mutant; next build + view; step 8.
+- Flag for Andrew: "911 key hover-jingle" / "Porsche 911 key" naming would be public on ravenmcp.ai/motion.
+
+## Checkpoint 2026-10-29 (third compaction)
+- Step 7 done (uncommitted until the step-8 commit): web/app/motion/{page.tsx,MotionFrame.tsx,motion.css}. `next build` caught "ToolsSection lists 112 tools but TOOL_COUNT is 111"; web/lib/counts.ts TOOL_COUNT -> 112. That constant is the npm-installable count, so the web deploy has to wait for the npm release that ships the tool.
+- Chromium (motion-verify3.log, EXIT=0) at 1440 and 390: sandbox="allow-scripts"; forged messages from another sandboxed frame and from the page are ignored; the in-frame copy reaches the clipboard; with writeText denied the parent fallback shows. A mutant that drops the event.source check lets FORGED-FRAME through at both widths; after restore and rebuild the result is SENTINEL again. Narrow fixes: .motion-call overflow-x:auto, frame height 1800px under 800px.
+- Drift check PASS; the stale-gallery mutant (1 byte appended) fails it, EXIT=1; restore verified with cmp.
+- design-judge: Raven audit_contrast found 14 AA failures inside the playground: --fg-3 #80848e on panel #1f1f26 = 4.37:1. Changed --fg-3 to #8a8e98 (4.99:1) in src/data/motion/template.html; gallery rebuilt; Raven re-audit 0 failures. Tap targets: /motion 12/12 pass. Inside the playground, 12 slider name labels are 18px tall; the sliders and number inputs they name pass, so the WCAG 2.5.8 equivalent-control exception applies. Verdict PASS.
+- Full suite before the colour fix: 1856/1853/0/3, EXIT=0, skips are the known three (lines 121/895/896). Re-run after the fix: full4.log.
+
+## Sol round 1 disposition (after third compaction)
+
+Sol round 1 (gpt-6.1-sol, medium, report-only): DOES NOT SURVIVE, 3 × P2 + 2 × P3. Disposition:
+
+1. Default names could overwrite (16-bit id, plain writeFileSync): FIXED. The default path is now created with `flag: "wx"` and draws a new id on EEXIST, up to 8 attempts. An explicit `output_path` still overwrites by design. Test: every one of the 65,536 names is pre-created, the call rejects with EEXIST, and no pre-existing file gains bytes.
+2. Copy for Raven was enabled for projects record_taste_decision rejects: FIXED. `ravenProblem()` in template.html applies the same regex, keeps Copy disabled and names the rule in the note ("client-website", not "Client website"). The browser round-trip test now covers the invalid state.
+3. The "next playground starts closer" promise was false: FIXED. The copy now reads "Paste it into your agent's chat and Raven records it against this project."
+4. The drift check could pass against a stale dist/: FIXED. `npm run check:site` now runs `npm run build &&` first, and a test pins the script.
+5. fitSettle reported success when the clamp could not fix the constraint: FIXED at build time. `checkConstraintReach()` refuses any number range where the far end of b leaves no reachable a (for example, settleTime max 1600 against fobPeriod max 1000, which needs 1820). `fitNote()` reports the failure if it ever happens. NOT changed: the "damping ratio" text in keyfob/schema.json `why`. That file is a lock-pinned Motion Lab copy, so its wording goes upstream through scripts/sync-motion-motifs.mjs.
+
+Mutants (dist/ and template, restore verified): M1 non-exclusive write, M2 no reach check and M3 project unchecked each killed exactly one test.
+Full suite: 1860 / 1857 / 0 / 3 skipped, EXIT=0 ($SP/full6.log). The +4 is exactly the four new tests; the skips are the same three, at lines 121/895/896. check:site: PASS.
+Gallery regenerated: 61,566 B. Eyes-on capture of the invalid and valid Copy for Raven states on /motion: no page errors, note colour rgb(166,170,179).
+Sol round 2 launched with $SP/sol-brief3.md.

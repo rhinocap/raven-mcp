@@ -9,7 +9,7 @@
   --line: #34343e;
   --fg: #f0f0f2;
   --fg-2: #a6aab3;
-  --fg-3: #80848e;
+  --fg-3: #8a8e98;
   --focus: #00bfff;
   --warn: #ffab40;
   --wall: #e8e9ec;
@@ -278,7 +278,10 @@ __RUNTIME__
     v.settleTime = quantize(p, Math.min(p.max, up));
     return true;
   }
+  // The tool refuses a Settle range that cannot clear the longest Fob swing, so the second sentence is a fallback, not a path.
   function fitNote() {
+    var c = (schema.constraints || []).filter(function (k) { return k.a === 'settleTime' && k.op === 'gte'; })[0];
+    if (c && !constraintHolds(c, state.values)) return 'Settle time is at its maximum, ' + state.values.settleTime + ' ms, and the fob’s swing still runs past it.';
     return 'Settle time moved up to ' + state.values.settleTime + ' ms so the fob can finish its swing.';
   }
 
@@ -628,7 +631,7 @@ __RUNTIME__
   var ravenUI = (function buildRaven() {
     var b = el('div', { 'class': 'block', id: 'raven-block' });
     b.appendChild(el('h3')).textContent = 'Copy for Raven';
-    b.appendChild(el('p')).textContent = 'Your changes as a taste decision. Paste it into your agent’s chat and it records them with Raven, so the next playground starts closer.';
+    b.appendChild(el('p')).textContent = 'Your changes as a taste decision. Paste it into your agent’s chat and Raven records it against this project.';
     var inputs = {};
     ['profile', 'project'].forEach(function (k) {
       var preset = typeof ravenCtx[k] === 'string' ? ravenCtx[k] : '';
@@ -640,7 +643,7 @@ __RUNTIME__
       inputs[k] = inp;
       inp.addEventListener('input', function () { refreshRaven(); });
     });
-    var note = el('p', { id: 'raven-need', hidden: '' }); note.textContent = 'Add the taste profile and project your agent uses, then copy.';
+    var note = el('p', { id: 'raven-need', hidden: '' });
     b.appendChild(note);
     var ta = el('textarea', { readonly: '', id: 'out-raven', 'aria-label': 'Copy for Raven', spellcheck: 'false' });
     b.appendChild(ta);
@@ -650,14 +653,25 @@ __RUNTIME__
     r.appendChild(btn); b.appendChild(r); $('export-menu').appendChild(b);
     return { inputs: inputs, ta: ta, btn: btn, note: note };
   })();
+  // The same project rule record_taste_decision applies, so a copied decision is one Raven accepts.
+  var RAVEN_PROJECT = /^[a-z0-9][a-z0-9-_.]{0,63}$/i;
+  function ravenFields() {
+    return { profile: String(ravenUI.inputs.profile.value).trim(), project: String(ravenUI.inputs.project.value).trim() };
+  }
+  function ravenProblem(f) {
+    if (!f.profile || !f.project) return 'Add the taste profile and project your agent uses, then copy.';
+    if (!RAVEN_PROJECT.test(f.project)) return 'Project names use letters, numbers, dots, dashes and underscores, start with a letter or number, and stay under 65 characters: “client-website”, not “Client website”.';
+    return '';
+  }
   function ravenText() {
-    var profile = String(ravenUI.inputs.profile.value).trim(), project = String(ravenUI.inputs.project.value).trim();
-    if (!profile || !project) return '';
+    var f = ravenFields(), profile = f.profile, project = f.project;
+    if (ravenProblem(f)) return '';
     return 'Record this motion decision with Raven’s record_taste_decision tool:\n' + JSON.stringify(ravenRecord(profile, project), null, 2);
   }
   function refreshRaven() {
     var t = ravenText();
     ravenUI.ta.value = t; ravenUI.btn.disabled = !t; ravenUI.note.hidden = !!t;
+    if (!t) ravenUI.note.textContent = ravenProblem(ravenFields());
   }
   function refreshExports() {
     if ($('view-code').hidden) return;

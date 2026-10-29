@@ -735,7 +735,7 @@ cd raven-mcp && npm install && npm run build`}</code></pre></div>
               </article>
             </div>
 
-            <div className="rd-layer-head"><h3>Taste Engine</h3><span className="rd-layer-count">11 tools</span></div>
+            <div className="rd-layer-head"><h3>Taste Engine</h3><span className="rd-layer-count">12 tools</span></div>
             <div className="rd-tool-list">
               <article className="rd-tool" id="tool-create_taste_profile">
                 <h3 className="rd-tool-name"><a className="rd-tool-anchor" href="#tool-create_taste_profile" aria-label="Link to create_taste_profile">#</a><code>create_taste_profile</code></h3>
@@ -859,6 +859,20 @@ cd raven-mcp && npm install && npm run build`}</code></pre></div>
                   <div className="rd-param"><dt><code>mode</code><span className="rd-optional">optional</span></dt><dd>’board’ (default) composes the real board from the binding; ’example’ writes a clearly-labeled sample to seed thinking before calibration.</dd></div>
                   <div className="rd-param"><dt><code>output_dir</code><span className="rd-optional">optional</span></dt><dd>Directory for the board files. Defaults to &lt;taste home&gt;/moodboards.</dd></div>
                   <div className="rd-param"><dt><code>image_paths</code><span className="rd-optional">optional</span></dt><dd>Absolute paths to your own images (png/jpeg/gif/webp, sniffed from the bytes). Unusable paths are skipped with a named warning, never silently. mode:’board’ only.</dd></div>
+                </dl>
+              </article>
+              <article className="rd-tool" id="tool-create_motion_playground">
+                <h3 className="rd-tool-name"><a className="rd-tool-anchor" href="#tool-create_motion_playground" aria-label="Link to create_motion_playground">#</a><code>create_motion_playground</code></h3>
+                <p className="rd-tool-desc">Build a motion playground: one self-contained HTML file with a built-in motif’s animation on a stage, its controls labelled in designer language, a live preview and copyable exports (params JSON, an SVG frame, a WAAPI snippet). With profile and project it starts from the bound surface’s motion notes — only restrained, subtle, snappy and no bounce are mapped, and anything else is listed in warnings — and prefills Copy for Raven, which you paste back so your agent can record the tuned values with record_taste_decision. A default that breaks a motif constraint is moved to the nearest valid step and reported; an override that cannot be corrected inside its range is an error. See one at <a href="/motion">ravenmcp.ai/motion</a>.</p>
+                <p className="rd-param-heading">Parameters</p>
+                <dl className="rd-params">
+                  <div className="rd-param"><dt><code>motif</code><span className="rd-required">required</span></dt><dd>Built-in motif. v1 ships one: ’keyfob’.</dd></div>
+                  <div className="rd-param"><dt><code>title</code><span className="rd-optional">optional</span></dt><dd>Header and tab title, 1–60 characters. Defaults to the motif’s own title.</dd></div>
+                  <div className="rd-param"><dt><code>overrides</code><span className="rd-optional">optional</span></dt><dd>Per-control label, default, narrower min/max and clientSafe, keyed by control id, plus group labels. Unknown ids are errors that list the valid ones.</dd></div>
+                  <div className="rd-param"><dt><code>profile</code><span className="rd-optional">optional</span></dt><dd>Taste profile name. Pass with project, or omit both.</dd></div>
+                  <div className="rd-param"><dt><code>project</code><span className="rd-optional">optional</span></dt><dd>Bound project name. Pass with profile, or omit both.</dd></div>
+                  <div className="rd-param"><dt><code>seed</code><span className="rd-optional">optional</span></dt><dd>Random seed (0–4294967295) so a shared playground replays identically.</dd></div>
+                  <div className="rd-param"><dt><code>output_path</code><span className="rd-optional">optional</span></dt><dd>Absolute path ending in .html. Defaults to &lt;taste home&gt;/playgrounds/&lt;motif&gt;-&lt;id&gt;.html.</dd></div>
                 </dl>
               </article>
             </div>

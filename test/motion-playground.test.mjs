@@ -17,7 +17,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -122,6 +122,47 @@ test('a constraint that cannot be met inside the range is an error, not a silent
     );
     assert.equal(existsSync(out), false, 'a refused build must not leave a file behind');
   });
+});
+
+test('a slider range that cannot clear the constraint at its far end is refused', async () => {
+  await withHome(async ({ home, store }) => {
+    const out = path.join(home, 'reach.html');
+    // The default fob swing (640 ms) fits under 1600 ms, but dragging Fob swing to 1000 ms needs 1820 ms.
+    await assert.rejects(
+      mp.createMotionPlayground({ store, motif: 'keyfob', output_path: out, overrides: { controls: { settleTime: { max: 1600 } } } }),
+      /settleTime max 1600 ms cannot keep settleTime >= 1\.82 × fobPeriod when fobPeriod is at its max 1000 ms \(needs 1820 ms\)/,
+    );
+    assert.equal(existsSync(out), false, 'a refused build must not leave a file behind');
+    const r = await mp.createMotionPlayground({ store, motif: 'keyfob', output_path: out, overrides: { controls: { settleTime: { max: 1900 } } } });
+    assert.deepEqual(r.warnings, []);
+  });
+});
+
+test('a generated name never replaces an earlier playground', async () => {
+  await withHome(async ({ home, store }) => {
+    // Occupy every name the 16-bit id can draw, so any non-exclusive write would replace one of them.
+    const dir = path.join(home, 'playgrounds');
+    mkdirSync(dir, { recursive: true });
+    for (let i = 0; i < 0x10000; i++) writeFileSync(path.join(dir, 'keyfob-' + i.toString(16).padStart(4, '0') + '.html'), '');
+    await assert.rejects(mp.createMotionPlayground({ store, motif: 'keyfob' }), (err) => err.code === 'EEXIST');
+    const written = readdirSync(dir).filter((f) => readFileSync(path.join(dir, f)).length > 0);
+    rmSync(dir, { recursive: true, force: true });
+    assert.deepEqual(written, [], 'an existing playground was overwritten');
+  });
+});
+
+test('Copy for Raven promises a recorded decision, not a changed next playground', async () => {
+  await withHome(async ({ store }) => {
+    const r = await mp.createMotionPlayground({ store, motif: 'keyfob' });
+    const html = readFileSync(r.html_path, 'utf8');
+    assert.doesNotMatch(html, /next playground/i);
+    assert.match(html, /Raven records it against this project\./);
+  });
+});
+
+test('check:site builds dist/ before comparing the gallery against it', () => {
+  const pkg = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  assert.match(pkg.scripts['check:site'], /^npm run build && node scripts\/check-site-drift\.mjs$/);
 });
 
 test('overrides outside the motif range or off its step grid are refused', async () => {
@@ -294,13 +335,21 @@ test('Copy for Raven text is accepted by record_taste_decision as-is', { skip: n
         document.getElementById('tab-code').click();
         const before = { text: window.__ml.ravenText(), disabled: document.getElementById('copy-raven').disabled, fields: !!document.getElementById('raven-profile') && !!document.getElementById('raven-project') };
         const set = (id, v) => { const el = document.getElementById(id); el.value = v; el.dispatchEvent(new Event('input')); };
-        set('raven-profile', 'motion-rt'); set('raven-project', 'fob-site');
-        return { before, after: { disabled: document.getElementById('copy-raven').disabled, hasText: window.__ml.ravenText().length > 0 } };
+        set('raven-profile', 'motion-rt'); set('raven-project', 'Client website');
+        await new Promise(requestAnimationFrame);
+        const note = document.getElementById('raven-need');
+        const invalid = { disabled: document.getElementById('copy-raven').disabled, text: window.__ml.ravenText(), noteShown: !note.hidden, noteNamesRule: /“client-website”, not “Client website”/.test(note.textContent) };
+        set('raven-project', 'fob-site');
+        return { before, invalid, after: { disabled: document.getElementById('copy-raven').disabled, hasText: window.__ml.ravenText().length > 0, noteShown: !note.hidden } };
       });
     } finally {
       await browser.close();
     }
-    assert.deepEqual(unbound, { before: { text: '', disabled: true, fields: true }, after: { disabled: false, hasText: true } });
+    assert.deepEqual(unbound, {
+      before: { text: '', disabled: true, fields: true },
+      invalid: { disabled: true, text: '', noteShown: true, noteNamesRule: true },
+      after: { disabled: false, hasText: true, noteShown: false },
+    });
 
     const nl = text.indexOf('\n');
     assert.match(text.slice(0, nl), /record_taste_decision/);

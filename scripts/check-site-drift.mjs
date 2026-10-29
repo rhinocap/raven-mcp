@@ -16,6 +16,7 @@ const checks = {
     siteVersion: null,
   },
   bundle: { status: "PASS", version: null },
+  gallery: { status: "PASS", inSitemap: null, current: null },
 };
 
 function addError(check, message, extra = {}) {
@@ -308,6 +309,43 @@ if (
   }
 }
 
+// ravenmcp.ai/motion embeds a playground built by create_motion_playground.
+// The file is committed (web deploys from web/ alone), so rebuild it from
+// dist/ and fail if the committed copy is stale, and keep the route listed.
+// This compares against dist/ as it stands; `npm run check:site` builds first
+// so a stale dist/ cannot pass it.
+{
+  const sitemap = await read("web/app/sitemap.ts", "gallery");
+  if (sitemap !== null) {
+    checks.gallery.inSitemap = /path:\s*['"]\/motion['"]/.test(sitemap);
+    if (!checks.gallery.inSitemap) {
+      addError("gallery", "web/app/sitemap.ts does not list /motion", { file: "web/app/sitemap.ts" });
+    }
+  }
+  const { GALLERY_PATH, buildGallery } = await import("./build-motion-gallery.mjs");
+  const committed = await read(GALLERY_PATH, "gallery");
+  if (committed !== null) {
+    const { mkdtemp, rm } = await import("node:fs/promises");
+    const { tmpdir } = await import("node:os");
+    const dir = await mkdtemp(path.join(tmpdir(), "raven-gallery-"));
+    try {
+      const built = await buildGallery(root, path.join(dir, path.basename(GALLERY_PATH)));
+      checks.gallery.current = (await readFile(built.html_path, "utf8")) === committed;
+      if (!checks.gallery.current) {
+        addError(
+          "gallery",
+          `${GALLERY_PATH} differs from what dist/ builds — run npm run build, then node scripts/build-motion-gallery.mjs`,
+          { file: GALLERY_PATH },
+        );
+      }
+    } catch (error) {
+      addError("gallery", `Cannot build the gallery playground from dist/: ${error.message}`, { file: GALLERY_PATH });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }
+}
+
 const result = {
   ok: errors.length === 0,
   manifest: {
@@ -386,6 +424,15 @@ if (jsonOutput) {
     lines.push(`  PASS: web/public/raven.mcpb is v${checks.bundle.version}`);
   } else {
     for (const error of errors.filter((item) => item.check === "bundle")) {
+      lines.push(`  ERROR: ${error.message}`);
+    }
+  }
+
+  lines.push("\nGALLERY");
+  if (checks.gallery.status === "PASS") {
+    lines.push("  PASS: web/public/playgrounds/keyfob.html matches dist/ and /motion is in the sitemap");
+  } else {
+    for (const error of errors.filter((item) => item.check === "gallery")) {
       lines.push(`  ERROR: ${error.message}`);
     }
   }

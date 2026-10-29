@@ -28,6 +28,8 @@ export type MotionMotif = (typeof MOTION_MOTIFS)[number];
 export const TITLE_MAX = 60;
 const LABEL_MAX = 40;
 const U32 = 4294967295;
+// A 16-bit id collides rarely; this many draws in a row all colliding means the folder is close to full.
+const MAX_NAME_ATTEMPTS = 8;
 
 export type ControlOverride = { label?: string; default?: unknown; min?: number; max?: number; clientSafe?: boolean };
 export type PlaygroundOverrides = { controls?: Record<string, ControlOverride>; groups?: Record<string, string> };
@@ -150,6 +152,30 @@ export function correctConstraints(schema: MotionSchema): string[] {
   return warnings;
 }
 
+/**
+ * A slider range the playground cannot honour is refused at build time: every value of a
+ * constraint's b must leave a reachable value of a. Otherwise moving b past the limit leaves
+ * the constraint broken with no control able to fix it.
+ */
+export function checkConstraintReach(schema: MotionSchema): void {
+  const byId = new Map(schema.params.map((p) => [p.id, p]));
+  for (const c of schema.constraints || []) {
+    if (c.op === "neq") continue;
+    const a = byId.get(c.a), b = byId.get(c.b);
+    if (!a || !b || a.type !== "number" || b.type !== "number") continue;
+    const f = c.factor ?? 1;
+    const worstB = c.op === "gte" ? (b.max as number) : (b.min as number);
+    const need = f * worstB;
+    const ok = c.op === "gte" ? (a.max as number) >= need - 1e-9 : (a.min as number) <= need + 1e-9;
+    if (ok) continue;
+    const factorText = f !== 1 ? f + " × " : "";
+    const bound = c.op === "gte" ? "max" : "min";
+    throw new Error(
+      `${c.a} ${bound} ${a[bound]}${unitSuffix(a)} cannot keep ${c.a} ${c.op === "gte" ? ">=" : "<="} ${factorText}${c.b} when ${c.b} is at its ${bound} ${worstB}${unitSuffix(b)} (needs ${Number(need.toFixed(4))}${unitSuffix(a)}). ${c.op === "gte" ? "Raise" : "Lower"} ${c.a}'s ${bound} or ${c.op === "gte" ? "lower" : "raise"} ${c.b}'s ${bound}.`,
+    );
+  }
+}
+
 function fillTemplate(template: string, slots: Record<string, string>): string {
   let out = template;
   for (const [key, value] of Object.entries(slots)) {
@@ -207,6 +233,7 @@ export async function createMotionPlayground(input: MotionPlaygroundInput): Prom
 
   // 3-5. constraints
   warnings.push(...correctConstraints(schema));
+  checkConstraintReach(schema);
 
   // 6. full contract
   const errs = validateMotionSchema(schema);
@@ -227,12 +254,23 @@ export async function createMotionPlayground(input: MotionPlaygroundInput): Prom
     if (!/\.html$/i.test(input.output_path)) throw new Error("output_path must end in .html");
     htmlPath = resolve(input.output_path);
     playgroundId = basename(htmlPath).replace(/\.html$/i, "");
+    mkdirSync(dirname(htmlPath), { recursive: true });
+    writeFileSync(htmlPath, html, "utf8");
   } else {
-    playgroundId = motif + "-" + randomBytes(2).toString("hex");
-    htmlPath = join(tasteHome(), "playgrounds", playgroundId + ".html");
+    // A generated name must never replace an earlier playground: create exclusively and draw a new id on a collision.
+    const dir = join(tasteHome(), "playgrounds");
+    mkdirSync(dir, { recursive: true });
+    for (let attempt = 0; ; attempt++) {
+      playgroundId = motif + "-" + randomBytes(2).toString("hex");
+      htmlPath = join(dir, playgroundId + ".html");
+      try {
+        writeFileSync(htmlPath, html, { encoding: "utf8", flag: "wx" });
+        break;
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code !== "EEXIST" || attempt >= MAX_NAME_ATTEMPTS - 1) throw err;
+      }
+    }
   }
-  mkdirSync(dirname(htmlPath), { recursive: true });
-  writeFileSync(htmlPath, html, "utf8");
 
   const controls = schema.params.filter((p) => p.type !== "action");
   const advancedGroups = new Set(schema.groups.filter((g) => g.advanced).map((g) => g.id));

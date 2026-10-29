@@ -165,6 +165,7 @@ const ACTS: Act[] = [
       { name: "list_taste_decisions", desc: "Review the decision history behind a profile's evolving taste" },
       { name: "generate_taste_portrait", desc: "Render a bound surface as a self-contained designed page built from its own taste store" },
       { name: "generate_mood_board", desc: "Compose a mood board from the binding's notes, its captured references, and your own images—a self-contained page, and an approval stop" },
+      { name: "create_motion_playground", desc: "Build a motion playground—one self-contained page with live controls in designer language and copyable exports, started from the binding's motion notes" },
     ],
   },
   {
