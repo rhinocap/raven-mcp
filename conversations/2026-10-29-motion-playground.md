@@ -24,3 +24,8 @@ Next, in order:
 8. Verify: Chromium checks, design-judge, done-gate, Sol (codex exec -m gpt-6.1-sol, report-only). Commit on branch + motion-lab log's 2 uncommitted lines.
 Deviations to report: motif enum keyfob-only; artwork override may defer to v2.
 Full detail: spec docs/spec-motion-playground.md v0.2; prior transcript ~/.claude/projects/-Users-accunliffe-projects/c3ff243e-0a44-4c7d-93c3-94ea212896b4.jsonl
+
+## Checkpoint 2026-10-29 (after compaction)
+- Steps 1-2 done (a84ee7d). Step 3 done: src/motion-playground/{validate,taste-map,index}.ts written, tsc --noEmit clean. node_modules in this worktree is a symlink to ../raven-mcp/node_modules (lockfiles identical; ignored by info/exclude).
+- v1 deviations (report to Andrew): keyfob only; no artwork input and no sanitize-svg; no presets/advanced overrides; grab_url never returned; rejected is string[] (spec correction); font is a literal Untitled Sans stack, not from the binding; "no bounce" is unreachable for keyfob (max damping ratio 0.70) and returns a warning.
+- Next: step 4 (src/index.ts registration + classification sets).
