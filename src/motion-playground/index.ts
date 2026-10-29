@@ -176,15 +176,16 @@ export function checkConstraintReach(schema: MotionSchema): void {
   }
 }
 
+// One pass over the template: a filled slot is never searched again, so caller text that
+// looks like a marker (a title of "__SCHEMA__") stays text.
 function fillTemplate(template: string, slots: Record<string, string>): string {
-  let out = template;
-  for (const [key, value] of Object.entries(slots)) {
+  for (const key of Object.keys(slots)) {
     const token = "__" + key + "__";
-    const parts = out.split(token);
-    if (parts.length !== 2) throw new Error(`template.html must hold ${token} exactly once (found ${parts.length - 1})`);
-    out = parts.join(value);
+    const found = template.split(token).length - 1;
+    if (found !== 1) throw new Error(`template.html must hold ${token} exactly once (found ${found})`);
   }
-  return out;
+  const marker = new RegExp("__(" + Object.keys(slots).join("|") + ")__", "g");
+  return template.replace(marker, (_m, key: string) => slots[key]);
 }
 
 export async function createMotionPlayground(input: MotionPlaygroundInput): Promise<MotionPlaygroundResult> {

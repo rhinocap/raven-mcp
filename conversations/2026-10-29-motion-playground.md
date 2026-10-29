@@ -58,3 +58,35 @@ Mutants (dist/ and template, restore verified): M1 non-exclusive write, M2 no re
 Full suite: 1860 / 1857 / 0 / 3 skipped, EXIT=0 ($SP/full6.log). The +4 is exactly the four new tests; the skips are the same three, at lines 121/895/896. check:site: PASS.
 Gallery regenerated: 61,566 B. Eyes-on capture of the invalid and valid Copy for Raven states on /motion: no page errors, note colour rgb(166,170,179).
 Sol round 2 launched with $SP/sol-brief3.md.
+
+## Sol round 2 disposition (after fourth compaction)
+
+Sol round 2: VERDICT DOES NOT SURVIVE, 2 × P3. It confirmed all five round-1 fixes, the 113/68/45 counts, a byte-identical gallery, and found no XSS, path escape or spoofing. It accepted the upstream "damping ratio" wording deferral.
+
+- **P3-1, fixed.** A title of `__SCHEMA__` made fillTemplate throw "found 2", because the sequential replace re-scanned slots it had already filled. fillTemplate now counts each marker once in the original template, then does one regex replace with a function replacer, which is also immune to `$` patterns. Test: titles `__SCHEMA__`, `__RUNTIME__`, `__RAVEN_CTX__`, `__TITLE_HTML__` and `$$ $1 $0` all build, and each lands as text in the schema JSON and in `<title>`.
+- **P3-2, fixed.** `overrides.groups: {jingle: "Damping ratio"}` was accepted. validate.ts now applies ENGINE_WORDS and CODE_SHAPED to non-advanced group labels. Test: "Damping ratio" and "swingFeel" are refused, and "The swing" passes with no warnings.
+- **Mutants.** In `$SP/mut.mjs`, M4 (sequential fill restored) and M5 (group check disabled) each KILLED exactly their own test. M1–M3 were re-run and still KILLED; dist/ was cmp-restored. The motion suite is 20/20.
+- **Gallery and check:site.** The gallery was rebuilt with an unchanged 61,566 B and 12 controls; check:site PASS. Sol round 3 was launched on these two fixes only.
+
+## Sol round 3 disposition
+
+Sol round 3: DOES NOT SURVIVE, 1 × P3. It confirmed both round-2 fixes: no mis-fill from marker or `$` probes, and the gallery is byte-identical.
+
+- **P3, fixed.** ENGINE_WORDS had `/i`, so `u[A-Z]\w*` refused "Upper pieces", "Under the ring" and "Useful details", and `ease[A-Z]\w*` refused "Eased start". This affected group headings, which round 2's fix had just started checking, and control labels, where the bug predates round 2.
+  - `u[A-Z]\w*`, `iTime` and `ease[A-Z]\w*` moved into a case-sensitive `ENGINE_IDENTIFIERS`, and `hasEngineWord()` replaces both call sites.
+  - New test: four ordinary labels pass as group and control relabels; uSpeed, easeInOut and iTime are refused with the engine-word message.
+- **Mutants.** M6 (`/i` restored) and M7 (identifiers unchecked) were each KILLED by that test. M1–M7 are 7/7 KILLED and dist/ was cmp-restored. The motion suite is 21/21.
+- **Gallery and check:site.** The gallery is unchanged at 61,566 B; check:site PASS. Sol round 4 was launched on this change only.
+
+## Sol round 4 disposition
+
+Sol round 4: DOES NOT SURVIVE, 1 × P2. It confirmed that both call sites use hasEngineWord.
+
+- **P2, fixed.** The case-insensitive `uniform` refused "Uniform spacing" and "Uniform size", for group headings and control labels alike. This is retained from Motion Lab's regex (`motion-lab/scripts/validate.mjs:15`), not a regression.
+  - `uniform` now counts only as a GLSL declaration (`uniform float|int|bool|vecN|matN|sampler…`), held in the case-sensitive ENGINE_IDENTIFIERS. The `uX` naming convention is still caught.
+  - The test now also covers "Uniform spacing" (accepted) and "uniform float" (refused) on both label paths.
+- **Mutants.** M8 (`uniform` back as a plain word) and M9 (declaration branch disabled) KILLED. M6 was re-anchored after its target line changed. 9/9 KILLED, dist/ cmp-restored. The motion suite is 21/21.
+- **Owed upstream in Motion Lab.** These fixes now go back there along with the "damping ratio" wording: the identifier case bug, and `uniform`. Raven's validator is now looser than Motion Lab's on exactly those two points.
+- **Rest of the vocabulary list.** It is left as the contract's deliberate choice: mass, tension, friction, persistence, gain and alpha are solver or noise terms that the designer vocabulary replaces. Changing that list is a decision for Andrew or upstream, not a defect.
+- **No Sol round 5.** I stopped the Sol rounds here. Each round since round 2 has found one narrower vocabulary false positive, and the round-4 fix is kill-proven by two mutants.
+- **Captures.** raven-invalid.png and raven-valid.png were recaptured from the served gallery (cmp-identical to web/public/playgrounds/keyfob.html). They show the current copy, no page errors, and the note at rgb(166,170,179). design-judge (global layer, product-site surface): PASS.

@@ -51,7 +51,12 @@ export type MotionSchema = {
 
 const GENERIC_GROUPS = ["dimensions", "style", "motion", "colors", "colours", "behavior", "behaviour", "settings", "general", "options", "parameters", "controls"];
 // Engine and solver vocabulary that does not belong on a designer-facing label.
-const ENGINE_WORDS = /\b(u[A-Z]\w*|uTime|iTime|noise ?scale|damping|stiffness|lerp|dt|k|octaves?|lacunarity|persistence|gain|zeta|omega|mass|tension|friction|simplex|perlin|ease[A-Z]\w*|cubic-?bezier|bezier|rgba?\(|hsl\(|shader|uniform|vec[234]|sin|cos|theta|beta|alpha)\b/i;
+const ENGINE_WORDS = /\b(noise ?scale|damping|stiffness|lerp|dt|k|octaves?|lacunarity|persistence|gain|zeta|omega|mass|tension|friction|simplex|perlin|cubic-?bezier|bezier|rgba?\(|hsl\(|shader|vec[234]|sin|cos|theta|beta|alpha)\b/i;
+// Shader uniforms and easing identifiers are recognised by their case, so this half stays
+// case-sensitive: under /i, u[A-Z] matches "Upper" and ease[A-Z] matches "Eased". "uniform"
+// counts only as a GLSL declaration; "Uniform spacing" is a designer's word.
+const ENGINE_IDENTIFIERS = /\b(u[A-Z]\w*|iTime|ease[A-Z]\w*|uniform (float|int|bool|vec[234]|mat[234]|sampler\w*))\b/;
+const hasEngineWord = (label: string) => ENGINE_WORDS.test(label) || ENGINE_IDENTIFIERS.test(label);
 const CODE_SHAPED = /_|[a-z][A-Z]/;
 const TIME_UNITS = ["ms", "s", "x", "Hz", "px/s"];
 const ROLE_TYPES: Record<string, (p: MotionParam) => boolean> = {
@@ -114,6 +119,11 @@ export function validateMotionSchema(doc: MotionSchema): string[] {
     if (groupIds.has(g.id)) errs.push(`duplicate group id ${g.id}`);
     groupIds.add(g.id);
     if (typeof g.label !== "string" || g.label.trim().length === 0) errs.push(`group ${g.id}: empty label`);
+    else if (!g.advanced) {
+      // A group heading sits in the same panel as its controls, so the same vocabulary rule applies.
+      if (hasEngineWord(g.label)) errs.push(`group ${g.id}: engine word in a non-advanced label "${g.label}"`);
+      if (CODE_SHAPED.test(g.label)) errs.push(`group ${g.id}: label "${g.label}" is code-shaped (snake_case or camelCase)`);
+    }
   }
   const advancedGroups = new Set(groups.filter((g) => g.advanced).map((g) => g.id));
   const isAdvanced = (p: MotionParam) => !!(p.advanced || advancedGroups.has(p.group));
@@ -124,7 +134,7 @@ export function validateMotionSchema(doc: MotionSchema): string[] {
     if (typeof p.label !== "string" || p.label.trim().length === 0) errs.push(`${p.id}: empty label`);
     if (!groupIds.has(p.group)) errs.push(`${p.id}: group "${p.group}" not declared`);
     if (!isAdvanced(p)) {
-      if (ENGINE_WORDS.test(p.label)) errs.push(`${p.id}: engine word in a non-advanced label "${p.label}"`);
+      if (hasEngineWord(p.label)) errs.push(`${p.id}: engine word in a non-advanced label "${p.label}"`);
       if (CODE_SHAPED.test(p.label)) errs.push(`${p.id}: label "${p.label}" is code-shaped (snake_case or camelCase)`);
     }
     if (p.role && ROLE_TYPES[p.role] && !ROLE_TYPES[p.role](p)) {

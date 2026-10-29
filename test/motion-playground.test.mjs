@@ -269,6 +269,54 @@ test('profile and project go together, and an unknown profile is an error', asyn
 
 const HOSTILE = '</script><img src=x onerror=window.__pwned=1><!--';
 
+test('a title or group label that looks like a template marker stays text', async () => {
+  await withHome(async ({ store }) => {
+    for (const title of ['__SCHEMA__', '__RUNTIME__', '__RAVEN_CTX__', '__TITLE_HTML__', '$$ $1 $0']) {
+      const r = await mp.createMotionPlayground({ store, motif: 'keyfob', title });
+      const html = readFileSync(r.html_path, 'utf8');
+      assert.equal(embeddedJson(html, 'schema').title, title);
+      assert.ok(html.includes('<title>' + title + '</title>'), `title ${title} did not land as text`);
+    }
+  });
+});
+
+test('group headings in the ordinary panel follow the designer-vocabulary rule', async () => {
+  await withHome(async ({ store }) => {
+    await assert.rejects(
+      mp.createMotionPlayground({ store, motif: 'keyfob', overrides: { groups: { jingle: 'Damping ratio' } } }),
+      /group jingle: engine word in a non-advanced label "Damping ratio"/,
+    );
+    await assert.rejects(
+      mp.createMotionPlayground({ store, motif: 'keyfob', overrides: { groups: { jingle: 'swingFeel' } } }),
+      /group jingle: label "swingFeel" is code-shaped/,
+    );
+    const r = await mp.createMotionPlayground({ store, motif: 'keyfob', overrides: { groups: { jingle: 'The swing' } } });
+    assert.deepEqual(r.warnings, []);
+  });
+});
+
+test('shader and easing identifiers are matched by case, so ordinary words starting with u or ease pass', async () => {
+  await withHome(async ({ store }) => {
+    const schema = JSON.parse(readFileSync(new URL('../src/data/motion/keyfob/schema.json', import.meta.url), 'utf8'));
+    const advGroups = new Set(schema.groups.filter((g) => g.advanced).map((g) => g.id));
+    const ordinary = schema.params.find((p) => p.type !== 'action' && !p.advanced && !advGroups.has(p.group)).id;
+    for (const label of ['Upper pieces', 'Under the ring', 'Useful details', 'Eased start', 'Uniform spacing']) {
+      await mp.createMotionPlayground({ store, motif: 'keyfob', overrides: { groups: { pendants: label } } });
+      await mp.createMotionPlayground({ store, motif: 'keyfob', overrides: { controls: { [ordinary]: { label } } } });
+    }
+    for (const label of ['uSpeed', 'easeInOut', 'iTime', 'uniform float']) {
+      await assert.rejects(
+        mp.createMotionPlayground({ store, motif: 'keyfob', overrides: { groups: { pendants: label } } }),
+        new RegExp(`group pendants: engine word in a non-advanced label "${label}"`),
+      );
+      await assert.rejects(
+        mp.createMotionPlayground({ store, motif: 'keyfob', overrides: { controls: { [ordinary]: { label } } } }),
+        new RegExp(`${ordinary}: engine word in a non-advanced label "${label}"`),
+      );
+    }
+  });
+});
+
 test('caller text cannot leave its context in the written file', async () => {
   await withHome(async ({ home, store }) => {
     const out = path.join(home, 'hostile.html');
