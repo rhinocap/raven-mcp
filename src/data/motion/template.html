@@ -1,9 +1,7 @@
-<title>911 Key Jingle</title>
+<title>__TITLE_HTML__</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
 /* Layout: a quiet tool. Fixed-width control panel on the left, the stage takes the rest; one column on phones. */
-@font-face { font-family: "Untitled Sans"; font-weight: 400; font-style: normal; font-display: swap; src: url(data:font/woff2;base64,__FONT_REG__) format("woff2"); }
-@font-face { font-family: "Untitled Sans"; font-weight: 500; font-style: normal; font-display: swap; src: url(data:font/woff2;base64,__FONT_MED__) format("woff2"); }
 :root {
   --bg: #17171d;
   --panel: #1f1f26;
@@ -137,6 +135,7 @@ main#preview { display: flex; flex-direction: column; min-height: 0; min-width: 
 </style>
 
 <script type="application/json" id="schema">__SCHEMA__</script>
+<script type="application/json" id="raven-ctx">__RAVEN_CTX__</script>
 
 <div class="app">
   <header id="summary">
@@ -607,9 +606,80 @@ __RUNTIME__
       exportUI[x.id] = { ta: ta, make: x.make };
     });
   })();
+  // ---------- Copy for Raven ----------
+  // A file:// page cannot call MCP, so this hands the designer a record_taste_decision call to paste to their agent.
+  var ravenCtx = {};
+  try { ravenCtx = JSON.parse($('raven-ctx').textContent) || {}; } catch (e) { ravenCtx = {}; }
+  function valueText(p, v) {
+    if (p.type === 'enum') { var o = (p.options || []).filter(function (x) { return x.value === v; })[0]; return o ? o.label : String(v); }
+    var u = unitText(p);
+    return String(v) + (/^[a-z]/i.test(u) ? ' ' + u : u);
+  }
+  function ravenRecord(profile, project) {
+    var d = defaults();
+    var changed = params.filter(function (p) { return state.values[p.id] !== d[p.id]; });
+    return {
+      profile: profile, project: project, dimension: 'motion',
+      decision: schema.id + ': ' + (changed.length ? changed.map(function (p) { return p.label + ' ' + valueText(p, state.values[p.id]); }).join(', ') : 'kept the defaults'),
+      rejected: changed.map(function (p) { return p.label + ' ' + valueText(p, d[p.id]) + ' (default)'; }),
+      why: '', source: 'user-approved'
+    };
+  }
+  var ravenUI = (function buildRaven() {
+    var b = el('div', { 'class': 'block', id: 'raven-block' });
+    b.appendChild(el('h3')).textContent = 'Copy for Raven';
+    b.appendChild(el('p')).textContent = 'Your changes as a taste decision. Paste it into your agent’s chat and it records them with Raven, so the next playground starts closer.';
+    var inputs = {};
+    ['profile', 'project'].forEach(function (k) {
+      var preset = typeof ravenCtx[k] === 'string' ? ravenCtx[k] : '';
+      if (preset) { inputs[k] = { value: preset }; return; }
+      var f = el('div', { 'class': 'field' });
+      var lab = el('label', { 'for': 'raven-' + k }); lab.textContent = k === 'profile' ? 'Taste profile' : 'Project';
+      var inp = el('input', { id: 'raven-' + k, type: 'text', maxlength: '80', autocomplete: 'off', spellcheck: 'false' });
+      f.appendChild(lab); f.appendChild(inp); b.appendChild(f);
+      inputs[k] = inp;
+      inp.addEventListener('input', function () { refreshRaven(); });
+    });
+    var note = el('p', { id: 'raven-need', hidden: '' }); note.textContent = 'Add the taste profile and project your agent uses, then copy.';
+    b.appendChild(note);
+    var ta = el('textarea', { readonly: '', id: 'out-raven', 'aria-label': 'Copy for Raven', spellcheck: 'false' });
+    b.appendChild(ta);
+    var r = el('div', { 'class': 'row2' });
+    var btn = el('button', { 'class': 'btn', id: 'copy-raven' }); btn.textContent = 'Copy for Raven';
+    btn.addEventListener('click', function () { var t = ravenText(); if (!t) { refreshRaven(); return; } ta.value = t; copy(t, ta, 'Copied for Raven. Paste it into your agent’s chat.'); });
+    r.appendChild(btn); b.appendChild(r); $('export-menu').appendChild(b);
+    return { inputs: inputs, ta: ta, btn: btn, note: note };
+  })();
+  function ravenText() {
+    var profile = String(ravenUI.inputs.profile.value).trim(), project = String(ravenUI.inputs.project.value).trim();
+    if (!profile || !project) return '';
+    return 'Record this motion decision with Raven’s record_taste_decision tool:\n' + JSON.stringify(ravenRecord(profile, project), null, 2);
+  }
+  function refreshRaven() {
+    var t = ravenText();
+    ravenUI.ta.value = t; ravenUI.btn.disabled = !t; ravenUI.note.hidden = !!t;
+  }
   function refreshExports() {
     if ($('view-code').hidden) return;
     exportsDef.forEach(function (x) { exportUI[x.id].ta.value = x.make(); });
+    refreshRaven();
+  }
+  // A sandboxed frame has an opaque origin and no clipboard, so a framed playground hands the text to the
+  // parent page and waits for its answer. The text is the designer's own settings, so '*' leaks nothing.
+  var framed = window.parent !== window;
+  var copySeq = 0;
+  function copyViaParent(text, done, fail) {
+    var id = 'c' + (++copySeq) + '-' + Date.now();
+    var timer = setTimeout(function () { window.removeEventListener('message', onMsg); fail(); }, 1500);
+    function onMsg(e) {
+      if (e.source !== window.parent) return;
+      var m = e.data;
+      if (!m || m.type !== 'raven-motion-copied' || m.id !== id) return;
+      clearTimeout(timer); window.removeEventListener('message', onMsg);
+      if (m.ok === true) done(); else fail();
+    }
+    window.addEventListener('message', onMsg);
+    window.parent.postMessage({ type: 'raven-motion-copy', id: id, text: text }, '*');
   }
   function copy(text, ta, okMsg) {
     var fallback = function () {
@@ -617,6 +687,7 @@ __RUNTIME__
       ta.focus(); ta.select();
       say('Your browser blocked copying. The text is selected: press ' + (/Mac/.test(navigator.platform) ? '⌘C' : 'Ctrl+C') + '.');
     };
+    if (framed) { copyViaParent(text, function () { say(okMsg); }, fallback); return; }
     try {
       navigator.clipboard.writeText(text).then(function () { say(okMsg); }, fallback);
     } catch (e) { fallback(); }
@@ -635,6 +706,7 @@ __RUNTIME__
 
   buildPanel();
   syncControls();
-  window.__ml = { state: state, jingle: jingle, setParam: setParam, importText: importText, envelope: envelope, embedCode: embedCode };
+  refreshRaven();
+  window.__ml = { state: state, jingle: jingle, setParam: setParam, importText: importText, envelope: envelope, embedCode: embedCode, ravenText: ravenText };
 })();
 </script>

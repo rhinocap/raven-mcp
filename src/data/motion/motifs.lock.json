@@ -1,0 +1,15 @@
+{
+  "source": "rhinocap/motion-lab",
+  "source_commit": "474a63063b187b599e49f7fe56b8f1d991752dc6",
+  "motifs": [
+    "keyfob"
+  ],
+  "files": {
+    "keyfob/schema.json": "05e1a85b805afa972bea6dd3eed2d4201ad3ddc273568dcbd44c449b175745b3",
+    "keyfob/runtime.js": "ef64efc2a777b8de0b0125e177d1d6372ea17ae503c86c0c2a1712451d8395cb"
+  },
+  "template": {
+    "forked_from": "src/keyfob/template.html",
+    "upstream_sha256": "2cdfa27f0360f095d2bd1e515d01e5c9d0594c7bddbbbe8c4b3a6a3511b40859"
+  }
+}
