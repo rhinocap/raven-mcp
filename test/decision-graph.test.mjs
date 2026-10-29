@@ -517,9 +517,12 @@ test('scanGaps ranks configured weights, high traffic, and contested evidence', 
 
 test('healthy graph produces the quiet digest and gap_scan digest_only contract', async () => {
   const store = new FsDecisionGraphStore();
+  // Dated now: staleness reads Date.now(), so the shared 2026-07-12 fixture date
+  // turned this healthy decision stale once it was 90 days old.
   await store.addNode(decision('decision-healthy', {
     statement: 'Use Card for the checkout summary',
     rationale: 'It preserves the established interaction and accessibility contract.',
+    created_at: new Date().toISOString(),
   }));
   const findings = await scanGaps(store, {
     reference_components: [{ name: 'Card', source: 'patterns/cards' }],

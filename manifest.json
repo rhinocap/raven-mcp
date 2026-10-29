@@ -456,6 +456,10 @@
       "description": "Compose a mood board from what the Taste Engine already holds for a bound project — the binding's design_notes as…"
     },
     {
+      "name": "create_motion_playground",
+      "description": "Build a motion playground: one self-contained HTML file with a motif's animation on a stage, its controls labelled in…"
+    },
+    {
       "name": "list_taste_profiles",
       "description": "List locally stored taste profiles with rule/corpus counts and last-updated timestamps."
     },

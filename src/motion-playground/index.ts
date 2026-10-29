@@ -186,6 +186,8 @@ export async function createMotionPlayground(input: MotionPlaygroundInput): Prom
   const profileArg = typeof input.profile === "string" ? input.profile.trim() : "";
   const projectArg = typeof input.project === "string" ? input.project.trim() : "";
   if ((profileArg === "") !== (projectArg === "")) throw new Error("profile and project go together: pass both or neither");
+  // Same rule record_taste_decision applies, so the Copy for Raven text it prefills can be recorded.
+  if (projectArg && !/^[a-z0-9][a-z0-9-_.]{0,63}$/i.test(projectArg)) throw new Error("project must match /^[a-z0-9][a-z0-9-_.]{0,63}$/i");
   let ctx: { profile?: string; project?: string } = {};
   let tasteApplied: string[] | undefined;
   if (profileArg) {

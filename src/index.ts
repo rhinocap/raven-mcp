@@ -33,6 +33,7 @@ import { createTasteProfile, getTasteProfile, listTasteProfiles, labelFinding, a
 import type { ReferenceCapture, SurfaceBinding } from "./taste.js";
 import { generateTastePortrait, generateTastePortraitInline } from "./taste-portrait.js";
 import { generateMoodBoard } from "./mood-board.js";
+import { createMotionPlayground, MOTION_MOTIFS, TITLE_MAX as MOTION_TITLE_MAX } from "./motion-playground/index.js";
 import { setRemoteRuntime, isRemoteRuntime } from "./remote-runtime.js";
 import { ClosedTasteStore, FsTasteStore, type TasteStore } from "./taste-store.js";
 import { remoteUrlGuardError } from "./remote-url-guard.js";
@@ -1877,7 +1878,7 @@ function numberedDocMaterial(repoRelative: string, content: string): string {
 // external side effect, or are pending a remote-safety pass — DESIGN.md,
 // review, grab-bridge, design-system diff, pattern-library and local-audit
 // tools among them. Everything else (45 stateless tools, including the 5
-// guarded browser URL audits added in Phase 3) is remote-safe, from 111 local
+// guarded browser URL audits added in Phase 3) is remote-safe, from 112 local
 // tools. The per-category split that used to sit here decayed silently against
 // several releases and summed to 63 against a stated 64, so only the totals —
 // which the count-asserting suites actually enforce — are claimed here.
@@ -1895,10 +1896,10 @@ const REMOTE_GATED_TOOLS = new Set<string>([
   // also what keeps the anonymous set frozen at the golden 45.
   "configure_design_system_source", "inventory_design_system",
   "diff_design_system", "list_design_system_components",
-  // stateful / local (33)
+  // stateful / local (34)
   "create_taste_profile", "get_taste_profile", "list_taste_profiles",
   "get_taste_interview", "bind_taste_surface", "record_taste_decision",
-  "list_taste_decisions", "generate_taste_portrait", "generate_mood_board", "label_finding", "audit_taste",
+  "list_taste_decisions", "generate_taste_portrait", "generate_mood_board", "create_motion_playground", "label_finding", "audit_taste",
   "delete_taste_data",
   "create_brand_profile", "get_brand_profile", "list_brand_profiles",
   "register_creative_asset", "create_character_profile", "create_generation_job",
@@ -2188,6 +2189,7 @@ const TOOL_ACCESS: Record<string, "readOnly" | "destructive"> = {
   list_taste_decisions: "readOnly",
   generate_taste_portrait: "destructive",
   generate_mood_board: "destructive",
+  create_motion_playground: "destructive",
   list_taste_profiles: "readOnly",
   label_finding: "destructive",
   audit_taste: "readOnly",
@@ -2304,14 +2306,14 @@ function remoteBlocksNetwork(toolName: string): boolean {
   return !!guard && guard.params.indexOf("url") !== -1;
 }
 
-// Which of the 36 destructive tools are IDEMPOTENT — calling twice with identical
+// Which of the 37 destructive tools are IDEMPOTENT — calling twice with identical
 // arguments leaves the same end state as calling once. The map is explicit and its
 // DEFAULT IS FALSE: under-claiming idempotency costs a client one retry it chose not
 // to make, while over-claiming is precisely the annotation-does-not-match-behaviour
 // finding this file now exists to prevent. A tool minting a fresh id, appending to a
 // log, draining a queue, or applying a RELATIVE change is not idempotent; one that
 // writes a value the caller supplied, or removes something by name, is.
-// None of these 36 is on the anonymous 45 — every one is in REMOTE_GATED_TOOLS — so
+// None of these 37 is on the anonymous 45 — every one is in REMOTE_GATED_TOOLS — so
 // this table describes the stdio surface only.
 const TOOL_IDEMPOTENT: { [tool: string]: boolean } = {
   configure_design_system_source: true,   // writes the config the caller passed
@@ -2348,6 +2350,7 @@ const TOOL_IDEMPOTENT: { [tool: string]: boolean } = {
   record_taste_decision: false,           // appends a decision
   generate_taste_portrait: false,
   generate_mood_board: false,
+  create_motion_playground: false,         // each call mints a fresh playground id unless output_path is given
   label_finding: false,                   // appends a label
   capture_reference: false                // each capture mints a fresh ref_id
 };
@@ -2501,18 +2504,18 @@ function toolAnnotations(toolName: string, remote: boolean): {
       };
 }
 
-// buildServer() returns a FRESH McpServer with all 111 local tools + the usage-log/
+// buildServer() returns a FRESH McpServer with all 112 local tools + the usage-log/
 // update-banner wrapper registered. A new instance is required per transport
 // connection (SDK #961: one McpServer connects to exactly one transport, ever).
 // The stdio entry calls this once; a future HTTP entry calls it per request.
 // NOTE: importing this module does NOT start a server — only calling buildServer()
 // registers the tools, and only main() (guarded to direct-run) connects stdio.
 export function buildServer(opts?: { remote?: boolean; tasteStore?: TasteStore }): McpServer {
-// remote = serve only the 45 stateless remote-safe tools (gate off the 66 gated tools
+// remote = serve only the 45 stateless remote-safe tools (gate off the 68 gated tools
 // as appropriate; authenticated stores selectively restore taste tools). evaluate_design
 // stays but its screenshot pixel-diff is arg-guarded off).
 // Defaults from RAVEN_REMOTE env so a serverless entry can set it
-// without threading opts. stdio callers pass nothing → remote=false → all 111.
+// without threading opts. stdio callers pass nothing → remote=false → all 112.
 var remote: boolean = (opts && typeof opts.remote === "boolean")
   ? opts.remote
   : (process.env.RAVEN_REMOTE === "1" || process.env.RAVEN_REMOTE === "true");
@@ -8826,6 +8829,33 @@ server.tool(
 );
 
 server.tool(
+  "create_motion_playground",
+  "Build a motion playground: one self-contained HTML file with a motif's animation on a stage, its controls labelled in designer language, live preview and copyable exports (params JSON, an SVG frame, a WAAPI snippet), written under the taste home's playgrounds/ directory or output_path. Use it when someone wants to tune an animation by hand rather than describe it. Pass profile and project to start from the bound surface's motion notes (only the terms restrained, subtle, snappy and no bounce are mapped; anything else is listed in warnings) and to prefill the playground's Copy for Raven text, which the user pastes back so you can call record_taste_decision with it. A default that breaks a motif constraint is corrected to the nearest valid step and reported in warnings; an override that cannot be corrected inside the control's range is an error. Raven builds only from its built-in motifs and never draws new artwork.",
+  {
+    motif: z.enum(MOTION_MOTIFS).describe("Built-in motif to build from. Valid values: " + MOTION_MOTIFS.join(", ") + ". Use ONLY these."),
+    title: z.string().optional().describe("Playground title shown in the header and tab, 1-" + MOTION_TITLE_MAX + " characters. Defaults to the motif's own title."),
+    overrides: z.object({
+      controls: z.record(z.string(), z.object({
+        label: z.string().optional().describe("Designer-language label, 1-40 characters."),
+        default: z.union([z.number(), z.string(), z.boolean()]).optional().describe("Starting value. Must be valid for the control (in range, on step, an allowed option)."),
+        min: z.number().optional().describe("Narrow the range. Must sit inside the motif's range and on its step grid."),
+        max: z.number().optional().describe("Narrow the range. Must sit inside the motif's range and on its step grid."),
+        clientSafe: z.boolean().optional().describe("false hides the control in client review mode."),
+      })).optional().describe("Per-control changes keyed by control id. An unknown id is an error that lists the motif's controls."),
+      groups: z.record(z.string(), z.string()).optional().describe("Group label changes keyed by group id."),
+    }).optional().describe("Changes to the motif's controls and group labels. Defaults set here are kept as given and are not adjusted by taste notes."),
+    profile: z.string().optional().describe("Taste profile name (see list_taste_profiles). Pass with project, or omit both."),
+    project: z.string().optional().describe("Bound project name. Pass with profile, or omit both."),
+    seed: z.number().int().min(0).max(4294967295).optional().describe("Random seed for any jitter in the motif, so a shared playground replays identically."),
+    output_path: z.string().optional().describe("Absolute path for the HTML file, ending in .html. Defaults to <taste home>/playgrounds/<motif>-<id>.html."),
+  },
+  async function ({ motif, title, overrides, profile, project, seed, output_path }) {
+    var playground = await createMotionPlayground({ store: tasteStore, motif: motif, title: title, overrides: overrides, profile: profile, project: project, seed: seed, output_path: output_path });
+    return { content: [{ type: "text" as const, text: JSON.stringify(playground, null, 2) }] };
+  }
+);
+
+server.tool(
   "list_taste_profiles",
   "List locally stored taste profiles with rule/corpus counts and last-updated timestamps.",
   async function () {
@@ -9185,7 +9215,7 @@ server.tool(
 // ── Start ───────────────────────────────────────────────────────────
 
 async function main() {
-  // Hardcode remote:false so stdio ALWAYS serves all 111 tools regardless of any
+  // Hardcode remote:false so stdio ALWAYS serves all 112 tools regardless of any
   // ambient RAVEN_REMOTE env — the stdio wire contract stays byte-for-byte
   // unchanged in every runtime condition (additive-only invariant).
   const server = buildServer({ remote: false, tasteStore: new FsTasteStore() });

@@ -90,7 +90,7 @@ const localServer = buildServer({ remote: false, tasteStore: new FsTasteStore() 
 // surface (56), which is what a signed-in caller of mcp.ravenmcp.ai actually gets. The eleven
 // AUTHED_USER_TASTE_TOOLS the store unblocks include two that reach the open web, so the
 // authed surface publishes a DIFFERENT openWorldHint partition than either build above --
-// and a partition asserted on 45 names and 111 names says nothing about the 56 in between.
+// and a partition asserted on 45 names and 112 names says nothing about the 56 in between.
 const authedServer = buildServer({ remote: true, tasteStore: new FsTasteStore() });
 
 function toolOf(server, name) {
@@ -313,14 +313,14 @@ test('the hosted 4/41 split is asserted over all 45 names, not spot-checked', ()
 });
 
 test('the stdio true-set IS TOOL_OPEN_WORLD, all 14 of it', () => {
-  assert.equal(Object.keys(localServer._registeredTools).length, 111,
-    'stdio registers 112 names minus the hosted-only delete_taste_data');
+  assert.equal(Object.keys(localServer._registeredTools).length, 112,
+    'stdio registers 113 names minus the hosted-only delete_taste_data');
   assert.deepEqual(openWorldTrueSet(localServer), STDIO_TRUE,
     'stdio publishes the reach-based meaning for every tool in TOOL_OPEN_WORLD and no other -- this is the surface the hosted half above diverges FROM, so if it drifts the divergence stops being measurable');
 });
 
 // ── The AUTHENTICATED hosted partition, over all 56 names ───────────────────
-// The two partitions above are 4-of-45 and 14-of-111. Neither constrains the 56-name build,
+// The two partitions above are 4-of-45 and 14-of-112. Neither constrains the 56-name build,
 // and the difference is not cosmetic: `audit_taste` takes a top-level `url` and has NO
 // REMOTE_ARG_GUARDS entry, and `bind_taste_surface` takes `references[].url` which its own
 // schema says is "captured live" and whose handler calls capturePage(). Both genuinely reach
