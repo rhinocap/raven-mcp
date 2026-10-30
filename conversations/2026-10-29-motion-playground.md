@@ -118,3 +118,16 @@ Evidence:
 - Motion Lab `npm test`: 77 ok (+17, the new cases), EXIT=0. Mutants F–K 6/6 killed, restore verified with `cmp`.
 - Raven motion suite 23/23. Full suite 1865/1862/0/3, EXIT=0 read from the log; the +2 are the two new tests; the 3 skips are the same three. `check:site` PASS; `sync --check` in sync; keyfob.html rebuild byte-identical.
 - Raven dist mutants R1–R6 (shape check off, `uniform ` single space, precision qualifier dropped, TITLE_MAX 60, GROUP_LABEL_MAX 40, CONTROL_LABEL_MAX 40): 6/6 killed, restore verified with `cmp`.
+
+## Sol round 7 disposition (Motion Lab 0cf25a3, Raven ded7288)
+
+Verdict on 85fdf2e/19fe8ec: DOES NOT SURVIVE, 3 × P2. All fixed.
+
+- P2-1, Raven refused a document with no canvas; Motion Lab accepted it. Motion Lab's own player reads `schema.canvas.width` (`playgrounds/keyfob/index.html:424`), so the contract was wrong, not Raven. Motion Lab schema now requires `canvas` with `width` and `height`, and the spec lists it. Raven's hand-written shape checks (id/title/schemaVersion, canvas, seed, exports) are deleted; the pinned schema is the one shape rule. A test asserts a canvas-less document yields exactly the schema's one error.
+- P2-2, `uniform double t;`, `uniform/*x*/float t`, `uniform B{float x;};` passed. GLSL types gain `double`; a new code-punctuation check (`;`, `{`, `}`, `/*`, `*/`) on control and group labels in both repos. The vocabulary check is a lint for designer-facing labels, not a GLSL parser.
+- P2-3, override limits counted UTF-16 units; JSON Schema counts code points. Overrides now count code points of the trimmed value (`[...s].length`), so 40 emoji pass as a title, 41 do not, and a padded label is measured after trimming, as it is stored.
+
+Evidence:
+- Motion Lab: 90 ok (+13), EXIT=0; mutants L–O 4/4 killed.
+- Raven: motion suite 24/24; full suite 1866/1863/0/3, EXIT=0; same 3 skips (log lines 121/895/896); check:site PASS; sync in sync.
+- Raven dist mutants S1–S5 (drop `double`, punctuation check off, UTF-16 count, Raven-only canvas check restored, untrimmed group length): 5/5 killed, restore verified with `cmp`.
