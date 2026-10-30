@@ -300,7 +300,7 @@ test('shader and easing identifiers are matched by case, so ordinary words start
     const schema = JSON.parse(readFileSync(new URL('../src/data/motion/keyfob/schema.json', import.meta.url), 'utf8'));
     const advGroups = new Set(schema.groups.filter((g) => g.advanced).map((g) => g.id));
     const ordinary = schema.params.find((p) => p.type !== 'action' && !p.advanced && !advGroups.has(p.group)).id;
-    for (const label of ['Upper pieces', 'Under the ring', 'Useful details', 'Eased start', 'Uniform spacing']) {
+    for (const label of ['Upper pieces', 'Under the ring', 'Useful details', 'Eased start', 'Uniform spacing', 'Keep spacing uniform']) {
       await mp.createMotionPlayground({ store, motif: 'keyfob', overrides: { groups: { pendants: label } } });
       await mp.createMotionPlayground({ store, motif: 'keyfob', overrides: { controls: { [ordinary]: { label } } } });
     }

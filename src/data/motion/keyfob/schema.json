@@ -232,7 +232,7 @@
       "op": "gte",
       "b": "fobPeriod",
       "factor": 1.82,
-      "why": "Keeps the fob damping ratio at or below 0.7 with Firm settle, so a swing stays visible."
+      "why": "Gives Firm settle enough time to show a swing before the keys hang still."
     },
     {
       "a": "keyPeriod",

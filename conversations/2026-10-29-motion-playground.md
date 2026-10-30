@@ -90,3 +90,16 @@ Sol round 4: DOES NOT SURVIVE, 1 × P2. It confirmed that both call sites use ha
 - **Rest of the vocabulary list.** It is left as the contract's deliberate choice: mass, tension, friction, persistence, gain and alpha are solver or noise terms that the designer vocabulary replaces. Changing that list is a decision for Andrew or upstream, not a defect.
 - **No Sol round 5.** I stopped the Sol rounds here. Each round since round 2 has found one narrower vocabulary false positive, and the round-4 fix is kill-proven by two mutants.
 - **Captures.** raven-invalid.png and raven-valid.png were recaptured from the served gallery (cmp-identical to web/public/playgrounds/keyfob.html). They show the current copy, no page errors, and the note at rgb(166,170,179). design-judge (global layer, product-site surface): PASS.
+
+## Upstream round: Motion Lab 8cc6eb5 and Raven re-sync
+
+Andrew said "Keep going" after the final report. The unblocked work was the three Motion Lab fixes owed upstream.
+
+- **Motion Lab `8cc6eb5` (local, master ahead 2, not pushed).**
+  - validate.mjs: ENGINE_WORDS is split into a case-insensitive word list and the case-sensitive ENGINE_IDENTIFIERS, the same as Raven. `uniform` counts only as a GLSL declaration. Group headings now get the vocabulary and code-shape check.
+  - The keyfob settle constraint `why` now reads "Gives Firm settle enough time to show a swing before the keys hang still." It is mirrored in the Example Schemas doc, and both playground builds were rebuilt.
+  - tests/run.mjs: 23 new label cases (group and control). Mutants A–E (identifiers /i, plain `uniform` in the case-sensitive half, group check off, `uniform` back in the /i list, identifiers unchecked) were 5/5 KILLED, with a cmp restore. `npm test` reported 60 ok, EXIT=0.
+- **A survivor became a test.** Mutant B, a plain `uniform` in the case-sensitive regex, first SURVIVED. A capitalised "Uniform spacing" passes under case sensitivity alone, so the accept list gained "Keep spacing uniform". The same mutant would have survived in Raven too. Raven's test gained the case, and the mutant run against dist/ shows 1 red ("Keep spacing uniform"), cmp-restored.
+- **A check I tried and dropped.** Running the vocabulary check on the constraint `why` text refused facedots' "Larger dots merge into a solid mass." The remaining list words are Andrew's call, so the check was removed rather than reworded around.
+- **Raven.** `sync-motion-motifs.mjs`, run after the Motion Lab commit, puts lock source_commit at 8cc6eb5 and the keyfob/schema.json hash at 8302c696…. The gallery was rebuilt (61,552 B, 12 controls, 0 "damping ratio"); check:site PASS.
+- **Eyes-on (file:// gallery).** The key note renders "Heads up: the key swings faster than the fob…". The settle note is unreachable by design: with Fob swing time at 1000, Settle time lifts to 1900. The new settle wording therefore appears only in the schema JSON. No page errors.
