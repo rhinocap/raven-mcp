@@ -31,6 +31,7 @@ const { buildServer } = await import('../dist/index.js');
 const { FsTasteStore } = await import('../dist/taste-store.js');
 const taste = await import('../dist/taste.js');
 const mp = await import('../dist/motion-playground/index.js');
+const v = await import('../dist/motion-playground/validate.js');
 const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
 const { InMemoryTransport } = await import('@modelcontextprotocol/sdk/inMemory.js');
 
@@ -180,7 +181,7 @@ test('unknown motifs, control ids and group ids are refused by name', async () =
     await assert.rejects(mp.createMotionPlayground({ store, motif: 'keyfob', overrides: { controls: { wobble: { default: 1 } } } }), /Unknown control "wobble" .*Controls: hoverAngle, clickStrength, settleTime/);
     await assert.rejects(mp.createMotionPlayground({ store, motif: 'keyfob', overrides: { groups: { extras: 'Extras' } } }), /Unknown group "extras"/);
     await assert.rejects(mp.createMotionPlayground({ store, motif: 'keyfob', output_path: '/tmp/x.htm' }), /must end in \.html/);
-    await assert.rejects(mp.createMotionPlayground({ store, motif: 'keyfob', title: 'x'.repeat(61) }), /title must be 1-60/);
+    await assert.rejects(mp.createMotionPlayground({ store, motif: 'keyfob', title: 'x'.repeat(41) }), /title must be 1-40/);
     await withClient(store, async (client) => {
       const r = await client.callTool({ name: 'create_motion_playground', arguments: { motif: 'spinner' } });
       assert.equal(r.isError, true, 'the schema enum must refuse a motif the builder does not have');
@@ -267,7 +268,8 @@ test('profile and project go together, and an unknown profile is an error', asyn
   });
 });
 
-const HOSTILE = '</script><img src=x onerror=window.__pwned=1><!--';
+// Kept inside the 40-character title limit so it reaches the template rather than the length check.
+const HOSTILE = '</script><svg onload=__pwned=1><!--';
 
 test('a title or group label that looks like a template marker stays text', async () => {
   await withHome(async ({ store }) => {
@@ -300,11 +302,11 @@ test('shader and easing identifiers are matched by case, so ordinary words start
     const schema = JSON.parse(readFileSync(new URL('../src/data/motion/keyfob/schema.json', import.meta.url), 'utf8'));
     const advGroups = new Set(schema.groups.filter((g) => g.advanced).map((g) => g.id));
     const ordinary = schema.params.find((p) => p.type !== 'action' && !p.advanced && !advGroups.has(p.group)).id;
-    for (const label of ['Upper pieces', 'Under the ring', 'Useful details', 'Eased start', 'Uniform spacing', 'Keep spacing uniform']) {
+    for (const label of ['Upper pieces', 'Under the ring', 'Useful details', 'Eased start', 'Uniform spacing', 'Keep spacing uniform', 'Uniform images', 'uniform interval']) {
       await mp.createMotionPlayground({ store, motif: 'keyfob', overrides: { groups: { pendants: label } } });
       await mp.createMotionPlayground({ store, motif: 'keyfob', overrides: { controls: { [ordinary]: { label } } } });
     }
-    for (const label of ['uSpeed', 'easeInOut', 'iTime', 'uniform float']) {
+    for (const label of ['uSpeed', 'easeInOut', 'iTime', 'uniform float', 'uniform  float', 'uniform mat2x3', 'uniform highp float', 'uniform uvec2']) {
       await assert.rejects(
         mp.createMotionPlayground({ store, motif: 'keyfob', overrides: { groups: { pendants: label } } }),
         new RegExp(`group pendants: engine word in a non-advanced label "${label}"`),
@@ -317,6 +319,33 @@ test('shader and easing identifiers are matched by case, so ordinary words start
   });
 });
 
+test('override limits are the pinned Motion Lab schema limits', async () => {
+  const contract = JSON.parse(readFileSync(path.join(DATA, 'playground.schema.json'), 'utf8'));
+  assert.equal(mp.TITLE_MAX, contract.properties.title.maxLength);
+  assert.equal(mp.CONTROL_LABEL_MAX, contract.$defs.param.properties.label.maxLength);
+  assert.equal(mp.GROUP_LABEL_MAX, contract.properties.groups.items.properties.label.maxLength);
+  await withHome(async ({ store }) => {
+    await mp.createMotionPlayground({ store, motif: 'keyfob', title: 'x'.repeat(mp.TITLE_MAX) });
+    await mp.createMotionPlayground({ store, motif: 'keyfob', overrides: { controls: { hoverAngle: { label: 'x'.repeat(mp.CONTROL_LABEL_MAX) } } } });
+    await mp.createMotionPlayground({ store, motif: 'keyfob', overrides: { groups: { pendants: 'x'.repeat(mp.GROUP_LABEL_MAX) } } });
+    await assert.rejects(mp.createMotionPlayground({ store, motif: 'keyfob', overrides: { controls: { hoverAngle: { label: 'x'.repeat(mp.CONTROL_LABEL_MAX + 1) } } } }), /hoverAngle: label must be 1-24 characters/);
+    await assert.rejects(mp.createMotionPlayground({ store, motif: 'keyfob', overrides: { groups: { pendants: 'Hanging pieces and more' } } }), /group pendants: label must be 1-20 characters/);
+  });
+});
+
+test('the validator runs the Motion Lab JSON Schema, so shape rules agree with Motion Lab', () => {
+  const keyfob = JSON.parse(readFileSync(path.join(DATA, 'keyfob', 'schema.json'), 'utf8'));
+  assert.deepEqual(v.validateMotionSchema(structuredClone(keyfob)), []);
+  const withGroup = (label) => { const d = structuredClone(keyfob); d.groups.find((g) => g.id === 'pendants').label = label; return d; };
+  const idx = keyfob.groups.findIndex((g) => g.id === 'pendants');
+  assert.ok(v.validateMotionSchema(withGroup('Hanging pieces and more')).includes(`shape /groups/${idx}/label must NOT have more than 20 characters`));
+  assert.ok(v.validateMotionSchema(withGroup('   ')).includes(`shape /groups/${idx}/label must match pattern "\\S"`));
+  const extra = structuredClone(keyfob); extra.notes = 'x';
+  assert.ok(v.validateMotionSchema(extra).includes('shape / must NOT have additional properties'));
+  const longTitle = structuredClone(keyfob); longTitle.title = 'x'.repeat(41);
+  assert.ok(v.validateMotionSchema(longTitle).includes('shape /title must NOT have more than 40 characters'));
+});
+
 test('caller text cannot leave its context in the written file', async () => {
   await withHome(async ({ home, store }) => {
     const out = path.join(home, 'hostile.html');
@@ -326,7 +355,7 @@ test('caller text cannot leave its context in the written file', async () => {
     const closers = (h) => h.split('</script>').length - 1;
     assert.equal(closers(html), closers(clean), 'a </script> in caller text added a script closer to the file');
     assert.ok(!html.includes('<b>Lift</b>') && !html.includes('<i>'), 'a label reached the file as markup');
-    assert.ok(html.includes('<title>&lt;/script&gt;&lt;img src=x onerror=window.__pwned=1&gt;&lt;!--</title>'));
+    assert.ok(html.includes('<title>&lt;/script&gt;&lt;svg onload=__pwned=1&gt;&lt;!--</title>'));
     assert.equal(embeddedJson(html, 'schema').title, HOSTILE, 'the title survives the round trip unchanged');
   });
 });

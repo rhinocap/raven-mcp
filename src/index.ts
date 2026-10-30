@@ -33,7 +33,7 @@ import { createTasteProfile, getTasteProfile, listTasteProfiles, labelFinding, a
 import type { ReferenceCapture, SurfaceBinding } from "./taste.js";
 import { generateTastePortrait, generateTastePortraitInline } from "./taste-portrait.js";
 import { generateMoodBoard } from "./mood-board.js";
-import { createMotionPlayground, MOTION_MOTIFS, TITLE_MAX as MOTION_TITLE_MAX } from "./motion-playground/index.js";
+import { createMotionPlayground, MOTION_MOTIFS, TITLE_MAX as MOTION_TITLE_MAX, CONTROL_LABEL_MAX as MOTION_CONTROL_LABEL_MAX, GROUP_LABEL_MAX as MOTION_GROUP_LABEL_MAX } from "./motion-playground/index.js";
 import { setRemoteRuntime, isRemoteRuntime } from "./remote-runtime.js";
 import { ClosedTasteStore, FsTasteStore, type TasteStore } from "./taste-store.js";
 import { remoteUrlGuardError } from "./remote-url-guard.js";
@@ -8836,13 +8836,13 @@ server.tool(
     title: z.string().optional().describe("Playground title shown in the header and tab, 1-" + MOTION_TITLE_MAX + " characters. Defaults to the motif's own title."),
     overrides: z.object({
       controls: z.record(z.string(), z.object({
-        label: z.string().optional().describe("Designer-language label, 1-40 characters."),
+        label: z.string().optional().describe("Designer-language label, 1-" + MOTION_CONTROL_LABEL_MAX + " characters."),
         default: z.union([z.number(), z.string(), z.boolean()]).optional().describe("Starting value. Must be valid for the control (in range, on step, an allowed option)."),
         min: z.number().optional().describe("Narrow the range. Must sit inside the motif's range and on its step grid."),
         max: z.number().optional().describe("Narrow the range. Must sit inside the motif's range and on its step grid."),
         clientSafe: z.boolean().optional().describe("false hides the control in client review mode."),
       })).optional().describe("Per-control changes keyed by control id. An unknown id is an error that lists the motif's controls."),
-      groups: z.record(z.string(), z.string()).optional().describe("Group label changes keyed by group id."),
+      groups: z.record(z.string(), z.string()).optional().describe("Group label changes keyed by group id, 1-" + MOTION_GROUP_LABEL_MAX + " characters each."),
     }).optional().describe("Changes to the motif's controls and group labels. Defaults set here are kept as given and are not adjusted by taste notes."),
     profile: z.string().optional().describe("Taste profile name (see list_taste_profiles). Pass with project, or omit both."),
     project: z.string().optional().describe("Bound project name. Pass with profile, or omit both."),

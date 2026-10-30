@@ -28,6 +28,8 @@ const MOTIFS = {
     "keyfob/runtime.js": "src/keyfob/runtime.js",
   },
 };
+// The playground contract every motif is validated against (src/motion-playground/validate.ts).
+const CONTRACT = { "playground.schema.json": "schemas/playground.schema.json" };
 const TEMPLATE_UPSTREAM = "src/keyfob/template.html";
 
 const sha256 = (path) => createHash("sha256").update(readFileSync(path)).digest("hex");
@@ -41,7 +43,7 @@ const lock = existsSync(lockPath) ? JSON.parse(readFileSync(lockPath, "utf8")) :
 
 if (check) {
   let drift = 0;
-  for (const files of Object.values(MOTIFS)) {
+  for (const files of [...Object.values(MOTIFS), CONTRACT]) {
     for (const [dest, src] of Object.entries(files)) {
       const upstream = sha256(join(labDir, src));
       if (lock?.files?.[dest] !== upstream) { drift++; console.log(`drift: ${src} -> ${dest}`); }
@@ -56,7 +58,7 @@ if (check) {
 }
 
 const files = {};
-for (const motifFiles of Object.values(MOTIFS)) {
+for (const motifFiles of [...Object.values(MOTIFS), CONTRACT]) {
   for (const [dest, src] of Object.entries(motifFiles)) {
     copyFileSync(join(labDir, src), join(dataDir, dest));
     files[dest] = sha256(join(dataDir, dest));

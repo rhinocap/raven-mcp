@@ -867,7 +867,7 @@ cd raven-mcp && npm install && npm run build`}</code></pre></div>
                 <p className="rd-param-heading">Parameters</p>
                 <dl className="rd-params">
                   <div className="rd-param"><dt><code>motif</code><span className="rd-required">required</span></dt><dd>Built-in motif. v1 ships one: ’keyfob’.</dd></div>
-                  <div className="rd-param"><dt><code>title</code><span className="rd-optional">optional</span></dt><dd>Header and tab title, 1–60 characters. Defaults to the motif’s own title.</dd></div>
+                  <div className="rd-param"><dt><code>title</code><span className="rd-optional">optional</span></dt><dd>Header and tab title, 1–40 characters. Defaults to the motif’s own title.</dd></div>
                   <div className="rd-param"><dt><code>overrides</code><span className="rd-optional">optional</span></dt><dd>Per-control label, default, narrower min/max and clientSafe, keyed by control id, plus group labels. Unknown ids are errors that list the valid ones.</dd></div>
                   <div className="rd-param"><dt><code>profile</code><span className="rd-optional">optional</span></dt><dd>Taste profile name. Pass with project, or omit both.</dd></div>
                   <div className="rd-param"><dt><code>project</code><span className="rd-optional">optional</span></dt><dd>Bound project name. Pass with profile, or omit both.</dd></div>

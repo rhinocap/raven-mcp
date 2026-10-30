@@ -1,11 +1,16 @@
 // The Motion Lab playground contract, ported from motion-lab/scripts/validate.mjs.
 //
 // Every schema Raven writes into a playground passes this, including after
-// overrides and taste adjustments. The JSON Schema shape check is reduced to
-// the fields the template reads; the contract rules (counts, grouping, label
-// vocabulary, value ranges, constraints at defaults) are ported as written.
+// overrides and taste adjustments. The shape check runs Motion Lab's own JSON
+// Schema (src/data/motion/playground.schema.json, pinned by motifs.lock.json)
+// with Ajv, as Motion Lab does, so lengths, patterns and extra keys agree by
+// construction; the contract rules (counts, grouping, label vocabulary, value
+// ranges, constraints at defaults) are ported as written.
 // The corpus "different menus" comparison is not ported: Raven builds from a
 // fixed motif, so every playground of one motif shares a menu by design.
+
+import { readFileSync } from "node:fs";
+import Ajv2020, { type ValidateFunction } from "ajv/dist/2020.js";
 
 export type MotionParam = {
   id: string;
@@ -54,8 +59,9 @@ const GENERIC_GROUPS = ["dimensions", "style", "motion", "colors", "colours", "b
 const ENGINE_WORDS = /\b(noise ?scale|damping|stiffness|lerp|dt|k|octaves?|lacunarity|persistence|gain|zeta|omega|mass|tension|friction|simplex|perlin|cubic-?bezier|bezier|rgba?\(|hsl\(|shader|vec[234]|sin|cos|theta|beta|alpha)\b/i;
 // Shader uniforms and easing identifiers are recognised by their case, so this half stays
 // case-sensitive: under /i, u[A-Z] matches "Upper" and ease[A-Z] matches "Eased". "uniform"
-// counts only as a GLSL declaration; "Uniform spacing" is a designer's word.
-const ENGINE_IDENTIFIERS = /\b(u[A-Z]\w*|iTime|ease[A-Z]\w*|uniform (float|int|bool|vec[234]|mat[234]|sampler\w*))\b/;
+// counts only as a GLSL declaration (any whitespace, an optional precision qualifier, then a GLSL
+// type); "Uniform spacing" and "keep spacing uniform" are a designer's words.
+const ENGINE_IDENTIFIERS = /\b(u[A-Z]\w*|iTime|ease[A-Z]\w*|uniform\s+((lowp|mediump|highp)\s+)?(float|u?int|bool|[biud]?vec[234]|d?mat[234](x[234])?|[iu]?sampler\w*))\b/;
 const hasEngineWord = (label: string) => ENGINE_WORDS.test(label) || ENGINE_IDENTIFIERS.test(label);
 const CODE_SHAPED = /_|[a-z][A-Z]/;
 const TIME_UNITS = ["ms", "s", "x", "Hz", "px/s"];
@@ -97,9 +103,22 @@ export function constraintHolds(c: MotionConstraint, values: Record<string, unkn
   return c.op === "lte" ? a <= f * b : a >= f * b;
 }
 
+// Compiled on first use, so importing this module reads no files.
+let checkShape: ValidateFunction | null = null;
+function shapeErrors(doc: unknown): string[] {
+  checkShape ??= new Ajv2020({ allErrors: true, strict: false }).compile(
+    JSON.parse(readFileSync(new URL("../../src/data/motion/playground.schema.json", import.meta.url), "utf8")),
+  );
+  if (checkShape(doc)) return [];
+  return (checkShape.errors ?? []).map((e) => {
+    const extra = e.params?.unevaluatedProperty ? ` (${e.params.unevaluatedProperty})` : "";
+    return `shape ${e.instancePath || "/"} ${e.message}${extra}`;
+  });
+}
+
 /** Returns contract violations; an empty list means the schema is a valid playground. */
 export function validateMotionSchema(doc: MotionSchema): string[] {
-  const errs: string[] = [];
+  const errs: string[] = shapeErrors(doc);
   for (const key of ["id", "title", "schemaVersion"] as const) {
     if (typeof doc[key] !== "string" || doc[key].length === 0) errs.push(`shape: ${key} must be a non-empty string`);
   }
