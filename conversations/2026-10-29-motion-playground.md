@@ -103,3 +103,18 @@ Andrew said "Keep going" after the final report. The unblocked work was the thre
 - **A check I tried and dropped.** Running the vocabulary check on the constraint `why` text refused facedots' "Larger dots merge into a solid mass." The remaining list words are Andrew's call, so the check was removed rather than reworded around.
 - **Raven.** `sync-motion-motifs.mjs`, run after the Motion Lab commit, puts lock source_commit at 8cc6eb5 and the keyfob/schema.json hash at 8302c696…. The gallery was rebuilt (61,552 B, 12 controls, 0 "damping ratio"); check:site PASS.
 - **Eyes-on (file:// gallery).** The key note renders "Heads up: the key swings faster than the fob…". The settle note is unreachable by design: with Fob swing time at 1000, Settle time lifts to 1900. The new settle wording therefore appears only in the schema JSON. No page errors.
+
+## Sol round 6 disposition: shape-check parity (Motion Lab 85fdf2e, Raven 19fe8ec)
+
+Verdict on 8cc6eb5/959af33: DOES NOT SURVIVE, 2 × P2. Both fixed.
+
+- P2-1, validators disagree on shape. Raven hand-checked a subset of the playground shape; Motion Lab runs its JSON Schema. An empty label passed Motion Lab and failed Raven. Spec line 59 says to port `playground.schema.json`. Following it found two limits wrong since the original build: Raven `TITLE_MAX` was 60 (schema 40), and label overrides capped at 40 (schema 24 for controls, 20 for groups).
+  - Motion Lab 85fdf2e: title `minLength: 1`; group and control label `pattern: "\\S"`, so blank labels are refused in both repos.
+  - Raven: `playground.schema.json` pinned through the motif lock (`sync-motion-motifs.mjs` gains a CONTRACT entry); `validate.ts` runs it with Ajv 2020, compiled lazily; `TITLE_MAX 40`, `CONTROL_LABEL_MAX 24`, `GROUP_LABEL_MAX 20`, with a test holding them equal to the schema; docs page title range 1–40. Dependency `ajv ^8.18.0` (lock stays 8.18.0). The lock also gained a missing `raven-polish` bin entry.
+  - The hostile-title fixture was shortened to 35 characters to fit the 40 limit; it still closes `</script>`, carries an executing handler and opens `<!--`.
+- P2-2, `uniform  float`, `uniform mat2x3`, `uniform highp float` accepted. `ENGINE_IDENTIFIERS` now allows any whitespace, an optional precision qualifier, and `[biud]?vec`, `d?mat[234](x[234])?`, `[iu]?sampler`. `image` types are excluded on purpose: "Uniform images" is a designer phrase and stays accepted.
+
+Evidence:
+- Motion Lab `npm test`: 77 ok (+17, the new cases), EXIT=0. Mutants F–K 6/6 killed, restore verified with `cmp`.
+- Raven motion suite 23/23. Full suite 1865/1862/0/3, EXIT=0 read from the log; the +2 are the two new tests; the 3 skips are the same three. `check:site` PASS; `sync --check` in sync; keyfob.html rebuild byte-identical.
+- Raven dist mutants R1–R6 (shape check off, `uniform ` single space, precision qualifier dropped, TITLE_MAX 60, GROUP_LABEL_MAX 40, CONTROL_LABEL_MAX 40): 6/6 killed, restore verified with `cmp`.
