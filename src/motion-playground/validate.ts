@@ -5,7 +5,10 @@
 // Schema (src/data/motion/playground.schema.json, pinned by motifs.lock.json)
 // with Ajv, as Motion Lab does, so lengths, patterns and extra keys agree by
 // construction; the contract rules (counts, grouping, label vocabulary, value
-// ranges, constraints at defaults) are ported as written.
+// ranges, hinges, presets, constraints at defaults) are ported as written.
+// Raven adds rules Motion Lab does not have, each stricter, never looser: 8-16
+// controls, at least 2 groups, a non-empty label, a numeric number default and a
+// #rrggbb colour default. A playground Raven accepts therefore passes Motion Lab.
 // The corpus "different menus" comparison is not ported: Raven builds from a
 // fixed motif, so every playground of one motif shares a menu by design.
 
@@ -51,7 +54,7 @@ export type MotionSchema = {
   params: MotionParam[];
   exports: string[];
   constraints?: MotionConstraint[];
-  presets?: Array<{ id: string; values?: Record<string, unknown> }>;
+  presets?: Array<{ id: string; label?: string; values?: Record<string, unknown> }>;
 };
 
 const GENERIC_GROUPS = ["dimensions", "style", "motion", "colors", "colours", "behavior", "behaviour", "settings", "general", "options", "parameters", "controls"];
@@ -63,9 +66,13 @@ const ENGINE_WORDS = /\b(noise ?scale|damping|stiffness|lerp|dt|k|octaves?|lacun
 // type); "Uniform spacing" and "keep spacing uniform" are a designer's words.
 const ENGINE_IDENTIFIERS = /\b(u[A-Z]\w*|iTime|ease[A-Z]\w*|uniform\s+((lowp|mediump|highp)\s+)?(float|double|u?int|bool|[biud]?vec[234]|d?mat[234](x[234])?|[iu]?sampler\w*))\b/;
 const hasEngineWord = (label: string) => ENGINE_WORDS.test(label) || ENGINE_IDENTIFIERS.test(label);
-const CODE_SHAPED = /_|[a-z][A-Z]/;
-// Statement ends, braces and block comments: source code, not a label.
-const CODE_PUNCT = /[;{}]|\/\*|\*\//;
+// snake_case, or a camelCase identifier: two or more lowercase letters, then a hump into a lowercase
+// letter (swingFeel, hoverAngle). Product names pass: iPhone, iPad and eBay have one lowercase letter
+// before the hump, macOS has none after it, and YouTube starts with a capital.
+const CODE_SHAPED = /_|\b[a-z]{2,}[A-Z][a-z]/;
+// Braces, block comments, and a semicolon that ends the label or touches the next token: source code.
+// A semicolon followed by a space is punctuation in a sentence ("Swing; then settle").
+const CODE_PUNCT = /[{}]|\/\*|\*\/|;\s*$|;\S/;
 const TIME_UNITS = ["ms", "s", "x", "Hz", "px/s"];
 const ROLE_TYPES: Record<string, (p: MotionParam) => boolean> = {
   duration: (p) => p.type === "number" && TIME_UNITS.includes(p.unit ?? ""),
@@ -209,6 +216,26 @@ export function validateMotionSchema(doc: MotionSchema): string[] {
   if (events.includes("loop") && !has("loop")) errs.push("motion minimum: events include loop but no loop control");
   const hinges = doc.interaction?.hinges || [];
   if ((doc.motif === "pattern" || hinges.length > 1) && !has("stagger") && !has("delay")) errs.push("motion minimum: several elements move but there is no stagger or delay control");
+
+  const hingeTargets = new Set<string>();
+  for (const h of hinges) {
+    if (hingeTargets.has(h.target)) errs.push(`hinge ${h.target} declared twice`);
+    hingeTargets.add(h.target);
+  }
+  for (const h of hinges) {
+    if (h.parent && !hingeTargets.has(h.parent)) errs.push(`hinge ${h.target}: parent ${h.parent} not declared`);
+    if (h.parent === h.target) errs.push(`hinge ${h.target}: is its own parent`);
+  }
+
+  const presetIds = new Set<string>();
+  for (const pr of doc.presets || []) {
+    if (presetIds.has(pr.id)) errs.push(`duplicate preset id ${pr.id}`);
+    presetIds.add(pr.id);
+    for (const [k, v] of Object.entries(pr.values || {})) {
+      if (!byId.has(k)) errs.push(`preset ${pr.id}: unknown param ${k}`);
+      else if (!valueOk(byId.get(k), v)) errs.push(`preset ${pr.id}: ${JSON.stringify(v)} is not a valid value for ${k}`);
+    }
+  }
 
   for (const c of doc.constraints || []) {
     const a = byId.get(c.a), b = byId.get(c.b);

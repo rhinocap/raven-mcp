@@ -322,7 +322,7 @@ test('shader and easing identifiers are matched by case, so ordinary words start
 test('statement ends, braces and block comments in a label are refused as code', async () => {
   await withHome(async ({ store }) => {
     const esc = (t) => t.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
-    for (const label of ['uniform double t;', 'uniform/*x*/float t', 'uniform B{float x;};', 'Swing; then settle']) {
+    for (const label of ['uniform double t;', 'uniform/*x*/float t', 'uniform B{float x;};', 'Lift = 0.5;', 'Lift;Drop', 'Lift ;']) {
       await assert.rejects(
         mp.createMotionPlayground({ store, motif: 'keyfob', overrides: { groups: { pendants: label } } }),
         new RegExp(`group pendants: label "${esc(label)}" contains code punctuation`),
@@ -332,7 +332,46 @@ test('statement ends, braces and block comments in a label are refused as code',
         new RegExp(`hoverAngle: label "${esc(label)}" contains code punctuation`),
       );
     }
+    for (const label of ['swingFeel', 'hoverAngle', 'hover_angle', 'Swing_feel']) {
+      await assert.rejects(
+        mp.createMotionPlayground({ store, motif: 'keyfob', overrides: { groups: { pendants: label } } }),
+        new RegExp(`group pendants: label "${label}" is code-shaped`),
+      );
+      await assert.rejects(
+        mp.createMotionPlayground({ store, motif: 'keyfob', overrides: { controls: { hoverAngle: { label } } } }),
+        new RegExp(`hoverAngle: label "${label}" is code-shaped`),
+      );
+    }
   });
+});
+
+test('a designer sentence and product names are not code', async () => {
+  await withHome(async ({ store }) => {
+    for (const label of ['Swing; then settle', 'iPhone tilt', 'iPad swing', 'macOS dock', 'YouTube embed', 'eBay listing']) {
+      await mp.createMotionPlayground({ store, motif: 'keyfob', overrides: { groups: { pendants: label } } });
+      await mp.createMotionPlayground({ store, motif: 'keyfob', overrides: { controls: { hoverAngle: { label } } } });
+    }
+  });
+});
+
+test('hinges name a declared parent other than themselves, once each; presets set real params to valid values', () => {
+  const keyfob = JSON.parse(readFileSync(path.join(DATA, 'keyfob', 'schema.json'), 'utf8'));
+  const h0 = keyfob.interaction.hinges[0].target;
+  const cases = [
+    [(d) => d.interaction.hinges.push({ ...d.interaction.hinges[0] }), `hinge ${h0} declared twice`],
+    [(d) => { d.interaction.hinges[0].parent = h0; }, `hinge ${h0}: is its own parent`],
+    [(d) => { d.interaction.hinges[0].parent = 'no-such-hinge'; }, `hinge ${h0}: parent no-such-hinge not declared`],
+    [(d) => { d.presets = [{ id: 'wild', label: 'Wild', values: { hoverAngle: 999 } }]; }, 'preset wild: 999 is not a valid value for hoverAngle'],
+    [(d) => { d.presets = [{ id: 'wild', label: 'Wild', values: { hoverAngle: 9.5 } }]; }, 'preset wild: 9.5 is not a valid value for hoverAngle'],
+    [(d) => { d.presets = [{ id: 'wild', label: 'Wild', values: { noSuchParam: 1 } }]; }, 'preset wild: unknown param noSuchParam'],
+    [(d) => { d.presets = [{ id: 'calm', label: 'Calm', values: { hoverAngle: 4 } }, { id: 'calm', label: 'Calm', values: { hoverAngle: 5 } }]; }, 'duplicate preset id calm'],
+  ];
+  for (const [edit, msg] of cases) {
+    const d = structuredClone(keyfob); edit(d);
+    assert.ok(v.validateMotionSchema(d).includes(msg), `expected "${msg}"`);
+  }
+  const good = structuredClone(keyfob); good.presets = [{ id: 'calm', label: 'Calm', values: { hoverAngle: 4 } }];
+  assert.deepEqual(v.validateMotionSchema(good), []);
 });
 
 test('override limits are the pinned Motion Lab schema limits', async () => {

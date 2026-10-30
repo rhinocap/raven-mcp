@@ -24,7 +24,7 @@ This differs from both of Raven's project lenses: the primary lens is the paying
 | Field | Type | Notes |
 | --- | --- | --- |
 | `motif` | enum, required | Built-in motifs only. v1: `keyfob`, `tab-stagger`. Phase 3 adds `hairlines-ripple`, `squares-l-draw`, `face-dots`. The description lists the valid values and says "use ONLY these". |
-| `title` | string ≤ 60 | Shown in the playground header and `<title>`. |
+| `title` | string ≤ 40 | Shown in the playground header and `<title>`. |
 | `artwork` | string, optional | SVG markup for motifs whose schema declares replaceable artwork (keyfob: the fob and key groups). Sanitised; see Security. |
 | `overrides` | object, optional | Per-control changes to the motif's schema: `label`, `default`, `min`/`max` (only within the motif's hard range), `clientSafe`, `advanced`. Also `presets` (≤ 6) and `groups` relabels. Unknown control ids are rejected. |
 | `profile`, `project` | string, optional | When given, the taste binding's `motion`, `entrance` and `loading` design notes seed defaults (see Taste loop). |
@@ -56,7 +56,7 @@ JSON, same shape family as `generate_mood_board` (src/index.ts:8824):
 
 ### Validation
 
-Port `motion-lab/scripts/validate.mjs` and `schemas/playground.schema.json` into `src/motion-playground/validate.ts`. Every overridden schema must still pass the Motion Lab contract: 8–16 controls, ≤ 6 per group, ≥ 2 groups, 5–12 client-safe, no engine words outside advanced, defaults inside range and on step, constraints hold at defaults. Contract violations are errors. Constraint violations are corrected in a fixed order:
+Port `motion-lab/scripts/validate.mjs` and `schemas/playground.schema.json` into `src/motion-playground/validate.ts`. Every overridden schema must still pass the Motion Lab contract: 8–16 controls, ≤ 6 per group, ≥ 2 groups, 5–12 client-safe, no engine words, camelCase or snake_case identifiers, or source-code punctuation outside advanced, defaults inside range and on step, hinges with declared parents, presets with valid values, constraints hold at defaults. Contract violations are errors. Constraint violations are corrected in a fixed order:
 
 1. Apply `overrides`.
 2. Apply taste multipliers (see Taste loop).
