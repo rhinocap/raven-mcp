@@ -131,3 +131,27 @@ Evidence:
 - Motion Lab: 90 ok (+13), EXIT=0; mutants L–O 4/4 killed.
 - Raven: motion suite 24/24; full suite 1866/1863/0/3, EXIT=0; same 3 skips (log lines 121/895/896); check:site PASS; sync in sync.
 - Raven dist mutants S1–S5 (drop `double`, punctuation check off, UTF-16 count, Raven-only canvas check restored, untrimmed group length): 5/5 killed, restore verified with `cmp`.
+
+## Sol round 8 (on Motion Lab 0cf25a3 / Raven ded7288): DOES NOT SURVIVE, 3 × P2 + 1 × P3 — fixes in progress
+
+- P2-1: Raven skips preset value checks (Motion Lab validate.mjs:140). `values:{hoverAngle:999}` passes Raven.
+- P2-2: Raven skips hinge relationship checks (duplicate target, undeclared parent, self-parent; validate.mjs:130).
+- P2-3: the label lint refuses designer language: "Swing; then settle" (CODE_PUNCT `;`) and "iPhone tilt" (CODE_SHAPED `[a-z][A-Z]`).
+- P3: docs/spec-motion-playground.md:27 says title ≤ 60; the limit is 40.
+- Plan: diff every non-schema rule between the two validators in one pass, port what is missing, narrow both lint patterns in both repos, rebuild, tests + mutants, commit, Sol round 9.
+
+## Sol round 8 disposition (Motion Lab 27b70b7, Raven 072ce2a)
+
+All four findings fixed.
+
+- P2-1 and P2-2: Raven lacked Motion Lab's hinge checks (target declared twice, parent not declared, own parent) and preset checks (duplicate id, unknown param, invalid value). A side-by-side diff of every rule outside the schema found these two were the only missing ones; both are ported verbatim into `validate.ts`. Raven now equals Motion Lab plus five stricter Raven-only rules (8–16 controls, ≥2 groups, non-empty labels, numeric number default, `#rrggbb` colour default).
+- P2-3: the lint is narrowed in both repos. `CODE_SHAPED = /_|\b[a-z]{2,}[A-Z][a-z]/` lets iPhone, iPad, macOS, YouTube and eBay through and still refuses `swingFeel`, `hover_angle`. `CODE_PUNCT = /[{}]|\/\*|\*\/|;\s*$|;\S/` lets "Swing; then settle" through and still refuses `Lift;Drop`, `Lift ;`, `uniform double t;`. The four patterns were compared programmatically between the repos: identical.
+- P3: spec line 27 title limit 60 → 40.
+- The lock now names 27b70b7. Only the commit pointer moved; the three pinned file hashes are unchanged, because 27b70b7 touches only validate.mjs, tests and docs.
+
+Evidence:
+- **Correction:** the round 7 entry says Motion Lab "90 ok". Measured in a clean `git archive HEAD` export, 0cf25a3 has 61 ok. Now 93 ok, EXIT=0.
+- Motion Lab mutants P1–P10: 10/10 killed, each red on its own expectation; restore verified with `cmp`.
+- Raven: build exit 0; motion suite 26/26 (+2, the two new tests); full suite 1868/1865/0/3, EXIT=0, same 3 skips at log lines 121/895/896; `sync --check` in sync; `check:site` PASS.
+- Raven dist mutants T1–T10: 10/10 killed; T5–T10 each redden the hinge/preset test on its own message; restore verified with `cmp`.
+- Known lint gaps by design: single-letter-prefix camelCase (`xOffset`) and PascalCase pass, because the narrowing is what lets product names through.
