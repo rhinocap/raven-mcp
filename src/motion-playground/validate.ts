@@ -61,9 +61,11 @@ const ENGINE_WORDS = /\b(noise ?scale|damping|stiffness|lerp|dt|k|octaves?|lacun
 // case-sensitive: under /i, u[A-Z] matches "Upper" and ease[A-Z] matches "Eased". "uniform"
 // counts only as a GLSL declaration (any whitespace, an optional precision qualifier, then a GLSL
 // type); "Uniform spacing" and "keep spacing uniform" are a designer's words.
-const ENGINE_IDENTIFIERS = /\b(u[A-Z]\w*|iTime|ease[A-Z]\w*|uniform\s+((lowp|mediump|highp)\s+)?(float|u?int|bool|[biud]?vec[234]|d?mat[234](x[234])?|[iu]?sampler\w*))\b/;
+const ENGINE_IDENTIFIERS = /\b(u[A-Z]\w*|iTime|ease[A-Z]\w*|uniform\s+((lowp|mediump|highp)\s+)?(float|double|u?int|bool|[biud]?vec[234]|d?mat[234](x[234])?|[iu]?sampler\w*))\b/;
 const hasEngineWord = (label: string) => ENGINE_WORDS.test(label) || ENGINE_IDENTIFIERS.test(label);
 const CODE_SHAPED = /_|[a-z][A-Z]/;
+// Statement ends, braces and block comments: source code, not a label.
+const CODE_PUNCT = /[;{}]|\/\*|\*\//;
 const TIME_UNITS = ["ms", "s", "x", "Hz", "px/s"];
 const ROLE_TYPES: Record<string, (p: MotionParam) => boolean> = {
   duration: (p) => p.type === "number" && TIME_UNITS.includes(p.unit ?? ""),
@@ -118,13 +120,8 @@ function shapeErrors(doc: unknown): string[] {
 
 /** Returns contract violations; an empty list means the schema is a valid playground. */
 export function validateMotionSchema(doc: MotionSchema): string[] {
+  // Shape is the pinned schema's alone; the checks below are the rules a JSON Schema cannot state.
   const errs: string[] = shapeErrors(doc);
-  for (const key of ["id", "title", "schemaVersion"] as const) {
-    if (typeof doc[key] !== "string" || doc[key].length === 0) errs.push(`shape: ${key} must be a non-empty string`);
-  }
-  if (!doc.canvas || !(doc.canvas.width > 0) || !(doc.canvas.height > 0)) errs.push("shape: canvas needs width and height");
-  if (!Number.isInteger(doc.seed) || doc.seed < 0 || doc.seed > 4294967295) errs.push("shape: seed must be an integer in 0..4294967295");
-  if (!Array.isArray(doc.exports)) errs.push("shape: exports must be an array");
   const params = Array.isArray(doc.params) ? doc.params : [];
   const groups = Array.isArray(doc.groups) ? doc.groups : [];
   const controls = params.filter((p) => p.type !== "action");
@@ -142,6 +139,7 @@ export function validateMotionSchema(doc: MotionSchema): string[] {
       // A group heading sits in the same panel as its controls, so the same vocabulary rule applies.
       if (hasEngineWord(g.label)) errs.push(`group ${g.id}: engine word in a non-advanced label "${g.label}"`);
       if (CODE_SHAPED.test(g.label)) errs.push(`group ${g.id}: label "${g.label}" is code-shaped (snake_case or camelCase)`);
+      if (CODE_PUNCT.test(g.label)) errs.push(`group ${g.id}: label "${g.label}" contains code punctuation`);
     }
   }
   const advancedGroups = new Set(groups.filter((g) => g.advanced).map((g) => g.id));
@@ -155,6 +153,7 @@ export function validateMotionSchema(doc: MotionSchema): string[] {
     if (!isAdvanced(p)) {
       if (hasEngineWord(p.label)) errs.push(`${p.id}: engine word in a non-advanced label "${p.label}"`);
       if (CODE_SHAPED.test(p.label)) errs.push(`${p.id}: label "${p.label}" is code-shaped (snake_case or camelCase)`);
+      if (CODE_PUNCT.test(p.label)) errs.push(`${p.id}: label "${p.label}" contains code punctuation`);
     }
     if (p.role && ROLE_TYPES[p.role] && !ROLE_TYPES[p.role](p)) {
       errs.push(`${p.id}: role "${p.role}" does not fit a ${p.type}${p.unit !== undefined ? ` in "${p.unit}"` : ""}`);
@@ -219,7 +218,7 @@ export function validateMotionSchema(doc: MotionSchema): string[] {
     if (!constraintHolds(c, values)) errs.push(`constraint ${c.a} ${c.op} ${c.factor ?? 1}*${c.b}: defaults violate it`);
   }
 
-  const exp = doc.exports || [];
+  const exp = Array.isArray(doc.exports) ? doc.exports : [];
   if (exp.includes("svg-frame") && ["canvas2d", "webgl"].includes(doc.renderer ?? "")) errs.push(`svg-frame export on a ${doc.renderer} renderer`);
   if (exp.includes("css-keyframes") && (events.includes("click") || events.includes("drag"))) errs.push("css-keyframes export cannot encode click or drag impulses");
   return errs;

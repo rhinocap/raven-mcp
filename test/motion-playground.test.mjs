@@ -306,7 +306,7 @@ test('shader and easing identifiers are matched by case, so ordinary words start
       await mp.createMotionPlayground({ store, motif: 'keyfob', overrides: { groups: { pendants: label } } });
       await mp.createMotionPlayground({ store, motif: 'keyfob', overrides: { controls: { [ordinary]: { label } } } });
     }
-    for (const label of ['uSpeed', 'easeInOut', 'iTime', 'uniform float', 'uniform  float', 'uniform mat2x3', 'uniform highp float', 'uniform uvec2']) {
+    for (const label of ['uSpeed', 'easeInOut', 'iTime', 'uniform float', 'uniform  float', 'uniform mat2x3', 'uniform highp float', 'uniform uvec2', 'uniform double']) {
       await assert.rejects(
         mp.createMotionPlayground({ store, motif: 'keyfob', overrides: { groups: { pendants: label } } }),
         new RegExp(`group pendants: engine word in a non-advanced label "${label}"`),
@@ -314,6 +314,22 @@ test('shader and easing identifiers are matched by case, so ordinary words start
       await assert.rejects(
         mp.createMotionPlayground({ store, motif: 'keyfob', overrides: { controls: { [ordinary]: { label } } } }),
         new RegExp(`${ordinary}: engine word in a non-advanced label "${label}"`),
+      );
+    }
+  });
+});
+
+test('statement ends, braces and block comments in a label are refused as code', async () => {
+  await withHome(async ({ store }) => {
+    const esc = (t) => t.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+    for (const label of ['uniform double t;', 'uniform/*x*/float t', 'uniform B{float x;};', 'Swing; then settle']) {
+      await assert.rejects(
+        mp.createMotionPlayground({ store, motif: 'keyfob', overrides: { groups: { pendants: label } } }),
+        new RegExp(`group pendants: label "${esc(label)}" contains code punctuation`),
+      );
+      await assert.rejects(
+        mp.createMotionPlayground({ store, motif: 'keyfob', overrides: { controls: { hoverAngle: { label } } } }),
+        new RegExp(`hoverAngle: label "${esc(label)}" contains code punctuation`),
       );
     }
   });
@@ -328,6 +344,12 @@ test('override limits are the pinned Motion Lab schema limits', async () => {
     await mp.createMotionPlayground({ store, motif: 'keyfob', title: 'x'.repeat(mp.TITLE_MAX) });
     await mp.createMotionPlayground({ store, motif: 'keyfob', overrides: { controls: { hoverAngle: { label: 'x'.repeat(mp.CONTROL_LABEL_MAX) } } } });
     await mp.createMotionPlayground({ store, motif: 'keyfob', overrides: { groups: { pendants: 'x'.repeat(mp.GROUP_LABEL_MAX) } } });
+    // The schema counts code points and checks the trimmed label, so the overrides do too.
+    await mp.createMotionPlayground({ store, motif: 'keyfob', title: '🌟'.repeat(mp.TITLE_MAX) });
+    await mp.createMotionPlayground({ store, motif: 'keyfob', overrides: { controls: { hoverAngle: { label: '🌟'.repeat(mp.CONTROL_LABEL_MAX) } } } });
+    await mp.createMotionPlayground({ store, motif: 'keyfob', overrides: { groups: { pendants: '🌟'.repeat(mp.GROUP_LABEL_MAX) } } });
+    await mp.createMotionPlayground({ store, motif: 'keyfob', overrides: { groups: { pendants: `  ${'x'.repeat(mp.GROUP_LABEL_MAX)}  ` } } });
+    await assert.rejects(mp.createMotionPlayground({ store, motif: 'keyfob', title: '🌟'.repeat(mp.TITLE_MAX + 1) }), /title must be 1-40 characters/);
     await assert.rejects(mp.createMotionPlayground({ store, motif: 'keyfob', overrides: { controls: { hoverAngle: { label: 'x'.repeat(mp.CONTROL_LABEL_MAX + 1) } } } }), /hoverAngle: label must be 1-24 characters/);
     await assert.rejects(mp.createMotionPlayground({ store, motif: 'keyfob', overrides: { groups: { pendants: 'Hanging pieces and more' } } }), /group pendants: label must be 1-20 characters/);
   });
@@ -344,6 +366,11 @@ test('the validator runs the Motion Lab JSON Schema, so shape rules agree with M
   assert.ok(v.validateMotionSchema(extra).includes('shape / must NOT have additional properties'));
   const longTitle = structuredClone(keyfob); longTitle.title = 'x'.repeat(41);
   assert.ok(v.validateMotionSchema(longTitle).includes('shape /title must NOT have more than 40 characters'));
+  // The player reads canvas.width and canvas.height; the schema requires them and Raven adds nothing on top.
+  const noCanvas = structuredClone(keyfob); delete noCanvas.canvas;
+  assert.deepEqual(v.validateMotionSchema(noCanvas), ["shape / must have required property 'canvas'"]);
+  const noWidth = structuredClone(keyfob); delete noWidth.canvas.width;
+  assert.deepEqual(v.validateMotionSchema(noWidth), ["shape /canvas must have required property 'width'"]);
 });
 
 test('caller text cannot leave its context in the written file', async () => {

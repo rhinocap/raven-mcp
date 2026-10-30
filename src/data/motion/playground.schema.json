@@ -14,6 +14,7 @@
     "motif",
     "renderer",
     "interaction",
+    "canvas",
     "seed",
     "groups",
     "params",
@@ -128,6 +129,10 @@
     "canvas": {
       "type": "object",
       "additionalProperties": false,
+      "required": [
+        "width",
+        "height"
+      ],
       "properties": {
         "width": {
           "type": "integer",

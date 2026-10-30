@@ -29,6 +29,8 @@ export type MotionMotif = (typeof MOTION_MOTIFS)[number];
 export const TITLE_MAX = 40;
 export const CONTROL_LABEL_MAX = 24;
 export const GROUP_LABEL_MAX = 20;
+// JSON Schema maxLength counts code points, so an emoji is one character here as it is there.
+const chars = (s: string) => [...s].length;
 const U32 = 4294967295;
 // A 16-bit id collides rarely; this many draws in a row all colliding means the folder is close to full.
 const MAX_NAME_ATTEMPTS = 8;
@@ -92,7 +94,7 @@ function applyOverrides(schema: MotionSchema, overrides: PlaygroundOverrides | u
     const p = byId.get(id);
     if (!p) throw new Error(`Unknown control "${id}" for motif ${schema.id}. Controls: ${schema.params.map((x) => x.id).join(", ")}.`);
     if (o.label !== undefined) {
-      if (typeof o.label !== "string" || o.label.trim().length === 0 || o.label.length > CONTROL_LABEL_MAX) throw new Error(`${id}: label must be 1-${CONTROL_LABEL_MAX} characters`);
+      if (typeof o.label !== "string" || o.label.trim().length === 0 || chars(o.label.trim()) > CONTROL_LABEL_MAX) throw new Error(`${id}: label must be 1-${CONTROL_LABEL_MAX} characters`);
       p.label = o.label.trim();
     }
     if (o.min !== undefined || o.max !== undefined) {
@@ -116,7 +118,7 @@ function applyOverrides(schema: MotionSchema, overrides: PlaygroundOverrides | u
   for (const [id, label] of Object.entries(overrides.groups || {})) {
     const g = groupIds.get(id);
     if (!g) throw new Error(`Unknown group "${id}" for motif ${schema.id}. Groups: ${schema.groups.map((x) => x.id).join(", ")}.`);
-    if (typeof label !== "string" || label.trim().length === 0 || label.length > GROUP_LABEL_MAX) throw new Error(`group ${id}: label must be 1-${GROUP_LABEL_MAX} characters`);
+    if (typeof label !== "string" || label.trim().length === 0 || chars(label.trim()) > GROUP_LABEL_MAX) throw new Error(`group ${id}: label must be 1-${GROUP_LABEL_MAX} characters`);
     g.label = label.trim();
   }
   return pinned;
@@ -200,7 +202,7 @@ export async function createMotionPlayground(input: MotionPlaygroundInput): Prom
 
   if (input.title !== undefined) {
     const title = typeof input.title === "string" ? input.title.trim() : "";
-    if (title.length === 0 || title.length > TITLE_MAX) throw new Error(`title must be 1-${TITLE_MAX} characters`);
+    if (title.length === 0 || chars(title) > TITLE_MAX) throw new Error(`title must be 1-${TITLE_MAX} characters`);
     schema.title = title;
   }
   if (input.seed !== undefined) {
