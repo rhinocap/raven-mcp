@@ -155,3 +155,12 @@ Evidence:
 - Raven: build exit 0; motion suite 26/26 (+2, the two new tests); full suite 1868/1865/0/3, EXIT=0, same 3 skips at log lines 121/895/896; `sync --check` in sync; `check:site` PASS.
 - Raven dist mutants T1–T10: 10/10 killed; T5–T10 each redden the hinge/preset test on its own message; restore verified with `cmp`.
 - Known lint gaps by design: single-letter-prefix camelCase (`xOffset`) and PascalCase pass, because the narrowing is what lets product names through.
+
+## Sol round 9 disposition (on Motion Lab 27b70b7 / Raven 072ce2a)
+
+Verdict: DOES NOT SURVIVE, 3 × P2 + 1 × P3. All four are claim defects, not wrong behaviour. Nothing changes on either validator's verdicts; the claim is narrowed and written down where a reader will find it (spec line 59, `validate.ts` header and lint comment).
+
+- P2-1: `checkConstraintReach` (index.ts:173) refuses `settleTime.max = 1500` because `fobPeriod.max = 1000` needs 1820. Motion Lab accepts it. This is a sixth Raven-only rule, and my brief listed five. The rule stays and is now declared.
+- P2-2: "reMarkable tilt" and "inDrive bounce" are refused as camelCase in both repos. They have the same shape as `hoverAngle`, so no regex separates them. This is a declared gap. "Beta badge" is refused by `beta` in the word list. It is the same class as `alpha` and joins the open word-list decision for Andrew.
+- P2-3: Motion Lab's default CLI runs the corpus "different menus" check, and Raven skips it. The `validate.ts` header already said so; my parity claim did not. Now declared in the spec.
+- P3: "translateX(10px)" and "opacity: 0.5" pass both lints. Not fixed. Each widening of the lint since round 6 has produced a new edge, so the lint's scope is now written down instead of widened again. Whether to catch CSS declarations and calls is an open decision for Andrew.

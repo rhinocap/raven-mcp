@@ -7,8 +7,10 @@
 // construction; the contract rules (counts, grouping, label vocabulary, value
 // ranges, hinges, presets, constraints at defaults) are ported as written.
 // Raven adds rules Motion Lab does not have, each stricter, never looser: 8-16
-// controls, at least 2 groups, a non-empty label, a numeric number default and a
-// #rrggbb colour default. A playground Raven accepts therefore passes Motion Lab.
+// controls, at least 2 groups, a non-empty label, a numeric number default, a
+// #rrggbb colour default, and (in index.ts, checkConstraintReach) every slider
+// range keeping its constraints reachable. A playground Raven accepts therefore
+// passes Motion Lab's rules (the corpus comparison below aside).
 // The corpus "different menus" comparison is not ported: Raven builds from a
 // fixed motif, so every playground of one motif shares a menu by design.
 
@@ -73,6 +75,8 @@ const CODE_SHAPED = /_|\b[a-z]{2,}[A-Z][a-z]/;
 // Braces, block comments, and a semicolon that ends the label or touches the next token: source code.
 // A semicolon followed by a space is punctuation in a sentence ("Swing; then settle").
 const CODE_PUNCT = /[{}]|\/\*|\*\/|;\s*$|;\S/;
+// These are a lint, not a parser. CSS declarations ("opacity: 0.5") and calls ("translateX(10px)")
+// pass; lowercase-led product names ("reMarkable") are refused because they share hoverAngle's shape.
 const TIME_UNITS = ["ms", "s", "x", "Hz", "px/s"];
 const ROLE_TYPES: Record<string, (p: MotionParam) => boolean> = {
   duration: (p) => p.type === "number" && TIME_UNITS.includes(p.unit ?? ""),
