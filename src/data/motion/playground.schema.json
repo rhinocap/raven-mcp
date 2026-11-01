@@ -22,7 +22,11 @@
   ],
   "properties": {
     "schemaVersion": {
-      "const": "1.0"
+      "enum": [
+        "1.0",
+        "2.0"
+      ],
+      "description": "2.0 adds the curve control type; 1.0 documents stay valid unchanged."
     },
     "id": {
       "type": "string",
@@ -348,7 +352,8 @@
             "boolean",
             "color",
             "enum",
-            "action"
+            "action",
+            "curve"
           ]
         },
         "group": {
@@ -601,9 +606,134 @@
               }
             }
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "curve"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "kinds",
+              "default"
+            ],
+            "properties": {
+              "kinds": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 2,
+                "uniqueItems": true,
+                "items": {
+                  "enum": [
+                    "bezier",
+                    "spring"
+                  ]
+                },
+                "description": "Which editors the control offers: a curve with two handles, a spring with duration and bounce, or both."
+              },
+              "default": {
+                "$ref": "#/$defs/curveValue"
+              },
+              "stops": {
+                "type": "array",
+                "maxItems": 4,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "label",
+                    "value"
+                  ],
+                  "properties": {
+                    "label": {
+                      "type": "string",
+                      "pattern": "\\S",
+                      "maxLength": 14
+                    },
+                    "value": {
+                      "$ref": "#/$defs/curveValue"
+                    }
+                  }
+                },
+                "description": "Named curves shown as buttons; Randomise picks only from these."
+              }
+            }
+          }
         }
       ],
       "unevaluatedProperties": false
+    },
+    "curveValue": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "points"
+          ],
+          "properties": {
+            "kind": {
+              "const": "bezier"
+            },
+            "points": {
+              "type": "array",
+              "minItems": 4,
+              "maxItems": 4,
+              "prefixItems": [
+                {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                {
+                  "type": "number",
+                  "minimum": -1,
+                  "maximum": 2
+                },
+                {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                {
+                  "type": "number",
+                  "minimum": -1,
+                  "maximum": 2
+                }
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "duration",
+            "bounce"
+          ],
+          "properties": {
+            "kind": {
+              "const": "spring"
+            },
+            "duration": {
+              "type": "number",
+              "minimum": 10,
+              "maximum": 60000,
+              "description": "ms"
+            },
+            "bounce": {
+              "type": "number",
+              "minimum": -0.9,
+              "maximum": 0.9
+            }
+          }
+        }
+      ]
     }
   }
 }

@@ -374,6 +374,71 @@ test('hinges name a declared parent other than themselves, once each; presets se
   assert.deepEqual(v.validateMotionSchema(good), []);
 });
 
+test('schema 2.0 adds the curve control; 1.0 documents stay valid unchanged', () => {
+  const keyfob = JSON.parse(readFileSync(path.join(DATA, 'keyfob', 'schema.json'), 'utf8'));
+  assert.equal(keyfob.schemaVersion, '1.0');
+  assert.deepEqual(v.validateMotionSchema(structuredClone(keyfob)), []);
+  const v2 = structuredClone(keyfob); v2.schemaVersion = '2.0';
+  assert.deepEqual(v.validateMotionSchema(v2), [], 'a 1.0 document relabelled 2.0 is still valid');
+  const firm = { kind: 'bezier', points: [0.2, 0, 0, 1] };
+  const bouncy = { kind: 'spring', duration: 600, bounce: 0.3 };
+  // swingFeel is the keyfob's easing control; as a curve it must still satisfy the easing role.
+  const withCurve = (edit) => {
+    const d = structuredClone(keyfob); d.schemaVersion = '2.0';
+    const p = d.params.find((x) => x.id === 'swingFeel');
+    for (const k of ['options', 'widget']) delete p[k];
+    Object.assign(p, { type: 'curve', kinds: ['bezier', 'spring'], default: firm, stops: [{ label: 'Firm', value: firm }, { label: 'Bouncy', value: bouncy }] });
+    if (edit) edit(d, p);
+    return d;
+  };
+  assert.deepEqual(v.validateMotionSchema(withCurve()), []);
+  const good = withCurve((d) => { d.presets = [{ id: 'loose', label: 'Loose', values: { swingFeel: bouncy } }]; });
+  assert.deepEqual(v.validateMotionSchema(good), [], 'a preset may set a curve value');
+  const cases = [
+    [(d) => { d.schemaVersion = '1.0'; }, 'swingFeel: a curve control needs schemaVersion "2.0"'],
+    [(d, p) => { p.default = { kind: 'bezier', points: [1.2, 0, 0, 1] }; }, 'swingFeel: default is not a bezier or spring curve this control offers'],
+    [(d, p) => { p.kinds = ['bezier']; p.default = bouncy; p.stops = []; }, 'swingFeel: default is not a bezier curve this control offers'],
+    [(d, p) => { p.default = { kind: 'spring', duration: 5, bounce: 0 }; }, 'swingFeel: default is not a bezier or spring curve this control offers'],
+    [(d, p) => { p.default = { kind: 'spring', duration: 600, bounce: 0, mass: 1 }; }, 'swingFeel: default is not a bezier or spring curve this control offers'],
+    [(d, p) => { p.stops[1].value = { kind: 'spring', duration: 600, bounce: 0.95 }; }, 'swingFeel: stop "Bouncy" is not a curve this control offers'],
+    [(d, p) => { p.stops[1].label = 'Firm'; }, 'swingFeel: duplicate stop labels'],
+    [(d, p) => { p.stops[1].value = { ...firm, points: [...firm.points] }; }, 'swingFeel: two stops hold the same curve'],
+    [(d, p) => { p.stops[1].label = 'Low stiffness'; }, 'swingFeel: stop label "Low stiffness" is not designer language'],
+    [(d) => { d.presets = [{ id: 'wild', label: 'Wild', values: { swingFeel: { kind: 'bezier', points: [0, 0, 1] } } }]; }, 'preset wild: {"kind":"bezier","points":[0,0,1]} is not a valid value for swingFeel'],
+    [(d) => { d.constraints.push({ a: 'swingFeel', op: 'neq', b: 'hoverAngle' }); }, 'constraint swingFeel neq hoverAngle: a curve control cannot be in a constraint'],
+    [(d) => { d.constraints.push({ a: 'hoverAngle', op: 'neq', b: 'swingFeel' }); }, 'constraint hoverAngle neq swingFeel: a curve control cannot be in a constraint'],
+    [(d, p) => { p.kinds = ['bezier']; }, 'swingFeel: stop "Bouncy" is not a curve this control offers'],
+    [(d, p) => { p.stops[1].label = 'Loose{}'; }, 'swingFeel: stop label "Loose{}" is not designer language'],
+    [(d, p) => { p.stops[1].label = 'swing_feel'; }, 'swingFeel: stop label "swing_feel" is not designer language'],
+  ];
+  // Presets reach curveValueOk without the JSON Schema's curve shape, so its bounds are tested here, at each edge.
+  const preset = (value) => withCurve((d) => { d.presets = [{ id: 'edge', label: 'Edge', values: { swingFeel: value } }]; });
+  for (const value of [
+    { kind: 'spring', duration: 10, bounce: -0.9 }, { kind: 'spring', duration: 60000, bounce: 0.9 },
+    { kind: 'bezier', points: [0, -1, 1, 2] },
+  ]) assert.deepEqual(v.validateMotionSchema(preset(value)), [], `${JSON.stringify(value)} is on the edge and valid`);
+  for (const value of [
+    { kind: 'spring', duration: 9, bounce: 0 }, { kind: 'spring', duration: 60001, bounce: 0 },
+    { kind: 'spring', duration: 600, bounce: -0.91 }, { kind: 'spring', duration: 600, bounce: 0.91 },
+    { kind: 'bezier', points: [-0.01, 0, 1, 1] }, { kind: 'bezier', points: [1.01, 0, 1, 1] },
+    { kind: 'bezier', points: [0, 0, -0.01, 1] }, { kind: 'bezier', points: [0, 0, 1.01, 1] },
+    { kind: 'bezier', points: [0, -1.01, 1, 1] }, { kind: 'bezier', points: [0, 2.01, 1, 1] },
+    { kind: 'bezier', points: [0, 0, 1, -1.01] }, { kind: 'bezier', points: [0, 0, 1, 2.01] },
+  ]) assert.deepEqual(v.validateMotionSchema(preset(value)), [`preset edge: ${JSON.stringify(value)} is not a valid value for swingFeel`]);
+  for (const [edit, msg] of cases) {
+    const errs = v.validateMotionSchema(withCurve(edit));
+    assert.ok(errs.includes(msg), `expected "${msg}", got ${JSON.stringify(errs)}`);
+  }
+  // An advanced curve control may use engine words on its stops, as any advanced label may.
+  const adv = withCurve((d, p) => { p.advanced = true; p.clientSafe = false; p.stops[1].label = 'Low stiffness'; });
+  assert.ok(!v.validateMotionSchema(adv).some((e) => e.includes('designer language')));
+  // The pinned contract is what makes 2.0 and curve legal at all; the shape check reads it.
+  const contract = JSON.parse(readFileSync(path.join(DATA, 'playground.schema.json'), 'utf8'));
+  assert.deepEqual(contract.properties.schemaVersion.enum, ['1.0', '2.0']);
+  const v3 = structuredClone(keyfob); v3.schemaVersion = '3.0';
+  assert.ok(v.validateMotionSchema(v3).some((e) => e.startsWith('shape /schemaVersion')));
+});
+
 test('override limits are the pinned Motion Lab schema limits', async () => {
   const contract = JSON.parse(readFileSync(path.join(DATA, 'playground.schema.json'), 'utf8'));
   assert.equal(mp.TITLE_MAX, contract.properties.title.maxLength);

@@ -198,6 +198,10 @@ export async function createMotionPlayground(input: MotionPlaygroundInput): Prom
   }
   const motif = input.motif as MotionMotif;
   const { schema, runtime } = readMotif(motif);
+  // The contract accepts curve controls (schema 2.0); Raven's template fork has no curve editor yet.
+  // No built-in motif has a curve today, so no test reaches this; it is for the next synced motif.
+  const curve = schema.params.find((p) => p.type === "curve");
+  if (curve) throw new Error(`${motif}: control ${curve.id} is a curve, and Raven's playground template does not render curve controls yet`);
   const warnings: string[] = [];
 
   if (input.title !== undefined) {

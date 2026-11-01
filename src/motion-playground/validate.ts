@@ -13,6 +13,8 @@
 // passes Motion Lab's rules (the corpus comparison below aside).
 // The corpus "different menus" comparison is not ported: Raven builds from a
 // fixed motif, so every playground of one motif shares a menu by design.
+// Schema 2.0 adds the curve control (a bezier or spring value); 1.0 documents
+// stay valid unchanged, and a curve control needs schemaVersion "2.0".
 
 import { readFileSync } from "node:fs";
 import Ajv2020, { type ValidateFunction } from "ajv/dist/2020.js";
@@ -20,7 +22,7 @@ import Ajv2020, { type ValidateFunction } from "ajv/dist/2020.js";
 export type MotionParam = {
   id: string;
   label: string;
-  type: "number" | "enum" | "color" | "boolean" | "action";
+  type: "number" | "enum" | "color" | "boolean" | "action" | "curve";
   group: string;
   role?: string;
   min?: number;
@@ -29,7 +31,9 @@ export type MotionParam = {
   default?: unknown;
   unit?: string;
   widget?: string;
-  stops?: number[];
+  // Numbers on a segmented number control; labelled curves on a curve control.
+  stops?: number[] | CurveStop[];
+  kinds?: CurveKind[];
   scale?: string;
   safeMin?: number;
   safeMax?: number;
@@ -39,6 +43,10 @@ export type MotionParam = {
   clientSafe?: boolean;
   advanced?: boolean;
 };
+
+export type CurveKind = "bezier" | "spring";
+export type CurveValue = { kind: "bezier"; points: number[] } | { kind: "spring"; duration: number; bounce: number };
+export type CurveStop = { label: string; value: CurveValue };
 
 export type MotionConstraint = { a: string; op: "gte" | "lte" | "neq"; b: string; factor?: number; why?: string };
 
@@ -84,7 +92,7 @@ const ROLE_TYPES: Record<string, (p: MotionParam) => boolean> = {
   delay: (p) => p.type === "number" && TIME_UNITS.includes(p.unit ?? ""),
   stagger: (p) => p.type === "number" && TIME_UNITS.includes(p.unit ?? ""),
   loop: (p) => p.type === "boolean" || p.type === "enum",
-  easing: (p) => p.type === "enum",
+  easing: (p) => p.type === "enum" || p.type === "curve",
   color: (p) => p.type === "color" || p.type === "enum",
 };
 const MIN_PARAMS = 8;
@@ -96,6 +104,29 @@ export const near = (a: number, b: number) => Math.abs(a - b) < 1e-9 * Math.max(
 export const onStep = (p: MotionParam, v: number) =>
   near(Math.round((v - (p.min as number)) / (p.step as number)) * (p.step as number) + (p.min as number), v);
 
+// Ported from motion-lab src/timeline/evaluator.js, so Raven and the playground agree on a curve.
+// Bezier x in 0-1, y in -1-2; spring duration 10 ms to MAX_MS, bounce -0.9-0.9; no other keys.
+// kinds, when given, lists the kinds the control offers.
+const MAX_MS = 60000;
+export function curveValueOk(v: unknown, kinds?: string[]): boolean {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return false;
+  const c = v as Record<string, unknown>;
+  if (kinds && !kinds.includes(c.kind as string)) return false;
+  const fin = Number.isFinite;
+  if (c.kind === "bezier") {
+    const p = c.points;
+    return Object.keys(c).length === 2 && Array.isArray(p) && p.length === 4 && p.every((n) => fin(n)) &&
+      p[0] >= 0 && p[0] <= 1 && p[2] >= 0 && p[2] <= 1 && p[1] >= -1 && p[1] <= 2 && p[3] >= -1 && p[3] <= 2;
+  }
+  if (c.kind === "spring") {
+    return Object.keys(c).length === 3 && fin(c.duration) && (c.duration as number) >= 10 && (c.duration as number) <= MAX_MS &&
+      fin(c.bounce) && (c.bounce as number) >= -0.9 && (c.bounce as number) <= 0.9;
+  }
+  return false;
+}
+// Curve values compare by content, in a fixed key order.
+export const curveKey = (v: CurveValue) => (v.kind === "bezier" ? "b:" + v.points.join(",") : "s:" + v.duration + "," + v.bounce);
+
 export function valueOk(p: MotionParam | undefined, v: unknown): boolean {
   if (!p) return false;
   if (p.type === "number") {
@@ -105,6 +136,7 @@ export function valueOk(p: MotionParam | undefined, v: unknown): boolean {
   if (p.type === "boolean") return typeof v === "boolean";
   if (p.type === "color") return typeof v === "string" && /^#[0-9a-fA-F]{6}$/.test(v);
   if (p.type === "enum") return (p.options || []).some((o) => o.value === v);
+  if (p.type === "curve") return curveValueOk(v, p.kinds);
   return false;
 }
 
@@ -180,11 +212,12 @@ export function validateMotionSchema(doc: MotionSchema): string[] {
       const sMin = p.safeMin ?? min, sMax = p.safeMax ?? max;
       if (!(min <= sMin && sMin <= sMax && sMax <= max)) errs.push(`${p.id}: need min <= safeMin <= safeMax <= max`);
       if (p.widget === "segmented") {
-        if (!Array.isArray(p.stops) || p.stops.length < 2) errs.push(`${p.id}: segmented number needs stops`);
+        const stops = p.stops as number[] | undefined;
+        if (!Array.isArray(stops) || stops.length < 2) errs.push(`${p.id}: segmented number needs stops`);
         else {
-          if (!p.stops.includes(def)) errs.push(`${p.id}: default not one of stops`);
-          for (const s of p.stops) if (s < min || s > max) errs.push(`${p.id}: stop ${s} outside ${min}..${max}`);
-          if (new Set(p.stops).size !== p.stops.length) errs.push(`${p.id}: duplicate stops`);
+          if (!stops.includes(def)) errs.push(`${p.id}: default not one of stops`);
+          for (const s of stops) if (s < min || s > max) errs.push(`${p.id}: stop ${s} outside ${min}..${max}`);
+          if (new Set(stops).size !== stops.length) errs.push(`${p.id}: duplicate stops`);
         }
       }
     }
@@ -193,6 +226,18 @@ export function validateMotionSchema(doc: MotionSchema): string[] {
       if (!options.some((o) => o.value === p.default)) errs.push(`${p.id}: default "${String(p.default)}" not in options`);
       if (new Set(options.map((o) => o.value)).size !== options.length) errs.push(`${p.id}: duplicate option values`);
       if ((p.widget ?? "segmented") === "segmented" && options.length > 4) errs.push(`${p.id}: segmented enum has ${options.length} options; use select above 4`);
+    }
+    if (p.type === "curve") {
+      if (doc.schemaVersion !== "2.0") errs.push(`${p.id}: a curve control needs schemaVersion "2.0"`);
+      if (!curveValueOk(p.default, p.kinds)) errs.push(`${p.id}: default is not a ${(p.kinds || []).join(" or ")} curve this control offers`);
+      const stops = (Array.isArray(p.stops) ? p.stops : []) as CurveStop[];
+      for (const s of stops) {
+        if (!curveValueOk(s.value, p.kinds)) errs.push(`${p.id}: stop "${s.label}" is not a curve this control offers`);
+        if (!isAdvanced(p) && (hasEngineWord(s.label) || CODE_SHAPED.test(s.label) || CODE_PUNCT.test(s.label))) errs.push(`${p.id}: stop label "${s.label}" is not designer language`);
+      }
+      if (new Set(stops.map((s) => s.label)).size !== stops.length) errs.push(`${p.id}: duplicate stop labels`);
+      const keys = stops.filter((s) => curveValueOk(s.value)).map((s) => curveKey(s.value));
+      if (new Set(keys).size !== keys.length) errs.push(`${p.id}: two stops hold the same curve`);
     }
     if (p.type === "color" && !valueOk(p, p.default)) errs.push(`${p.id}: default must be a #rrggbb colour`);
   }
@@ -244,6 +289,8 @@ export function validateMotionSchema(doc: MotionSchema): string[] {
   for (const c of doc.constraints || []) {
     const a = byId.get(c.a), b = byId.get(c.b);
     if (!a || !b) { errs.push(`constraint ${c.a} ${c.op} ${c.b}: unknown param`); continue; }
+    // No equality is defined between curves, so a curve control cannot take part in a constraint.
+    if (a.type === "curve" || b.type === "curve") { errs.push(`constraint ${c.a} ${c.op} ${c.b}: a curve control cannot be in a constraint`); continue; }
     if (c.op !== "neq" && (a.type !== "number" || b.type !== "number")) { errs.push(`constraint ${c.a} ${c.op} ${c.b}: lte/gte need numbers`); continue; }
     const values = { [c.a]: a.default, [c.b]: b.default };
     if (!constraintHolds(c, values)) errs.push(`constraint ${c.a} ${c.op} ${c.factor ?? 1}*${c.b}: defaults violate it`);
