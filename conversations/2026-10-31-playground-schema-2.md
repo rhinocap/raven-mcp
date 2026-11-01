@@ -43,3 +43,4 @@ Branch `motion-playground` (unmerged, not pushed). Andrew's instruction on Motio
   - the first v2 run had one survivor, a dropped `p[2] >= 0`; the edge set was incomplete, and the eight-edge set closed it
 - Full suite re-run: 1869 / 1866 / 0 / 3, EXIT=0; the same three skips at lines 121/895/896. Same count, because the cases went into the existing test.
 - Sol did not edit the tree: HEAD is still a3a5e01, and the code diff is unchanged from its snapshot.
+- Committed locally as 66637fb on `motion-playground` (16 ahead of origin/main, no remote branch). Not pushed.
