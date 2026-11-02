@@ -11,6 +11,6 @@
   },
   "template": {
     "forked_from": "src/keyfob/template.html",
-    "upstream_sha256": "2cdfa27f0360f095d2bd1e515d01e5c9d0594c7bddbbbe8c4b3a6a3511b40859"
+    "upstream_sha256": "9615e17522a2da944ffa0cf36682bb67092699e0a6bf1cc5354e8721afc12b56"
   }
 }

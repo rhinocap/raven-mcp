@@ -64,7 +64,7 @@ export type MotionPlaygroundResult = {
 
 const NEXT = [
   "Open html_path in a browser.",
-  "After tuning, use Copy for Raven on the Get code tab and paste the text back here to record it with record_taste_decision.",
+  "After tuning, use Copy for Raven on the Send to agent tab and paste the text back here to record it with record_taste_decision.",
 ];
 
 function readMotif(motif: MotionMotif): { schema: MotionSchema; runtime: string } {

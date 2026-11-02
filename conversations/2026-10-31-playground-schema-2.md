@@ -44,3 +44,30 @@ Branch `motion-playground` (unmerged, not pushed). Andrew's instruction on Motio
 - Full suite re-run: 1869 / 1866 / 0 / 3, EXIT=0; the same three skips at lines 121/895/896. Same count, because the cases went into the existing test.
 - Sol did not edit the tree: HEAD is still a3a5e01, and the code diff is unchanged from its snapshot.
 - Committed locally as 66637fb on `motion-playground` (16 ahead of origin/main, no remote branch). Not pushed.
+
+## 2026-11-01 — Send to agent in Raven's keyfob fork (in progress)
+Ports Motion Lab 7729bdc and c06dace (keyfob Get code replaced by Send to agent) into `src/data/motion/template.html`.
+- Patch from the confirmed fork base (`kf-before.html`, sha 2cdfa27…): 8 of 10 hunks applied; the 2 rejected hunks touched Raven-only code and were resolved by hand.
+- Raven-only change: `#raven-menu` sits in the agent view between the agent block and `#code-more`, so Copy for Raven stays visible without opening the code. Export buttons go to `x.menu || 'export-menu'`; `refreshRaven()` runs when the agent view refreshes.
+- `src/motion-playground/index.ts` NEXT text: "use Copy for Raven on the Send to agent tab".
+- `motifs.lock.json`: `template.upstream_sha256` set to Motion Lab's current keyfob template (9615e175…); `--check` reports in sync. `source_commit` left at ab669de.
+- Test: line 543 `tab-code` changed to `tab-agent`; new browser test "Send to agent carries the tuned motion…" covers the tab label, packet equals `agentPacket()`, embed once inside an html fence, one primary button, Raven block in the agent view and outside `#code-more`, exports empty until the code opens, a stale queued refresh skipped, saved settings under More. 4 targeted tests pass.
+- Out of scope: `web/public/playgrounds/keyfob.html` (apex `web` project, manual deploy) still has the old Get code UI.
+- Verification so far:
+  - Full suite `RAVEN_NO_USAGE_LOG=1 npm test` (`$SP/rv-full-sa.log`): 1870 / 1867 / 0 / 3, EXIT=0 read inside the log. +1 is the new test, read by name at line 1323. Skips are the same three, at lines 121/895/896.
+  - Anonymous build: 45 tools, hash `f64bb18…2bb0a6`, unchanged.
+  - Template mutants (`$SP/rv-mut.py`): 7 of 7 killed, control green, template restored by `cmp`. R1 exports made while code closed; R2 no toggle refresh; R3 closed view treated as More; R4 embed missing from packet; R5 no Raven refresh with the agent view; R6 Raven block in export-menu; R7 no `#raven-menu`.
+  - Eyes-on (`$SP/rv-shot-1/agent.png`, `agent-code.png`, 1440×900): one primary button, Copy for Raven visible without opening the code, code behind "Show code without an agent". design-judge PASS.
+- Sol pass 1 (`$SP/sol-rv1.out`): DOES NOT SURVIVE, no P1.
+  - P2: no test identifies or clicks `#copy-agent`; removing its handler or moving the primary class would pass. Fix: assert `#copy-agent` is the `.btn.primary`, click it, check the copied text equals `agentPacket()` unframed (clipboard) and framed (`raven-motion-copy` postMessage).
+  - P3: the packet says "I tuned it in Motion Lab." on a Raven page. Fix: Raven wording, asserted. The embed comment and import error keep "Motion Lab" as format markers.
+  - Sol confirmed: no missing upstream hunk, Raven parts intact, NEXT names a rendered control, lock sha matches, no equivalent mutants.
+- Round-1 fixes:
+  - P3: `template.html:705` now opens "I tuned it in a Raven motion playground."; the test asserts the exact opening line and that the prose before "Working web version:" has no "Motion Lab".
+  - P2 (test only): the one primary in `#view-agent` is `#copy-agent`; clicking it unframed copies exactly `agentPacket()` (stubbed clipboard), refills the box and says "Copied. Paste it into your agent's chat."; framed under a parent page, the parent receives exactly [agentPacket()] through `raven-motion-copy` and the frame clipboard is never touched.
+  - Mutants v2 (`$SP/rv-mut2.py`, `rv-mut2.log`): 12 of 12 killed, control 28/28, template restored by `cmp`. New: R8 handler removed, R9 primary moved to Copy for Raven, R10 old wording, R11 framed path skipped, R12 handler copies the stale box. Each new mutant fails on its own assertion (read from the per-mutant diffs).
+  - Full suite (`$SP/rv-full-sa2.log`): 1870 / 1867 / 0 / 3, EXIT=0 read inside the log; the test at line 1323; skips at 121/895/896. Same count, because the assertions went into the existing test.
+  - Anonymous build: 45 tools, hash `f64bb18…2bb0a6`, unchanged.
+  - Eyes-on `$SP/rv-shot-2/agent.png`: packet opens with the Raven wording; layout unchanged.
+  - Sol re-check (`$SP/sol-rv2.out`): SURVIVES, no findings. It confirmed the only product change against round 1 is line 705.
+  - Committed locally on `motion-playground`; not pushed (Raven branch held).

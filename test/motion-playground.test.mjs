@@ -540,7 +540,7 @@ test('Copy for Raven text is accepted by record_taste_decision as-is', { skip: n
       await page.goto(pathToFileURL(bare).href);
       await page.waitForFunction(() => !!window.__ml);
       unbound = await page.evaluate(async () => {
-        document.getElementById('tab-code').click();
+        document.getElementById('tab-agent').click();
         const before = { text: window.__ml.ravenText(), disabled: document.getElementById('copy-raven').disabled, fields: !!document.getElementById('raven-profile') && !!document.getElementById('raven-project') };
         const set = (id, v) => { const el = document.getElementById(id); el.value = v; el.dispatchEvent(new Event('input')); };
         set('raven-profile', 'motion-rt'); set('raven-project', 'Client website');
@@ -573,6 +573,110 @@ test('Copy for Raven text is accepted by record_taste_decision as-is', { skip: n
       const listed = resultJson(await client.callTool({ name: 'list_taste_decisions', arguments: { profile: 'motion-rt', project: 'fob-site' } }));
       assert.ok(JSON.stringify(listed).includes(args.decision), 'the recorded decision is not listed back');
     });
+  });
+});
+
+test('Send to agent carries the tuned motion, with Copy for Raven beside it and the code behind a disclosure', { skip: noBrowser }, async () => {
+  await withHome(async ({ home, store }) => {
+    await taste.createTasteProfile(store, { name: 'motion-sa', rules: [] });
+    await taste.bindTasteSurface(store, 'motion-sa', { project: 'fob-site', surface: 'product site', voice_note: 'Plain.', design_notes: {} });
+    const out = path.join(home, 'agent.html');
+    await mp.createMotionPlayground({ store, motif: 'keyfob', profile: 'motion-sa', project: 'fob-site', output_path: out });
+    const html = readFileSync(out, 'utf8');
+    assert.doesNotMatch(html, /Get code/);
+    const browser = await chromium.launch();
+    try {
+      const page = await browser.newPage();
+      const errors = [];
+      page.on('pageerror', (e) => errors.push(e.message));
+      await page.goto(pathToFileURL(out).href);
+      await page.waitForFunction(() => !!window.__ml);
+      const shown = await page.evaluate(async () => {
+        const $ = (id) => document.getElementById(id);
+        window.__ml.setParam('hoverAngle', 14);
+        $('tab-agent').click();
+        await new Promise(requestAnimationFrame);
+        await new Promise(requestAnimationFrame);
+        const packet = $('out-agent').value, embed = window.__ml.embedCode();
+        return {
+          tab: $('tab-agent').textContent.trim(),
+          // Raven's page names itself; "Motion Lab" survives only inside the embed's format comment.
+          opening: packet.split('\n')[0],
+          proseNamesMotionLab: packet.slice(0, packet.indexOf('Working web version:')).includes('Motion Lab'),
+          boxIsPacket: packet === window.__ml.agentPacket(),
+          embedOnceInFence: packet.split(embed).length === 2 && packet.includes('```html\n' + embed + '\n```'),
+          namesSetting: packet.includes('Hover swing (hoverAngle): 14°.'),
+          reducedMotion: /reduced motion[^\n]*keep the keys hanging still/.test(packet),
+          primaries: document.querySelectorAll('#view-agent .btn.primary').length,
+          ravenInAgentView: !!$('raven-block') && !!$('raven-block').closest('#view-agent') && !$('raven-block').closest('#code-more'),
+          ravenText: $('out-raven').value === window.__ml.ravenText() && $('out-raven').value.includes('Hover swing 14°'),
+          closedEmbed: $('out-waapi-snippet').value,
+          savedInMore: !!$('out-params-json').closest('#settings-menu'),
+        };
+      });
+      assert.deepEqual(shown, { tab: 'Send to agent', opening: 'Please build this motion in my project. I tuned it in a Raven motion playground.', proseNamesMotionLab: false, boxIsPacket: true, embedOnceInFence: true, namesSetting: true, reducedMotion: true, primaries: 1, ravenInAgentView: true, ravenText: true, closedEmbed: '', savedInMore: true });
+
+      // The primary button is Send to agent's own, and clicking it puts the packet on the clipboard.
+      const clicked = await page.evaluate(async () => {
+        const $ = (id) => document.getElementById(id);
+        const copied = [];
+        Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: (t) => { copied.push(t); return Promise.resolve(); } } });
+        $('out-agent').value = '';
+        $('status').textContent = '';
+        $('copy-agent').click();
+        await new Promise((r) => setTimeout(r, 0));
+        return { primaryId: document.querySelector('#view-agent .btn.primary').id, copied: copied.length === 1 && copied[0] === window.__ml.agentPacket(), box: $('out-agent').value === window.__ml.agentPacket(), status: $('status').textContent };
+      });
+      assert.deepEqual(clicked, { primaryId: 'copy-agent', copied: true, box: true, status: 'Copied. Paste it into your agent’s chat.' });
+
+      await page.evaluate(() => { document.getElementById('code-more').open = true; });
+      await page.waitForFunction(() => document.getElementById('out-waapi-snippet').value === window.__ml.embedCode());
+
+      // A refresh queued while the agent view is open, then the view closes before it runs.
+      const stale = await page.evaluate(async () => {
+        const $ = (id) => document.getElementById(id);
+        const before = { agent: $('out-agent').value, embed: $('out-waapi-snippet').value, saved: $('out-params-json').value, raven: $('out-raven').value };
+        window.__ml.setParam('hoverAngle', 20);
+        $('tab-controls').click();
+        await new Promise(requestAnimationFrame);
+        await new Promise(requestAnimationFrame);
+        return { agent: $('out-agent').value === before.agent, embed: $('out-waapi-snippet').value === before.embed, saved: $('out-params-json').value === before.saved, raven: $('out-raven').value === before.raven };
+      });
+      assert.deepEqual(stale, { agent: true, embed: true, saved: true, raven: true });
+
+      const reopened = await page.evaluate(async () => {
+        const $ = (id) => document.getElementById(id);
+        $('tab-agent').click();
+        await new Promise(requestAnimationFrame);
+        await new Promise(requestAnimationFrame);
+        return { agent: $('out-agent').value === window.__ml.agentPacket(), embed: $('out-waapi-snippet').value === window.__ml.embedCode(), raven: $('out-raven').value.includes('Hover swing 20°') };
+      });
+      assert.deepEqual(reopened, { agent: true, embed: true, raven: true });
+
+      // Framed, the same button hands the packet to the parent page instead of the clipboard.
+      const host = path.join(home, 'host.html');
+      writeFileSync(host, '<!doctype html><script>window.got = []; addEventListener("message", (e) => { if (e.data && e.data.type === "raven-motion-copy") { window.got.push(e.data.text); e.source.postMessage({ type: "raven-motion-copied", id: e.data.id, ok: true }, "*"); } });</script><iframe src="agent.html" width="1200" height="900"></iframe>');
+      await page.goto(pathToFileURL(host).href);
+      const frame = page.frames().find((f) => f.url().endsWith('/agent.html'));
+      await frame.waitForFunction(() => !!window.__ml);
+      const framedOut = await frame.evaluate(async () => {
+        const $ = (id) => document.getElementById(id);
+        const clip = [];
+        Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: (t) => { clip.push(t); return Promise.resolve(); } } });
+        window.__ml.setParam('hoverAngle', 16);
+        $('tab-agent').click();
+        $('copy-agent').click();
+        const deadline = Date.now() + 2000;
+        while (!$('status').textContent.startsWith('Copied') && Date.now() < deadline) await new Promise((r) => setTimeout(r, 20));
+        return { packet: window.__ml.agentPacket(), clip: clip.length, status: $('status').textContent };
+      });
+      const got = await page.evaluate(() => window.got);
+      assert.deepEqual({ got, clip: framedOut.clip, status: framedOut.status }, { got: [framedOut.packet], clip: 0, status: 'Copied. Paste it into your agent’s chat.' });
+      assert.ok(framedOut.packet.includes('Hover swing (hoverAngle): 16°.'));
+      assert.deepEqual(errors, []);
+    } finally {
+      await browser.close();
+    }
   });
 });
 

@@ -103,6 +103,14 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px var(
 .block p { margin: 0; color: var(--fg-2); font-size: var(--t-sm); }
 .block textarea { width: 100%; height: 120px; resize: vertical; background: var(--bg); border: 1px solid var(--line); border-radius: var(--r); padding: 8px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; color: var(--fg-2); }
 .block .row2 { display: flex; gap: 8px; flex-wrap: wrap; }
+.menu-stack { display: flex; flex-direction: column; gap: 20px; }
+/* The direct exports sit behind a disclosure styled as a button, with no marker glyph. */
+.more-code { border-top: 1px solid var(--line); padding-top: 12px; }
+.more-code summary { list-style: none; display: inline-flex; align-items: center; }
+.more-code summary::-webkit-details-marker { display: none; }
+.more-code[open] summary { margin-bottom: 12px; }
+.more-code .when-open, .more-code[open] .when-closed { display: none; }
+.more-code[open] .when-open { display: inline; }
 .field { display: grid; grid-template-columns: minmax(0, 1fr) 128px; align-items: center; gap: 8px; min-height: var(--hit); }
 .field input { height: 32px; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 0 8px; font-variant-numeric: tabular-nums; min-width: 0; }
 details#raw-json summary { cursor: pointer; min-height: var(--hit); display: flex; align-items: center; color: var(--fg-2); }
@@ -147,7 +155,7 @@ main#preview { display: flex; flex-direction: column; min-height: 0; min-width: 
     <aside id="panel" aria-label="Controls">
       <div class="tabs" role="tablist">
         <button role="tab" id="tab-controls" aria-controls="view-controls" aria-selected="true">Controls</button>
-        <button role="tab" id="tab-code" aria-controls="view-code" aria-selected="false">Get code</button>
+        <button role="tab" id="tab-agent" aria-controls="view-agent" aria-selected="false">Send to agent</button>
         <button role="tab" id="tab-more" aria-controls="view-more" aria-selected="false">More</button>
       </div>
       <div class="view" id="view-controls" role="tabpanel" aria-labelledby="tab-controls">
@@ -161,8 +169,18 @@ main#preview { display: flex; flex-direction: column; min-height: 0; min-width: 
         </div>
         <div id="groups"></div>
       </div>
-      <div class="view" id="view-code" role="tabpanel" aria-labelledby="tab-code" hidden>
-        <div id="export-menu" class="block-list" style="display:flex;flex-direction:column;gap:20px"></div>
+      <div class="view" id="view-agent" role="tabpanel" aria-labelledby="tab-agent" hidden>
+        <div class="block">
+          <h3>Send to your agent</h3>
+          <p>Copy this and paste it into Claude, Cursor or any coding agent. It carries the motion as you tuned it, and the agent writes it in whatever language your project uses.</p>
+          <textarea id="out-agent" readonly aria-label="Message for your agent" spellcheck="false"></textarea>
+          <div class="row2"><button class="btn primary" id="copy-agent">Copy for your agent</button></div>
+        </div>
+        <div id="raven-menu" class="menu-stack"></div>
+        <details class="more-code" id="code-more">
+          <summary class="btn"><span class="when-closed">Show code without an agent</span><span class="when-open">Hide code without an agent</span></summary>
+          <div id="export-menu" class="menu-stack"></div>
+        </details>
       </div>
       <div class="view" id="view-more" role="tabpanel" aria-labelledby="tab-more" hidden>
         <div class="block">
@@ -177,9 +195,10 @@ main#preview { display: flex; flex-direction: column; min-height: 0; min-width: 
           <div class="field"><label for="seed">Seed</label><input id="seed" type="number" min="0" max="4294967295" step="1"></div>
           <div class="row2"><button class="btn" id="reroll" disabled title="No generated shapes in this playground">Reroll</button></div>
         </div>
+        <div id="settings-menu" class="menu-stack"></div>
         <div class="block">
           <h3>Import settings</h3>
-          <p>Paste settings JSON from Get code, or a review someone sent you.</p>
+          <p>Paste settings you saved, or a review someone sent you.</p>
           <textarea id="import-text" aria-label="Settings JSON to import" spellcheck="false"></textarea>
           <div class="row2"><button class="btn" id="import">Import</button></div>
         </div>
@@ -227,7 +246,7 @@ __RUNTIME__
   function say(msg) { statusEl.textContent = msg; }
 
   $('title').textContent = schema.title;
-  $('concept').textContent = 'Tune how the keys swing, then copy the code into your site.';
+  $('concept').textContent = 'Tune how the keys swing, then send it to your agent.';
 
   // ---------- artwork + motion ----------
   var svg = $('art');
@@ -516,7 +535,7 @@ __RUNTIME__
   function major(v) { return String(v || '').split('.')[0]; }
   function importText(text) {
     var env;
-    try { env = JSON.parse(text); } catch (e) { return 'That isn’t valid JSON. Copy it again from Get code and paste the whole thing.'; }
+    try { env = JSON.parse(text); } catch (e) { return 'That isn’t valid JSON. Copy your settings again and paste the whole thing.'; }
     if (env && typeof env === 'object' && env.changes && env.settings) env = env.settings;
     var isObj = function (o) { return !!o && typeof o === 'object' && !Array.isArray(o); };
     if (!isObj(env) || !isObj(env.values)) return 'That JSON doesn’t look like Motion Lab settings: it has no values.';
@@ -590,12 +609,11 @@ __RUNTIME__
   }
   var exportsDef = [
     { id: 'waapi-snippet', title: 'Embed on your site', text: 'The artwork and the motion with your settings, in one block of HTML. Paste it into a Webflow Embed, a Framer Embed or any web page. It respects reduced motion.', make: embedCode, copyLabel: 'Copy embed code' },
-    { id: 'params-json', title: 'Settings JSON', text: 'Your settings. Paste them into Import later to pick up where you left off.', make: function () { return JSON.stringify(envelope('author'), null, 2); }, copyLabel: 'Copy settings' },
+    { id: 'params-json', title: 'Save settings', text: 'Your settings. Paste them into Import below later to pick up where you left off.', make: function () { return JSON.stringify(envelope('author'), null, 2); }, copyLabel: 'Copy settings', menu: 'settings-menu', view: 'more' },
     { id: 'svg-frame', title: 'Still frame (SVG)', text: 'The frame on screen right now as an SVG file, for a poster or a Figma mock-up.', make: frameSVG, copyLabel: 'Copy SVG' }
   ].filter(function (x) { return schema.exports.indexOf(x.id) !== -1; });
   var exportUI = {};
   (function buildExports() {
-    var root = $('export-menu');
     exportsDef.forEach(function (x) {
       var b = el('div', { 'class': 'block' });
       b.appendChild(el('h3')).textContent = x.title;
@@ -603,9 +621,9 @@ __RUNTIME__
       var ta = el('textarea', { readonly: '', id: 'out-' + x.id, 'aria-label': x.title, spellcheck: 'false' });
       b.appendChild(ta);
       var r = el('div', { 'class': 'row2' });
-      var btn = el('button', { 'class': x.id === 'waapi-snippet' ? 'btn primary' : 'btn' }); btn.textContent = x.copyLabel;
+      var btn = el('button', { 'class': 'btn', id: 'copy-' + x.id }); btn.textContent = x.copyLabel;
       btn.addEventListener('click', function () { ta.value = x.make(); copy(ta.value, ta, x.title + ' copied.'); });
-      r.appendChild(btn); b.appendChild(r); root.appendChild(b);
+      r.appendChild(btn); b.appendChild(r); $(x.menu || 'export-menu').appendChild(b);
       exportUI[x.id] = { ta: ta, make: x.make };
     });
   })();
@@ -650,7 +668,7 @@ __RUNTIME__
     var r = el('div', { 'class': 'row2' });
     var btn = el('button', { 'class': 'btn', id: 'copy-raven' }); btn.textContent = 'Copy for Raven';
     btn.addEventListener('click', function () { var t = ravenText(); if (!t) { refreshRaven(); return; } ta.value = t; copy(t, ta, 'Copied for Raven. Paste it into your agent’s chat.'); });
-    r.appendChild(btn); b.appendChild(r); $('export-menu').appendChild(b);
+    r.appendChild(btn); b.appendChild(r); $('raven-menu').appendChild(b);
     return { inputs: inputs, ta: ta, btn: btn, note: note };
   })();
   // The same project rule record_taste_decision applies, so a copied decision is one Raven accepts.
@@ -673,11 +691,49 @@ __RUNTIME__
     ravenUI.ta.value = t; ravenUI.btn.disabled = !t; ravenUI.note.hidden = !!t;
     if (!t) ravenUI.note.textContent = ravenProblem(ravenFields());
   }
-  function refreshExports() {
-    if ($('view-code').hidden) return;
-    exportsDef.forEach(function (x) { exportUI[x.id].ta.value = x.make(); });
-    refreshRaven();
+  // The agent picks the language, so it gets the settings in words plus one exact rendering to match.
+  function settingLine(p) {
+    var v = state.values[p.id], shown;
+    if (p.type === 'enum') shown = p.options.filter(function (o) { return o.value === v; })[0].label;
+    else if (p.type === 'number') shown = v + (p.unit === 'ms' ? ' ms' : unitText(p));
+    else shown = String(v);
+    return '- ' + p.label + ' (' + p.id + '): ' + shown + '. ' + p.help;
   }
+  function agentPacket() {
+    var w = Math.min(1200, Math.max(120, Math.round(Number(state.width)) || schema.canvas.width));
+    return [
+      'Please build this motion in my project. I tuned it in a Raven motion playground.',
+      '',
+      'Write it in whatever fits the code you are working in: HTML and JavaScript, React, SwiftUI or something else. If you can’t tell, ask me.',
+      '',
+      'It is a Porsche 911 key and its remote hanging from a ring. When the pointer passes over them they swing, a click swings them harder, and they settle back to where they hung. With keyboard focus, Enter or Space works like a click.',
+      '',
+      'Below are two things:',
+      '1. My settings, with what each one does.',
+      '2. A working web version, one block of HTML, that plays exactly what I approved. Match it: the same artwork, swing, timing and settle. The swing is worked out frame by frame in its script, so carry that logic over rather than replacing it with keyframes.',
+      '',
+      'Size: up to ' + w + ' px wide, with the height following the width at 15:16.',
+      '',
+      'For people who ask for reduced motion, don’t animate: keep the keys hanging still, as the working version does.',
+      '',
+      'Settings:'
+    ].concat(schema.params.map(settingLine), ['', 'Working web version:', '```html', embedCode(), '```']).join('\n');
+  }
+  $('copy-agent').addEventListener('click', function () { var ta = $('out-agent'); ta.value = agentPacket(); copy(ta.value, ta, 'Copied. Paste it into your agent’s chat.'); });
+  // Visibility is read when the refresh runs, so a queued refresh for a view that has since closed does nothing.
+  // The direct exports sit behind "Show code without an agent" and are made only while it is open.
+  function refreshExports() {
+    var view = !$('view-agent').hidden ? 'agent' : !$('view-more').hidden ? 'more' : null;
+    if (!view) return; // early exit only: with no view open, the view checks below skip every box anyway
+    if (view === 'agent') $('out-agent').value = agentPacket();
+    var codeOpen = $('code-more').open;
+    exportsDef.forEach(function (x) {
+      var v = x.view || 'agent';
+      if (v === view && (v !== 'agent' || codeOpen)) exportUI[x.id].ta.value = x.make();
+    });
+    if (view === 'agent') refreshRaven();
+  }
+  $('code-more').addEventListener('toggle', function () { if ($('code-more').open) refreshExports(); });
   // A sandboxed frame has an opaque origin and no clipboard, so a framed playground hands the text to the
   // parent page and waits for its answer. The text is the designer's own settings, so '*' leaks nothing.
   var framed = window.parent !== window;
@@ -708,7 +764,7 @@ __RUNTIME__
   }
 
   // ---------- tabs ----------
-  var tabs = ['controls', 'code', 'more'];
+  var tabs = ['controls', 'agent', 'more'];
   function showTab(name) {
     tabs.forEach(function (t) {
       $('tab-' + t).setAttribute('aria-selected', String(t === name));
@@ -721,6 +777,6 @@ __RUNTIME__
   buildPanel();
   syncControls();
   refreshRaven();
-  window.__ml = { state: state, jingle: jingle, setParam: setParam, importText: importText, envelope: envelope, embedCode: embedCode, ravenText: ravenText };
+  window.__ml = { state: state, jingle: jingle, setParam: setParam, importText: importText, envelope: envelope, embedCode: embedCode, agentPacket: agentPacket, ravenText: ravenText };
 })();
 </script>
