@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "id": "wordmark",
+  "title": "Wordmark in, page to dark",
+  "concept": "A white page; the wordmark rises in letter by letter and holds, then the page turns dark with the wordmark light on it, and everything fades out.",
+  "stage": { "width": 1440, "height": 900, "background": "#ffffff" },
+  "seed": 1,
+  "trigger": "load",
+  "restPhase": "flip",
+  "fonts": { "wordmark": { "path": "~/Library/Fonts/UntitledSans-Medium.otf" } },
+  "targets": {
+    "page": { "kind": "surface" },
+    "mark": {
+      "kind": "text",
+      "text": "Raven Studio",
+      "font": "wordmark",
+      "split": "letters",
+      "size": { "param": "textSize" },
+      "position": [720, 450],
+      "anchor": [0.5, 0.5],
+      "origin": [0.5, 1],
+      "color": "#111111"
+    }
+  },
+  "phases": [
+    { "id": "hold", "label": "White page", "duration": { "param": "holdTime" } },
+    { "id": "letters", "label": "Letters in", "duration": "auto" },
+    { "id": "show", "label": "Wordmark", "duration": { "param": "showTime" } },
+    { "id": "flip", "label": "Flip to dark", "duration": { "param": "flipTime" } },
+    { "id": "out", "label": "Fade out", "duration": { "param": "exitTime" } }
+  ],
+  "tracks": [
+    {
+      "target": "mark", "phase": "letters", "property": "opacity", "from": 0, "to": 1,
+      "duration": { "param": "letterTime" }, "easing": { "param": "letterEase" },
+      "stagger": { "each": { "param": "letterStagger" }, "order": "forward" }
+    },
+    {
+      "target": "mark", "phase": "letters", "property": "translateY", "from": { "param": "letterRise" }, "to": 0,
+      "duration": { "param": "letterTime" },
+      "easing": { "param": "letterMotion" },
+      "stagger": { "each": { "param": "letterStagger" }, "order": "forward" }
+    },
+    { "target": "page", "phase": "flip", "property": "background", "from": "#ffffff", "to": { "param": "darkColor" }, "duration": "phase", "easing": "ease-in-out" },
+    { "target": "mark", "phase": "flip", "property": "color", "from": "#111111", "to": "#f5f5f5", "delay": { "param": "flipTime", "times": 0.35 }, "duration": { "param": "flipTime", "times": 0.3 }, "easing": "ease-in-out" },
+    { "target": "mark", "phase": "out", "property": "opacity", "to": 0, "duration": "phase", "easing": "ease-in" }
+  ],
+  "groups": [
+    { "id": "letters", "label": "Letters" },
+    { "id": "page", "label": "Page and exit" }
+  ],
+  "params": [
+    { "id": "letterTime", "label": "Letter time", "type": "number", "group": "letters", "role": "duration", "min": 200, "max": 1200, "step": 20, "default": 560, "unit": "ms", "help": "How long each letter takes to arrive." },
+    { "id": "letterStagger", "label": "Gap between letters", "type": "number", "group": "letters", "role": "stagger", "min": 0, "max": 160, "step": 5, "default": 45, "unit": "ms", "help": "Wait before the next letter starts." },
+    { "id": "letterRise", "label": "Rise distance", "type": "number", "group": "letters", "role": "amplitude", "min": 0, "max": 120, "step": 2, "default": 36, "unit": "px", "help": "How far below its place each letter starts." },
+    {
+      "id": "letterMotion", "label": "Rise feel", "type": "curve", "group": "letters", "role": "easing", "kinds": ["spring", "bezier"],
+      "default": { "kind": "spring", "duration": 336, "bounce": 0.15 },
+      "stops": [
+        { "label": "Settle", "value": { "kind": "spring", "duration": 336, "bounce": 0 } },
+        { "label": "Bouncy", "value": { "kind": "spring", "duration": 336, "bounce": 0.3 } },
+        { "label": "Glide", "value": { "kind": "bezier", "points": [0.16, 1, 0.3, 1] } }
+      ],
+      "help": "How letters move into place: a spring that can overshoot, or a smooth curve."
+    },
+    {
+      "id": "letterEase", "label": "Fade in", "type": "curve", "group": "letters", "role": "easing", "kinds": ["bezier"],
+      "default": { "kind": "bezier", "points": [0, 0, 0.58, 1] },
+      "stops": [
+        { "label": "Soft", "value": { "kind": "bezier", "points": [0, 0, 0.58, 1] } },
+        { "label": "Quick", "value": { "kind": "bezier", "points": [0.16, 1, 0.3, 1] } },
+        { "label": "Even", "value": { "kind": "bezier", "points": [0, 0, 1, 1] } }
+      ],
+      "help": "How each letter fades up. Drag the handles to shape it."
+    },
+    { "id": "holdTime", "label": "White before letters", "type": "number", "group": "page", "role": "delay", "min": 0, "max": 1200, "step": 50, "default": 300, "unit": "ms", "help": "Empty white page before the first letter." },
+    { "id": "showTime", "label": "Hold on wordmark", "type": "number", "group": "page", "role": "duration", "min": 200, "max": 3000, "step": 50, "default": 1200, "unit": "ms", "help": "How long the finished wordmark sits on white." },
+    { "id": "flipTime", "label": "Flip to dark", "type": "number", "group": "page", "role": "duration", "min": 200, "max": 1600, "step": 20, "default": 600, "unit": "ms", "help": "How long the page takes to turn dark." },
+    { "id": "darkColor", "label": "Dark page", "type": "color", "group": "page", "role": "color", "default": "#111111", "swatches": ["#111111", "#1a1a2e", "#0b2b26", "#2a1215"], "help": "The colour the page turns to." },
+    { "id": "exitTime", "label": "Fade out", "type": "number", "group": "page", "role": "duration", "min": 200, "max": 1600, "step": 20, "default": 500, "unit": "ms", "help": "How long the wordmark takes to fade away." },
+    { "id": "textSize", "label": "Wordmark size", "type": "number", "group": "page", "role": "size", "min": 48, "max": 200, "step": 2, "default": 120, "unit": "px", "clientSafe": false, "randomize": false, "help": "Letter height on the page." }
+  ],
+  "presets": [
+    { "id": "calm", "label": "Calm", "values": { "letterTime": 800, "letterStagger": 70, "letterRise": 20, "letterMotion": { "kind": "spring", "duration": 480, "bounce": 0 }, "letterEase": { "kind": "bezier", "points": [0, 0, 0.58, 1] } } },
+    { "id": "lively", "label": "Lively", "values": { "letterTime": 480, "letterStagger": 35, "letterRise": 48, "letterMotion": { "kind": "spring", "duration": 288, "bounce": 0.3 }, "letterEase": { "kind": "bezier", "points": [0.16, 1, 0.3, 1] } } },
+    { "id": "quick", "label": "Quick", "values": { "letterTime": 320, "letterStagger": 20, "letterMotion": { "kind": "spring", "duration": 192, "bounce": 0.15 }, "holdTime": 100, "showTime": 600, "flipTime": 360, "exitTime": 300 } }
+  ]
+}

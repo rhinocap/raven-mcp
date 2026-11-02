@@ -9,10 +9,15 @@
 //
 // Motif sources are copies from Motion Lab (scripts/sync-motion-motifs.mjs);
 // template.html is Raven's fork of the Motion Lab template.
-import { randomBytes } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+//
+// A timeline is the other input: a whole Motion Lab timeline document the agent
+// writes. Raven runs Motion Lab's own validator and text outliner on it (the
+// synced copies in src/data/motion/timeline/) and fills timeline-template.html,
+// Raven's fork of the timeline playground.
+import { createHash, randomBytes } from "node:crypto";
+import { closeSync, lstatSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { getTasteProfile, resolveSurfaceBinding } from "../taste.js";
 import { tasteHome, type TasteStore } from "../taste-store.js";
 import { applyTasteNotes } from "./taste-map.js";
@@ -20,6 +25,7 @@ import { near, validateMotionSchema, type MotionParam, type MotionSchema } from 
 
 const PKG_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const MOTION_DIR = join(PKG_ROOT, "src", "data", "motion");
+const TIMELINE_DIR = join(MOTION_DIR, "timeline");
 
 /** Motifs with a runtime. The tool's enum is built from this list. */
 export const MOTION_MOTIFS = ["keyfob"] as const;
@@ -40,7 +46,8 @@ export type PlaygroundOverrides = { controls?: Record<string, ControlOverride>; 
 
 export type MotionPlaygroundInput = {
   store: TasteStore;
-  motif: string;
+  motif?: string;
+  timeline?: unknown;
   title?: string;
   overrides?: PlaygroundOverrides;
   profile?: string;
@@ -53,7 +60,8 @@ export type MotionPlaygroundResult = {
   tool: "create_motion_playground";
   html_path: string;
   playground_id: string;
-  motif: MotionMotif;
+  motif?: MotionMotif;
+  timeline_id?: string;
   controls: number;
   client_safe: number;
   bytes: number;
@@ -180,6 +188,104 @@ export function checkConstraintReach(schema: MotionSchema): void {
   }
 }
 
+// A timeline's JSON is held to this size before anything parses it further; Motion Lab's own
+// timelines are under 20 KB.
+export const TIMELINE_MAX_BYTES = 256 * 1024;
+const FONT_EXT = /\.(otf|ttf|woff2?)$/i;
+
+// Kinds the synced evaluator builds today. svg and element targets are in the schema but refused
+// by the evaluator until the fragment sanitiser lands.
+export const TIMELINE_TARGET_KINDS = ["surface", "text"] as const;
+
+type TimelineDoc = {
+  id: string; title: string; seed?: number; fonts?: Record<string, { path: string }>;
+  params: MotionParam[]; groups: { id: string; advanced?: boolean }[];
+};
+type TimelineCheck = { errs: string[]; warnings: string[]; layout?: unknown };
+type TimelineModule = { checkTimeline: (doc: unknown) => TimelineCheck };
+let timelineModule: Promise<TimelineModule> | null = null;
+function loadTimelineValidator(): Promise<TimelineModule> {
+  timelineModule ??= import(pathToFileURL(join(TIMELINE_DIR, "scripts", "validate-timeline.mjs")).href) as Promise<TimelineModule>;
+  return timelineModule;
+}
+
+/** The words the tool description lists, read from the synced schema so they cannot drift from it. */
+export function timelineVocabulary(): { properties: string[]; targetKinds: string[]; easings: string[] } {
+  const schema = JSON.parse(readFileSync(join(TIMELINE_DIR, "schemas", "timeline.schema.json"), "utf8"));
+  const defs = schema.$defs;
+  const easings = (defs.easing.oneOf as { enum?: string[] }[]).find((o) => Array.isArray(o.enum))?.enum ?? [];
+  const kinds = (defs.target.properties.kind.enum as string[]).filter((k) => (TIMELINE_TARGET_KINDS as readonly string[]).includes(k));
+  return { properties: defs.track.properties.property.enum as string[], targetKinds: kinds, easings };
+}
+
+function readTimeline(input: unknown): TimelineDoc {
+  if (input === null || typeof input !== "object" || Array.isArray(input)) throw new Error("timeline must be a JSON object: a Motion Lab timeline document");
+  let text: string;
+  try { text = JSON.stringify(input); } catch { throw new Error("timeline must be plain JSON"); }
+  const bytes = Buffer.byteLength(text, "utf8");
+  if (bytes > TIMELINE_MAX_BYTES) throw new Error(`timeline is ${bytes} bytes of JSON; at most ${TIMELINE_MAX_BYTES}`);
+  // A copy, so nothing below changes the caller's object.
+  const doc = JSON.parse(text) as TimelineDoc;
+  const fonts = doc.fonts;
+  if (fonts && typeof fonts === "object") {
+    for (const [name, f] of Object.entries(fonts)) {
+      const p = f && typeof f === "object" ? (f as { path?: unknown }).path : undefined;
+      if (typeof p !== "string") continue; // the schema check names it
+      if (!(p.startsWith("/") || p.startsWith("~/"))) throw new Error(`font ${name}: path must be absolute or start with ~/ (got "${p}")`);
+      if (!FONT_EXT.test(p)) throw new Error(`font ${name}: path must end in .otf, .ttf, .woff or .woff2 (got "${p}")`);
+    }
+  }
+  return doc;
+}
+
+/**
+ * Content-Security-Policy for a generated playground. Inline scripts run only by hash, so injected markup
+ * cannot run code or inline handlers. Raven Grab is the one outside script a playground expects, and it is
+ * always served from loopback: by the bridge proxy (which also strips this meta tag), or by the script_tag an
+ * agent pastes into a file. The pasted tag's inline config is refused, and the overlay reads its bridge from
+ * its own script address instead, so loopback scripts and connections are allowed and nothing else is.
+ * Data blocks (type="application/json") are not run, so they need no hash. style-src allows inline styles
+ * because the panel builds swatches and the snippet preview with style attributes. The Grab overlay imports
+ * its Geist face from Google Fonts, so those two origins are allowed for styles and fonts only.
+ */
+const LOOPBACK = "http://127.0.0.1:* http://localhost:*";
+export function playgroundCsp(html: string): string {
+  const hashes: string[] = [];
+  for (const m of html.matchAll(/<script(\s[^>]*)?>([\s\S]*?)<\/script>/gi)) {
+    const attrs = m[1] || "";
+    if (/\bsrc\s*=/i.test(attrs)) throw new Error("a playground template must not load scripts by src");
+    if (/\btype\s*=\s*"application\/json"/i.test(attrs)) continue;
+    hashes.push("'sha256-" + createHash("sha256").update(m[2], "utf8").digest("base64") + "'");
+  }
+  return [
+    "default-src 'none'",
+    "script-src " + [...hashes, LOOPBACK].join(" "),
+    "style-src 'unsafe-inline' " + LOOPBACK + " https://fonts.googleapis.com",
+    "img-src data: blob: " + LOOPBACK,
+    "font-src data: " + LOOPBACK + " https://fonts.gstatic.com",
+    "connect-src 'self' " + LOOPBACK + " ws://127.0.0.1:* ws://localhost:*",
+    "form-action 'none'",
+    "object-src 'none'",
+  ].join("; ");
+}
+
+/** Wraps a filled template (a fragment that starts with <title> and its <style>) as a full document with the CSP. */
+export function wrapPlayground(fragment: string): string {
+  const head = fragment.match(/^[\s\S]*?<\/style>/);
+  if (!head) throw new Error("playground template must open with its <title> and <style>");
+  const csp = playgroundCsp(fragment);
+  return '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n' +
+    '<meta http-equiv="Content-Security-Policy" content="' + escapeHtml(csp) + '">\n' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n' +
+    head[0] + "\n</head>\n<body>" + fragment.slice(head[0].length) + "</body>\n</html>\n";
+}
+
+function inlineSource(rel: string): string {
+  const s = readFileSync(join(TIMELINE_DIR, rel), "utf8");
+  if (/<\/script/i.test(s)) throw new Error(`${rel} contains </script and cannot be inlined`);
+  return s;
+}
+
 // One pass over the template: a filled slot is never searched again, so caller text that
 // looks like a marker (a title of "__SCHEMA__") stays text.
 function fillTemplate(template: string, slots: Record<string, string>): string {
@@ -192,8 +298,75 @@ function fillTemplate(template: string, slots: Record<string, string>): string {
   return template.replace(marker, (_m, key: string) => slots[key]);
 }
 
+type Ctx = { profile?: string; project?: string };
+type Built = { html: string; idPrefix: string; params: MotionParam[]; groups: { id: string; advanced?: boolean }[]; warnings: string[]; tasteApplied?: string[] };
+
+function readTitle(input: MotionPlaygroundInput): string | undefined {
+  if (input.title === undefined) return undefined;
+  const title = typeof input.title === "string" ? input.title.trim() : "";
+  if (title.length === 0 || chars(title) > TITLE_MAX) throw new Error(`title must be 1-${TITLE_MAX} characters`);
+  return title;
+}
+function readSeed(input: MotionPlaygroundInput): number | undefined {
+  if (input.seed === undefined) return undefined;
+  if (!Number.isInteger(input.seed) || input.seed < 0 || input.seed > U32) throw new Error(`seed must be an integer in 0..${U32}`);
+  return input.seed;
+}
+function readCtxArgs(input: MotionPlaygroundInput): { profile: string; project: string } {
+  const profile = typeof input.profile === "string" ? input.profile.trim() : "";
+  const project = typeof input.project === "string" ? input.project.trim() : "";
+  if ((profile === "") !== (project === "")) throw new Error("profile and project go together: pass both or neither");
+  // Same rule record_taste_decision applies, so the Copy for Raven text it prefills can be recorded.
+  if (project && !/^[a-z0-9][a-z0-9-_.]{0,63}$/i.test(project)) throw new Error("project must match /^[a-z0-9][a-z0-9-_.]{0,63}$/i");
+  return { profile, project };
+}
+
 export async function createMotionPlayground(input: MotionPlaygroundInput): Promise<MotionPlaygroundResult> {
-  if (!(MOTION_MOTIFS as readonly string[]).includes(input.motif)) {
+  const hasMotif = input.motif !== undefined, hasTimeline = input.timeline !== undefined;
+  if (hasMotif === hasTimeline) throw new Error("Pass exactly one of motif (a built-in motif) or timeline (a Motion Lab timeline document).");
+  const built = hasTimeline ? await buildTimeline(input) : await buildMotif(input);
+  return writePlayground(input, built, hasTimeline ? { timeline_id: built.idPrefix } : { motif: built.idPrefix as MotionMotif });
+}
+
+async function buildTimeline(input: MotionPlaygroundInput): Promise<Built> {
+  if (input.overrides !== undefined) throw new Error("overrides apply to built-in motifs. For a timeline, set labels, defaults and ranges in the timeline document itself.");
+  const doc = readTimeline(input.timeline);
+  const title = readTitle(input);
+  if (title !== undefined) doc.title = title;
+  const seed = readSeed(input);
+  if (seed !== undefined) doc.seed = seed;
+  const warnings: string[] = [];
+  const { profile: profileArg, project: projectArg } = readCtxArgs(input);
+  let ctx: Ctx = {};
+  let tasteApplied: string[] | undefined;
+  if (profileArg) {
+    const profile = await getTasteProfile(input.store, profileArg);
+    ctx = { profile: profile.name, project: projectArg };
+    tasteApplied = [];
+    const binding = await resolveSurfaceBinding(input.store, profile.name, { project: projectArg });
+    warnings.push(binding
+      ? "Taste notes set defaults on built-in motifs only, so this timeline keeps its own defaults. Copy for Raven records against this profile and project."
+      : `No surface binding for project '${projectArg}' on profile '${profile.name}'. Copy for Raven still records against this profile and project.`);
+  }
+  const { checkTimeline } = await loadTimelineValidator();
+  const check = checkTimeline(doc);
+  if (check.errs.length) throw new Error("The timeline breaks the Motion Lab contract:\n- " + check.errs.join("\n- "));
+  warnings.push(...check.warnings);
+  const template = readFileSync(join(MOTION_DIR, "timeline-template.html"), "utf8");
+  const fragment = fillTemplate(template, {
+    TITLE_HTML: escapeHtml(doc.title),
+    DOC: jsonForScript(doc),
+    LAYOUT: jsonForScript(check.layout),
+    RAVEN_CTX: jsonForScript(ctx),
+    EVALUATOR: inlineSource("src/timeline/evaluator.js"),
+    EXPORT: inlineSource("src/timeline/export.js"),
+    SWIFTUI: inlineSource("src/timeline/swiftui.js"),
+  });
+  return { html: wrapPlayground(fragment), idPrefix: doc.id, params: doc.params, groups: doc.groups, warnings, tasteApplied };
+}
+
+async function buildMotif(input: MotionPlaygroundInput): Promise<Built> {
+  if (!(MOTION_MOTIFS as readonly string[]).includes(input.motif as string)) {
     throw new Error(`Unknown motif "${String(input.motif)}". Built-in motifs: ${MOTION_MOTIFS.join(", ")}. Raven builds playgrounds only from these.`);
   }
   const motif = input.motif as MotionMotif;
@@ -204,26 +377,17 @@ export async function createMotionPlayground(input: MotionPlaygroundInput): Prom
   if (curve) throw new Error(`${motif}: control ${curve.id} is a curve, and Raven's playground template does not render curve controls yet`);
   const warnings: string[] = [];
 
-  if (input.title !== undefined) {
-    const title = typeof input.title === "string" ? input.title.trim() : "";
-    if (title.length === 0 || chars(title) > TITLE_MAX) throw new Error(`title must be 1-${TITLE_MAX} characters`);
-    schema.title = title;
-  }
-  if (input.seed !== undefined) {
-    if (!Number.isInteger(input.seed) || input.seed < 0 || input.seed > U32) throw new Error(`seed must be an integer in 0..${U32}`);
-    schema.seed = input.seed;
-  }
+  const title = readTitle(input);
+  if (title !== undefined) schema.title = title;
+  const seed = readSeed(input);
+  if (seed !== undefined) schema.seed = seed;
 
   // 1. overrides
   const pinned = applyOverrides(schema, input.overrides);
 
   // 2. taste
-  const profileArg = typeof input.profile === "string" ? input.profile.trim() : "";
-  const projectArg = typeof input.project === "string" ? input.project.trim() : "";
-  if ((profileArg === "") !== (projectArg === "")) throw new Error("profile and project go together: pass both or neither");
-  // Same rule record_taste_decision applies, so the Copy for Raven text it prefills can be recorded.
-  if (projectArg && !/^[a-z0-9][a-z0-9-_.]{0,63}$/i.test(projectArg)) throw new Error("project must match /^[a-z0-9][a-z0-9-_.]{0,63}$/i");
-  let ctx: { profile?: string; project?: string } = {};
+  const { profile: profileArg, project: projectArg } = readCtxArgs(input);
+  let ctx: Ctx = {};
   let tasteApplied: string[] | undefined;
   if (profileArg) {
     const profile = await getTasteProfile(input.store, profileArg);
@@ -250,12 +414,17 @@ export async function createMotionPlayground(input: MotionPlaygroundInput): Prom
 
   if (/<\/script/i.test(runtime)) throw new Error(`${motif}/runtime.js contains </script and cannot be inlined`);
   const template = readFileSync(join(MOTION_DIR, "template.html"), "utf8");
-  const html = fillTemplate(template, {
+  const fragment = fillTemplate(template, {
     TITLE_HTML: escapeHtml(schema.title),
     SCHEMA: jsonForScript(schema),
     RAVEN_CTX: jsonForScript(ctx),
     RUNTIME: runtime,
   });
+  return { html: wrapPlayground(fragment), idPrefix: motif, params: schema.params, groups: schema.groups, warnings, tasteApplied };
+}
+
+function writePlayground(input: MotionPlaygroundInput, built: Built, source: { motif?: MotionMotif; timeline_id?: string }): MotionPlaygroundResult {
+  const { html, idPrefix, warnings, tasteApplied } = built;
 
   let htmlPath: string;
   let playgroundId: string;
@@ -264,13 +433,30 @@ export async function createMotionPlayground(input: MotionPlaygroundInput): Prom
     htmlPath = resolve(input.output_path);
     playgroundId = basename(htmlPath).replace(/\.html$/i, "");
     mkdirSync(dirname(htmlPath), { recursive: true });
-    writeFileSync(htmlPath, html, "utf8");
+    // Replace only a regular file, never through a link: write a new file beside it, then rename over it.
+    let existing: ReturnType<typeof lstatSync> | undefined;
+    try { existing = lstatSync(htmlPath); } catch (e) { if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e; }
+    if (existing && !existing.isFile()) {
+      throw new Error("output_path " + htmlPath + " is " + (existing.isSymbolicLink() ? "a symbolic link" : "not a regular file") + "; give a path to a new or existing .html file");
+    }
+    const tmp = join(dirname(htmlPath), "." + basename(htmlPath) + "." + randomBytes(4).toString("hex") + ".tmp");
+    // wx: an existing file at tmp is never ours, so a failure there leaves it alone; past that point it is ours to remove.
+    let created = false;
+    try {
+      const fd = openSync(tmp, "wx");
+      created = true;
+      try { writeFileSync(fd, html, "utf8"); } finally { closeSync(fd); }
+      renameSync(tmp, htmlPath);
+    } catch (e) {
+      if (created) { try { unlinkSync(tmp); } catch { /* already gone */ } }
+      throw e;
+    }
   } else {
     // A generated name must never replace an earlier playground: create exclusively and draw a new id on a collision.
     const dir = join(tasteHome(), "playgrounds");
     mkdirSync(dir, { recursive: true });
     for (let attempt = 0; ; attempt++) {
-      playgroundId = motif + "-" + randomBytes(2).toString("hex");
+      playgroundId = idPrefix + "-" + randomBytes(2).toString("hex");
       htmlPath = join(dir, playgroundId + ".html");
       try {
         writeFileSync(htmlPath, html, { encoding: "utf8", flag: "wx" });
@@ -281,13 +467,13 @@ export async function createMotionPlayground(input: MotionPlaygroundInput): Prom
     }
   }
 
-  const controls = schema.params.filter((p) => p.type !== "action");
-  const advancedGroups = new Set(schema.groups.filter((g) => g.advanced).map((g) => g.id));
+  const controls = built.params.filter((p) => p.type !== "action");
+  const advancedGroups = new Set(built.groups.filter((g) => g.advanced).map((g) => g.id));
   const result: MotionPlaygroundResult = {
     tool: "create_motion_playground",
     html_path: htmlPath,
     playground_id: playgroundId,
-    motif,
+    ...source,
     controls: controls.length,
     client_safe: controls.filter((p) => !p.advanced && !advancedGroups.has(p.group) && p.clientSafe !== false).length,
     bytes: Buffer.byteLength(html, "utf8"),

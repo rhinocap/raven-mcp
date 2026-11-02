@@ -33,7 +33,7 @@ import { createTasteProfile, getTasteProfile, listTasteProfiles, labelFinding, a
 import type { ReferenceCapture, SurfaceBinding } from "./taste.js";
 import { generateTastePortrait, generateTastePortraitInline } from "./taste-portrait.js";
 import { generateMoodBoard } from "./mood-board.js";
-import { createMotionPlayground, MOTION_MOTIFS, TITLE_MAX as MOTION_TITLE_MAX, CONTROL_LABEL_MAX as MOTION_CONTROL_LABEL_MAX, GROUP_LABEL_MAX as MOTION_GROUP_LABEL_MAX } from "./motion-playground/index.js";
+import { createMotionPlayground, timelineVocabulary, TIMELINE_MAX_BYTES, MOTION_MOTIFS, TITLE_MAX as MOTION_TITLE_MAX, CONTROL_LABEL_MAX as MOTION_CONTROL_LABEL_MAX, GROUP_LABEL_MAX as MOTION_GROUP_LABEL_MAX } from "./motion-playground/index.js";
 import { setRemoteRuntime, isRemoteRuntime } from "./remote-runtime.js";
 import { ClosedTasteStore, FsTasteStore, type TasteStore } from "./taste-store.js";
 import { remoteUrlGuardError } from "./remote-url-guard.js";
@@ -8828,12 +8828,14 @@ server.tool(
   }
 );
 
+const MOTION_TIMELINE_WORDS = timelineVocabulary();
 server.tool(
   "create_motion_playground",
-  "Build a motion playground: one self-contained HTML file with a motif's animation on a stage, its controls labelled in designer language, live preview and copyable exports (params JSON, an SVG frame, a WAAPI snippet), written under the taste home's playgrounds/ directory or output_path. Use it when someone wants to tune an animation by hand rather than describe it. Pass profile and project to start from the bound surface's motion notes (only the terms restrained, subtle, snappy and no bounce are mapped; anything else is listed in warnings) and to prefill the playground's Copy for Raven text, which the user pastes back so you can call record_taste_decision with it. A default that breaks a motif constraint is corrected to the nearest valid step and reported in warnings; an override that cannot be corrected inside the control's range is an error. Raven builds only from its built-in motifs and never draws new artwork.",
+  "Build a motion playground: one self-contained HTML file with an animation on a stage, its controls labelled in designer language, live preview and copyable exports (params JSON, an SVG frame, a WAAPI snippet), written under the taste home's playgrounds/ directory or output_path. Use it when someone wants to tune an animation by hand rather than describe it. Pass profile and project to prefill the playground's Copy for Raven text and, for a motif, to start from the bound surface's motion notes (only the terms restrained, subtle, snappy and no bounce are mapped; anything else is listed in warnings). The user pastes the Copy for Raven text back so you can call record_taste_decision with it. A default that breaks a motif constraint is corrected to the nearest valid step and reported in warnings; an override that cannot be corrected inside the control's range is an error. Raven never draws new artwork. Pass exactly one of motif or timeline. motif builds from a built-in motif. timeline builds from a Motion Lab timeline document you write: text, phases and tracks, checked by Motion Lab's own validator, with text outlined from the font files it names. Timeline track properties: " + MOTION_TIMELINE_WORDS.properties.join(", ") + ". Target kinds: " + MOTION_TIMELINE_WORDS.targetKinds.join(", ") + ". Named easings: " + MOTION_TIMELINE_WORDS.easings.join(", ") + ", or { cubicBezier: [x1, y1, x2, y2] }, or { spring: { duration, bounce } }. Use ONLY these.",
   {
-    motif: z.enum(MOTION_MOTIFS).describe("Built-in motif to build from. Valid values: " + MOTION_MOTIFS.join(", ") + ". Use ONLY these."),
-    title: z.string().optional().describe("Playground title shown in the header and tab, 1-" + MOTION_TITLE_MAX + " characters. Defaults to the motif's own title."),
+    motif: z.enum(MOTION_MOTIFS).optional().describe("Built-in motif to build from. Valid values: " + MOTION_MOTIFS.join(", ") + ". Use ONLY these. Omit when passing timeline."),
+    timeline: z.record(z.string(), z.unknown()).optional().describe("A Motion Lab timeline document (schemaVersion, id, title, stage, fonts, targets, phases, tracks, trigger, groups, params; optional presets and constraints), at most " + (TIMELINE_MAX_BYTES / 1024) + " KB of JSON. Font paths must be absolute or start with ~/ and end in .otf, .ttf, .woff or .woff2. Validation errors are returned in full; fix them and call again. Omit when passing motif."),
+    title: z.string().optional().describe("Playground title shown in the header and tab, 1-" + MOTION_TITLE_MAX + " characters. Defaults to the motif's or timeline's own title."),
     overrides: z.object({
       controls: z.record(z.string(), z.object({
         label: z.string().optional().describe("Designer-language label, 1-" + MOTION_CONTROL_LABEL_MAX + " characters."),
@@ -8843,14 +8845,14 @@ server.tool(
         clientSafe: z.boolean().optional().describe("false hides the control in client review mode."),
       })).optional().describe("Per-control changes keyed by control id. An unknown id is an error that lists the motif's controls."),
       groups: z.record(z.string(), z.string()).optional().describe("Group label changes keyed by group id, 1-" + MOTION_GROUP_LABEL_MAX + " characters each."),
-    }).optional().describe("Changes to the motif's controls and group labels. Defaults set here are kept as given and are not adjusted by taste notes."),
+    }).optional().describe("Changes to the motif's controls and group labels. Defaults set here are kept as given and are not adjusted by taste notes. Motifs only: a timeline sets these in its own document."),
     profile: z.string().optional().describe("Taste profile name (see list_taste_profiles). Pass with project, or omit both."),
     project: z.string().optional().describe("Bound project name. Pass with profile, or omit both."),
     seed: z.number().int().min(0).max(4294967295).optional().describe("Random seed for any jitter in the motif, so a shared playground replays identically."),
-    output_path: z.string().optional().describe("Absolute path for the HTML file, ending in .html. Defaults to <taste home>/playgrounds/<motif>-<id>.html."),
+    output_path: z.string().optional().describe("Absolute path for the HTML file, ending in .html. Defaults to <taste home>/playgrounds/<motif or timeline id>-<id>.html."),
   },
-  async function ({ motif, title, overrides, profile, project, seed, output_path }) {
-    var playground = await createMotionPlayground({ store: tasteStore, motif: motif, title: title, overrides: overrides, profile: profile, project: project, seed: seed, output_path: output_path });
+  async function ({ motif, timeline, title, overrides, profile, project, seed, output_path }) {
+    var playground = await createMotionPlayground({ store: tasteStore, motif: motif, timeline: timeline, title: title, overrides: overrides, profile: profile, project: project, seed: seed, output_path: output_path });
     return { content: [{ type: "text" as const, text: JSON.stringify(playground, null, 2) }] };
   }
 );

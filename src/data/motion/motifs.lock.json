@@ -1,16 +1,32 @@
 {
   "source": "rhinocap/motion-lab",
-  "source_commit": "ab669de11c5316ec8a04c8bef6f2c4b70e9a0604",
+  "source_commit": "2d8cdefedff21d22613077b81751ce0f1c36fd6c",
   "motifs": [
     "keyfob"
   ],
   "files": {
     "keyfob/schema.json": "8302c69636a39e068ad3934182efefc4463604f606989c52f4c6cc3d4c19bf70",
     "keyfob/runtime.js": "ef64efc2a777b8de0b0125e177d1d6372ea17ae503c86c0c2a1712451d8395cb",
-    "playground.schema.json": "6d5825b72a35f2dab6b538bdee09092c75877f6cab9aa908e7431d938dc51d3d"
+    "playground.schema.json": "6d5825b72a35f2dab6b538bdee09092c75877f6cab9aa908e7431d938dc51d3d",
+    "timeline/scripts/validate-timeline.mjs": "9f68cf8568e6a23ca4b9ce455dfbee02e4ac193ea4510427d15d55939e04379e",
+    "timeline/scripts/validate.mjs": "027ca722a5a4ca4e15a2ef0dd86cacea8e9b4f376d09b8ef8e4f56325a96028b",
+    "timeline/src/timeline/evaluator.js": "94c707c0c081df83e13eb4ca60ff6233dc1b8bb819ab881947312a7b4e7785f8",
+    "timeline/src/timeline/export.js": "4b3fc8d4519fa30a02770606b3b4c0ca4f199ad68fb89b503c7d1e57710805d8",
+    "timeline/src/timeline/swiftui.js": "6932d41ad58dd94b25496834ac4db38230672cb27cfa016dd3bc443cefb33c12",
+    "timeline/src/timeline/outline.js": "1ddd70bf5516e93dd9c9ad611627d1acf72105f67f4f7360cec08368122fd858",
+    "timeline/schemas/timeline.schema.json": "f4965418a18e05f5e522b292603b8566a5dda2a1a6cee055b5ce4fb978618d78",
+    "timeline/schemas/playground.schema.json": "6d5825b72a35f2dab6b538bdee09092c75877f6cab9aa908e7431d938dc51d3d"
   },
-  "template": {
-    "forked_from": "src/keyfob/template.html",
-    "upstream_sha256": "9615e17522a2da944ffa0cf36682bb67092699e0a6bf1cc5354e8721afc12b56"
+  "templates": {
+    "template.html": {
+      "forked_from": "src/keyfob/template.html",
+      "upstream_sha256": "9615e17522a2da944ffa0cf36682bb67092699e0a6bf1cc5354e8721afc12b56",
+      "fork_sha256": "547a5b05647a4351d9f94f8a1040c7592d6a7323d89ba73f72ad63bcce01d76a"
+    },
+    "timeline-template.html": {
+      "forked_from": "src/timeline/template.html",
+      "upstream_sha256": "019ea1ba89ec29ccb13a22bb8eebfa30d37aba8c1b9b7f20434ccd17649f2fc7",
+      "fork_sha256": "bd99a1f5cdcc1158036347cba78875629e5d66020405d0de885e9608fc6fcd13"
+    }
   }
 }

@@ -1,0 +1,739 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://motion-lab.local/playground.schema.json",
+  "title": "Motion Lab playground schema",
+  "description": "One file per playground. The same format for every motif; the contents (params, groups, events) are invented per input.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "id",
+    "title",
+    "concept",
+    "source",
+    "motif",
+    "renderer",
+    "interaction",
+    "canvas",
+    "seed",
+    "groups",
+    "params",
+    "exports"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "enum": [
+        "1.0",
+        "2.0"
+      ],
+      "description": "2.0 adds the curve control type; 1.0 documents stay valid unchanged."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40
+    },
+    "concept": {
+      "type": "string",
+      "description": "One plain-language sentence: the single default animation concept.",
+      "maxLength": 240
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "image",
+            "figma",
+            "prompt",
+            "image+prompt",
+            "figma+prompt"
+          ]
+        },
+        "prompt": {
+          "type": "string"
+        },
+        "figma": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "fileKey",
+            "nodeId"
+          ],
+          "properties": {
+            "fileKey": {
+              "type": "string"
+            },
+            "nodeId": {
+              "type": "string",
+              "pattern": "^I?[0-9]+:[0-9]+(;[0-9]+:[0-9]+)*$"
+            },
+            "exportedAs": {
+              "enum": [
+                "svg",
+                "png"
+              ]
+            }
+          }
+        },
+        "image": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mime"
+          ],
+          "properties": {
+            "mime": {
+              "enum": [
+                "image/png",
+                "image/jpeg",
+                "image/svg+xml",
+                "image/webp"
+              ]
+            },
+            "width": {
+              "type": "integer"
+            },
+            "height": {
+              "type": "integer"
+            }
+          }
+        }
+      }
+    },
+    "motif": {
+      "enum": [
+        "pattern",
+        "logo",
+        "ui-device",
+        "illustration",
+        "photo",
+        "face-scan",
+        "object-physics",
+        "type",
+        "other"
+      ]
+    },
+    "renderer": {
+      "enum": [
+        "svg",
+        "canvas2d",
+        "svg+waapi",
+        "webgl"
+      ]
+    },
+    "canvas": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "width",
+        "height"
+      ],
+      "properties": {
+        "width": {
+          "type": "integer",
+          "minimum": 64
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 64
+        },
+        "background": {
+          "type": "string"
+        }
+      }
+    },
+    "interaction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "events"
+      ],
+      "properties": {
+        "events": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "loop",
+              "hover",
+              "click",
+              "drag",
+              "scroll",
+              "load"
+            ]
+          }
+        },
+        "hinges": {
+          "type": "array",
+          "description": "Pivot points for physical motion. Each targets an SVG group id preserved from the source.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "target",
+              "origin"
+            ],
+            "properties": {
+              "target": {
+                "type": "string",
+                "description": "SVG <g> id from the source file"
+              },
+              "origin": {
+                "type": "string",
+                "description": "CSS transform-origin in the group's own box (transform-box: fill-box), e.g. '50% 0%'",
+                "pattern": "^-?[0-9]+(\\.[0-9]+)?% -?[0-9]+(\\.[0-9]+)?%$"
+              },
+              "parent": {
+                "type": "string",
+                "description": "Hinge this one hangs from, for chained pendulums"
+              }
+            }
+          }
+        }
+      }
+    },
+    "seed": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4294967295
+    },
+    "groups": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "label"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-zA-Z0-9]*$"
+          },
+          "label": {
+            "type": "string",
+            "pattern": "\\S",
+            "maxLength": 20
+          },
+          "advanced": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      }
+    },
+    "params": {
+      "type": "array",
+      "minItems": 8,
+      "maxItems": 16,
+      "items": {
+        "$ref": "#/$defs/param"
+      }
+    },
+    "presets": {
+      "type": "array",
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "label",
+          "values"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 16
+          },
+          "values": {
+            "type": "object",
+            "description": "param id -> value; omitted params keep their current value"
+          }
+        }
+      }
+    },
+    "exports": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "params-json",
+          "svg-frame",
+          "css-keyframes",
+          "waapi-snippet",
+          "gsap-snippet",
+          "share-url"
+        ]
+      }
+    },
+    "constraints": {
+      "type": "array",
+      "maxItems": 8,
+      "description": "Cross-control rules Randomise must respect (it resamples up to 20 times, then keeps the current values). Defaults must satisfy them.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "a",
+          "op",
+          "b"
+        ],
+        "properties": {
+          "a": {
+            "type": "string",
+            "description": "param id"
+          },
+          "op": {
+            "enum": [
+              "lte",
+              "gte",
+              "neq"
+            ]
+          },
+          "b": {
+            "type": "string",
+            "description": "param id"
+          },
+          "factor": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "default": 1,
+            "description": "lte/gte compare a against factor * b; ignored for neq"
+          },
+          "why": {
+            "type": "string",
+            "maxLength": 120
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "param": {
+      "type": "object",
+      "required": [
+        "id",
+        "label",
+        "type",
+        "group"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-zA-Z0-9]*$"
+        },
+        "label": {
+          "type": "string",
+          "pattern": "\\S",
+          "maxLength": 24,
+          "description": "Designer language for this motif. No engine names."
+        },
+        "type": {
+          "enum": [
+            "number",
+            "boolean",
+            "color",
+            "enum",
+            "action",
+            "curve"
+          ]
+        },
+        "group": {
+          "type": "string"
+        },
+        "help": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "lockable": {
+          "type": "boolean",
+          "default": true
+        },
+        "randomize": {
+          "type": "boolean",
+          "default": true,
+          "description": "false = Randomise never touches it (e.g. canvas size)"
+        },
+        "clientSafe": {
+          "type": "boolean",
+          "default": true,
+          "description": "false = hidden in client review mode"
+        },
+        "advanced": {
+          "type": "boolean",
+          "default": false
+        },
+        "role": {
+          "enum": [
+            "duration",
+            "speed",
+            "easing",
+            "loop",
+            "stagger",
+            "delay",
+            "amplitude",
+            "color",
+            "density",
+            "size",
+            "seed",
+            "physics",
+            "structure",
+            "other"
+          ],
+          "description": "Semantic tag. Lets export map params to timing code, and lets the validator check the Motion minimum."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "number"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "min",
+              "max",
+              "step",
+              "default"
+            ],
+            "properties": {
+              "min": {
+                "type": "number"
+              },
+              "max": {
+                "type": "number"
+              },
+              "step": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "default": {
+                "type": "number"
+              },
+              "safeMin": {
+                "type": "number",
+                "description": "Randomise band floor; default min + 15% of range"
+              },
+              "safeMax": {
+                "type": "number",
+                "description": "Randomise band ceiling; default min + 85% of range"
+              },
+              "unit": {
+                "enum": [
+                  "px",
+                  "px/s",
+                  "ms",
+                  "s",
+                  "deg",
+                  "%",
+                  "x",
+                  "Hz",
+                  ""
+                ]
+              },
+              "scale": {
+                "enum": [
+                  "linear",
+                  "log"
+                ],
+                "default": "linear"
+              },
+              "widget": {
+                "enum": [
+                  "slider",
+                  "knob",
+                  "segmented"
+                ],
+                "default": "slider"
+              },
+              "stops": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "description": "Required when widget is segmented"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "boolean"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "default"
+            ],
+            "properties": {
+              "default": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "color"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "default"
+            ],
+            "properties": {
+              "default": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              },
+              "swatches": {
+                "type": "array",
+                "maxItems": 8,
+                "items": {
+                  "type": "string",
+                  "pattern": "^#[0-9a-fA-F]{6}$"
+                }
+              },
+              "sampledFromSource": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "enum"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "options",
+              "default"
+            ],
+            "properties": {
+              "options": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 7,
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "value",
+                    "label"
+                  ],
+                  "properties": {
+                    "value": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string",
+                      "maxLength": 14
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "default": {
+                "type": "string"
+              },
+              "widget": {
+                "enum": [
+                  "segmented",
+                  "select"
+                ],
+                "default": "segmented"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "action"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "action"
+            ],
+            "properties": {
+              "action": {
+                "enum": [
+                  "replay",
+                  "reroll",
+                  "clear",
+                  "trigger",
+                  "custom"
+                ]
+              },
+              "lockable": {
+                "const": false
+              },
+              "randomize": {
+                "const": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "curve"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "kinds",
+              "default"
+            ],
+            "properties": {
+              "kinds": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 2,
+                "uniqueItems": true,
+                "items": {
+                  "enum": [
+                    "bezier",
+                    "spring"
+                  ]
+                },
+                "description": "Which editors the control offers: a curve with two handles, a spring with duration and bounce, or both."
+              },
+              "default": {
+                "$ref": "#/$defs/curveValue"
+              },
+              "stops": {
+                "type": "array",
+                "maxItems": 4,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "label",
+                    "value"
+                  ],
+                  "properties": {
+                    "label": {
+                      "type": "string",
+                      "pattern": "\\S",
+                      "maxLength": 14
+                    },
+                    "value": {
+                      "$ref": "#/$defs/curveValue"
+                    }
+                  }
+                },
+                "description": "Named curves shown as buttons; Randomise picks only from these."
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "curveValue": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "points"
+          ],
+          "properties": {
+            "kind": {
+              "const": "bezier"
+            },
+            "points": {
+              "type": "array",
+              "minItems": 4,
+              "maxItems": 4,
+              "prefixItems": [
+                {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                {
+                  "type": "number",
+                  "minimum": -1,
+                  "maximum": 2
+                },
+                {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                {
+                  "type": "number",
+                  "minimum": -1,
+                  "maximum": 2
+                }
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "duration",
+            "bounce"
+          ],
+          "properties": {
+            "kind": {
+              "const": "spring"
+            },
+            "duration": {
+              "type": "number",
+              "minimum": 10,
+              "maximum": 60000,
+              "description": "ms"
+            },
+            "bounce": {
+              "type": "number",
+              "minimum": -0.9,
+              "maximum": 0.9
+            }
+          }
+        }
+      ]
+    }
+  }
+}

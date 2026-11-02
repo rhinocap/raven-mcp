@@ -457,7 +457,7 @@
     },
     {
       "name": "create_motion_playground",
-      "description": "Build a motion playground: one self-contained HTML file with a motif's animation on a stage, its controls labelled in…"
+      "description": "Build a motion playground: one self-contained HTML file with an animation on a stage, its controls labelled in designer…"
     },
     {
       "name": "list_taste_profiles",

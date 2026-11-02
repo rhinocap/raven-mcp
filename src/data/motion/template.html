@@ -673,13 +673,15 @@ __RUNTIME__
     r.appendChild(btn); b.appendChild(r); $('raven-menu').appendChild(b);
     return { inputs: inputs, ta: ta, btn: btn, note: note };
   })();
-  // The same project rule record_taste_decision applies, so a copied decision is one Raven accepts.
+  // The same profile and project rules record_taste_decision applies, so a copied decision is one Raven accepts.
+  var RAVEN_PROFILE = /^[a-z0-9][a-z0-9-_]{0,63}$/i;
   var RAVEN_PROJECT = /^[a-z0-9][a-z0-9-_.]{0,63}$/i;
   function ravenFields() {
     return { profile: String(ravenUI.inputs.profile.value).trim(), project: String(ravenUI.inputs.project.value).trim() };
   }
   function ravenProblem(f) {
     if (!f.profile || !f.project) return 'Add the taste profile and project your agent uses, then copy.';
+    if (!RAVEN_PROFILE.test(f.profile)) return 'Profile names use letters, numbers, dashes and underscores, start with a letter or number, and stay under 65 characters: “andrew”, not “Andrew C.”.';
     if (!RAVEN_PROJECT.test(f.project)) return 'Project names use letters, numbers, dots, dashes and underscores, start with a letter or number, and stay under 65 characters: “client-website”, not “Client website”.';
     return '';
   }

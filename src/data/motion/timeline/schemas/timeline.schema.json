@@ -1,0 +1,537 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://motion-lab.local/timeline.schema.json",
+  "title": "Motion Lab timeline schema",
+  "description": "One document carries a declarative timeline (stage, targets, phases, tracks) and its playground controls. See docs/Motion Lab \u2014 Timeline Spec.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "id",
+    "title",
+    "stage",
+    "targets",
+    "phases",
+    "tracks",
+    "trigger",
+    "groups",
+    "params"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$",
+      "maxLength": 40
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40
+    },
+    "concept": {
+      "type": "string",
+      "maxLength": 240
+    },
+    "stage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "width",
+        "height",
+        "background"
+      ],
+      "properties": {
+        "width": {
+          "type": "integer",
+          "minimum": 64,
+          "maximum": 8192
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 64,
+          "maximum": 8192
+        },
+        "background": {
+          "$ref": "#/$defs/color"
+        },
+        "artworkPosition": {
+          "$ref": "#/$defs/pair"
+        }
+      }
+    },
+    "seed": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4294967295,
+      "default": 0
+    },
+    "trigger": {
+      "enum": [
+        "load"
+      ],
+      "description": "What starts playback in exports. Phase 1 builds load only."
+    },
+    "restPhase": {
+      "type": "string",
+      "pattern": "^[a-z][a-zA-Z0-9]*$",
+      "description": "Reduced motion shows the frame at the end of this phase. Default: the last phase (the final frame). Set it when the final frame hides the content."
+    },
+    "fonts": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z][a-zA-Z0-9]*$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "targets": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 32,
+      "propertyNames": {
+        "pattern": "^[a-z][a-zA-Z0-9]*$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/target"
+      }
+    },
+    "phases": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "label",
+          "duration"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-zA-Z0-9]*$"
+          },
+          "label": {
+            "type": "string",
+            "pattern": "\\S",
+            "maxLength": 24
+          },
+          "duration": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/number"
+              },
+              {
+                "const": "auto"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "tracks": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 256,
+      "items": {
+        "$ref": "#/$defs/track"
+      }
+    },
+    "groups": {
+      "$ref": "playground.schema.json#/properties/groups"
+    },
+    "params": {
+      "$ref": "playground.schema.json#/properties/params"
+    },
+    "presets": {
+      "$ref": "playground.schema.json#/properties/presets"
+    },
+    "constraints": {
+      "$ref": "playground.schema.json#/properties/constraints"
+    }
+  },
+  "$defs": {
+    "bind": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "param"
+      ],
+      "properties": {
+        "param": {
+          "type": "string",
+          "pattern": "^[a-z][a-zA-Z0-9]*$"
+        },
+        "times": {
+          "type": "number"
+        },
+        "plus": {
+          "type": "number"
+        }
+      }
+    },
+    "number": {
+      "oneOf": [
+        {
+          "type": "number"
+        },
+        {
+          "$ref": "#/$defs/bind"
+        }
+      ]
+    },
+    "pair": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "$ref": "#/$defs/number"
+      }
+    },
+    "hex": {
+      "type": "string",
+      "pattern": "^#[0-9a-fA-F]{6}$"
+    },
+    "color": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/hex"
+        },
+        {
+          "$ref": "#/$defs/bind"
+        }
+      ]
+    },
+    "clip": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "top",
+        "right",
+        "bottom",
+        "left"
+      ],
+      "properties": {
+        "top": {
+          "$ref": "#/$defs/number"
+        },
+        "right": {
+          "$ref": "#/$defs/number"
+        },
+        "bottom": {
+          "$ref": "#/$defs/number"
+        },
+        "left": {
+          "$ref": "#/$defs/number"
+        }
+      }
+    },
+    "value": {
+      "oneOf": [
+        {
+          "type": "number"
+        },
+        {
+          "$ref": "#/$defs/hex"
+        },
+        {
+          "$ref": "#/$defs/clip"
+        },
+        {
+          "$ref": "#/$defs/bind"
+        }
+      ]
+    },
+    "easing": {
+      "oneOf": [
+        {
+          "enum": [
+            "linear",
+            "ease-in",
+            "ease-out",
+            "ease-in-out"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cubicBezier"
+          ],
+          "properties": {
+            "cubicBezier": {
+              "type": "array",
+              "minItems": 4,
+              "maxItems": 4,
+              "items": {
+                "type": "number"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "spring"
+          ],
+          "properties": {
+            "spring": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "duration",
+                "bounce"
+              ],
+              "properties": {
+                "duration": {
+                  "$ref": "#/$defs/number"
+                },
+                "bounce": {
+                  "$ref": "#/$defs/number"
+                }
+              }
+            }
+          }
+        },
+        {
+          "$ref": "#/$defs/bind"
+        }
+      ]
+    },
+    "target": {
+      "type": "object",
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "surface",
+            "text",
+            "svg",
+            "element"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "surface"
+              }
+            }
+          },
+          "then": {
+            "additionalProperties": false,
+            "properties": {
+              "kind": true,
+              "role": {
+                "enum": [
+                  "stage",
+                  "from-page",
+                  "to-page"
+                ],
+                "default": "stage"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "text"
+              }
+            }
+          },
+          "then": {
+            "additionalProperties": false,
+            "required": [
+              "text",
+              "font",
+              "size",
+              "position",
+              "color"
+            ],
+            "properties": {
+              "kind": true,
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000
+              },
+              "font": {
+                "type": "string"
+              },
+              "split": {
+                "enum": [
+                  "none",
+                  "letters",
+                  "words",
+                  "lines"
+                ],
+                "default": "none"
+              },
+              "size": {
+                "$ref": "#/$defs/number"
+              },
+              "position": {
+                "$ref": "#/$defs/pair"
+              },
+              "anchor": {
+                "$ref": "#/$defs/pair"
+              },
+              "origin": {
+                "$ref": "#/$defs/pair"
+              },
+              "color": {
+                "$ref": "#/$defs/color"
+              },
+              "lang": {
+                "type": "string",
+                "maxLength": 35
+              },
+              "lineHeight": {
+                "$ref": "#/$defs/number"
+              },
+              "align": {
+                "enum": [
+                  "left",
+                  "center",
+                  "right"
+                ],
+                "default": "left"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "svg",
+                  "element"
+                ]
+              }
+            }
+          },
+          "then": {
+            "additionalProperties": false,
+            "required": [
+              "id"
+            ],
+            "properties": {
+              "kind": true,
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "origin": {
+                "$ref": "#/$defs/pair"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "track": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target",
+        "phase",
+        "property",
+        "to",
+        "duration",
+        "easing"
+      ],
+      "properties": {
+        "target": {
+          "type": "string"
+        },
+        "phase": {
+          "type": "string"
+        },
+        "property": {
+          "enum": [
+            "opacity",
+            "translateX",
+            "translateY",
+            "scale",
+            "scaleX",
+            "scaleY",
+            "rotate",
+            "fill",
+            "stroke",
+            "color",
+            "background",
+            "draw",
+            "clip",
+            "blur"
+          ]
+        },
+        "from": {
+          "$ref": "#/$defs/value"
+        },
+        "to": {
+          "$ref": "#/$defs/value"
+        },
+        "duration": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/number"
+            },
+            {
+              "const": "phase"
+            }
+          ]
+        },
+        "delay": {
+          "$ref": "#/$defs/number"
+        },
+        "easing": {
+          "$ref": "#/$defs/easing"
+        },
+        "stagger": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "each"
+          ],
+          "properties": {
+            "each": {
+              "$ref": "#/$defs/number"
+            },
+            "order": {
+              "enum": [
+                "forward",
+                "reverse",
+                "center",
+                "random"
+              ],
+              "default": "forward"
+            }
+          }
+        }
+      }
+    }
+  }
+}

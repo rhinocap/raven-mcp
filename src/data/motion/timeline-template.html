@@ -1,0 +1,1379 @@
+<title>__TITLE_HTML__</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: a quiet tool. Fixed-width control panel on the left, the stage takes the rest; one column on phones. */
+:root {
+  --bg: #17171d;
+  --panel: #1f1f26;
+  --raised: #2a2a33;
+  --line: #34343e;
+  --fg: #f0f0f2;
+  --fg-2: #a6aab3;
+  --fg-3: #8a8e98;
+  --focus: #00bfff;
+  --warn: #ffab40;
+  --wall: #2b2b31;
+  --wall-ink: #a6aab3;
+  --swatch-ring: rgba(255, 255, 255, .18);
+  --font: "Untitled Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --t-xs: 11px; --t-sm: 12px; --t-md: 13px; --t-lg: 15px;
+  --r: 6px;
+  --hit: 44px;
+  --panel-w: 340px;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font); font-size: var(--t-md); line-height: 1.4; -webkit-font-smoothing: antialiased; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+button, input, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.app { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+header#summary { display: flex; align-items: center; gap: 16px; padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); border-bottom: 1px solid var(--line); min-width: 0; }
+header h1 { font-size: var(--t-lg); font-weight: 500; margin: 0; white-space: nowrap; }
+header p { margin: 0; color: var(--fg-2); font-size: var(--t-sm); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+#status { color: var(--fg-2); font-size: var(--t-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 45%; }
+
+.work { display: grid; grid-template-columns: var(--panel-w) minmax(0, 1fr); min-height: 0; }
+aside#panel { background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+.tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+.tabs button { min-height: var(--hit); border: 0; background: transparent; color: var(--fg-2); border-radius: var(--r); cursor: pointer; font-weight: 500; }
+.tabs button:hover, .seg button:hover { color: var(--fg); }
+.tabs button[aria-selected="true"] { background: var(--raised); color: var(--fg); }
+.view { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 16px 24px; display: flex; flex-direction: column; gap: 16px; }
+
+.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.btn { min-height: var(--hit); padding: 0 14px; border-radius: var(--r); border: 1px solid var(--line); background: var(--raised); cursor: pointer; font-weight: 500; }
+.btn:hover { border-color: var(--fg-3); }
+.btn.ghost { background: transparent; }
+.btn.primary { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+
+.group { display: flex; flex-direction: column; }
+.group h2 { font-size: var(--t-xs); font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--fg-3); margin: 4px 0 2px; }
+.ctl { position: relative; display: flex; flex-direction: column; border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent); padding-block: 2px; }
+.ctl:last-child { border-bottom: 0; }
+.ctl .row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px; min-height: var(--hit); }
+.ctl label.name, .ctl span.name { color: var(--fg); min-width: 0; }
+/* Help sits over the row below, so showing it never moves a control under the pointer. */
+.ctl .help { position: absolute; top: 100%; min-height: var(--hit); left: 0; right: 0; z-index: 1; margin: 0; padding: 6px 8px; color: var(--fg-2); font-size: var(--t-sm); background: var(--raised); border: 1px solid var(--line); border-radius: var(--r); pointer-events: none; visibility: hidden; }
+.ctl.help-up .help { top: auto; bottom: 100%; }
+:root:not([data-input="key"]) .ctl:hover .help, :root[data-input="key"] .ctl:focus-within .help { visibility: visible; transition: visibility 0s linear .3s; }
+.num { display: flex; align-items: center; height: var(--hit); cursor: text; }
+.num input { width: 66px; height: 28px; text-align: right; background: var(--bg); border: 1px solid transparent; border-radius: 4px; padding: 0 6px; font-variant-numeric: tabular-nums; }
+.num input:hover { border-color: var(--line); }
+.num span { color: var(--fg-3); font-size: var(--t-sm); width: 26px; padding-left: 4px; }
+
+input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: var(--hit); background: transparent; margin: -8px 0 -4px; cursor: pointer; --p: 50%; }
+input[type="range"]::-webkit-slider-runnable-track { height: 3px; border-radius: 2px; background: linear-gradient(to right, var(--fg-2) var(--p), var(--line) var(--p)); }
+input[type="range"]::-moz-range-track { height: 3px; border-radius: 2px; background: linear-gradient(to right, var(--fg-2) var(--p), var(--line) var(--p)); }
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; margin-top: -5.5px; border-radius: 50%; background: var(--fg); border: 0; }
+input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--fg); border: 0; }
+input[type="range"]:focus-visible { outline: none; }
+input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px var(--focus); }
+
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 2px; background: var(--bg); border-radius: var(--r); padding: 2px; margin-bottom: 6px; }
+.seg button { min-height: var(--hit); border: 0; border-radius: 4px; background: transparent; color: var(--fg-2); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--raised); color: var(--fg); }
+.swatches { position: relative; display: flex; gap: 2px; align-items: center; margin-bottom: 6px; flex-wrap: wrap; }
+.swatches button, .swatches label { width: var(--hit); height: var(--hit); display: grid; place-items: center; background: transparent; border: 0; border-radius: var(--r); cursor: pointer; padding: 0; }
+.swatches button:hover, .swatches label:hover { background: var(--raised); }
+.swatches i { display: block; width: 22px; height: 22px; border-radius: 50%; box-shadow: inset 0 0 0 1px var(--swatch-ring); }
+.swatches button[aria-pressed="true"] i { box-shadow: 0 0 0 2px var(--panel), 0 0 0 3.5px var(--fg); }
+.swatches label { color: var(--fg-2); }
+.swatches label svg { width: 18px; height: 18px; }
+.swatches input[type="color"] { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+.swatches code { color: var(--fg-3); font-size: var(--t-sm); margin-left: 6px; font-variant-numeric: tabular-nums; }
+
+.block { display: flex; flex-direction: column; gap: 8px; }
+.block h3 { margin: 0; font-size: var(--t-md); font-weight: 500; }
+.block p { margin: 0; color: var(--fg-2); font-size: var(--t-sm); }
+.block textarea { width: 100%; height: 120px; resize: vertical; background: var(--bg); border: 1px solid var(--line); border-radius: var(--r); padding: 8px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; color: var(--fg-2); }
+.block .row2 { display: flex; gap: 8px; flex-wrap: wrap; }
+.menu-stack { display: flex; flex-direction: column; gap: 20px; }
+/* The direct exports sit behind a disclosure styled as a button, with no marker glyph. */
+.more-code { border-top: 1px solid var(--line); padding-top: 12px; }
+.more-code summary { list-style: none; display: inline-flex; align-items: center; }
+.more-code summary::-webkit-details-marker { display: none; }
+.more-code[open] summary { margin-bottom: 12px; }
+.more-code .when-open, .more-code[open] .when-closed { display: none; }
+.more-code[open] .when-open { display: inline; }
+
+/* Curve control: one square-ish plot for both kinds; handles only on the curve kind. */
+.curve-read { color: var(--fg-3); font-size: var(--t-sm); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.curve-plot { display: block; width: 100%; height: auto; background: var(--bg); border-radius: var(--r); margin-bottom: 6px; touch-action: none; }
+.curve-plot .box { fill: none; stroke: var(--line); }
+.curve-plot .guide { stroke: var(--line); stroke-dasharray: 2 3; }
+.curve-plot .arm { stroke: var(--fg-3); }
+.curve-plot .curve { fill: none; stroke: var(--fg); stroke-width: 2; }
+.curve-plot .handle { fill: var(--fg); cursor: grab; }
+.curve-plot .handle:focus { outline: none; }
+.curve-plot .handle:focus-visible { stroke: var(--focus); stroke-width: 3; }
+.curve-plot .hit { fill: transparent; cursor: grab; }
+.curve-sub .row { min-height: 32px; }
+.curve-sub .name { color: var(--fg-2); }
+
+main#preview { display: flex; flex-direction: column; min-height: 0; min-width: 0; background: var(--wall); color: var(--wall-ink); }
+.viewbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding-block: 8px 0; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); font-size: var(--t-sm); }
+.viewbar .seg { margin: 0; background: var(--panel); }
+.viewbar .seg button { min-height: var(--hit); padding: 0 12px; }
+.viewbar .size { display: flex; align-items: center; gap: 4px; color: var(--fg-3); }
+.viewbar .size input { width: 64px; height: 32px; text-align: right; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 0 6px; font-variant-numeric: tabular-nums; }
+.viewbar .grow { flex: 1; }
+.stage { flex: 1; min-height: 0; display: grid; place-items: center; padding: 16px 24px 24px; container-type: size; }
+/* The frame keeps the chosen frame's aspect ratio and fits whichever side is tighter; the artwork keeps the
+   stage's aspect ratio inside it, letterboxed in the page colour (spec: Stage and frames). */
+#frame { width: min(100cqw, calc(100cqh * var(--far))); aspect-ratio: var(--far); container-type: size; display: grid; place-items: center; overflow: hidden; border-radius: 2px; }
+#art { width: min(100cqw, calc(100cqh * var(--ar))); aspect-ratio: var(--ar); }
+#art > div { width: 100%; height: 100%; }
+#art svg { display: block; width: 100%; height: 100%; }
+.transport { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-block: 8px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); font-size: var(--t-sm); border-top: 1px solid var(--line); background: var(--panel); color: var(--fg-2); }
+.transport .btn { min-width: 76px; }
+.transport .seg { margin: 0; }
+.transport .seg button { padding: 0 10px; font-variant-numeric: tabular-nums; }
+.transport .note { flex: 1; min-width: 0; color: var(--fg-3); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.transport output { font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+.switch { display: inline-flex; align-items: center; gap: 8px; min-height: var(--hit); cursor: pointer; color: var(--fg-2); }
+.switch input { width: 16px; height: 16px; margin: 0; accent-color: var(--fg-2); }
+
+/* Timeline strip: a read-only view of the plan. Labels left, lanes right, one playhead across every row. */
+.strip { --lab: 132px; display: grid; grid-template-columns: var(--lab) minmax(0, 1fr); max-height: 34vh; overflow-y: auto; background: var(--panel); border-top: 1px solid var(--line); padding: 6px max(16px, env(safe-area-inset-right, 0px)) 10px max(16px, env(safe-area-inset-left, 0px)); font-size: var(--t-xs); }
+.strip-labels { display: flex; flex-direction: column; min-width: 0; padding-right: 12px; }
+.strip-labels div { display: flex; align-items: center; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--fg-3); }
+.strip-labels .tgt { color: var(--fg-2); font-weight: 500; }
+.strip-labels .prop { padding-left: 10px; }
+#strip { position: relative; display: flex; flex-direction: column; min-width: 0; cursor: ew-resize; touch-action: none; border-radius: 2px; }
+#strip:focus { outline: none; }
+#strip[data-drag] { overflow-x: clip; }
+#strip:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.lane { position: relative; overflow: hidden; }
+.phase { position: absolute; top: 2px; bottom: 2px; display: flex; align-items: center; padding: 0 6px; border-left: 1px solid var(--line); color: var(--fg-3); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.phase:first-child { border-left-color: transparent; }
+.phase.now { color: var(--fg); background: var(--raised); border-radius: 2px; }
+.edge { position: absolute; top: 0; bottom: 0; width: 1px; background: color-mix(in srgb, var(--line) 70%, transparent); pointer-events: none; }
+.bar { position: absolute; background: var(--fg-3); border-radius: 1px; }
+.bar.cut { background: repeating-linear-gradient(135deg, var(--fg-3) 0 1px, transparent 1px 4px); }
+.playhead { position: absolute; top: 0; bottom: 0; left: calc(var(--x, 0) * 100%); width: 1px; margin-left: -0.5px; background: var(--fg); pointer-events: none; }
+.playhead::before { content: ""; position: absolute; top: 0; left: -4px; width: 9px; height: 9px; border-radius: 2px; background: var(--fg); }
+#strip[aria-disabled="true"] { cursor: default; opacity: .55; }
+/* Direct editing: an editable end or section edge shows a resize cursor, a movable bar a grab hand. */
+#strip[data-hot="end"], #strip[data-drag="end"] { cursor: col-resize; }
+#strip[data-hot="move"] { cursor: grab; }
+#strip[data-drag="move"] { cursor: grabbing; }
+.bar.hot { background: var(--fg); }
+.bar.cut.hot { background: repeating-linear-gradient(135deg, var(--fg) 0 1px, transparent 1px 4px); }
+.edge.hot { background: var(--fg); }
+.edge.end { margin-left: -1px; background: transparent; }
+.edge.end.hot { background: var(--fg); }
+.btn:disabled { color: var(--fg-3); cursor: default; }
+.btn:disabled:hover { border-color: var(--line); }
+
+@media (max-width: 800px) {
+  .app { height: auto; min-height: 100%; }
+  .work { grid-template-columns: minmax(0, 1fr); }
+  main#preview { order: -1; }
+  .stage { height: 56vw; flex: none; }
+  .strip { --lab: 96px; max-height: none; }
+  aside#panel { border-right: 0; border-top: 1px solid var(--line); }
+  .view { overflow: visible; }
+  header p { display: none; }
+  .transport .note { flex-basis: 100%; order: 9; }
+}
+</style>
+
+<script type="application/json" id="timeline">__DOC__</script>
+<script type="application/json" id="layout">__LAYOUT__</script>
+<script type="application/json" id="raven-ctx">__RAVEN_CTX__</script>
+
+<div class="app">
+  <header id="summary">
+    <h1 id="title"></h1>
+    <p id="concept"></p>
+    <div id="status" role="status" aria-live="polite"></div>
+  </header>
+  <div class="work">
+    <!-- Raven Grab loads armed, so a click on the page selects instead of clicking. The panel, the bars above and
+         below the stage and the timeline strip are the playground's own controls and keep their clicks; the artwork
+         stays grabbable. -->
+    <aside id="panel" aria-label="Controls" data-raven-grab-ignore>
+      <div class="tabs" role="tablist">
+        <button role="tab" id="tab-controls" aria-controls="view-controls" aria-selected="true">Controls</button>
+        <button role="tab" id="tab-agent" aria-controls="view-agent" aria-selected="false">Send to agent</button>
+        <button role="tab" id="tab-more" aria-controls="view-more" aria-selected="false">More</button>
+      </div>
+      <div class="view" id="view-controls" role="tabpanel" aria-labelledby="tab-controls">
+        <div class="ctl" id="presets-row" hidden>
+          <div class="row"><span class="name">Start from</span></div>
+          <div class="seg" role="group" aria-label="Start from" id="presets"></div>
+        </div>
+        <div class="actions">
+          <button class="btn" id="randomise">Randomise</button>
+          <button class="btn ghost" id="reset">Reset</button>
+          <button class="btn ghost" id="undo" disabled>Undo</button>
+          <button class="btn ghost" id="redo" disabled>Redo</button>
+        </div>
+        <div id="groups"></div>
+      </div>
+      <div class="view" id="view-agent" role="tabpanel" aria-labelledby="tab-agent" hidden>
+        <div class="block">
+          <h3>Send to your agent</h3>
+          <p id="agent-lede">Copy this and paste it into Claude, Cursor or any coding agent. It carries the motion as you tuned it, and the agent writes it in whatever language your project uses.</p>
+          <textarea id="out-agent" readonly aria-label="Message for your agent" spellcheck="false"></textarea>
+          <div class="row2"><button class="btn primary" id="copy-agent">Copy for your agent</button></div>
+        </div>
+        <div id="raven-menu" class="menu-stack"></div>
+        <details class="more-code" id="code-more">
+          <summary class="btn"><span class="when-closed">Show code without an agent</span><span class="when-open">Hide code without an agent</span></summary>
+          <div id="export-menu" class="menu-stack"></div>
+        </details>
+      </div>
+      <div class="view" id="view-more" role="tabpanel" aria-labelledby="tab-more" hidden>
+        <div id="settings-menu" class="menu-stack"></div>
+        <div class="block">
+          <h3>Import settings</h3>
+          <p>Paste the settings you copied above.</p>
+          <textarea id="import-text" aria-label="Settings JSON to import" spellcheck="false"></textarea>
+          <div class="row2"><button class="btn" id="import">Import</button></div>
+        </div>
+        <div class="block">
+          <h3>Text</h3>
+          <p id="text-note"></p>
+        </div>
+      </div>
+    </aside>
+    <main id="preview">
+      <div class="viewbar" data-raven-grab-ignore>
+        <div class="seg" role="group" aria-label="Frame" id="frames"></div>
+        <div class="size" id="custom-size" hidden>
+          <input type="number" id="frame-w" min="100" max="4000" step="1" inputmode="numeric" aria-label="Frame width">
+          <span>×</span>
+          <input type="number" id="frame-h" min="100" max="4000" step="1" inputmode="numeric" aria-label="Frame height">
+        </div>
+        <span class="grow"></span>
+        <label class="switch"><input type="checkbox" id="reduced"> Reduced motion</label>
+      </div>
+      <div class="stage"><div id="frame"><div id="art"></div></div></div>
+      <div class="transport" data-raven-grab-ignore>
+        <button class="btn" id="play">Pause</button>
+        <button class="btn ghost" id="replay">Replay</button>
+        <label class="switch"><input type="checkbox" id="loop" checked> Loop</label>
+        <div class="seg" role="group" aria-label="Speed" id="speeds"></div>
+        <span class="note" id="section"></span>
+        <output id="clock"></output>
+      </div>
+      <div class="strip" data-raven-grab-ignore>
+        <div class="strip-labels" id="strip-labels" aria-hidden="true"></div>
+        <div id="strip" tabindex="0" role="slider" aria-label="Playhead" aria-valuemin="0"></div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script>
+__EVALUATOR__
+</script>
+<script>
+__EXPORT__
+</script>
+<script>
+__SWIFTUI__
+</script>
+<script>
+(function () {
+  'use strict';
+  var TL = window.MLTimeline, EX = window.MLTimelineExport, SW = window.MLTimelineSwiftUI;
+  var doc = JSON.parse(document.getElementById('timeline').textContent);
+  var layout = JSON.parse(document.getElementById('layout').textContent);
+  var params = doc.params;
+  var byId = {}; params.forEach(function (p) { byId[p.id] = p; });
+  var $ = function (id) { return document.getElementById(id); };
+  function say(msg) { $('status').textContent = msg; }
+  function defaults() { var v = {}; params.forEach(function (p) { v[p.id] = p.default; }); return v; }
+  var state = { values: defaults(), valueSeed: doc.seed >>> 0 };
+
+  $('title').textContent = doc.title;
+  $('concept').textContent = 'Tune the timing, then send it to your agent.';
+  var textTargets = Object.keys(doc.targets).filter(function (id) { return doc.targets[id].kind === 'text'; });
+  $('text-note').textContent = 'This playground shows “' + textTargets.map(function (id) { return layout.targets[id].label; }).join('”, “') + '”. The letter shapes are made when the playground is built, so other text needs a rebuild.';
+
+  // ---------- timeline ----------
+  var plan, geo, renderer, art = $('art'), frame = $('frame');
+  art.style.setProperty('--ar', doc.stage.width + ' / ' + doc.stage.height);
+  function build(values) {
+    var next = TL.compile(doc, layout, values);
+    plan = next; geo = EX.geometry(plan, layout);
+    art.innerHTML = EX.markup(plan, geo);
+    renderer = EX.mountRenderer(art, plan, geo);
+    buildStrip();
+  }
+
+  // ---------- frames ----------
+  // The stage scales uniformly into the chosen frame and is letterboxed in the page colour; it is never cropped.
+  var FRAMES = [
+    { id: 'desktop', label: 'Desktop', w: doc.stage.width, h: doc.stage.height },
+    { id: 'iphone', label: 'iPhone', w: 393, h: 852 },
+    { id: 'custom', label: 'Custom' }
+  ];
+  var frameState = { id: 'desktop', w: 1080, h: 1350 };
+  function setFrame(id) {
+    frameState.id = id;
+    var f = FRAMES.filter(function (x) { return x.id === id; })[0];
+    var w = f.w || frameState.w, h = f.h || frameState.h;
+    frame.style.setProperty('--far', w + ' / ' + h);
+    $('custom-size').hidden = id !== 'custom';
+    $('frame-w').value = frameState.w; $('frame-h').value = frameState.h;
+    [].forEach.call($('frames').children, function (b) { b.setAttribute('aria-pressed', String(b.dataset.id === id)); });
+  }
+  FRAMES.forEach(function (f) {
+    var b = document.createElement('button');
+    b.textContent = f.label; b.dataset.id = f.id;
+    if (f.w) b.title = f.w + ' × ' + f.h;
+    b.addEventListener('click', function () { setFrame(f.id); });
+    $('frames').appendChild(b);
+  });
+  ['w', 'h'].forEach(function (k) {
+    $('frame-' + k).addEventListener('change', function (e) {
+      var v = Math.round(Number(e.target.value));
+      if (isFinite(v) && v >= 100 && v <= 4000) frameState[k] = v;
+      setFrame('custom');
+    });
+  });
+
+  // ---------- playback ----------
+  var END_PAUSE = 900;
+  var rm = window.matchMedia('(prefers-reduced-motion: reduce)');
+  var reduced = rm.matches, loop = true, speed = 1;
+  var t = 0, playing = true, last = null;
+  function fmt(ms) { return (ms / 1000).toFixed(2) + ' s'; }
+  function phaseIndexAt(time) {
+    for (var i = 0; i < plan.phases.length; i++) if (time < plan.phases[i].end || i === plan.phases.length - 1) return i;
+    return 0;
+  }
+  var shownPhase = -1;
+  function draw() {
+    var at = reduced ? plan.restTime : Math.min(t, plan.total);
+    renderer.apply(at);
+    frame.style.backgroundColor = art.firstElementChild.style.backgroundColor;
+    var strip = $('strip');
+    strip.style.setProperty('--x', String(at / spanMs()));
+    strip.setAttribute('aria-valuenow', String(Math.round(at)));
+    var pi = phaseIndexAt(at);
+    strip.setAttribute('aria-valuetext', fmt(at) + ', ' + plan.phases[pi].label);
+    $('clock').textContent = fmt(at) + ' of ' + fmt(plan.total);
+    if (pi !== shownPhase) {
+      shownPhase = pi;
+      [].forEach.call(strip.querySelectorAll('.phase'), function (e, i) { e.classList.toggle('now', i === pi); });
+    }
+  }
+  function tick(now) {
+    if (playing && !reduced) {
+      if (last != null) {
+        t += (now - last) * speed;
+        if (t >= plan.total && !loop) { t = plan.total; setPlaying(false); }
+        else if (t > plan.total + END_PAUSE * speed) t = 0;
+      }
+      last = now;
+    } else last = null;
+    draw();
+    requestAnimationFrame(tick);
+  }
+  function setPlaying(on) { playing = on; $('play').textContent = on ? 'Pause' : 'Play'; }
+  function seek(ms) { setPlaying(false); t = Math.max(0, Math.min(plan.total, ms)); draw(); }
+  $('play').addEventListener('click', function () { if (!playing && t >= plan.total) t = 0; setPlaying(!playing); });
+  $('replay').addEventListener('click', function () { t = 0; setPlaying(true); });
+  $('loop').addEventListener('change', function (e) { loop = e.target.checked; if (loop && !playing && t >= plan.total) { t = 0; setPlaying(true); } });
+  [0.25, 0.5, 1].forEach(function (v) {
+    var b = document.createElement('button');
+    b.textContent = v + '×'; b.setAttribute('aria-pressed', String(v === speed)); b.setAttribute('aria-label', v + ' times speed');
+    b.addEventListener('click', function () {
+      speed = v;
+      [].forEach.call($('speeds').children, function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+    });
+    $('speeds').appendChild(b);
+  });
+  // Reduced motion: shows the rest frame, as the exports do when people ask for less motion.
+  function syncReduced() {
+    $('reduced').checked = reduced;
+    $('play').disabled = $('replay').disabled = reduced;
+    $('strip').setAttribute('aria-disabled', String(reduced));
+    $('section').textContent = reduced ? 'The still frame people see when they ask for reduced motion.' : '';
+    if (reduced) document.querySelectorAll('#strip .bar[data-tip]').forEach(function (b) { b.title = b.dataset.tip; });
+    draw();
+  }
+  rm.addEventListener('change', function () { reduced = rm.matches; syncReduced(); });
+  $('reduced').addEventListener('change', function (e) { reduced = e.target.checked; syncReduced(); });
+
+  // ---------- strip ----------
+  // One row per property of each target; every track on it is a bar, a staggered track one thin bar per part,
+  // and the part a fixed section cuts off is hatched past the section's end.
+  var PROP_LABEL = { opacity: 'Opacity', translateX: 'Move X', translateY: 'Move Y', scale: 'Scale', scaleX: 'Width', scaleY: 'Height', rotate: 'Rotation', fill: 'Fill', stroke: 'Stroke', color: 'Colour', background: 'Background', draw: 'Draw', clip: 'Reveal', blur: 'Blur' };
+  function targetLabel(id) { return doc.targets[id].kind === 'surface' ? 'Page' : (layout.targets[id] && layout.targets[id].label) || id; }
+  // While a drag is on, the strip keeps the time scale it started with, so what's dragged stays under the
+  // pointer; anything the drag pushes past the right edge is clipped until it's let go, then the scale refits.
+  var drag = null, endDrag = function () {};
+  function spanMs() { return drag ? drag.span : plan.total; }
+  function pctOf(ms) { return (ms / spanMs() * 100) + '%'; }
+  function bindParam(v) { return v && typeof v === 'object' && typeof v.param === 'string' && byId[v.param] && byId[v.param].type === 'number' ? v.param : null; }
+  var lanes = [], barEls = {}, edgeEls = [], hotEls = [], handleCache = {};
+  function buildStrip() {
+    var labels = $('strip-labels'), strip = $('strip');
+    labels.innerHTML = ''; strip.innerHTML = '';
+    lanes = []; barEls = {}; edgeEls = []; hotEls = []; handleCache = {};
+    function row(h, labelText, cls) {
+      var l = el('div', { 'class': cls || '' }); l.style.height = h + 'px'; l.textContent = labelText; labels.appendChild(l);
+      var lane = el('div', { 'class': 'lane' }); lane.style.height = h + 'px'; strip.appendChild(lane);
+      return lane;
+    }
+    var pl = row(26, 'Sections', 'tgt');
+    lanes.push({ el: pl, sections: true });
+    plan.phases.forEach(function (ph, i) {
+      var bp = bindParam(doc.phases[i].duration);
+      var hint = doc.phases[i].duration === 'auto' ? ' Its length follows its bars.' : bp ? ' Drag its right edge to change ' + byId[bp].label + '.' : '';
+      var b = el('div', { 'class': 'phase', title: ph.label + ', ' + fmt(ph.start) + ' to ' + fmt(ph.end) + '.' + hint });
+      b.style.left = pctOf(ph.start); b.style.width = 'calc(' + pctOf(ph.end - ph.start) + ' - 1px)';
+      b.textContent = ph.label; pl.appendChild(b);
+    });
+    Object.keys(doc.targets).forEach(function (id) {
+      var tracks = plan.tracks.filter(function (tr) { return tr.target === id; });
+      if (!tracks.length) return;
+      row(22, targetLabel(id), 'tgt');
+      var props = [];
+      tracks.forEach(function (tr) { if (props.indexOf(tr.property) < 0) props.push(tr.property); });
+      props.forEach(function (prop) {
+        var mine = tracks.filter(function (tr) { return tr.property === prop; });
+        var n = Math.max.apply(null, mine.map(function (tr) { return tr.parts.length; }));
+        var h = n > 1 ? Math.min(40, Math.max(20, n * 2 + 6)) : 20;
+        var lane = row(h, PROP_LABEL[prop] || prop, 'prop');
+        lanes.push({ el: lane, n: n, h: h, tracks: mine.map(function (tr) { return tr.index; }) });
+        mine.forEach(function (tr) {
+          var ph = plan.phases.filter(function (p) { return p.id === tr.phase; })[0];
+          barEls[tr.index] = [];
+          tr.parts.forEach(function (pt, i) {
+            var span = n > 1 ? (h - 6) / n : h - 8, top = n > 1 ? 3 + i * span : 4;
+            var bh = Math.max(1, n > 1 ? span - Math.min(1, span / 3) : span);
+            var b = el('div', { 'class': 'bar', title: (PROP_LABEL[prop] || prop) + ', ' + ph.label + ', ' + fmt(pt.t0) + ' to ' + fmt(pt.t1) + '.' });
+            b.dataset.track = tr.index; b.dataset.part = i;
+            b.style.left = pctOf(pt.t0); b.style.width = 'max(1px, ' + pctOf(pt.t1 - pt.t0) + ')'; b.style.top = top + 'px'; b.style.height = bh + 'px';
+            lane.appendChild(b);
+            var els = [b];
+            if (pt.cut && pt.nominalEnd > pt.t1) {
+              var c = el('div', { 'class': 'bar cut', title: 'Stops where ' + ph.label + ' ends; the rest does not play.' });
+              c.dataset.track = tr.index; c.dataset.part = i;
+              c.style.left = pctOf(pt.t1); c.style.width = pctOf(pt.nominalEnd - pt.t1); c.style.top = top + 'px'; c.style.height = bh + 'px';
+              lane.appendChild(c); els.push(c);
+            }
+            barEls[tr.index][i] = els;
+          });
+        });
+      });
+    });
+    // One edge at the end of every section; the last one sits at the strip's right end and shows only when it can be dragged.
+    plan.phases.forEach(function (ph, i) {
+      var e = el('div', { 'class': i === plan.phases.length - 1 ? 'edge end' : 'edge' }); e.style.left = pctOf(ph.end); strip.appendChild(e); edgeEls[i] = e;
+    });
+    strip.appendChild(el('div', { 'class': 'playhead' }));
+    strip.setAttribute('aria-valuemax', String(Math.round(plan.total)));
+    shownPhase = -1;
+    if (drag) markHot(drag.handle);
+  }
+
+  // ---------- direct editing ----------
+  // A drag in the strip sets the control its time is bound to, so the strip and the sliders always agree, and
+  // the sliders stay the keyboard path. A section's right edge sets its length; a bar's end sets its duration;
+  // its start sets its delay and keeps its end (when those are two controls); its body sets its delay, or, for a
+  // later part of a staggered track, the gap between parts. Every binding is linear, so each handle's movement
+  // per unit of its control is measured once from two compiles and inverted.
+  // Within one pointer move the searches compile the same values again and again; plans are never changed
+  // after compile, so the move keeps them, then drops them.
+  function planWith(values) {
+    var key = drag && drag.plans && JSON.stringify(values);
+    if (key && drag.plans && key in drag.plans) return drag.plans[key];
+    var pl;
+    try { pl = TL.compile(doc, layout, values); } catch (e) { if (e instanceof TL.TimelineError) pl = null; else throw e; }
+    if (key) drag.plans[key] = pl;
+    return pl;
+  }
+  function failWith(values) {
+    try { TL.compile(doc, layout, values); return ''; } catch (e) { if (e instanceof TL.TimelineError) return e.message; throw e; }
+  }
+  function partOf(pl, k, p) { return pl.tracks.filter(function (x) { return x.index === k; })[0].parts[p]; }
+  function measureOf(kind, h) {
+    if (kind === 'edge') return function (pl) { return pl.phases[h.phase].end; };
+    if (kind === 'end') return function (pl) { return partOf(pl, h.track, h.part).nominalEnd; };
+    return function (pl) { return partOf(pl, h.track, h.part).start; };
+  }
+  function slopeOf(pid, measure) {
+    var p = byId[pid], v0 = state.values[pid], f0 = measure(plan), d = Math.max(p.step || 1, (p.max - p.min) / 100);
+    // A wide probe first; if neither side compiles, a probe one step wide.
+    var st = p.step || 1, tries = [Math.min(p.max, v0 + d), Math.max(p.min, v0 - d), Math.min(p.max, v0 + st), Math.max(p.min, v0 - st)];
+    for (var i = 0; i < tries.length; i++) {
+      if (tries[i] === v0) continue;
+      var next = Object.assign({}, state.values); next[pid] = tries[i];
+      var pl = planWith(next);
+      if (pl) return (measure(pl) - f0) / (tries[i] - v0);
+    }
+    return 0;
+  }
+  function stepFor(pid, kind, h) {
+    if (!pid) return null;
+    var m = measureOf(kind, h), s = slopeOf(pid, m);
+    return Math.abs(s) > 1e-6 ? { pid: pid, measure: m, slope: s } : null;
+  }
+  function makeHandle(h) {
+    if (h.kind === 'edge') {
+      var ph = doc.phases[h.phase], a = ph.duration === 'auto' ? null : stepFor(bindParam(ph.duration), 'edge', h);
+      return a && { kind: 'end', h: h, steps: [a] };
+    }
+    var tr = doc.tracks[h.track];
+    var dp = tr.duration === 'phase' ? null : bindParam(tr.duration), lp = bindParam(tr.delay), sp = tr.stagger ? bindParam(tr.stagger.each) : null;
+    if (h.kind === 'end') { var e = stepFor(dp, 'end', h); return e && { kind: 'end', h: h, steps: [e] }; }
+    if (h.kind === 'start') {
+      if (!lp || !dp || lp === dp) return null;
+      var s1 = stepFor(lp, 'start', h), s2 = stepFor(dp, 'end', h);
+      return s1 && s2 && { kind: 'end', h: h, steps: [s1, s2] };
+    }
+    // The body: a later part of a staggered track sets the gap (part 0 doesn't move with it), otherwise the delay.
+    var g = stepFor(sp, 'start', h);
+    if (g) return { kind: 'move', h: h, steps: [g] };
+    var d = stepFor(lp, 'start', h);
+    return d && { kind: 'move', h: h, steps: [d], whole: true };
+  }
+  // A bar's tooltip adds what a press at the pointer would drag, from the same pick() the press uses, so it
+  // can't name a drag that isn't there (handles past the strip's edge, a bar covered by another, reduced motion).
+  function hintBar(b, hd) {
+    if (!b || !b.classList || !b.classList.contains('bar')) return;
+    if (b.dataset.tip === undefined) b.dataset.tip = b.title;
+    var tip = '', h = hd && hd.h;
+    if (h && h.kind !== 'edge') {
+      var c = byId[hd.steps[0].pid].label, own = String(h.track) === b.dataset.track && String(h.part) === b.dataset.part;
+      tip = !own ? ' Drag here to change ' + c + '.'
+        : h.kind === 'end' ? ' Drag its end to change ' + c + '.'
+        : h.kind === 'start' ? ' Drag its start to change ' + c + '; the end stays put.'
+        : ' Drag the bar to change ' + c + '.';
+    }
+    if (b.title !== b.dataset.tip + tip) b.title = b.dataset.tip + tip;
+  }
+  function handleFor(h) {
+    var key = h.kind + ':' + (h.kind === 'edge' ? h.phase : h.track + '/' + h.part);
+    if (!(key in handleCache)) handleCache[key] = makeHandle(h);
+    return handleCache[key];
+  }
+  // Under the pointer: the nearest end or edge within reach, then the bar's body; the first that can be edited wins.
+  function pick(e) {
+    if (reduced) return null;
+    var strip = $('strip'), r = strip.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+    var reach = e.pointerType === 'touch' ? 12 : 6, perMs = r.width / spanMs(), ms = x / perMs;
+    var lane = lanes.filter(function (L) { return y >= L.el.offsetTop && y < L.el.offsetTop + L.el.offsetHeight; })[0];
+    if (!lane) return null;
+    var near = [];
+    if (lane.sections) {
+      plan.phases.forEach(function (ph, i) { var d = Math.abs(ph.end - ms) * perMs; if (d <= reach) near.push({ d: d, kind: 'edge', phase: i }); });
+    } else {
+      var part = lane.n > 1 ? Math.max(0, Math.min(lane.n - 1, Math.floor((y - lane.el.offsetTop - 3) / ((lane.h - 6) / lane.n)))) : 0;
+      var bodies = [];
+      lane.tracks.forEach(function (k) {
+        var pt = plan.tracks.filter(function (x) { return x.index === k; })[0].parts[part];
+        if (!pt) return;
+        var de = Math.abs(pt.nominalEnd - ms) * perMs, ds = Math.abs(pt.start - ms) * perMs;
+        if (de <= reach) near.push({ d: de, kind: 'end', track: k, part: part });
+        if (ds <= reach) near.push({ d: ds + 0.01, kind: 'start', track: k, part: part });
+        if (ms >= pt.start && ms <= pt.nominalEnd) bodies.push({ d: reach + 1, kind: 'move', track: k, part: part });
+      });
+      near = near.concat(bodies);
+    }
+    near.sort(function (a, b) { return a.d - b.d; });
+    for (var i = 0; i < near.length; i++) { var hd = handleFor(near[i]); if (hd) return hd; }
+    return null;
+  }
+  function markHot(hd) {
+    hotEls.forEach(function (x) { x.classList.remove('hot'); });
+    hotEls = [];
+    if (!hd) return;
+    var h = hd.h;
+    if (h.kind === 'edge') hotEls = [edgeEls[h.phase]];
+    else if (hd.whole) (barEls[h.track] || []).forEach(function (els) { hotEls = hotEls.concat(els); });
+    else hotEls = ((barEls[h.track] || [])[h.part] || []).slice();
+    hotEls.forEach(function (x) { if (x) x.classList.add('hot'); });
+  }
+  // Decimal places in a number, including 1e-7 style.
+  function decimals(x) { var m = String(x).split('e'), d = (m[0].split('.')[1] || '').length - (m[1] ? +m[1] : 0); return Math.max(0, d); }
+  function shown(p, v) { var u = unitText(p); return v + (u === '°' || u === '%' || !u ? u : ' ' + u); }
+  // Solve one control for a target time from base. The search walks the control's own steps (so it never
+  // leaves its range), assumes the time moves one way as the control does, and lands on the step nearest the
+  // target; past what the timeline takes, it stops at the furthest step that fits and says why.
+  function solve(step, target, base, from) {
+    var p = byId[step.pid], v0 = base[step.pid], st = p.step || 1, want = target - from;
+    var at = function (x) { var nx = Object.assign({}, base); nx[step.pid] = x; return nx; };
+    if (Math.abs(want) < 1e-9) return { values: at(v0), why: '' };
+    var dir = want / step.slope > 0 ? 1 : -1, dec = Math.min(20, Math.max(decimals(st), decimals(p.min), decimals(v0)));
+    var kmax = Math.max(0, Math.floor(((dir > 0 ? p.max : p.min) - v0) * dir / st + 1e-9));
+    var val = function (k) { return k === 0 ? v0 : Math.min(p.max, Math.max(p.min, Number((v0 + dir * k * st).toFixed(dec)))); };
+    var memo = {}, time = function (k) { if (!(k in memo)) { var pl = planWith(at(val(k))); memo[k] = pl ? step.measure(pl) : null; } return memo[k]; };
+    var short = function (k) { return (time(k) - target) * (want > 0 ? 1 : -1) < 0; };
+    // The furthest step that fits between a step that does (ok) and one that doesn't (bad).
+    var why = '', fit = function (ok, bad) {
+      why = failWith(at(val(bad)));
+      for (var i = 0; i < 64 && bad - ok > 1; i++) { var m = Math.floor((ok + bad) / 2); if (time(m) === null) bad = m; else ok = m; }
+      return ok;
+    };
+    var hi = Math.min(kmax, Math.max(1, Math.round(Math.abs(want / step.slope) / st)));
+    if (time(hi) === null) hi = fit(0, hi);
+    // Short of the target (the binding bends): reach further, doubling.
+    for (var j = 0; j < 64 && why === '' && hi < kmax && short(hi); j++) {
+      var next = Math.min(kmax, hi * 2);
+      if (time(next) === null) { hi = fit(hi, next); break; }
+      hi = next;
+    }
+    if (short(hi)) return best(hi, why);
+    var lo = 0;
+    for (var i = 0; i < 64 && hi - lo > 1; i++) { var m = Math.floor((lo + hi) / 2); if (short(m)) lo = m; else hi = m; }
+    return best(Math.abs(time(lo) - target) <= Math.abs(time(hi) - target) ? lo : hi, '');
+    // A binding that turns back (a falling time past an auto section's bend) breaks the one-way assumption:
+    // never land further from the target than any step already measured, or than where the drag started.
+    function best(k, why) {
+      time(0);
+      Object.keys(memo).forEach(function (j) { if (memo[j] !== null && Math.abs(memo[j] - target) < Math.abs(time(k) - target) - 1e-9) k = +j; });
+      return { values: at(val(k)), why: why };
+    }
+  }
+  // Each move solves from where the drag has got to (not where it started), so a binding that turns back
+  // can't make the bar jump away from the pointer.
+  function dragTo(clientX) {
+    var d = drag, hd = d.handle, s0 = hd.steps[0], s1 = hd.steps[1], cur = state.values;
+    // Something else changed the values mid-drag (Reset, a preset, a slider): carry on from them.
+    if (d.last && !sameValues(cur, d.last)) { d.base = Object.assign({}, cur); d.origin = hd.steps.map(function (s) { return s.measure(plan); }); d.x0 = clientX; d.cap = null; }
+    d.plans = {};
+    var target = d.origin[0] + (clientX - d.x0) / d.width * d.span, f0 = s0.measure(plan);
+    var r = s1 ? null : solve(s0, target, cur, f0);
+    if (s1) {
+      // A start trim: move the start, then the duration puts the end back where it was.
+      var keep = function (v) { var r2 = solve(s1, d.origin[1], v.values, s1.measure(planWith(v.values))); return { values: r2.values, why: v.why || r2.why }; };
+      var tol0 = Math.abs(s0.slope) * (byId[s0.pid].step || 1) / 2 + 0.5;
+      var once = function (t, v, f) {
+        var a = keep(solve(s0, t, v, f));
+        // Moving the start first can collide with a neighbour that the shorter bar would clear: shorten first, then move.
+        if (a.why) {
+          var e1 = s1.measure(planWith(v)), pre = solve(s1, e1 - (t - f), v, e1);
+          var b = keep(solve(s0, t, pre.values, s0.measure(planWith(pre.values))));
+          var miss = function (x) { var pl = planWith(x.values); return pl ? Math.abs(s0.measure(pl) - t) + Math.abs(s1.measure(pl) - d.origin[1]) : Infinity; };
+          if (miss(b) < miss(a)) a = b;
+        }
+        return a;
+      };
+      // The duration can also set an earlier section, so moving the start and putting the end back pull on each
+      // other. Solve both together from their measured slopes (Newton steps on the two controls' grids), keeping a
+      // step only when it lands closer; the result depends on where the pointer is, not on the moves that got there.
+      var p0 = byId[s0.pid], p1 = byId[s1.pid], e0 = d.origin[1];
+      var snap = function (p, x) { var q = quantize(p, x), st = p.step || 0; if (st > 0 && q > p.max) q = quantize(p, q - st); return q; };
+      var both = function (v) { var pl = planWith(v); return pl ? [s0.measure(pl), s1.measure(pl)] : null; };
+      var with2 = function (v, a, b) { var nx = Object.assign({}, v); nx[s0.pid] = a; nx[s1.pid] = b; return nx; };
+      var col = function (v, m, p, i) {
+        // Probe one step (the local slope, which a bend nearby doesn't skew), then ten if one step doesn't compile.
+        var st = p.step || 1, x = v[i ? s1.pid : s0.pid], tries = [1, -1, 10, -10];
+        for (var j = 0; j < tries.length; j++) {
+          var h = tries[j] * st, y = Math.min(p.max, Math.max(p.min, x + h)); if (y === x) continue;
+          var nv = i ? with2(v, v[s0.pid], y) : with2(v, y, v[s1.pid]), mm = both(nv);
+          if (mm) return [(mm[0] - m[0]) / (y - x), (mm[1] - m[1]) / (y - x)];
+        }
+        return null;
+      };
+      var within = function (m, t) { return m && Math.abs(m[0] - t) <= tol0 && Math.abs(m[1] - e0) <= tol; };
+      var missOf = function (v, t) { var m = both(v); return m ? Math.abs(m[0] - t) / tol0 + Math.abs(m[1] - e0) / tol : Infinity; };
+      var newton = function (t) {
+        var x = cur, bm = missOf(x, t);
+        for (var n = 0; n < 12; n++) {
+          var m = both(x); if (!m || within(m, t)) break;
+          var a = col(x, m, p0, 0), b = col(x, m, p1, 1); if (!a || !b) break;
+          var det = a[0] * b[1] - b[0] * a[1]; if (Math.abs(det) < 1e-12) break;
+          var r0 = t - m[0], r1 = e0 - m[1], u0 = (b[1] * r0 - b[0] * r1) / det, u1 = (a[0] * r1 - a[1] * r0) / det, y, my;
+          // A step that lands further away (it crossed a bend) is halved until it lands closer.
+          for (var h = 1, k = 0; k < 8; k++, h /= 2) {
+            y = with2(x, snap(p0, x[s0.pid] + u0 * h), snap(p1, x[s1.pid] + u1 * h)); my = missOf(y, t);
+            if (sameValues(y, x) || my < bm) break;
+          }
+          if (sameValues(y, x) || my >= bm) break;
+          x = y; bm = my;
+        }
+        // One pass over the neighbouring steps for what the grid and the range let through.
+        if (!within(both(x), t)) {
+          var st0 = p0.step || 1, st1 = p1.step || 1, c = x;
+          [-1, 0, 1].forEach(function (i) { [-1, 0, 1].forEach(function (k) {
+            if (!i && !k) return;
+            var y = with2(c, snap(p0, c[s0.pid] + i * st0), snap(p1, c[s1.pid] + k * st1)), my = missOf(y, t);
+            if (my < bm) { x = y; bm = my; }
+          }); });
+        }
+        return { values: x, why: '', miss: bm };
+      };
+      var trial = function (t) {
+        var a = newton(t);
+        if (within(both(a.values), t)) return a;
+        // Fall back to one control at a time (it says why when a neighbour is in the way).
+        var b = once(t, cur, f0);
+        return missOf(b.values, t) < a.miss ? b : a;
+      };
+      var endMiss = function (v) { return Math.abs(s1.measure(planWith(v.values)) - d.origin[1]); };
+      var tol = Math.abs(s1.slope) * (byId[s1.pid].step || 1) / 2 + 0.5;
+      var dir = target > f0 ? 1 : -1, capped = d.cap && d.cap.dir === dir && (target - d.cap.at) * dir >= 0;
+      // Already stopped at the cap and pulling further the same way: nothing changes.
+      if (capped) r = { values: cur, why: d.cap.why };
+      else {
+        d.cap = null;
+        r = trial(target);
+        // The duration ran out (at its shortest or longest): the start stops where the end can still stay put.
+        // The search halves the distance down to one step of the start's control.
+        // Only a duration that can't go the way the end needs (its range, or a neighbour in the way) stops the
+        // start; a target between two grid steps doesn't.
+        var rest = function () {
+          var need = (e0 - s1.measure(planWith(r.values))) / s1.slope > 0 ? 1 : -1, nv = Object.assign({}, r.values);
+          nv[s1.pid] = snap(p1, r.values[s1.pid] + need * (p1.step || 1));
+          return sameValues(nv, r.values) ? 'range' : planWith(nv) ? '' : failWith(nv);
+        };
+        var stop = endMiss(r) > tol ? rest() : '';
+        if (stop) {
+          var lo = f0, hi = target, good = { values: cur, why: '' };
+          for (var i = 0; i < 24 && Math.abs(hi - lo) > tol0; i++) { var m = (lo + hi) / 2, c = trial(m); if (endMiss(c) <= tol) { lo = m; good = c; } else hi = m; }
+          r = { values: good.values, why: good.why || (stop === 'range' ? byId[s1.pid].label + ' is at its ' + (dir > 0 ? 'shortest' : 'longest') : stop) };
+          d.cap = { dir: dir, at: target, why: r.why };
+        }
+      }
+    }
+    if (!sameValues(r.values, state.values)) apply(r.values, null, true);
+    d.last = state.values; d.plans = null;
+    say(hd.steps.map(function (s) { return byId[s.pid].label + ' ' + shown(byId[s.pid], state.values[s.pid]); }).join(', ') + '.' + (r.why ? ' That’s as far as it goes: ' + r.why + '.' : ''));
+  }
+
+  (function () {
+    var strip = $('strip'), scrubbing = false;  // false, or the id of the pointer scrubbing
+    function timeAt(e) { var r = strip.getBoundingClientRect(); return (e.clientX - r.left) / r.width * spanMs(); }
+    function setHot(hd) { markHot(hd); if (hd) strip.dataset.hot = hd.kind; else delete strip.dataset.hot; }
+    strip.addEventListener('pointerdown', function (e) {
+      if (reduced || e.button !== 0 || drag || scrubbing !== false) return;
+      strip.setPointerCapture(e.pointerId); strip.focus(); e.preventDefault();
+      var hd = pick(e);
+      if (hd) {
+        drag = { pointerId: e.pointerId, handle: hd, x0: e.clientX, width: strip.getBoundingClientRect().width, span: plan.total, base: Object.assign({}, state.values), origin: hd.steps.map(function (s) { return s.measure(plan); }), moved: false };
+        strip.dataset.drag = hd.kind; setHot(hd);
+        return;
+      }
+      scrubbing = e.pointerId; seek(timeAt(e));
+    });
+    function owns(e) { return drag ? e.pointerId === drag.pointerId : scrubbing !== false && e.pointerId === scrubbing; }
+    strip.addEventListener('pointermove', function (e) {
+      if ((drag || scrubbing !== false) && !owns(e)) return;
+      if (drag) { if (Math.abs(e.clientX - drag.x0) >= 3) drag.moved = true; if (drag.moved) dragTo(e.clientX); return; }
+      if (scrubbing !== false) { seek(timeAt(e)); return; }
+      if (e.pointerType !== 'touch') { var hd = pick(e); setHot(hd); hintBar(e.target, hd); }
+    });
+    // A press on a bar that doesn't move still moves the playhead there.
+    function finish(e) {
+      if (drag) {
+        var d = drag; drag = null; delete strip.dataset.drag;
+        buildStrip();
+        if (!d.moved && e) seek(timeAt(e)); else draw();
+        commit();
+        setHot(e && e.pointerType !== 'touch' ? pick(e) : null);
+      }
+      scrubbing = false;
+    }
+    strip.addEventListener('pointerup', function (e) { if (owns(e)) finish(e); });
+    strip.addEventListener('pointercancel', function (e) { if (owns(e)) finish(null); });
+    strip.addEventListener('pointerleave', function () { if (!drag && scrubbing === false) setHot(null); });
+    // Undo or Redo mid-drag ends the drag where it is; the history step comes first.
+    // Capture lost (the browser or another script took it): the gesture ends where it is.
+    strip.addEventListener('lostpointercapture', function (e) { if (owns(e)) finish(null); });
+    endDrag = function () {
+      if (!drag) return;
+      drag = null; delete strip.dataset.drag;
+      buildStrip(); draw(); setHot(null);
+    };
+    // Arrows move 10 ms (100 ms with Shift); Page keys jump between sections; Space plays and pauses.
+    // Escape during a drag puts the values back as they were when it started.
+    strip.addEventListener('keydown', function (e) {
+      if (drag && e.key === 'Escape') {
+        var d = drag; drag = null; delete strip.dataset.drag;
+        apply(d.base, 'Put back as it was.', true);
+        buildStrip(); draw(); setHot(null);
+        e.preventDefault(); return;
+      }
+      if (reduced) return;
+      var at = Math.min(t, plan.total), step = e.shiftKey ? 100 : 10, starts = plan.phases.map(function (p) { return p.start; }).concat([plan.total]);
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') seek(at - step);
+      else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') seek(at + step);
+      else if (e.key === 'Home') seek(0);
+      else if (e.key === 'End') seek(plan.total);
+      else if (e.key === 'PageDown') { var next = starts.filter(function (s) { return s > at + 0.5; })[0]; seek(next === undefined ? plan.total : next); }
+      else if (e.key === 'PageUp') seek(starts.filter(function (s) { return s < at - 0.5; }).pop() || 0);
+      else if (e.key === ' ') { if (t >= plan.total) t = 0; setPlaying(!playing); }
+      else return;
+      e.preventDefault();
+    });
+  })();
+
+  build(state.values);
+  setFrame('desktop');
+  syncReduced();
+  requestAnimationFrame(tick);
+
+  // ---------- values ----------
+  function quantize(p, v) {
+    v = Math.min(p.max, Math.max(p.min, v));
+    if (p.step > 0) v = p.min + Math.round((v - p.min) / p.step) * p.step;
+    return Number(v.toFixed(Math.min(20, Math.max(decimals(p.step), decimals(p.min)))));
+  }
+  function validValue(p, v) {
+    if (p.type === 'number') return typeof v === 'number' && isFinite(v) && v >= p.min && v <= p.max && Math.abs(quantize(p, v) - v) < 1e-9;
+    if (p.type === 'enum') return p.options.some(function (o) { return o.value === v; });
+    if (p.type === 'color') return typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v);
+    if (p.type === 'boolean') return typeof v === 'boolean';
+    if (p.type === 'curve') return TL.curveValueOk(v, p.kinds);
+    return false;
+  }
+  function sameValue(p, a, b) { return p.type === 'curve' ? TL.curveKey(a) === TL.curveKey(b) : a === b; }
+  function sameValues(a, b) { return params.every(function (p) { return sameValue(p, a[p.id], b[p.id]); }); }
+
+  // ---------- undo ----------
+  // One step per finished change: a slider or strip drag is one step when it's let go, a button press is one step.
+  // hist.base is the settings as of the last step.
+  var hist = { undo: [], redo: [], base: Object.assign({}, state.values) };
+  function syncHistory() { $('undo').disabled = !hist.undo.length; $('redo').disabled = !hist.redo.length; }
+  function commit() {
+    if (sameValues(hist.base, state.values)) return;
+    hist.undo.push(hist.base); if (hist.undo.length > 100) hist.undo.shift();
+    hist.base = Object.assign({}, state.values); hist.redo = [];
+    syncHistory();
+  }
+  function listText(names) { return names.length > 2 ? names.length + ' settings' : names.join(' and '); }
+  function stepHistory(dir) {
+    endDrag();
+    commit();
+    var from = dir === 'undo' ? hist.undo : hist.redo, to = dir === 'undo' ? hist.redo : hist.undo;
+    if (!from.length) return;
+    var next = from.pop(), names = params.filter(function (p) { return !sameValue(p, hist.base[p.id], next[p.id]); }).map(function (p) { return p.label; });
+    to.push(hist.base); hist.base = Object.assign({}, next);
+    apply(Object.assign({}, next), (dir === 'undo' ? 'Undone: ' : 'Redone: ') + listText(names) + '.', true);
+    syncHistory();
+  }
+  $('undo').addEventListener('click', function () { stepHistory('undo'); });
+  $('redo').addEventListener('click', function () { stepHistory('redo'); });
+  // ⌘Z / Ctrl+Z undoes, with Shift (or Ctrl+Y) redoes; a text or number field keeps its own undo.
+  document.addEventListener('keydown', function (e) {
+    if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
+    var k = e.key.toLowerCase(); if (k !== 'z' && k !== 'y') return;
+    var a = document.activeElement;
+    if (a && (a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && a.type !== 'range' && a.type !== 'checkbox'))) return;
+    stepHistory(k === 'y' || e.shiftKey ? 'redo' : 'undo'); e.preventDefault();
+  });
+
+  // A change the timeline can't take (a delay longer than its section, say) is undone and explained.
+  // A live change (mid-drag) is not an undo step yet; the drag's end makes it one.
+  function apply(values, okMsg, live) {
+    try { build(values); } catch (e) {
+      if (!(e instanceof TL.TimelineError)) throw e;
+      say('That setting doesn’t fit: ' + e.message + '. Changed back.');
+      syncControls();
+      return false;
+    }
+    state.values = values;
+    if (t > plan.total + END_PAUSE) t = plan.total;
+    syncControls(); queueExports();
+    if (!live) commit();
+    if (okMsg) say(okMsg);
+    return true;
+  }
+  function setParam(id, v, live) {
+    var p = byId[id];
+    if (p.type === 'number') { v = Number(v); if (!isFinite(v)) return; v = quantize(p, v); }
+    if (!validValue(p, v)) return;
+    var next = Object.assign({}, state.values); next[id] = v;
+    apply(next, null, live);
+  }
+
+  // ---------- panel ----------
+  var ui = {};
+  function unitText(p) { return p.unit === 'deg' ? '°' : p.unit === '%' ? '%' : p.unit || ''; }
+  function el(tag, attrs, html) { var e = document.createElement(tag); for (var k in attrs || {}) e.setAttribute(k, attrs[k]); if (html != null) e.innerHTML = html; return e; }
+  document.addEventListener('keydown', function () { document.documentElement.setAttribute('data-input', 'key'); }, true);
+  ['pointermove', 'pointerdown'].forEach(function (ty) { document.addEventListener(ty, function () { document.documentElement.removeAttribute('data-input'); }, true); });
+  function placeHelp(e) {
+    var c = e.target.closest && e.target.closest('.ctl'), h = c && c.querySelector('.help'); if (!h) return;
+    var v = c.closest('.view'), room = Math.min(innerHeight, v ? v.getBoundingClientRect().bottom : innerHeight);
+    c.classList.toggle('help-up', c.getBoundingClientRect().bottom + h.offsetHeight > room);
+  }
+  document.addEventListener('pointerover', placeHelp);
+  document.addEventListener('focusin', placeHelp);
+
+  function buildPanel() {
+    var root = $('groups');
+    doc.groups.forEach(function (g) {
+      var sec = el('section', { 'class': 'group', 'data-group': g.id });
+      sec.appendChild(el('h2')).textContent = g.label;
+      params.filter(function (p) { return p.group === g.id; }).forEach(function (p) { sec.appendChild(buildControl(p)); });
+      root.appendChild(sec);
+    });
+    var presets = doc.presets || [];
+    $('presets-row').hidden = !presets.length;
+    presets.forEach(function (pr) {
+      var b = el('button', { 'aria-pressed': 'false' }); b.textContent = pr.label;
+      b.addEventListener('click', function () { apply(Object.assign(defaults(), pr.values), pr.label + ' settings.') && (t = 0, setPlaying(true)); });
+      $('presets').appendChild(b);
+    });
+  }
+  function buildControl(p) {
+    var wrap = el('div', { 'class': 'ctl', 'data-id': p.id });
+    var row = el('div', { 'class': 'row' });
+    var c = { wrap: wrap };
+    if (p.type === 'number') {
+      var name = el('label', { 'class': 'name', 'for': 'in-' + p.id }); name.textContent = p.label; row.appendChild(name);
+      var box = el('label', { 'class': 'num', 'for': 'num-' + p.id });
+      var num = el('input', { id: 'num-' + p.id, type: 'number', min: p.min, max: p.max, step: p.step, inputmode: 'decimal', 'aria-label': p.label + ' value' });
+      box.appendChild(num); box.appendChild(el('span')).textContent = unitText(p);
+      row.appendChild(box); wrap.appendChild(row);
+      var range = el('input', { id: 'in-' + p.id, type: 'range', min: p.min, max: p.max, step: p.step });
+      range.addEventListener('input', function () { setParam(p.id, range.value, true); });
+      range.addEventListener('change', commit);
+      range.addEventListener('dblclick', function () { setParam(p.id, p.default); say(p.label + ' back to ' + p.default + unitText(p) + '.'); });
+      num.addEventListener('change', function () { setParam(p.id, num.value); syncControls(); });
+      c.range = range; c.num = num;
+      wrap.appendChild(range);
+    } else if (p.type === 'enum') {
+      row.appendChild(el('span', { 'class': 'name' })).textContent = p.label; wrap.appendChild(row);
+      var seg = el('div', { 'class': 'seg', role: 'group', id: 'in-' + p.id, 'aria-label': p.label });
+      c.opts = p.options.map(function (o) {
+        var b = el('button', { 'aria-pressed': 'false' }); b.textContent = o.label;
+        b.addEventListener('click', function () { setParam(p.id, o.value); });
+        seg.appendChild(b); return { b: b, v: o.value };
+      });
+      wrap.appendChild(seg);
+    } else if (p.type === 'color') {
+      row.appendChild(el('span', { 'class': 'name' })).textContent = p.label; wrap.appendChild(row);
+      var sw = el('div', { 'class': 'swatches', role: 'group', id: 'in-' + p.id, 'aria-label': p.label });
+      c.opts = (p.swatches || []).map(function (hex) {
+        var b = el('button', { 'aria-pressed': 'false', 'aria-label': hex }, '<i style="background:' + hex + '"></i>');
+        b.addEventListener('click', function () { setParam(p.id, hex); });
+        sw.appendChild(b); return { b: b, v: hex };
+      });
+      var pick = el('label', { title: 'Pick any colour' }, '<svg viewBox="0 0 256 256" aria-hidden="true"><path fill="currentColor" d="M224 67.3a35.79 35.79 0 0 0-11.26-25.66c-14-13.28-36.72-12.78-50.62 1.13L142.8 62.2a24 24 0 0 0-33.14.77l-9 9a16 16 0 0 0 0 22.64l2 2.06-51 51a39.75 39.75 0 0 0-10.53 38l-8 18.41A13.68 13.68 0 0 0 36 219.3a15.92 15.92 0 0 0 17.71 3.35L71.23 215a39.89 39.89 0 0 0 37.06-10.75l51-51 2.06 2.06a16 16 0 0 0 22.62 0l9-9a24 24 0 0 0 .74-33.18l19.75-19.87A35.75 35.75 0 0 0 224 67.3ZM97 193a24 24 0 0 1-24 6 8 8 0 0 0-5.55.31l-18.1 7.91L57 189.41a8 8 0 0 0 .25-6.17 23.88 23.88 0 0 1 5.82-25.06l51-51 33.94 34Zm103.85-105.4-25.43 25.53a8 8 0 0 0 0 11.31l4.89 4.88a8 8 0 0 1 0 11.32l-9 9L112 108l9-9a8 8 0 0 1 11.31 0l4.89 4.89a8 8 0 0 0 5.65 2.34 8 8 0 0 0 5.66-2.36l24.94-25.09c7.81-7.82 20.5-8.18 28.29-.81a20 20 0 0 1 .39 28.7Z"/></svg>');
+      var picker = el('input', { type: 'color', 'aria-label': p.label + ', any colour' });
+      picker.addEventListener('input', function () { setParam(p.id, picker.value.toLowerCase(), true); });
+      picker.addEventListener('change', commit);
+      pick.appendChild(picker); sw.appendChild(pick);
+      c.picker = picker; c.hex = el('code'); sw.appendChild(c.hex);
+      wrap.appendChild(sw);
+    } else if (p.type === 'curve') {
+      buildCurve(p, c, wrap, row);
+    }
+    if (p.help) { var h = el('p', { 'class': 'help' }); h.textContent = p.help; wrap.appendChild(h); }
+    ui[p.id] = c;
+    return wrap;
+  }
+  // ---------- curve control ----------
+  // Two kinds share one plot: a curve with two handles, or a spring drawn over its duration.
+  var KIND_LABEL = { bezier: 'Curve', spring: 'Spring' };
+  var KIND_START = { bezier: { kind: 'bezier', points: [0.25, 0.1, 0.25, 1] }, spring: { kind: 'spring', duration: 400, bounce: 0 } };
+  // The plot shows −0.4 to 1.4; a handle beyond that (the schema allows −1 to 2) is drawn pinned at the edge.
+  var PW = 300, PH = 180, PX = 14, Y0 = -0.4, Y1 = 1.4, YMIN = -1, YMAX = 2;
+  function px(x) { return PX + x * (PW - 2 * PX); }
+  function py(y) { return PH - 10 - (y - Y0) / (Y1 - Y0) * (PH - 20); }
+  function r2(v) { return Math.round(v * 100) / 100; }
+  function curveText(v) { return v.kind === 'bezier' ? v.points.map(function (n) { return String(r2(n)); }).join(', ') : v.duration + ' ms, bounce ' + v.bounce; }
+  function buildCurve(p, c, wrap, row) {
+    var read = el('span', { 'class': 'curve-read' }); row.insertBefore(el('span', { 'class': 'name' }), row.firstChild).textContent = p.label;
+    row.appendChild(read); wrap.appendChild(row);
+    c.read = read; c.last = {};
+    if (p.kinds.length > 1) {
+      var ks = el('div', { 'class': 'seg', role: 'group', 'aria-label': p.label + ' kind' });
+      c.kinds = p.kinds.map(function (k) {
+        var b = el('button', { 'aria-pressed': 'false' }); b.textContent = KIND_LABEL[k];
+        b.addEventListener('click', function () {
+          var v = state.values[p.id]; if (v.kind === k) return;
+          c.last[v.kind] = v;
+          var stop = (p.stops || []).filter(function (s) { return s.value.kind === k; })[0];
+          setParam(p.id, c.last[k] || (stop && stop.value) || KIND_START[k]);
+        });
+        ks.appendChild(b); return { b: b, v: k };
+      });
+      wrap.appendChild(ks);
+    }
+    if (p.stops && p.stops.length) {
+      var ss = el('div', { 'class': 'seg', role: 'group', 'aria-label': p.label + ' presets' });
+      c.stops = p.stops.map(function (st) {
+        var b = el('button', { 'aria-pressed': 'false' }); b.textContent = st.label;
+        b.addEventListener('click', function () { setParam(p.id, st.value); });
+        ss.appendChild(b); return { b: b, v: st.value };
+      });
+      wrap.appendChild(ss);
+    }
+    var NS = 'http://www.w3.org/2000/svg';
+    function sv(tag, attrs) { var e = document.createElementNS(NS, tag); for (var k in attrs) e.setAttribute(k, attrs[k]); return e; }
+    var svg = sv('svg', { 'class': 'curve-plot', viewBox: '0 0 ' + PW + ' ' + PH, role: 'group', 'aria-label': p.label + ' shape' });
+    svg.appendChild(sv('rect', { 'class': 'box', x: px(0), y: py(1), width: px(1) - px(0), height: py(0) - py(1) }));
+    svg.appendChild(sv('line', { 'class': 'guide', x1: px(0), y1: py(0), x2: px(1), y2: py(1) }));
+    var arm1 = sv('line', { 'class': 'arm' }), arm2 = sv('line', { 'class': 'arm' }), path = sv('path', { 'class': 'curve' });
+    svg.appendChild(arm1); svg.appendChild(arm2); svg.appendChild(path);
+    c.svg = svg; c.path = path; c.arms = [arm1, arm2]; c.handles = [];
+    ['Start', 'End'].forEach(function (name, h) {
+      // The hit circle is 44 px across at the plot's 300-unit width or wider.
+      var hit = sv('circle', { 'class': 'hit', r: 22 });
+      var dot = sv('circle', { 'class': 'handle', r: 6, tabindex: '0', role: 'slider', 'aria-label': p.label + ', ' + name.toLowerCase() + ' handle' });
+      svg.appendChild(hit); svg.appendChild(dot);
+      c.handles.push({ hit: hit, dot: dot });
+      function moveTo(x, y, live) {
+        var v = state.values[p.id]; if (v.kind !== 'bezier') return;
+        var pts = v.points.slice();
+        // An axis passed as null keeps its value as it is.
+        if (x !== null) pts[h * 2] = r2(Math.min(1, Math.max(0, x)));
+        if (y !== null) pts[h * 2 + 1] = r2(Math.min(YMAX, Math.max(YMIN, y)));
+        setParam(p.id, { kind: 'bezier', points: pts }, live);
+      }
+      var drag = false;
+      [hit, dot].forEach(function (e) {
+        e.addEventListener('pointerdown', function (ev) { drag = true; e.setPointerCapture(ev.pointerId); ev.preventDefault(); dot.focus(); });
+        e.addEventListener('pointermove', function (ev) {
+          if (!drag) return;
+          var r = svg.getBoundingClientRect(), sx = (ev.clientX - r.left) / r.width * PW, sy = (ev.clientY - r.top) / r.height * PH;
+          moveTo((sx - PX) / (PW - 2 * PX), Y0 + (PH - 10 - sy) / (PH - 20) * (Y1 - Y0), true);
+        });
+        e.addEventListener('pointerup', function () { drag = false; commit(); });
+        e.addEventListener('pointercancel', function () { drag = false; commit(); });
+      });
+      // Arrows move a handle by 0.01, or 0.1 with Shift.
+      dot.addEventListener('keydown', function (ev) {
+        var v = state.values[p.id]; if (v.kind !== 'bezier') return;
+        var d = ev.shiftKey ? 0.1 : 0.01, x = v.points[h * 2], y = v.points[h * 2 + 1];
+        if (ev.key === 'ArrowLeft') moveTo(x - d, null); else if (ev.key === 'ArrowRight') moveTo(x + d, null);
+        else if (ev.key === 'ArrowUp') moveTo(null, y + d); else if (ev.key === 'ArrowDown') moveTo(null, y - d); else return;
+        ev.preventDefault();
+      });
+    });
+    wrap.appendChild(svg);
+    // Spring settings: duration and bounce, each a slider with its number.
+    var sub = el('div', { 'class': 'curve-sub' });
+    c.spring = {};
+    [{ k: 'duration', label: 'Duration', min: 50, max: 2000, step: 10, unit: 'ms' }, { k: 'bounce', label: 'Bounce', min: 0, max: 0.9, step: 0.05, unit: '' }].forEach(function (q) {
+      var id = 'in-' + p.id + '-' + q.k;
+      var r = el('div', { 'class': 'row' });
+      r.appendChild(el('label', { 'class': 'name', 'for': id })).textContent = q.label;
+      var box = el('label', { 'class': 'num', 'for': 'num-' + p.id + '-' + q.k });
+      var num = el('input', { id: 'num-' + p.id + '-' + q.k, type: 'number', min: q.min, max: q.max, step: q.step, inputmode: 'decimal', 'aria-label': p.label + ' ' + q.label.toLowerCase() + ' value' });
+      box.appendChild(num); box.appendChild(el('span')).textContent = q.unit;
+      r.appendChild(box); sub.appendChild(r);
+      var range = el('input', { id: id, type: 'range', min: q.min, max: q.max, step: q.step });
+      sub.appendChild(range);
+      function set(raw, live) {
+        var v = state.values[p.id], n = Number(raw); if (v.kind !== 'spring' || !isFinite(n)) return;
+        n = Math.min(q.max, Math.max(q.min, Math.round(n / q.step) * q.step)); n = Number(n.toFixed(2));
+        var next = { kind: 'spring', duration: v.duration, bounce: v.bounce }; next[q.k] = n;
+        setParam(p.id, next, live);
+      }
+      range.addEventListener('input', function () { set(range.value, true); });
+      range.addEventListener('change', commit);
+      num.addEventListener('change', function () { set(num.value); syncControls(); });
+      c.spring[q.k] = { range: range, num: num, q: q };
+    });
+    c.sub = sub;
+    wrap.appendChild(sub);
+  }
+  function drawCurve(p, c, v) {
+    c.read.textContent = curveText(v);
+    var bez = v.kind === 'bezier', d;
+    if (bez) {
+      var q = v.points;
+      d = 'M' + px(0) + ' ' + py(0) + ' C' + px(q[0]) + ' ' + py(q[1]) + ' ' + px(q[2]) + ' ' + py(q[3]) + ' ' + px(1) + ' ' + py(1);
+      [[0, 0, q[0], q[1]], [1, 1, q[2], q[3]]].forEach(function (a, h) {
+        var hx = px(a[2]), hy = py(Math.min(Y1, Math.max(Y0, a[3])));
+        c.arms[h].setAttribute('x1', px(a[0])); c.arms[h].setAttribute('y1', py(a[1])); c.arms[h].setAttribute('x2', hx); c.arms[h].setAttribute('y2', hy);
+        c.handles[h].hit.setAttribute('cx', hx); c.handles[h].hit.setAttribute('cy', hy);
+        c.handles[h].dot.setAttribute('cx', hx); c.handles[h].dot.setAttribute('cy', hy);
+        c.handles[h].dot.setAttribute('aria-valuetext', 'across ' + r2(a[2]) + ', up ' + r2(a[3]));
+      });
+    } else {
+      // The spring from 0 to 1, drawn over one and a half of its durations.
+      var co = TL.springCoef(v.duration / 1000, v.bounce, -1, 0), span = 1.5 * v.duration / 1000, pts = [];
+      for (var i = 0; i <= 90; i++) { var u = i / 90; pts.push(px(u) + ' ' + py(Math.min(Y1, Math.max(Y0, 1 + TL.springY(co, u * span))))); }
+      d = 'M' + pts.join(' L');
+    }
+    c.path.setAttribute('d', d);
+    c.arms.forEach(function (a) { a.style.display = bez ? '' : 'none'; });
+    c.handles.forEach(function (h) { h.hit.style.display = h.dot.style.display = bez ? '' : 'none'; });
+    c.sub.hidden = bez;
+    if (!bez) {
+      ['duration', 'bounce'].forEach(function (k) {
+        var s = c.spring[k], x = v[k];
+        if (Number(s.range.value) !== x) s.range.value = x;
+        if (document.activeElement !== s.num) s.num.value = x;
+        s.range.style.setProperty('--p', ((Math.min(s.q.max, Math.max(s.q.min, x)) - s.q.min) / (s.q.max - s.q.min) * 100) + '%');
+      });
+    }
+    if (c.kinds) c.kinds.forEach(function (o) { o.b.setAttribute('aria-pressed', String(o.v === v.kind)); });
+    if (c.stops) c.stops.forEach(function (o) { o.b.setAttribute('aria-pressed', String(TL.curveKey(o.v) === TL.curveKey(v))); });
+  }
+  function syncControls() {
+    params.forEach(function (p) {
+      var c = ui[p.id], v = state.values[p.id];
+      if (c.range) {
+        if (Number(c.range.value) !== v) c.range.value = v;
+        if (document.activeElement !== c.num) c.num.value = v;
+        c.range.style.setProperty('--p', ((v - p.min) / (p.max - p.min) * 100) + '%');
+      }
+      if (c.opts) c.opts.forEach(function (o) { o.b.setAttribute('aria-pressed', String(o.v === v)); });
+      if (c.picker) { c.picker.value = v.toLowerCase(); c.hex.textContent = v.toUpperCase(); }
+      if (c.svg) drawCurve(p, c, v);
+    });
+    var btns = $('presets').children;
+    (doc.presets || []).forEach(function (pr, i) {
+      var full = Object.assign(defaults(), pr.values);
+      btns[i].setAttribute('aria-pressed', String(params.every(function (p) { return sameValue(p, full[p.id], state.values[p.id]); })));
+    });
+  }
+
+  // ---------- Randomise / Reset ----------
+  function sample(p, rnd) {
+    if (p.type === 'number') {
+      var lo = p.safeMin != null ? p.safeMin : p.min + 0.15 * (p.max - p.min);
+      var hi = p.safeMax != null ? p.safeMax : p.min + 0.85 * (p.max - p.min);
+      return quantize(p, lo + rnd() * (hi - lo));
+    }
+    if (p.type === 'enum') return p.options[Math.floor(rnd() * p.options.length)].value;
+    if (p.type === 'boolean') return rnd() < 0.5;
+    if (p.type === 'color') return p.swatches && p.swatches.length ? p.swatches[Math.floor(rnd() * p.swatches.length)] : state.values[p.id];
+    if (p.type === 'curve') return p.stops && p.stops.length ? p.stops[Math.floor(rnd() * p.stops.length)].value : state.values[p.id];
+  }
+  $('randomise').addEventListener('click', function () {
+    for (var i = 0; i < 20; i++) {
+      state.valueSeed = (state.valueSeed + 1) >>> 0;
+      var rnd = TL.mulberry32(state.valueSeed), v = Object.assign({}, state.values);
+      params.forEach(function (p) { if (p.randomize !== false) v[p.id] = sample(p, rnd); });
+      try { TL.compile(doc, layout, v); } catch (e) { continue; }
+      apply(v, 'Randomised.'); t = 0; setPlaying(true); return;
+    }
+    say('No random mix fit the timeline in 20 tries, so nothing changed.');
+  });
+  $('reset').addEventListener('click', function () { apply(defaults(), 'Back to the starting settings.'); t = 0; setPlaying(true); });
+
+  // ---------- exports ----------
+  function envelope() {
+    return { exportVersion: '1.0', schemaVersion: '2.0', playgroundId: doc.id, revision: 'r1', engineVersion: '1.0.0', values: Object.assign({}, state.values) };
+  }
+  var exportsDef = [
+    { id: 'css', title: 'Embed with CSS', text: 'One block of HTML and CSS keyframes. Paste it into a Webflow or Framer Embed, or any page. It plays once on load, and people who ask for reduced motion see the still frame.', make: function () { return EX.cssExport(plan, geo).snippet; }, copyLabel: 'Copy CSS embed', done: 'CSS embed copied.' },
+    { id: 'waapi', title: 'Embed with JavaScript', text: 'The same motion as a short script, for pages where you start it yourself. It stops and shows the still frame if reduced motion turns on.', make: function () { return EX.waapiExport(plan, geo).snippet; }, copyLabel: 'Copy JavaScript embed', done: 'JavaScript embed copied.' },
+    { id: 'swiftui', title: 'SwiftUI view', text: 'The same motion as a SwiftUI view for iOS 26 and later. Add the file to your Xcode project and show the view; it plays when it appears, and shows the still frame when Reduce Motion is on.', make: function () { return SW.swiftExport(plan, geo).swift; }, copyLabel: 'Copy SwiftUI', done: 'SwiftUI view copied.' },
+    { id: 'timeline', title: 'Timeline JSON', text: 'The whole motion as data, with your settings filled in and no controls left. For a developer who wants to read it or build from it.', make: function () { return JSON.stringify(TL.resolveTimeline(doc, state.values), null, 2); }, copyLabel: 'Copy timeline JSON', done: 'Timeline JSON copied.' },
+    { id: 'json', title: 'Save settings', text: 'Your settings. Paste them into Import below later to pick up where you left off.', make: function () { return JSON.stringify(envelope(), null, 2); }, copyLabel: 'Copy settings', done: 'Settings copied.', menu: 'settings-menu', view: 'more' }
+  ];
+  // The agent picks the language, so it gets the motion as data plus one exact rendering to match.
+  function restLabel() {
+    var ph = doc.restPhase ? doc.phases.filter(function (p) { return p.id === doc.restPhase; })[0] : doc.phases[doc.phases.length - 1];
+    return ph.label || ph.id;
+  }
+  function agentPacket() {
+    var timeline = JSON.stringify(TL.resolveTimeline(doc, state.values), null, 2), web = null, why = '';
+    try { web = EX.cssExport(plan, geo).snippet; } catch (e) { if (!(e instanceof TL.TimelineError)) throw e; why = e.message; }
+    return [
+      'Please build this motion in my project. I tuned it in a Raven motion playground.',
+      '',
+      'Write it in whatever fits the code you are working in: CSS, JavaScript, React, SwiftUI or something else. If you can’t tell, ask me.',
+      '',
+      web ? 'Below are two things:' : 'Below is the timeline:',
+      '1. The timeline: the whole motion as data, with my settings filled in. Times are in milliseconds. A curve is a CSS easing name, { "cubicBezier": [x1, y1, x2, y2] }, or { "spring": { "duration": ms, "bounce": -0.9 to 0.9 } }, the same spring as SwiftUI’s Spring(duration:bounce:).',
+      web ? '2. A working web version, HTML with CSS keyframes, that plays exactly what I approved. Match it: the same timing, curves and order.' : 'There is no web version for these settings: ' + why,
+      '',
+      'For people who ask for reduced motion, don’t animate: show the still frame at the end of the “' + restLabel() + '” phase.',
+      '',
+      'Timeline:',
+      '```json', timeline, '```'
+    ].concat(web ? ['', 'Working web version:', '```html', web, '```'] : []).join('\n');
+  }
+  $('copy-agent').addEventListener('click', function () { var ta = $('out-agent'); ta.value = agentPacket(); copy(ta.value, ta, 'Copied. Paste it into your agent’s chat.'); });
+  var exportUI = {};
+  exportsDef.forEach(function (x) {
+    var b = el('div', { 'class': 'block' });
+    b.appendChild(el('h3')).textContent = x.title;
+    b.appendChild(el('p')).textContent = x.text;
+    var ta = el('textarea', { readonly: '', id: 'out-' + x.id, 'aria-label': x.title, spellcheck: 'false' });
+    b.appendChild(ta);
+    var r = el('div', { 'class': 'row2' });
+    var btn = el('button', { 'class': x.primary ? 'btn primary' : 'btn', id: 'copy-' + x.id }); btn.textContent = x.copyLabel;
+    btn.addEventListener('click', function () { ta.value = made(x); copy(ta.value, ta, x.done); });
+    r.appendChild(btn); b.appendChild(r); $(x.menu || 'export-menu').appendChild(b);
+    exportUI[x.id] = ta;
+  });
+  // Exports sample the whole timeline, so they refresh after the controls settle, and only while visible.
+  var exportTimer = null;
+  function queueExports() {
+    if ($('view-agent').hidden && $('view-more').hidden) return;
+    clearTimeout(exportTimer);
+    exportTimer = setTimeout(refreshExports, 250);
+  }
+  // An export that can't be written for these settings says why in its box instead of failing the page.
+  function made(x) {
+    try { return x.make(); } catch (e) { if (!(e instanceof TL.TimelineError)) throw e; return '// This export can’t be made with these settings: ' + e.message; }
+  }
+  // Visibility is read when the refresh runs, so a queued refresh for a view that has since closed does nothing.
+  // The direct exports sit behind "Show code without an agent" and are made only while it is open.
+  function refreshExports() {
+    var view = !$('view-agent').hidden ? 'agent' : !$('view-more').hidden ? 'more' : null;
+    if (!view) return;
+    if (view === 'agent') { $('out-agent').value = agentPacket(); refreshRaven(); }
+    var codeOpen = $('code-more').open;
+    exportsDef.forEach(function (x) {
+      var v = x.view || 'agent';
+      if (v === view && (v !== 'agent' || codeOpen)) exportUI[x.id].value = made(x);
+    });
+  }
+  $('code-more').addEventListener('toggle', function () { if ($('code-more').open) refreshExports(); });
+  function copy(text, ta, okMsg) {
+    var fallback = function () { ta.focus(); ta.select(); say('Your browser blocked copying. The text is selected: press ' + (/Mac/.test(navigator.platform) ? '⌘C' : 'Ctrl+C') + '.'); };
+    try { navigator.clipboard.writeText(text).then(function () { say(okMsg); }, fallback); } catch (e) { fallback(); }
+  }
+
+  // ---------- Copy for Raven ----------
+  // A file:// page cannot call MCP, so this hands the designer a record_taste_decision call to paste to their agent.
+  var ravenCtx = {};
+  try { ravenCtx = JSON.parse($('raven-ctx').textContent) || {}; } catch (e) { ravenCtx = {}; }
+  function valueText(p, v) {
+    if (p.type === 'enum') { var o = (p.options || []).filter(function (x) { return x.value === v; })[0]; return o ? o.label : String(v); }
+    if (p.type === 'curve') {
+      var stop = (p.stops || []).filter(function (x) { return TL.curveKey(x.value) === TL.curveKey(v); })[0];
+      return stop && stop.label ? stop.label : KIND_LABEL[v.kind].toLowerCase() + ' ' + curveText(v);
+    }
+    if (p.type !== 'number') return String(v);
+    var u = unitText(p);
+    return String(v) + (/^[a-z]/i.test(u) ? ' ' + u : u);
+  }
+  function ravenRecord(profile, project) {
+    var d = defaults();
+    var changed = params.filter(function (p) { return p.type !== 'action' && !sameValue(p, state.values[p.id], d[p.id]); });
+    return {
+      profile: profile, project: project, dimension: 'motion',
+      decision: doc.id + ': ' + (changed.length ? changed.map(function (p) { return p.label + ' ' + valueText(p, state.values[p.id]); }).join(', ') : 'kept the defaults'),
+      rejected: changed.map(function (p) { return p.label + ' ' + valueText(p, d[p.id]) + ' (default)'; }),
+      why: '', source: 'user-approved'
+    };
+  }
+  var ravenUI = (function buildRaven() {
+    var b = el('div', { 'class': 'block', id: 'raven-block' });
+    b.appendChild(el('h3')).textContent = 'Copy for Raven';
+    b.appendChild(el('p')).textContent = 'Your changes as a taste decision. Paste it into your agent’s chat and Raven records it against this project.';
+    var inputs = {};
+    ['profile', 'project'].forEach(function (k) {
+      var preset = typeof ravenCtx[k] === 'string' ? ravenCtx[k] : '';
+      if (preset) { inputs[k] = { value: preset }; return; }
+      var f = el('div', { 'class': 'field' });
+      var lab = el('label', { 'for': 'raven-' + k }); lab.textContent = k === 'profile' ? 'Taste profile' : 'Project';
+      var inp = el('input', { id: 'raven-' + k, type: 'text', maxlength: '80', autocomplete: 'off', spellcheck: 'false' });
+      f.appendChild(lab); f.appendChild(inp); b.appendChild(f);
+      inputs[k] = inp;
+      inp.addEventListener('input', function () { refreshRaven(); });
+    });
+    var note = el('p', { id: 'raven-need', hidden: '' });
+    b.appendChild(note);
+    var ta = el('textarea', { readonly: '', id: 'out-raven', 'aria-label': 'Copy for Raven', spellcheck: 'false' });
+    b.appendChild(ta);
+    var r = el('div', { 'class': 'row2' });
+    var btn = el('button', { 'class': 'btn', id: 'copy-raven' }); btn.textContent = 'Copy for Raven';
+    btn.addEventListener('click', function () { var t = ravenText(); if (!t) { refreshRaven(); return; } ta.value = t; copy(t, ta, 'Copied for Raven. Paste it into your agent’s chat.'); });
+    r.appendChild(btn); b.appendChild(r); $('raven-menu').appendChild(b);
+    return { inputs: inputs, ta: ta, btn: btn, note: note };
+  })();
+  // The same profile and project rules record_taste_decision applies, so a copied decision is one Raven accepts.
+  var RAVEN_PROFILE = /^[a-z0-9][a-z0-9-_]{0,63}$/i;
+  var RAVEN_PROJECT = /^[a-z0-9][a-z0-9-_.]{0,63}$/i;
+  function ravenFields() {
+    return { profile: String(ravenUI.inputs.profile.value).trim(), project: String(ravenUI.inputs.project.value).trim() };
+  }
+  function ravenProblem(f) {
+    if (!f.profile || !f.project) return 'Add the taste profile and project your agent uses, then copy.';
+    if (!RAVEN_PROFILE.test(f.profile)) return 'Profile names use letters, numbers, dashes and underscores, start with a letter or number, and stay under 65 characters: “andrew”, not “Andrew C.”.';
+    if (!RAVEN_PROJECT.test(f.project)) return 'Project names use letters, numbers, dots, dashes and underscores, start with a letter or number, and stay under 65 characters: “client-website”, not “Client website”.';
+    return '';
+  }
+  function ravenText() {
+    var f = ravenFields();
+    if (ravenProblem(f)) return '';
+    return 'Record this motion decision with Raven’s record_taste_decision tool:\n' + JSON.stringify(ravenRecord(f.profile, f.project), null, 2);
+  }
+  function refreshRaven() {
+    var t = ravenText();
+    ravenUI.ta.value = t; ravenUI.btn.disabled = !t; ravenUI.note.hidden = !!t;
+    if (!t) ravenUI.note.textContent = ravenProblem(ravenFields());
+  }
+
+  // ---------- Send through Raven Grab ----------
+  // Raven Grab adds its script to the page it serves, keyed like /raven-grab.js?key=K. When that script is here,
+  // the packet can go straight to the agent's queue: POST /grab with the same key, as the overlay's own Send does.
+  // The bridge's tag can sit after this script, so the page is checked once it has loaded.
+  // A saved page can still carry a tag from an earlier session. The overlay runs from the first tag that loads,
+  // so Send tries the keyed tags in page order and stops at the first one that accepts the packet.
+  function grabEndpoints() {
+    var out = [];
+    var scripts = document.getElementsByTagName('script');
+    for (var i = 0; i < scripts.length; i++) {
+      // .src is the address the browser loaded, after any <base>, which is the one the overlay itself reads.
+      if (!scripts[i].getAttribute('src')) continue;
+      try {
+        var u = new URL(scripts[i].src);
+        var key = u.searchParams.get('key');
+        if (/\/raven-grab\.js$/.test(u.pathname) && key) out.push(new URL('/grab?key=' + encodeURIComponent(key), u).href);
+      } catch (e) { /* not a URL: not the bridge */ }
+    }
+    return out;
+  }
+  var sendBtn = null;
+  function setupSend() {
+    if (sendBtn || !grabEndpoints().length) return;
+    sendBtn = el('button', { 'class': 'btn primary', id: 'send-agent', type: 'button' }, 'Send to your agent');
+    var copyBtn = $('copy-agent');
+    copyBtn.classList.remove('primary');
+    copyBtn.parentNode.insertBefore(sendBtn, copyBtn);
+    $('agent-lede').textContent = 'Raven Grab is open on this page, so this can go straight to your agent. It carries the motion as you tuned it, and the agent writes it in whatever language your project uses.';
+    sendBtn.addEventListener('click', function () {
+      var urls = grabEndpoints();
+      var ta = $('out-agent'); ta.value = agentPacket();
+      var body = JSON.stringify({ selector: '.stage', instruction: ta.value });
+      sendBtn.disabled = true;
+      (function next(i) {
+        if (i >= urls.length) { say('Couldn’t reach Raven Grab. Use Copy for your agent and paste it into your agent’s chat.'); sendBtn.disabled = false; return; }
+        // A tag whose server takes the request and never answers is given up on, so it cannot hold up the rest.
+        // The bridge answers /grab itself, so a redirect means another server: it counts as a failure, not a send.
+        var ctl = typeof AbortController === 'function' ? new AbortController() : null;
+        var timer = ctl ? setTimeout(function () { ctl.abort(); }, 4000) : 0;
+        fetch(urls[i], { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body, redirect: 'error', signal: ctl ? ctl.signal : undefined })
+          .then(function (r) { return r.status === 202; }, function () { return false; })
+          .then(function (ok) { clearTimeout(timer); if (!ok) { next(i + 1); return; } say('Sent to your agent through Raven Grab.'); sendBtn.disabled = false; });
+      })(0);
+    });
+  }
+  window.addEventListener('load', setupSend);
+
+  // ---------- import ----------
+  $('import').addEventListener('click', function () {
+    var env;
+    try { env = JSON.parse($('import-text').value); } catch (e) { say('That isn’t valid JSON. Copy your settings again and paste the whole thing.'); return; }
+    if (!env || typeof env !== 'object' || !env.values || typeof env.values !== 'object') { say('That JSON doesn’t look like Motion Lab settings: it has no values.'); return; }
+    if (env.playgroundId !== doc.id) { say('Those settings are for a different playground (' + env.playgroundId + ').'); return; }
+    var next = defaults();
+    for (var k in env.values) {
+      if (!byId[k]) { say('Unknown control “' + k + '”.'); return; }
+      if (!validValue(byId[k], env.values[k])) { say(byId[k].label + ' has a value this playground can’t use.'); return; }
+      next[k] = env.values[k];
+    }
+    if (apply(next, 'Imported.')) { $('import-text').value = ''; showTab('controls'); t = 0; setPlaying(true); }
+  });
+
+  // ---------- tabs ----------
+  var tabs = ['controls', 'agent', 'more'];
+  function showTab(name) {
+    tabs.forEach(function (n) { $('tab-' + n).setAttribute('aria-selected', String(n === name)); $('view-' + n).hidden = n !== name; });
+    if (name !== 'controls') refreshExports();
+  }
+  tabs.forEach(function (n) { $('tab-' + n).addEventListener('click', function () { showTab(n); }); });
+
+  buildPanel();
+  syncControls();
+  syncHistory();
+  refreshRaven();
+  window.__ml = { state: state, setParam: setParam, agentPacket: agentPacket, ravenText: ravenText, plan: function () { return plan; }, geo: function () { return geo; }, seek: seek, apply: apply, time: function () { return t; }, history: function () { return { undo: hist.undo.length, redo: hist.redo.length }; } };
+})();
+</script>
