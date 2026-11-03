@@ -247,7 +247,7 @@ test('opened with open_motion_playground, Send posts the note and what was on sc
         window.__ml.seek(500);
         document.querySelector('#panel .tiles [data-layout="left"]').click(); document.querySelector('#panel .tiles [data-layout="both"]').click();
         return {
-          send: !$('send-block').hidden, copySecond: $('copy-agent').className === 'btn' && $('copy-title').textContent === 'Or copy it',
+          send: !$('send-block').hidden, copySecond: $('copy-agent').className === 'btn' && $('copy-title').textContent === 'Copy instead of sending',
           primaries: [...document.querySelectorAll('#view-agent .btn.primary')].filter((b) => b.offsetParent !== null).map((b) => b.id),
           context: $('send-context').textContent, overlay: !!document.querySelector('[data-raven-grab-overlay]'),
         };
