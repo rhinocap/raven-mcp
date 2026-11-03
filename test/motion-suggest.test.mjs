@@ -1,0 +1,329 @@
+// suggest_motion end to end (Site Motion Spec D, E; Revisions 5, 11–14).
+//
+// What these tests hold, on the fixture site served from 127.0.0.1: the six
+// kinds come back, each built into a playground whose timeline passes Motion
+// Lab's validator and whose SwiftUI export refuses page elements in plain
+// words; the map puts each numbered marker on its suggestion's box; nothing
+// taken from the page carries a URL into a fragment or the map; the motion
+// note gates the list (none, restrained, cinematic); every quoted phrase in a
+// reason comes from a stored note; recorded decisions remove and restore; the
+// page's web font is fetched and used, and a missing one falls back with a
+// warning; and Send from a playground opened through the map reaches
+// get_motion_sends naming the trigger. Chromium only.
+import { test, after } from 'node:test';
+import assert from 'node:assert/strict';
+import http from 'node:http';
+import { existsSync, readFileSync } from 'node:fs';
+import { mkdtemp, readFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const SITE = path.join(__dirname, 'fixtures/motion/site');
+const TIMELINE = path.join(__dirname, '../src/data/motion/timeline');
+
+const { suggestMotion } = await import('../dist/motion-suggest/index.js');
+const { quotePhrase } = await import('../dist/motion-suggest/why.js');
+const { FsTasteStore } = await import('../dist/taste-store.js');
+const taste = await import('../dist/taste.js');
+const session = await import('../dist/motion-session.js');
+const { checkTimeline } = await import(path.join(TIMELINE, 'scripts/validate-timeline.mjs'));
+const require = createRequire(import.meta.url);
+const TL = require(path.join(TIMELINE, 'src/timeline/evaluator.js'));
+const SW = require(path.join(TIMELINE, 'src/timeline/swiftui.js'));
+
+let chromium = null;
+try {
+  ({ chromium } = await import('playwright'));
+  const b = await chromium.launch();
+  await b.close();
+} catch {
+  chromium = null;
+}
+const noBrowser = !chromium && 'chromium did not launch';
+
+after(async () => { await session.stopMotionSession(); });
+
+// ── the fixture site ─────────────────────────────────────────────────────────
+
+const TYPES = { '.html': 'text/html', '.png': 'image/png', '.woff2': 'font/woff2' };
+async function serveSite({ noFont = false } = {}) {
+  const server = http.createServer((req, res) => {
+    const pathname = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+    const file = path.join(SITE, pathname.endsWith('/') ? pathname + 'index.html' : pathname);
+    if (!file.startsWith(SITE) || (noFont && file.endsWith('.woff2'))) { res.statusCode = 404; res.end(); return; }
+    readFile(file).then((body) => {
+      res.setHeader('content-type', TYPES[path.extname(file)] || 'application/octet-stream');
+      res.end(body);
+    }, () => { res.statusCode = 404; res.end(); });
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  return {
+    url: `http://127.0.0.1:${server.address().port}/`,
+    close: () => new Promise((resolve) => { server.closeAllConnections?.(); server.close(resolve); }),
+  };
+}
+
+async function withHome(fn) {
+  const prev = process.env.RAVEN_TASTE_HOME;
+  const home = await mkdtemp(path.join(tmpdir(), 'raven-suggest-'));
+  process.env.RAVEN_TASTE_HOME = home;
+  try {
+    await fn({ home, store: new FsTasteStore() });
+  } finally {
+    if (prev === undefined) delete process.env.RAVEN_TASTE_HOME; else process.env.RAVEN_TASTE_HOME = prev;
+  }
+}
+
+async function bound(store, notes) {
+  await taste.createTasteProfile(store, { name: 'site-p', rules: [] });
+  await taste.bindTasteSurface(store, 'site-p', { project: 'studio-site', surface: 'studio site', voice_note: 'Plain.', design_notes: notes });
+  return { profile: 'site-p', project: 'studio-site' };
+}
+
+async function suggest(store, extra = {}, siteOpts) {
+  const site = await serveSite(siteOpts);
+  try {
+    return await suggestMotion({ store, url: site.url, max: 8, ...extra });
+  } finally {
+    await site.close();
+  }
+}
+
+const CUSTOMER = 'Small studio owners booking a first call. They decide in a minute.';
+
+// ── kinds, builds, map ───────────────────────────────────────────────────────
+
+test('the fixture returns every kind, each built, valid and served', { skip: noBrowser }, async () => {
+  await withHome(async ({ store }) => {
+    const r = await suggest(store);
+    const kinds = r.suggestions.map((s) => s.kind);
+    assert.deepEqual([...new Set(kinds)].sort(), ['card-hover', 'cta-hover', 'hero-entrance', 'image-reveal', 'nav-hover', 'section-reveal']);
+    assert.equal(r.suggestions.length, 8);
+    for (const s of r.suggestions) {
+      assert.ok(existsSync(s.html_path), `${s.id}: playground written`);
+      assert.match(s.url || '', /^http:\/\/127\.0\.0\.1:\d+\/p\/[0-9a-f]+$/, `${s.id}: served`);
+      const checked = checkTimeline(JSON.parse(JSON.stringify(s.timeline)), { fragmentHtml: s.fragment });
+      assert.deepEqual(checked.errs, [], `${s.id}: Motion Lab's validator`);
+      // Revision 5: element recipes are web only; the SwiftUI export refuses them in plain words.
+      const plan = TL.compile(s.timeline, checked.layout, {});
+      assert.throws(() => SW.swiftExport(plan), /can't draw .*page elements and artwork are web only/, `${s.id}: SwiftUI refusal`);
+      const words = { load: 'When the page opens', hover: 'On hover', scroll: 'When it scrolls into view' };
+      const on = typeof s.trigger === 'string' ? s.trigger : s.trigger.on;
+      assert.equal(s.trigger_words, words[on], `${s.id}: trigger words`);
+      assert.ok(s.why.length > 0 && s.why.split(/(?<=\.)\s+(?=[A-Z])/).length <= 2, `${s.id}: one or two sentences`);
+    }
+    assert.ok(existsSync(r.map_path));
+    assert.match(r.next[0], /open_motion_playground with map_path/);
+  });
+});
+
+test('each map marker sits on its suggestion\'s box, and the list matches', { skip: noBrowser }, async () => {
+  await withHome(async ({ store }) => {
+    const r = await suggest(store);
+    const html = readFileSync(r.map_path, 'utf8');
+    const img = /<img src="data:image\/jpeg;base64,[^"]+" alt="[^"]*" width="(\d+)" height="(\d+)">/.exec(html);
+    assert.ok(img, 'the screenshot is a data JPEG');
+    const W = Number(img[1]), H = Number(img[2]);
+    assert.equal(W, 1440);
+    const markers = [...html.matchAll(/<a class="marker" data-n="(\d+)" href="([^"]+)" data-served="([^"]+)" style="left:([\d.]+)%;top:([\d.]+)%;width:([\d.]+)%;height:([\d.]+)%"/g)];
+    const shown = r.suggestions.filter((s) => s.box.y < H);
+    assert.equal(markers.length, shown.length);
+    for (const m of markers) {
+      const s = r.suggestions[Number(m[1]) - 1];
+      const near = (pct, px, of) => Math.abs((Number(pct) / 100) * of - px) < 0.5;
+      assert.ok(near(m[4], s.box.x, W) && near(m[5], s.box.y, H), `${s.id}: marker corner at the box corner`);
+      assert.ok(near(m[6], Math.min(s.box.w, W - s.box.x), W) && near(m[7], Math.min(s.box.h, H - s.box.y), H), `${s.id}: marker size is the box size`);
+      assert.equal(m[2], path.basename(s.html_path));
+      assert.equal(m[3], new URL(s.url).pathname);
+    }
+    const listed = [...html.matchAll(/<li data-n="(\d+)"><div class="item-head"><span class="n" aria-hidden="true">\d+<\/span><a href="[^"]+"[^>]*>([^<]+)<\/a><span class="trigger">([^<]+)<\/span>/g)];
+    assert.deepEqual(listed.map((l) => [l[2], l[3]]), r.suggestions.map((s) => [s.label, s.trigger_words]));
+    assert.match(html, /Here's where motion could help\. Open one to try it on your page\./);
+    assert.doesNotMatch(html, /→|↗|&rarr;/, 'no arrows beside links');
+  });
+});
+
+test('nothing from the page carries a URL into a fragment, a timeline or the map', { skip: noBrowser }, async () => {
+  await withHome(async ({ store }) => {
+    const r = await suggest(store);
+    for (const s of r.suggestions) {
+      const text = s.fragment.replace(/src="data:image\/png;base64,[A-Za-z0-9+/=]+"/g, '');
+      assert.doesNotMatch(text, /https?:|\/\/|url\(|<script|<style|<a\b|\son[a-z]+=|style=/i, `${s.id}: fragment`);
+      assert.doesNotMatch(text, /src=/, `${s.id}: only data PNG images`);
+      const json = JSON.stringify(s.timeline);
+      assert.doesNotMatch(json, /https?:|url\(/, `${s.id}: timeline`);
+    }
+    // The map names the page in its header text; no attribute or style points anywhere.
+    const html = readFileSync(r.map_path, 'utf8');
+    const attrs = [...html.matchAll(/\s(?:src|href|data-served|srcset|action|poster)="([^"]*)"/g)].map((m) => m[1]);
+    for (const a of attrs) assert.match(a, /^(data:image\/jpeg;base64,|\/p\/[0-9a-f]+$|[a-z0-9-]+\.html$)/, a.slice(0, 60));
+    assert.doesNotMatch(html, /url\(/);
+  });
+});
+
+// ── fonts ────────────────────────────────────────────────────────────────────
+
+test('the page\'s web font is fetched into the taste home and used; a missing one falls back with a warning', { skip: noBrowser }, async () => {
+  await withHome(async ({ home, store }) => {
+    const r = await suggest(store);
+    const hero = r.suggestions.find((s) => s.kind === 'hero-entrance');
+    const fonts = Object.values(hero.timeline.fonts || {});
+    assert.equal(fonts.length, 1);
+    assert.ok(fonts[0].path.startsWith(path.join(home, 'fonts')) && existsSync(fonts[0].path));
+    assert.ok(!r.warnings.some((w) => /could not be loaded/.test(w)));
+
+    const r2 = await suggest(store, {}, { noFont: true });
+    const hero2 = r2.suggestions.find((s) => s.kind === 'hero-entrance');
+    assert.equal(hero2.timeline.fonts, undefined);
+    assert.ok(Object.values(hero2.timeline.styles).some((st) => st.font === 'sans'));
+    assert.ok(r2.warnings.some((w) => /^The font “Fixture Sans” could not be loaded .*, so a plain sans is shown in its place\.$/.test(w)), r2.warnings.join('\n'));
+  });
+});
+
+// ── gates and reasons ────────────────────────────────────────────────────────
+
+// Every “quoted” phrase in a reason must appear word for word in the note its sentence names.
+function assertQuotesFromNotes(s, notes) {
+  const quotes = [...s.why.matchAll(/“([^”]+)”/g)].map((m) => m[1]);
+  const all = Object.values(notes).join('\n').toLowerCase();
+  for (const q of quotes) assert.ok(all.includes(q.toLowerCase()), `${s.id}: “${q}” is not in any stored note`);
+  for (const c of s.cites.filter((c) => c.startsWith('notes.') || c === 'customer')) {
+    const note = c === 'customer' ? notes.customer : notes[c.slice(6)];
+    assert.ok(note, `${s.id}: cites ${c}, which is not stored`);
+    assert.ok(quotes.some((q) => note.toLowerCase().includes(q.toLowerCase())), `${s.id}: cites ${c} without quoting it`);
+  }
+}
+
+test('a none-instant note returns no suggestions and a message that quotes it', { skip: noBrowser }, async () => {
+  await withHome(async ({ store }) => {
+    const notes = { motion: 'none-instant: nothing moves on this site', customer: CUSTOMER };
+    const r = await suggest(store, await bound(store, notes));
+    assert.deepEqual(r.suggestions, []);
+    assert.match(r.message, /none-instant/);
+    assert.ok(existsSync(r.map_path));
+    assert.match(readFileSync(r.map_path, 'utf8'), /class="empty"/);
+  });
+});
+
+test('a restrained note keeps three hovers or reveals, makes them smaller, and says why with the note\'s words', { skip: noBrowser }, async () => {
+  await withHome(async ({ store }) => {
+    const notes = { motion: 'restrained and snappy, no bounce', customer: CUSTOMER };
+    const r = await suggest(store, await bound(store, notes));
+    assert.ok(r.suggestions.length > 0 && r.suggestions.length <= 3);
+    assert.ok(r.suggestions.every((s) => s.kind !== 'hero-entrance'));
+    for (const s of r.suggestions) {
+      assert.ok(s.cites.includes('notes.motion') && s.cites.includes('customer'), s.id);
+      assert.match(s.why, /^You're designing for “Small studio owners booking a first call”, and /);
+      assertQuotesFromNotes(s, notes);
+    }
+    const cta = r.suggestions.find((s) => s.kind === 'cta-hover');
+    if (cta) {
+      const p = Object.fromEntries(cta.timeline.params.map((x) => [x.id, x.default]));
+      assert.ok(p.lift < 2 && p.timing < 180, JSON.stringify(p));
+    }
+    assert.deepEqual(r.customer_used, CUSTOMER);
+    assert.ok(r.notes_used.includes('notes.motion'));
+  });
+});
+
+test('a cinematic note puts the hero entrance first and cites it', { skip: noBrowser }, async () => {
+  await withHome(async ({ store }) => {
+    const notes = { motion: 'cinematic, with a slow hero' };
+    const r = await suggest(store, await bound(store, notes));
+    assert.equal(r.suggestions[0].kind, 'hero-entrance');
+    assert.ok(r.suggestions[0].cites.includes('notes.motion'));
+    assertQuotesFromNotes(r.suggestions[0], notes);
+    // No customer note: the reasons speak about the page only, and a warning says so.
+    for (const s of r.suggestions) {
+      assert.ok(!s.cites.includes('customer'));
+      assert.doesNotMatch(s.why, /designing for|visitors|customers|people who/i, s.id);
+    }
+    assert.ok(r.warnings.some((w) => /no customer note yet/.test(w)));
+  });
+});
+
+test('with a customer note and no motion note, each reason quotes the customer and nothing else', { skip: noBrowser }, async () => {
+  await withHome(async ({ store }) => {
+    const notes = { customer: CUSTOMER };
+    const r = await suggest(store, await bound(store, notes));
+    assert.equal(quotePhrase(CUSTOMER), 'Small studio owners booking a first call');
+    for (const s of r.suggestions) {
+      assert.deepEqual(s.cites, ['customer'], s.id);
+      assertQuotesFromNotes(s, notes);
+    }
+  });
+});
+
+// ── recorded decisions ──────────────────────────────────────────────────────
+
+test('a rejected kind is left out, and a chosen one starts from the values sent', { skip: noBrowser }, async () => {
+  await withHome(async ({ store }) => {
+    const who = await bound(store, { customer: CUSTOMER });
+    await taste.recordTasteDecision(store, who.profile, { project: who.project, dimension: 'motion', decision: 'Kept the button hover', rejected: ['motion:card-hover\nThe cards should stay still.'], source: 'user-directed' });
+    await taste.recordTasteDecision(store, who.profile, { project: who.project, dimension: 'motion', decision: 'motion:cta-hover {"lift":3,"timing":200}\nA slightly bigger lift.', source: 'user-directed' });
+    const r = await suggest(store, who);
+    assert.ok(!r.suggestions.some((s) => s.kind === 'card-hover'));
+    const cta = r.suggestions.filter((s) => s.kind === 'cta-hover');
+    assert.ok(cta.length > 0);
+    for (const s of cta) {
+      const p = Object.fromEntries(s.timeline.params.map((x) => [x.id, x.default]));
+      assert.deepEqual([p.lift, p.timing], [3, 200]);
+      assert.ok(s.cites.includes('decisions.motion'));
+      assert.match(s.why, /it starts from the values you sent last time\.$/i);
+    }
+    // A later choice brings the card back.
+    await new Promise((res) => setTimeout(res, 5));
+    await taste.recordTasteDecision(store, who.profile, { project: who.project, dimension: 'motion', decision: 'motion:card-hover', source: 'user-directed' });
+    const r2 = await suggest(store, who);
+    assert.ok(r2.suggestions.some((s) => s.kind === 'card-hover'));
+  });
+});
+
+// ── end to end ───────────────────────────────────────────────────────────────
+
+test('from the map, open a suggestion, tune it, Send, and get_motion_sends names the trigger', { skip: noBrowser }, async () => {
+  await withHome(async ({ store }) => {
+    const r = await suggest(store);
+    const opened = await session.registerPlayground(r.map_path);
+    const browser = await chromium.launch();
+    try {
+      const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+      const errors = [];
+      page.on('pageerror', (e) => errors.push(e.message));
+      await page.addInitScript(() => { window.__csp = []; document.addEventListener('securitypolicyviolation', (e) => window.__csp.push(e.violatedDirective + ' ' + (e.blockedURI || 'inline'))); });
+      await page.goto(opened.url, { waitUntil: 'load' });
+      const n = r.suggestions.findIndex((s) => s.kind === 'cta-hover') + 1;
+      const s = r.suggestions[n - 1];
+      // The served map points its links at the served playgrounds.
+      assert.equal(await page.getAttribute(`li[data-n="${n}"] .item-head a`, 'href'), new URL(s.url).pathname);
+      assert.deepEqual(await page.evaluate(() => window.__csp), []);
+      await page.click(`.marker[data-n="${n}"]`);
+      await page.waitForURL(s.url);
+      await page.waitForFunction(() => !!window.__ml);
+      const ctx = await page.evaluate(() => {
+        window.__ml.setParam('lift', 5);
+        document.getElementById('tab-agent').click();
+        return document.getElementById('send-context').textContent;
+      });
+      assert.match(ctx, /Plays on hover/);
+      assert.match(ctx, /Lift 5/);
+      await page.fill('#send-note', 'Use this on the main button');
+      await page.click('#send-agent');
+      await page.waitForFunction(() => /Sent|reach/.test(document.getElementById('status').textContent));
+      assert.equal(await page.textContent('#status'), 'Sent. Your agent has it.');
+      const got = await session.getMotionSends(2000);
+      assert.equal(got.sends.length, 1);
+      assert.equal(got.sends[0].instruction, 'Use this on the main button');
+      assert.equal(got.sends[0].context, ctx);
+      assert.equal(got.sends[0].html_path, s.html_path);
+      assert.match(got.sends[0].packet, /"on": "hover"/);
+      assert.deepEqual(await page.evaluate(() => window.__csp), []);
+      assert.deepEqual(errors, []);
+    } finally {
+      await browser.close();
+    }
+  });
+});

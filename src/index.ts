@@ -35,6 +35,7 @@ import { generateTastePortrait, generateTastePortraitInline } from "./taste-port
 import { generateMoodBoard } from "./mood-board.js";
 import { createMotionPlayground, timelineVocabulary, TIMELINE_MAX_BYTES, FRAGMENT_MAX_BYTES, MOTION_MOTIFS, TITLE_MAX as MOTION_TITLE_MAX, CONTROL_LABEL_MAX as MOTION_CONTROL_LABEL_MAX, GROUP_LABEL_MAX as MOTION_GROUP_LABEL_MAX } from "./motion-playground/index.js";
 import { registerPlayground as registerMotionPlayground, getMotionSends, MAX_WAIT_MS as MOTION_SEND_MAX_WAIT_MS } from "./motion-session.js";
+import { suggestMotion } from "./motion-suggest/index.js";
 import { setRemoteRuntime, isRemoteRuntime } from "./remote-runtime.js";
 import { ClosedTasteStore, FsTasteStore, type TasteStore } from "./taste-store.js";
 import { remoteUrlGuardError } from "./remote-url-guard.js";
@@ -1873,7 +1874,7 @@ function numberedDocMaterial(repoRelative: string, content: string): string {
   }).join("\n");
 }
 
-// The 70 gated tools are NOT served on a shared remote server (buildServer({remote:true})).
+// The 71 gated tools are NOT served on a shared remote server (buildServer({remote:true})).
 // They are the ones that are stateful/local (per-user ~/.raven files, or the
 // create_generation_job subprocess), reach the filesystem/network, have an
 // external side effect, or are pending a remote-safety pass — DESIGN.md,
@@ -1897,10 +1898,10 @@ const REMOTE_GATED_TOOLS = new Set<string>([
   // also what keeps the anonymous set frozen at the golden 45.
   "configure_design_system_source", "inventory_design_system",
   "diff_design_system", "list_design_system_components",
-  // stateful / local (36)
+  // stateful / local (39)
   "create_taste_profile", "get_taste_profile", "list_taste_profiles",
   "get_taste_interview", "bind_taste_surface", "record_taste_decision",
-  "list_taste_decisions", "generate_taste_portrait", "generate_mood_board", "create_motion_playground", "open_motion_playground", "get_motion_sends", "label_finding", "audit_taste",
+  "list_taste_decisions", "generate_taste_portrait", "generate_mood_board", "create_motion_playground", "open_motion_playground", "get_motion_sends", "suggest_motion", "label_finding", "audit_taste",
   "delete_taste_data",
   "create_brand_profile", "get_brand_profile", "list_brand_profiles",
   "register_creative_asset", "create_character_profile", "create_generation_job",
@@ -2195,6 +2196,8 @@ const TOOL_ACCESS: Record<string, "readOnly" | "destructive"> = {
   open_motion_playground: "destructive",
   // Drains the motion send queue.
   get_motion_sends: "destructive",
+  // Captures a page and writes playgrounds and a map under the taste home.
+  suggest_motion: "destructive",
   list_taste_profiles: "readOnly",
   label_finding: "destructive",
   audit_taste: "readOnly",
@@ -2318,7 +2321,7 @@ function remoteBlocksNetwork(toolName: string): boolean {
 // finding this file now exists to prevent. A tool minting a fresh id, appending to a
 // log, draining a queue, or applying a RELATIVE change is not idempotent; one that
 // writes a value the caller supplied, or removes something by name, is.
-// None of these 39 is on the anonymous 45 — every one is in REMOTE_GATED_TOOLS — so
+// None of these 40 is on the anonymous 45 — every one is in REMOTE_GATED_TOOLS — so
 // this table describes the stdio surface only.
 const TOOL_IDEMPOTENT: { [tool: string]: boolean } = {
   configure_design_system_source: true,   // writes the config the caller passed
@@ -2358,6 +2361,7 @@ const TOOL_IDEMPOTENT: { [tool: string]: boolean } = {
   create_motion_playground: false,         // each call mints a fresh playground id unless output_path is given
   open_motion_playground: false,           // each call mints a fresh playground id and url
   get_motion_sends: false,                 // DRAINS the queue — second call differs
+  suggest_motion: false,                   // captures the live page and mints fresh playground ids
   label_finding: false,                   // appends a label
   capture_reference: false                // each capture mints a fresh ref_id
 };
@@ -2511,18 +2515,18 @@ function toolAnnotations(toolName: string, remote: boolean): {
       };
 }
 
-// buildServer() returns a FRESH McpServer with all 114 local tools + the usage-log/
+// buildServer() returns a FRESH McpServer with all 115 local tools + the usage-log/
 // update-banner wrapper registered. A new instance is required per transport
 // connection (SDK #961: one McpServer connects to exactly one transport, ever).
 // The stdio entry calls this once; a future HTTP entry calls it per request.
 // NOTE: importing this module does NOT start a server — only calling buildServer()
 // registers the tools, and only main() (guarded to direct-run) connects stdio.
 export function buildServer(opts?: { remote?: boolean; tasteStore?: TasteStore }): McpServer {
-// remote = serve only the 45 stateless remote-safe tools (gate off the 70 gated tools
+// remote = serve only the 45 stateless remote-safe tools (gate off the 71 gated tools
 // as appropriate; authenticated stores selectively restore taste tools). evaluate_design
 // stays but its screenshot pixel-diff is arg-guarded off).
 // Defaults from RAVEN_REMOTE env so a serverless entry can set it
-// without threading opts. stdio callers pass nothing → remote=false → all 114.
+// without threading opts. stdio callers pass nothing → remote=false → all 115.
 var remote: boolean = (opts && typeof opts.remote === "boolean")
   ? opts.remote
   : (process.env.RAVEN_REMOTE === "1" || process.env.RAVEN_REMOTE === "true");
@@ -8902,6 +8906,22 @@ server.tool(
 );
 
 server.tool(
+  "suggest_motion",
+  "Find the places on a page where motion would help, and build a playground for each from the page's own content. Captures the page at url, picks moments (hero entrance, button hover, card hover, section reveal, navigation hover, image reveal), and for each writes a playground the designer can tune, built from the captured text, styles, images and fonts. Also writes a map: a picture of the page with a numbered spot on each suggestion and a list of why each was picked. Pass profile and project so the suggestions follow the designer's motion notes, customer note and earlier decisions; a 'none-instant' or 'no motion' note returns no suggestions. Anything the playground cannot show exactly, such as a gradient or a shadow, is listed in approximations. Then call open_motion_playground with map_path and hand the designer the url. Captures only http and https pages; a local or private address is allowed only when url itself is one.",
+  {
+    url: z.string().min(1).describe("The page to look at: a local dev server (http://localhost:3000/) or a published site (https://…)."),
+    profile: z.string().optional().describe("Taste profile name (see list_taste_profiles). Pass with project, or omit both."),
+    project: z.string().optional().describe("Bound project name. Pass with profile, or omit both."),
+    max: z.number().int().min(1).max(8).optional().describe("Most suggestions to return, 1-8. Default 5."),
+    viewport: z.enum(["desktop", "mobile"]).optional().describe("Page width to capture at: desktop (1440 px, default) or mobile (390 px)."),
+  },
+  async function ({ url, profile, project, max, viewport }) {
+    var result = await suggestMotion({ store: tasteStore, url: url, profile: profile, project: project, max: max, viewport: viewport });
+    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+server.tool(
   "list_taste_profiles",
   "List locally stored taste profiles with rule/corpus counts and last-updated timestamps.",
   async function () {
@@ -9261,7 +9281,7 @@ server.tool(
 // ── Start ───────────────────────────────────────────────────────────
 
 async function main() {
-  // Hardcode remote:false so stdio ALWAYS serves all 114 tools regardless of any
+  // Hardcode remote:false so stdio ALWAYS serves all 115 tools regardless of any
   // ambient RAVEN_REMOTE env — the stdio wire contract stays byte-for-byte
   // unchanged in every runtime condition (additive-only invariant).
   const server = buildServer({ remote: false, tasteStore: new FsTasteStore() });

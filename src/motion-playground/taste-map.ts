@@ -21,6 +21,22 @@ const TERMS: Term[] = [
   { id: "no-bounce", pattern: /\b(no[- ]bounce|without (a )?bounce)\b/i },
 ];
 
+/** Each recognised term in the notes, with the note it came from and the exact words matched. */
+export type TasteTermHit = { id: Term["id"]; key: (typeof TASTE_NOTE_KEYS)[number]; match: string };
+export function findTasteTerms(notes: Record<string, unknown> | undefined): TasteTermHit[] {
+  const hits: TasteTermHit[] = [];
+  if (!notes) return hits;
+  for (const key of TASTE_NOTE_KEYS) {
+    const text = typeof notes[key] === "string" ? (notes[key] as string) : "";
+    if (!text.trim()) continue;
+    for (const t of TERMS) {
+      const m = t.pattern.exec(text);
+      if (m && !hits.some((h) => h.id === t.id)) hits.push({ id: t.id, key, match: m[0] });
+    }
+  }
+  return hits;
+}
+
 export type TasteAdjustment = { values: Record<string, unknown>; applied: string[]; warnings: string[] };
 
 function snap(p: MotionParam, v: number): number {

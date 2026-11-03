@@ -468,6 +468,10 @@
       "description": "Receive what the designer sent from a motion playground opened with open_motion_playground."
     },
     {
+      "name": "suggest_motion",
+      "description": "Find the places on a page where motion would help, and build a playground for each from the page's own content."
+    },
+    {
       "name": "list_taste_profiles",
       "description": "List locally stored taste profiles with rule/corpus counts and last-updated timestamps."
     },

@@ -12,8 +12,8 @@
 // treating them as two and "corrected" a right number into a wrong one:
 //   remote                -> anonymous, frozen at 45
 //   remote + tasteStore   -> authenticated hosted, 56
-//   stdio                 -> 114
-// with 115 registered names in total.
+//   stdio                 -> 115
+// with 116 registered names in total.
 //
 // The gate lists are NOT exported from src/index.ts, so they are scraped out of
 // the compiled `dist/index.js` by brace balance. Exporting them would be a `src/`
@@ -79,15 +79,15 @@ test('instrument: the dist/ scrape reads both gate lists', () => {
   // A silently-empty scrape would satisfy every set-difference assertion below
   // vacuously. TypeScript emits the members DOUBLE-quoted; a prototype written
   // for single quotes reported 0 rather than erroring.
-  assert.equal(GATED.size, 70, 'REMOTE_GATED_TOOLS scraped from dist/');
+  assert.equal(GATED.size, 71, 'REMOTE_GATED_TOOLS scraped from dist/');
   assert.equal(AUTHED_TASTE.size, 11, 'AUTHED_USER_TASTE_TOOLS scraped from dist/');
 });
 
-test('three remote builds, one hosted-only registration, 115 names in total', () => {
-  assert.equal(stdio.size, 114);
+test('three remote builds, one hosted-only registration, 116 names in total', () => {
+  assert.equal(stdio.size, 115);
   assert.equal(anon.size, 45);
   assert.equal(authed.size, 56);
-  assert.equal(all.size, 115, 'stdio ∪ authed is the full registered name space');
+  assert.equal(all.size, 116, 'stdio ∪ authed is the full registered name space');
   assert.deepEqual(minus(authed, stdio), ['delete_taste_data'],
     'delete_taste_data is the only tool registered on a hosted build and not on stdio');
   assert.ok(minus(stdio, authed).length > 0, 'stdio carries gated tools the hosted build does not');
@@ -106,7 +106,7 @@ test('the gate holds: the name space minus the gate list IS the anonymous surfac
 
 // The drift this file exists for. `delete_taste_data` is the live proof the class
 // is real: gated, classified in TOOL_ACCESS, in the idempotency map, and absent
-// from all 114 stdio registrations. It is legitimate because the hosted build
+// from all 115 stdio registrations. It is legitimate because the hosted build
 // registers it — a name answering to NOTHING is what this catches, and no count
 // suite can see it.
 test('no phantom gate entries: every gated name is registered on some build', () => {
