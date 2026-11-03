@@ -154,6 +154,8 @@ export async function suggestMotion(input: SuggestMotionInput): Promise<SuggestM
   const result = await capturePage<Inspection>(args.url, {
     beforeNavigate: policy.install,
     viewport,
+    // Scroll the page first so content that waits to scroll into view is there to read and in the map.
+    scroll_settle: true,
     inspect: async (page) => {
       const pass = await findMotionCandidates(page);
       const ranked = rankCandidates(pass.candidates, { max: args.max, rejectedKinds, motionNote });

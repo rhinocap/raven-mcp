@@ -164,6 +164,35 @@ test('nothing from the page carries a URL into a fragment, a timeline or the map
   });
 });
 
+test('real-site patterns: a floating nav, a cookie notice, a glow, a split card grid, a later reveal, a shadow footer', { skip: noBrowser }, async () => {
+  await withHome(async ({ store }) => {
+    const site = await serveSite();
+    let r;
+    try { r = await suggestMotion({ store, url: site.url + 'real.html', max: 8 }); } finally { await site.close(); }
+    const by = (k) => r.suggestions.filter((s) => s.kind === k);
+    const ids = r.suggestions.map((s) => s.id).join(', ');
+    // The cookie notice is an overlay: none of its buttons are suggested.
+    assert.ok(!r.suggestions.some((s) => /cookies/i.test(s.fragment)), 'cookie notice left out');
+    // The floating nav is a bar, not an overlay, and the line goes under a link nested in a list.
+    assert.equal(by('nav-hover').length, 1, ids);
+    assert.match(by('nav-hover')[0].fragment, /Pricing/);
+    // The bright button is the main one, though the grey one comes first.
+    const main = by('cta-hover').find((s) => /main button/.test(s.why));
+    assert.ok(main && /Start a project/.test(main.fragment), 'main action is the bright button: ' + ids);
+    // The glow is a decoration: left out of the hero, and said so.
+    const hero = by('hero-entrance')[0];
+    assert.ok(hero, ids);
+    assert.ok(hero.approximations.includes('A shape drawn for effect, apart from the layout, is left out.'), hero.approximations.join(' | '));
+    // Four tiles that differ by modifier classes are one group.
+    assert.equal(by('card-hover').length, 1, ids);
+    assert.match(by('card-hover')[0].why, /4 cards/);
+    // A section that fades in on scroll is found, because the page is scrolled before it is read.
+    assert.ok(by('section-reveal').some((s) => /How a project runs/.test(s.fragment)), 'later reveal found: ' + ids);
+    // The shadow footer is named.
+    assert.ok(r.warnings.some((w) => /<site-footer>/.test(w)), r.warnings.join('\n'));
+  });
+});
+
 // ── fonts ────────────────────────────────────────────────────────────────────
 
 test('the page\'s web font is fetched into the taste home and used; a missing one falls back with a warning', { skip: noBrowser }, async () => {

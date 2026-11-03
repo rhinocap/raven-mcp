@@ -480,6 +480,30 @@ export async function collectMotionCandidatesInPage(arg: { maxNodes: number; max
   function inFirstViewport(b: { x: number; y: number; w: number; h: number }): boolean {
     return b.y < vh && b.y + b.h > 0;
   }
+  // A fixed layer that is not a bar across the top (a cookie notice, a chat button): not part of the page.
+  const overlayCache = new Map<Element, boolean>();
+  function inOverlay(el: Element): boolean {
+    for (let e: Element | null = el; e && e !== document.body; e = e.parentElement) {
+      let v = overlayCache.get(e);
+      if (v === undefined) {
+        v = false;
+        if (getComputedStyle(e).position === "fixed") {
+          const r = e.getBoundingClientRect();
+          v = !(r.top <= 48 && r.width >= vw * 0.4 && r.height <= vh * 0.25);
+        }
+        overlayCache.set(e, v);
+      }
+      if (v) return true;
+    }
+    return false;
+  }
+  // Out of the layout and holding no words or pictures: a glow, a blob, a rule drawn for effect.
+  function decoration(el: Element): boolean {
+    const pos = getComputedStyle(el).position;
+    if (pos !== "absolute" && pos !== "fixed") return false;
+    if ((el.textContent || "").trim()) return false;
+    return !el.matches("img, svg, video, picture") && !el.querySelector("img, svg, video, picture");
+  }
   function tagOf(el: Element): string {
     const t = el.localName.toLowerCase();
     return /^[a-z][a-z0-9-]*$/.test(t) ? t.slice(0, 40) : "div";
@@ -763,6 +787,7 @@ export async function collectMotionCandidatesInPage(arg: { maxNodes: number; max
       const tag = tagOf(el);
       if (SKIP_TAGS.has(tag)) return null;
       if (!isRoot && !visible(el)) return null;
+      if (!isRoot && decoration(el)) { approx.add("A shape drawn for effect, apart from the layout, is left out."); return null; }
       count++;
       elements.push(el);
       const box = boxOf(el);
@@ -817,7 +842,7 @@ export async function collectMotionCandidatesInPage(arg: { maxNodes: number; max
   const visibleCache = new Map<Element, boolean>();
   const isVisible = function (el: Element): boolean {
     let v = visibleCache.get(el);
-    if (v === undefined) { v = visible(el); visibleCache.set(el, v); }
+    if (v === undefined) { v = visible(el) && !inOverlay(el); visibleCache.set(el, v); }
     return v;
   };
 
@@ -859,7 +884,15 @@ export async function collectMotionCandidatesInPage(arg: { maxNodes: number; max
     if (ctas.length >= 4) break;
     if (inFirstViewport(boxOf(a)) && hasFill(a)) ctas.push(a);
   }
-  let mainAction: Element | null = ctas.length > 0 ? ctas[0] : null;
+  // The main action is the most colourful fill, then the largest: a bright button over a grey one.
+  function prominence(el: Element): number {
+    const m = /^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/.exec(getComputedStyle(el).backgroundColor);
+    const chroma = m ? Math.max(+m[1], +m[2], +m[3]) - Math.min(+m[1], +m[2], +m[3]) : 0;
+    const b = boxOf(el);
+    return Math.round(chroma / 32) * 1e6 + b.w * b.h;
+  }
+  let mainAction: Element | null = null;
+  for (const c of ctas) if (!mainAction || prominence(c) > prominence(mainAction)) mainAction = c;
   if (!mainAction) {
     const firstButton = (Array.prototype.slice.call(document.querySelectorAll("button")) as Element[]).filter(isVisible)[0];
     if (firstButton) { mainAction = firstButton; ctas.push(firstButton); }
@@ -876,14 +909,20 @@ export async function collectMotionCandidatesInPage(arg: { maxNodes: number; max
   const NOT_CARD = new Set(["section", "header", "footer", "main", "nav", "body", "html", "script", "style", "option", "tr", "td", "th"]);
   parents.forEach(function (parent) {
     if (cardGroups.length >= 4 || navLike(parent)) return;
-    const groups = new Map<string, Element[]>();
+    // Siblings with the same tag that share a class are one group, so modifier classes
+    // (a raised card, a staggered delay) do not split one grid into several.
+    const groups: Element[][] = [];
     for (const k of Array.prototype.slice.call(parent.children) as Element[]) {
       const tag = k.localName.toLowerCase();
       if (NOT_CARD.has(tag) || SKIP_TAGS.has(tag) || !isVisible(k)) continue;
-      const key = tag + "." + Array.prototype.slice.call(k.classList).sort().join(".");
-      const list = groups.get(key) || [];
-      list.push(k);
-      groups.set(key, list);
+      const cls = Array.prototype.slice.call(k.classList) as string[];
+      const home = groups.find(function (g) {
+        const f = g[0];
+        if (f.localName.toLowerCase() !== tag) return false;
+        if (!cls.length || !f.classList.length) return !cls.length && !f.classList.length;
+        return cls.some(function (c) { return f.classList.contains(c); });
+      });
+      if (home) home.push(k); else groups.push([k]);
     }
     groups.forEach(function (list) {
       if (list.length < 3 || cardGroups.length >= 4) return;
@@ -967,6 +1006,22 @@ export async function collectMotionCandidatesInPage(arg: { maxNodes: number; max
     if (b.w < vw * 0.3 || b.y < vh) continue;
     raws.push({ kind: "image-reveal", root: img, rootName: "image", roles: new Map([[img, "image"]]), only: null });
     imageCount++;
+  }
+
+  // Parts of the page inside web components are not read.
+  const hosts: string[] = [];
+  for (const el of all) {
+    const sr = (el as any).shadowRoot as ShadowRoot | null;
+    if (!sr || hosts.length >= 3) continue;
+    // The host can be zero height while its content is fixed in place, so judge the content.
+    const shown = Array.prototype.slice.call(sr.querySelectorAll("a[href], button, h1, h2, h3, img, p")).some(function (c: Element) {
+      const r = c.getBoundingClientRect();
+      return r.width > 0 && r.height > 0 && getComputedStyle(c).visibility !== "hidden";
+    });
+    if (shown) hosts.push(tagOf(el));
+  }
+  if (hosts.length) {
+    warnings.push("Part of the page is built inside " + hosts.map(function (h) { return "<" + h + ">"; }).join(", ") + ", which this cannot read, so its buttons, links and images are not suggested.");
   }
 
   // Load lazy images that will be cropped, so the crop is not blank.

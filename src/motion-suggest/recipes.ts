@@ -394,7 +394,11 @@ function sectionReveal(c: MotionCandidate, ctx: FragmentContext, opts: RecipeOpt
 function navHover(c: MotionCandidate, ctx: FragmentContext, opts: RecipeOptions): RecipeResult {
   const root = toFNode(ctx, c.node);
   const g = "hover";
-  const link = root.children.find((k) => k.role === "item") || root.children[0] || root;
+  const findItem = (n: FNode): FNode | undefined => {
+    for (const k of n.children) { if (k.role === "item") return k; const d = findItem(k); if (d) return d; }
+    return undefined;
+  };
+  const link = findItem(root) || root.children[0] || root;
   const lineColour = link.styles.color || root.styles.color || "#1d1d1f";
   const bw = link.styles.width;
   const line: FNode = { id: freshId(ctx, link.id + "-line"), tag: "div", styles: { height: 2, background: lineColour, ...(bw !== undefined ? { width: bw } : {}) }, children: [] };
