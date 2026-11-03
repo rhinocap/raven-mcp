@@ -158,6 +158,9 @@ ol > li.lit { background: rgba(0, 191, 255, .08); box-shadow: inset 2px 0 0 var(
   .fp { position: static; width: auto; margin: 0 10px 10px; transform: none !important; pointer-events: auto !important; }
   .tiles, .edge-tab { display: none !important; }
   .body { -webkit-mask-image: none; mask-image: none; }
+  /* Touch: links and the more-differences toggle are at least 44px tall on a phone. */
+  .item-head a { display: inline-block; padding: 12px 0; }
+  summary { padding: 14px 0; }
 }
 `;
 

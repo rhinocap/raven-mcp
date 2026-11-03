@@ -246,6 +246,8 @@ main#preview { position: fixed; top: var(--edge); bottom: var(--edge); left: var
   .strip { --lab: 96px; }
   #dock { max-height: none; }
   .transport .note { flex-basis: 100%; order: 9; }
+  /* Touch: every control is at least 44px tall on a phone; desktop keeps Grab's sizes. */
+  .seg button, #frames button, #speeds button, .num input, .switch { min-height: 44px; }
 }
 </style>
 
