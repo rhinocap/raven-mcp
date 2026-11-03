@@ -176,6 +176,10 @@ test('real-site patterns: a floating nav, a cookie notice, a glow, a split card 
     // The floating nav is a bar, not an overlay, and the line goes under a link nested in a list.
     assert.equal(by('nav-hover').length, 1, ids);
     assert.match(by('nav-hover')[0].fragment, /Pricing/);
+    // The link to the home page (the logo) is passed over, and the line takes the colour of the link's text, not the link's own.
+    const navTl = JSON.stringify(by('nav-hover')[0].timeline);
+    assert.match(navTl, /Navigation hover: Work/);
+    assert.equal(by('nav-hover')[0].timeline.params.find((x) => x.id === 'lineColour').default, '#2b2b2b');
     // The bright button is the main one, though the grey one comes first.
     const main = by('cta-hover').find((s) => /main button/.test(s.why));
     assert.ok(main && /Start a project/.test(main.fragment), 'main action is the bright button: ' + ids);
@@ -186,6 +190,16 @@ test('real-site patterns: a floating nav, a cookie notice, a glow, a split card 
     // Four tiles that differ by modifier classes are one group.
     assert.equal(by('card-hover').length, 1, ids);
     assert.match(by('card-hover')[0].why, /4 cards/);
+    // Text with an inline-flex link and a bold word inside reads in order, and a see-through background is blended over the page.
+    const card = by('card-hover')[0];
+    assert.match(card.fragment, /Built with Framer and care\./);
+    assert.match(card.fragment + JSON.stringify(card.timeline), /#faf9f7/);
+    assert.ok(card.approximations.some((x) => /inline styling is shown plain/.test(x)), card.approximations.join(' | '));
+    assert.ok(!r.suggestions.some((s) => s.approximations.some((x) => /see-through|without its transparency/.test(x))));
+    // Gradient text takes the gradient's first colour as its text colour, with no box behind it.
+    const styles = Object.values(card.timeline.styles || {});
+    assert.ok(styles.some((st) => st.color === '#123456'), 'gradient text colour');
+    assert.ok(!styles.some((st) => st.background === '#123456'), 'no gradient box');
     // A section that fades in on scroll is found, because the page is scrolled before it is read.
     assert.ok(by('section-reveal').some((s) => /How a project runs/.test(s.fragment)), 'later reveal found: ' + ids);
     // The shadow footer is named.

@@ -394,12 +394,14 @@ function sectionReveal(c: MotionCandidate, ctx: FragmentContext, opts: RecipeOpt
 function navHover(c: MotionCandidate, ctx: FragmentContext, opts: RecipeOptions): RecipeResult {
   const root = toFNode(ctx, c.node);
   const g = "hover";
-  const findItem = (n: FNode): FNode | undefined => {
-    for (const k of n.children) { if (k.role === "item") return k; const d = findItem(k); if (d) return d; }
-    return undefined;
-  };
-  const link = findItem(root) || root.children[0] || root;
-  const lineColour = link.styles.color || root.styles.color || "#1d1d1f";
+  const items: FNode[] = [];
+  const collect = (n: FNode): void => { for (const k of n.children) { if (k.role === "item") items.push(k); else collect(k); } };
+  collect(root);
+  const link = items[0] || root.children[0] || root;
+  // The line takes the colour of the link's text, which can sit on a child rather than the link itself.
+  const textNode = (n: FNode): FNode | undefined => (n.text ? n : n.children.map(textNode).find(Boolean));
+  const lineColour = textNode(link)?.styles.color || link.styles.color || root.styles.color || "#1d1d1f";
+  const linkText = textNode(link)?.source?.text || "";
   const bw = link.styles.width;
   const line: FNode = { id: freshId(ctx, link.id + "-line"), tag: "div", styles: { height: 2, background: lineColour, ...(bw !== undefined ? { width: bw } : {}) }, children: [] };
   link.children = [...link.children, line];
@@ -418,7 +420,7 @@ function navHover(c: MotionCandidate, ctx: FragmentContext, opts: RecipeOptions)
     delete link.styles.justifyContent;
   }
   return finish(c, ctx, opts, root, new Set(), {
-    title: "Navigation hover" + (link.source?.text ? ": " + shortText(link.source.text, 20) : ""),
+    title: "Navigation hover" + (linkText ? ": " + shortText(linkText, 20) : ""),
     concept: "When the pointer is over a link, a line draws in beneath it from the left; leaving draws it back out.",
     trigger: { on: "hover", target: "link", leave: "reverse" }, triggerWords: "On hover",
     targets: {

@@ -536,6 +536,12 @@ export async function collectMotionCandidatesInPage(arg: { maxNodes: number; max
   function backgroundBehind(el: Element): string {
     return opaqueBackground(el.parentElement) || PAGE_BG;
   }
+  /** A see-through colour laid over a flat one, as the page shows it. */
+  function blend(c: { hex: string; alpha: number }, under: string): string {
+    if (c.alpha >= 1) return c.hex;
+    const ch = function (h: string, i: number): number { return parseInt(h.slice(1 + i * 2, 3 + i * 2), 16); };
+    return "#" + [0, 1, 2].map(function (i) { return hex2(ch(c.hex, i) * c.alpha + ch(under, i) * (1 - c.alpha)); }).join("");
+  }
   function sectionOf(el: Element, inclusive: boolean): Element {
     const start = inclusive ? el : el.parentElement;
     const s = start ? start.closest(SECTION_SEL) : null;
@@ -667,17 +673,21 @@ export async function collectMotionCandidatesInPage(arg: { maxNodes: number; max
     else if (out.fontSize > 0) out.lineHeight = r2(px(cs.lineHeight) / out.fontSize);
     out.letterSpacing = cs.letterSpacing === "normal" ? 0 : px(cs.letterSpacing);
 
-    const color = parseColor(cs.color);
-    if (color && color.alpha > 0) {
-      out.color = color.hex;
-      if (color.alpha < 1) approx.add("The " + name + "'s text colour is shown without its transparency.");
-    }
+    // See-through colours are blended over the flat colour behind them.
+    const behind = backgroundBehind(el);
     const bg = parseColor(cs.backgroundColor);
-    if (bg && bg.alpha > 0) {
-      out.background = bg.hex;
-      if (bg.alpha < 1) approx.add("The " + name + "'s see-through background is shown solid.");
-    }
-    if (cs.backgroundImage && cs.backgroundImage !== "none") {
+    const ownBg = bg && bg.alpha > 0 ? blend(bg, behind) : behind;
+    if (bg && bg.alpha > 0) out.background = ownBg;
+    const color = parseColor(cs.color);
+    if (color && color.alpha > 0) out.color = blend(color, ownBg);
+    const clipText = ((cs as any).webkitBackgroundClip || cs.backgroundClip) === "text";
+    if (clipText && /gradient\(/.test(cs.backgroundImage || "")) {
+      // Gradient text: the gradient fills the letters, so its first stop is the text colour.
+      const first = firstGradientColor(cs.backgroundImage);
+      if (first && first.alpha > 0) out.color = blend(first, ownBg);
+      if (bg && bg.alpha > 0) out.background = ownBg; else delete out.background;
+      approx.add("The " + name + "'s gradient is shown as a flat colour.");
+    } else if (cs.backgroundImage && cs.backgroundImage !== "none") {
       if (/gradient\(/.test(cs.backgroundImage)) {
         // The gradient paints over the background colour, so its first stop is the closer flat colour.
         const first = firstGradientColor(cs.backgroundImage);
@@ -707,8 +717,7 @@ export async function collectMotionCandidatesInPage(arg: { maxNodes: number; max
       const c = parseColor(drawn[0].color);
       if (c && c.alpha > 0) {
         out.borderWidth = drawn[0].width;
-        out.borderColor = c.hex;
-        if (c.alpha < 1) approx.add("The " + name + "'s border is shown without its transparency.");
+        out.borderColor = blend(c, ownBg);
       }
       const same = drawn.length === 4 && drawn.every(function (s) { return s.width === drawn[0].width && s.color === drawn[0].color; });
       if (!same) approx.add("The " + name + "'s border is shown the same on every side.");
@@ -770,6 +779,20 @@ export async function collectMotionCandidatesInPage(arg: { maxNodes: number; max
     return out;
   }
 
+  function inlineRun(el: Element, roles: Map<Element, string>): boolean {
+    if (!el.children.length) return false;
+    for (const k of Array.prototype.slice.call(el.querySelectorAll("*")) as Element[]) if (roles.has(k)) return false;
+    for (const k of Array.prototype.slice.call(el.children) as Element[]) {
+      if (k.localName === "br") continue;
+      // A link drawn as inline-flex or inline-block still sits in the line, if everything in it does too.
+      for (const d of [k].concat(Array.prototype.slice.call(k.querySelectorAll("*")))) {
+        if (getComputedStyle(d).display.indexOf("inline") !== 0) return false;
+      }
+      if (k.matches("img, svg, video, picture, button, input") || k.querySelector("img, svg, video, picture, button, input")) return false;
+    }
+    return true;
+  }
+
   // ── tree ──
   type Built = { node: any; count: number; approx: string[]; truncated: boolean; elements: Element[] };
   function buildTree(
@@ -819,6 +842,12 @@ export async function collectMotionCandidatesInPage(arg: { maxNodes: number; max
       }
       if (tag === "video") approx.add("The video is shown as a still frame.");
       node.text = directText(el);
+      // Text with links or bold words inside is one run, in reading order.
+      if (node.text && !(isRoot && onlyChildren) && inlineRun(el, roles)) {
+        node.text = (el.textContent || "").replace(/\s+/g, " ").trim().slice(0, 400);
+        approx.add("The " + name + "'s inline styling is shown plain.");
+        return node;
+      }
       const kids = isRoot && onlyChildren ? onlyChildren : Array.prototype.slice.call(el.children);
       for (const k of kids) {
         const child = visit(k, false);
@@ -991,8 +1020,16 @@ export async function collectMotionCandidatesInPage(arg: { maxNodes: number; max
     if (navCount >= 2) break;
     const links = (Array.prototype.slice.call(n.querySelectorAll("a[href]")) as Element[]).filter(isVisible);
     if (links.length < 2) continue;
+    // A link to the site's home is usually the logo, so it is not one of the links that respond.
+    const home = function (l: Element): boolean {
+      try {
+        const u = new URL(l.getAttribute("href") || "", location.href);
+        return u.origin === location.origin && u.pathname === "/" && !u.hash;
+      } catch { return false; }
+    };
+    const items = links.filter(function (l) { return !home(l); });
     const roles = new Map<Element, string>();
-    for (const l of links) roles.set(l, "item");
+    for (const l of items.length >= 2 ? items : links) roles.set(l, "item");
     raws.push({ kind: "nav-hover", root: n, rootName: "navigation", roles: roles, only: null });
     navCount++;
   }
