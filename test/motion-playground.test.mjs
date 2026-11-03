@@ -32,7 +32,7 @@ const { buildServer } = await import('../dist/index.js');
 const { FsTasteStore } = await import('../dist/taste-store.js');
 const taste = await import('../dist/taste.js');
 const mp = await import('../dist/motion-playground/index.js');
-const bridge = await import('../dist/grab-bridge.js');
+const session = await import('../dist/motion-session.js');
 const v = await import('../dist/motion-playground/validate.js');
 const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
 const { InMemoryTransport } = await import('@modelcontextprotocol/sdk/inMemory.js');
@@ -609,15 +609,15 @@ test('Send to agent carries the tuned motion, with Copy for Raven beside it and 
           embedOnceInFence: packet.split(embed).length === 2 && packet.includes('```html\n' + embed + '\n```'),
           namesSetting: packet.includes('Hover swing (hoverAngle): 14°.'),
           reducedMotion: /reduced motion[^\n]*keep the keys hanging still/.test(packet),
-          primaries: document.querySelectorAll('#view-agent .btn.primary').length,
+          primaries: [...document.querySelectorAll('#view-agent .btn.primary')].filter((b) => b.offsetParent !== null).length,
           ravenInAgentView: !!$('raven-block') && !!$('raven-block').closest('#view-agent') && !$('raven-block').closest('#code-more'),
           ravenText: $('out-raven').value === window.__ml.ravenText() && $('out-raven').value.includes('Hover swing 14°'),
           closedEmbed: $('out-waapi-snippet').value,
           savedInMore: !!$('out-params-json').closest('#settings-menu'),
-          sendWithoutGrab: !!$('send-agent'),
+          sendShown: !$('send-block').hidden,
         };
       });
-      assert.deepEqual(shown, { tab: 'Send to agent', opening: 'Please build this motion in my project. I tuned it in a Raven motion playground.', proseNamesMotionLab: false, boxIsPacket: true, embedOnceInFence: true, namesSetting: true, reducedMotion: true, primaries: 1, ravenInAgentView: true, ravenText: true, closedEmbed: '', savedInMore: true, sendWithoutGrab: false });
+      assert.deepEqual(shown, { tab: 'Send to agent', opening: 'Please build this motion in my project. I tuned it in a Raven motion playground.', proseNamesMotionLab: false, boxIsPacket: true, embedOnceInFence: true, namesSetting: true, reducedMotion: true, primaries: 1, ravenInAgentView: true, ravenText: true, closedEmbed: '', savedInMore: true, sendShown: false });
 
       // The primary button is Send to agent's own, and clicking it puts the packet on the clipboard.
       const clicked = await page.evaluate(async () => {
@@ -628,7 +628,7 @@ test('Send to agent carries the tuned motion, with Copy for Raven beside it and 
         $('status').textContent = '';
         $('copy-agent').click();
         await new Promise((r) => setTimeout(r, 0));
-        return { primaryId: document.querySelector('#view-agent .btn.primary').id, copied: copied.length === 1 && copied[0] === window.__ml.agentPacket(), box: $('out-agent').value === window.__ml.agentPacket(), status: $('status').textContent };
+        return { primaryId: [...document.querySelectorAll('#view-agent .btn.primary')].filter((b) => b.offsetParent !== null).map((b) => b.id).join(), copied: copied.length === 1 && copied[0] === window.__ml.agentPacket(), box: $('out-agent').value === window.__ml.agentPacket(), status: $('status').textContent };
       });
       assert.deepEqual(clicked, { primaryId: 'copy-agent', copied: true, box: true, status: 'Copied. Paste it into your agent’s chat.' });
 
@@ -683,271 +683,56 @@ test('Send to agent carries the tuned motion, with Copy for Raven beside it and 
   });
 });
 
-test('with Raven Grab on the page, Send to your agent queues the packet for the agent, and a lost bridge says to copy instead', { skip: noBrowser }, async () => {
+test('opened with open_motion_playground, the keyfob sends the note and what changed to get_motion_sends', { skip: noBrowser }, async () => {
   await withHome(async ({ home, store }) => {
-    const out = path.join(home, 'grab.html');
+    const out = path.join(home, 'send.html');
     await mp.createMotionPlayground({ store, motif: 'keyfob', output_path: out });
-    const designPath = path.join(home, 'DESIGN.md');
-    writeFileSync(designPath, '---\ncolor:\n  text:\n    primary: "#ffffff"\n---\n\n# Fixture\n');
-    const session = await bridge.startGrabSession(designPath);
-    let stopping = null;
-    // A keyed raven-grab.js tag from some other server, counting what it is sent. It accepts every packet while it is up.
-    const decoy = { hits: 0, status: 202 };
-    const decoyServer = createServer((req, res) => {
-      const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Allow-Headers': 'Content-Type' };
-      if (req.method === 'OPTIONS') { res.writeHead(204, cors); res.end(); return; }
-      if (req.method === 'POST' && req.url.startsWith('/grab?')) { decoy.hits++; req.resume(); res.writeHead(decoy.status, cors); res.end('{}'); return; }
-      res.writeHead(200, { 'Content-Type': 'text/javascript' }); res.end('void 0;');
-    });
-    await new Promise((r) => decoyServer.listen(0, '127.0.0.1', r));
-    // A port with nothing listening, for a tag left on the page by a session that has ended.
-    const closed = createServer();
-    await new Promise((r) => closed.listen(0, '127.0.0.1', r));
-    const deadPort = closed.address().port;
-    await new Promise((r) => closed.close(r));
-    // The bridge's tag goes after the playground's own script, the way a page adds it at the end of the body.
-    // A dead keyed tag sits before it, so the overlay boots from the live one and Send must move past the dead one.
-    // Three scripts follow it: one carrying a key, one at a raven-grab.js path with none, and the keyed decoy.
-    // Send tries the keyed tags in page order, so the decoy is reached only if the real bridge fails.
-    const html = readFileSync(out, 'utf8') + '<script src="http://127.0.0.1:' + deadPort + '/raven-grab.js?key=ended"></script>' + session.script_tag + '<script src="/vendor.js?key=decoy"></script><script src="/raven-grab.js"></script><script src="http://127.0.0.1:' + decoyServer.address().port + '/raven-grab.js?key=decoy"></script>';
-    let siteGrabHits = 0;
-    const site = createServer((req, res) => {
-      if (req.method === 'GET' && req.url === '/') { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(html); return; }
-      if (req.url.startsWith('/grab')) siteGrabHits++;
-      if (req.method === 'GET') { res.writeHead(200, { 'Content-Type': 'text/javascript' }); res.end('void 0;'); return; }
-      res.writeHead(404); res.end();
-    });
-    await new Promise((r) => site.listen(0, '127.0.0.1', r));
+    const opened = await session.registerPlayground(out);
     const browser = await chromium.launch();
     try {
       const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
       const errors = [];
       page.on('pageerror', (e) => errors.push(e.message));
-      await page.goto('http://127.0.0.1:' + site.address().port + '/', { waitUntil: 'load' });
-      // The overlay loads armed, as it does for a designer, so these clicks go through its document click guard.
-      await page.waitForFunction(() => !!window.__ml && !!document.getElementById('send-agent') && !!document.querySelector('[data-raven-grab-overlay]')?.shadowRoot);
-      const sent = await page.evaluate(async () => {
+      await page.addInitScript(() => { window.__csp = []; document.addEventListener('securitypolicyviolation', (e) => window.__csp.push(e.violatedDirective + ' ' + (e.blockedURI || 'inline'))); });
+      await page.goto(opened.url, { waitUntil: 'load' });
+      await page.waitForFunction(() => !!window.__ml);
+      const shown = await page.evaluate(() => {
         const $ = (id) => document.getElementById(id);
-        const clip = [];
-        Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: (t) => { clip.push(t); return Promise.resolve(); } } });
-        window.__ml.setParam('hoverAngle', 16);
+        window.__ml.setParam('hoverAngle', 14);
         $('tab-agent').click();
-        const primaries = [...document.querySelectorAll('#view-agent .btn.primary')].map((b) => b.id);
-        // The box can hold an older packet; Send carries the motion as it is now.
-        $('out-agent').value = 'an older packet';
-        $('status').textContent = '';
-        $('send-agent').click();
-        const deadline = Date.now() + 3000;
-        while (!$('status').textContent && Date.now() < deadline) await new Promise((r) => setTimeout(r, 20));
-        return {
-          primaries,
-          label: $('send-agent').textContent,
-          copyBeside: !!$('copy-agent') && !$('copy-agent').classList.contains('primary') && $('copy-agent').parentNode === $('send-agent').parentNode && $('send-agent').nextElementSibling === $('copy-agent'),
-          lede: $('agent-lede').textContent.startsWith('Raven Grab is open on this page'),
-          agentTabOpened: $('tab-agent').getAttribute('aria-selected') === 'true' && !$('view-agent').hidden,
-          status: $('status').textContent,
-          clip: clip.length,
-          enabled: !$('send-agent').disabled,
-          packet: window.__ml.agentPacket(),
-          box: $('out-agent').value === window.__ml.agentPacket(),
-          panelKeepsClicks: $('panel').hasAttribute('data-raven-grab-ignore'),
-          // A listener on the button only runs if the overlay's capture handler let the click through.
-          stagebarKeepsClicks: (() => { let n = 0; $('do-click').addEventListener('click', () => { n++; }); $('do-click').click(); return n === 1; })(),
-        };
+        return { send: !$('send-block').hidden, primaries: [...document.querySelectorAll('#view-agent .btn.primary')].filter((b) => b.offsetParent !== null).map((b) => b.id), context: $('send-context').textContent, raven: !!$('raven-block') };
       });
-      // Control: the overlay really is armed. Without the panel's opt-out, the More tab does not open.
-      const armed = await page.evaluate(() => {
-        const $ = (id) => document.getElementById(id);
-        $('panel').removeAttribute('data-raven-grab-ignore');
-        $('tab-more').click();
-        const opened = $('tab-more').getAttribute('aria-selected') === 'true';
-        $('panel').setAttribute('data-raven-grab-ignore', '');
-        return opened;
-      });
-      assert.equal(armed, false);
-      const drained = await bridge.getGrabbedElements(1000);
-      assert.deepEqual(
-        { primaries: sent.primaries, agentTabOpened: sent.agentTabOpened, panelKeepsClicks: sent.panelKeepsClicks, stagebarKeepsClicks: sent.stagebarKeepsClicks, label: sent.label, copyBeside: sent.copyBeside, lede: sent.lede, status: sent.status, clip: sent.clip, enabled: sent.enabled, box: sent.box, count: drained.count, instructions: drained.elements.map((e) => e.instruction), selector: drained.elements[0] && drained.elements[0].selector },
-        { primaries: ['send-agent'], agentTabOpened: true, panelKeepsClicks: true, stagebarKeepsClicks: true, label: 'Send to your agent', copyBeside: true, lede: true, status: 'Sent to your agent through Raven Grab.', clip: 0, enabled: true, box: true, count: 1, instructions: [sent.packet], selector: '.stage' }
-      );
-      assert.ok(sent.packet.includes('Hover swing (hoverAngle): 16°.'));
-      assert.equal(decoy.hits, 0);
-
-      // The artwork itself stays grabbable: a click on it while armed selects it, or an element inside it.
-      const box = await page.evaluate(() => { const r = document.querySelector('.stage').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
-      await page.mouse.click(box.x, box.y);
-      await page.waitForFunction(() => !!document.querySelector('[data-raven-grab-overlay]').shadowRoot.querySelector('[data-element-selector]'), null, { timeout: 3000 }).catch(() => {});
-      const picked = await page.evaluate(() => {
-        const chip = document.querySelector('[data-raven-grab-overlay]').shadowRoot.querySelector('[data-element-selector]');
-        const selector = chip && chip.getAttribute('title');
-        let inStage = false;
-        try { const node = selector && document.querySelector(selector); inStage = !!node && document.querySelector('.stage').contains(node); } catch (e) { /* not a selector */ }
-        return { chip: !!chip, inStage };
-      });
-      assert.deepEqual(picked, { chip: true, inStage: true });
-
-      // The dead tag's server now takes the request and never answers. Send gives up on it and reaches the bridge.
-      const toDead = (url) => url.port === String(deadPort) && url.pathname === '/grab';
-      await page.route(toDead, () => {});
-      const waited = await page.evaluate(async () => {
-        const $ = (id) => document.getElementById(id);
-        $('status').textContent = '';
-        $('send-agent').click();
-        const deadline = Date.now() + 9000;
-        while (!$('status').textContent && Date.now() < deadline) await new Promise((r) => setTimeout(r, 50));
-        return { status: $('status').textContent, enabled: !$('send-agent').disabled };
-      });
-      await page.unroute(toDead);
-      const afterWait = await bridge.getGrabbedElements(1000);
-      assert.deepEqual({ ...waited, count: afterWait.count, decoyHits: decoy.hits }, { status: 'Sent to your agent through Raven Grab.', enabled: true, count: 1, decoyHits: 0 });
-
-      // The bridge answers but does not queue it (here, a session that has ended): the send says so.
-      const isGrab = (url) => url.pathname === '/grab';
-      await page.route(isGrab, (route) => {
-        const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Allow-Headers': 'Content-Type' };
-        if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
-        return route.fulfill({ status: 400, headers: cors, contentType: 'application/json', body: JSON.stringify({ error: 'No active grab session' }) });
-      });
-      const refused = await page.evaluate(async () => {
-        const $ = (id) => document.getElementById(id);
-        $('status').textContent = '';
-        $('send-agent').click();
-        const deadline = Date.now() + 3000;
-        while (!$('status').textContent && Date.now() < deadline) await new Promise((r) => setTimeout(r, 20));
-        return { status: $('status').textContent, enabled: !$('send-agent').disabled };
-      });
-      await page.unroute(isGrab);
-      assert.deepEqual(refused, { status: 'Couldn’t reach Raven Grab. Use Copy for your agent and paste it into your agent’s chat.', enabled: true });
-      assert.equal((await bridge.getGrabbedElements(200)).count, 0);
-
-      // The bridge goes away while the page is open: the send fails and says so, and Copy still works.
-      // stopGrabSession resolves only once the browser's keep-alive sockets close, so it is awaited after the browser.
-      stopping = bridge.stopGrabSession();
-      // The decoy now refuses too, so every keyed tag on the page has been tried and none took the packet.
-      decoy.status = 400;
-      const lost = await page.evaluate(async () => {
-        const $ = (id) => document.getElementById(id);
-        $('status').textContent = '';
-        $('send-agent').click();
-        const deadline = Date.now() + 3000;
-        while (!$('status').textContent && Date.now() < deadline) await new Promise((r) => setTimeout(r, 20));
-        const status = $('status').textContent;
-        const copied = [];
-        Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: (t) => { copied.push(t); return Promise.resolve(); } } });
-        $('copy-agent').click();
-        await new Promise((r) => setTimeout(r, 0));
-        return { status, enabled: !$('send-agent').disabled, copied: copied.length === 1 && copied[0] === window.__ml.agentPacket() };
-      });
-      assert.deepEqual(lost, { status: 'Couldn’t reach Raven Grab. Use Copy for your agent and paste it into your agent’s chat.', enabled: true, copied: true });
-      // Send moved past the dead tag and the stopped bridge and reached the last keyed tag before giving up.
-      // The two scripts that are not the bridge were never sent anything.
-      assert.deepEqual({ decoyHits: decoy.hits, siteGrabHits }, { decoyHits: 1, siteGrabHits: 0 });
+      assert.deepEqual({ send: shown.send, primaries: shown.primaries, raven: shown.raven }, { send: true, primaries: ['send-agent'], raven: true });
+      assert.match(shown.context, /^Embed \d+ px wide\. Changed: Hover swing 14°\.$/);
+      await page.fill('#send-note', 'Put this on the contact page');
+      await page.click('#send-agent');
+      await page.waitForFunction(() => /Sent|reach/.test(document.getElementById('status').textContent));
+      const after = await page.evaluate(() => ({ status: document.getElementById('status').textContent, packet: window.__ml.agentPacket(), csp: window.__csp }));
+      assert.deepEqual({ status: after.status, csp: after.csp }, { status: 'Sent. Your agent has it.', csp: [] });
+      const got = await session.getMotionSends(2000);
+      assert.deepEqual(got.sends.map((s) => ({ instruction: s.instruction, context: s.context, packet: s.packet === after.packet, url: s.playground_url })),
+        [{ instruction: 'Put this on the contact page', context: shown.context, packet: true, url: opened.url }]);
       assert.deepEqual(errors, []);
     } finally {
       await browser.close();
-      await (stopping || bridge.stopGrabSession());
-      await new Promise((r) => site.close(r));
-      decoyServer.closeAllConnections();
-      await new Promise((r) => decoyServer.close(r));
+      await session.stopMotionSession();
     }
   });
 });
 
-test('Send finds the bridge the way the overlay does when the page sets a <base>', { skip: noBrowser }, async () => {
+test('opened as a file, the keyfob offers Copy only', { skip: noBrowser }, async () => {
   await withHome(async ({ home, store }) => {
-    const out = path.join(home, 'base.html');
+    const out = path.join(home, 'plain.html');
     await mp.createMotionPlayground({ store, motif: 'keyfob', output_path: out });
-    // A stand-in bridge on another port. The page's relative raven-grab.js tag loads from it through <base>.
-    let bridgeHits = 0;
-    let pageHits = 0;
-    const fake = createServer((req, res) => {
-      const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Allow-Headers': 'Content-Type' };
-      if (req.method === 'OPTIONS') { res.writeHead(204, cors); res.end(); return; }
-      if (req.method === 'POST' && req.url.startsWith('/grab?key=K')) { bridgeHits++; req.resume(); res.writeHead(202, cors); res.end('{}'); return; }
-      res.writeHead(200, { 'Content-Type': 'text/javascript' }); res.end('void 0;');
-    });
-    await new Promise((r) => fake.listen(0, '127.0.0.1', r));
-    const html = '<base href="http://127.0.0.1:' + fake.address().port + '/">' + readFileSync(out, 'utf8') + '<script src="/raven-grab.js?key=K"></script>';
-    const site = createServer((req, res) => {
-      if (req.method === 'GET' && req.url === '/') { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(html); return; }
-      if (req.url.startsWith('/grab')) pageHits++;
-      res.writeHead(404); res.end();
-    });
-    await new Promise((r) => site.listen(0, '127.0.0.1', r));
     const browser = await chromium.launch();
     try {
       const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
-      await page.goto('http://127.0.0.1:' + site.address().port + '/', { waitUntil: 'load' });
-      await page.waitForFunction(() => !!window.__ml && !!document.getElementById('send-agent'));
-      const status = await page.evaluate(async () => {
-        const $ = (id) => document.getElementById(id);
-        $('tab-agent').click();
-        $('status').textContent = '';
-        $('send-agent').click();
-        const deadline = Date.now() + 3000;
-        while (!$('status').textContent && Date.now() < deadline) await new Promise((r) => setTimeout(r, 20));
-        return $('status').textContent;
-      });
-      assert.deepEqual({ status, bridgeHits, pageHits }, { status: 'Sent to your agent through Raven Grab.', bridgeHits: 1, pageHits: 0 });
+      await page.goto(pathToFileURL(out).href);
+      await page.waitForFunction(() => !!window.__ml);
+      const got = await page.evaluate(() => { document.getElementById('tab-agent').click(); return { send: !document.getElementById('send-block').hidden, primary: document.getElementById('copy-agent').className }; });
+      assert.deepEqual(got, { send: false, primary: 'btn primary' });
     } finally {
       await browser.close();
-      await new Promise((r) => site.close(r));
-      fake.closeAllConnections();
-      await new Promise((r) => fake.close(r));
-    }
-  });
-});
-
-test('Send does not follow a redirect away from a keyed tag, and goes on to the next tag', { skip: noBrowser }, async () => {
-  await withHome(async ({ home, store }) => {
-    const out = path.join(home, 'redirect.html');
-    await mp.createMotionPlayground({ store, motif: 'keyfob', output_path: out });
-    const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Allow-Headers': 'Content-Type' };
-    const listen = async (handler) => { const s = createServer(handler); await new Promise((r) => s.listen(0, '127.0.0.1', r)); return s; };
-    // Another origin that accepts anything with 202: it must never receive the packet.
-    let inboxHits = 0;
-    const inbox = await listen((req, res) => {
-      if (req.method === 'OPTIONS') { res.writeHead(204, cors); res.end(); return; }
-      if (req.method === 'POST') { inboxHits++; req.resume(); res.writeHead(202, cors); res.end('{}'); return; }
-      res.writeHead(404); res.end();
-    });
-    // A stale tag's server that redirects /grab to that inbox.
-    const stale = await listen((req, res) => {
-      if (req.method === 'OPTIONS') { res.writeHead(204, cors); res.end(); return; }
-      if (req.method === 'POST' && req.url.startsWith('/grab?')) { req.resume(); res.writeHead(307, { ...cors, Location: 'http://127.0.0.1:' + inbox.address().port + '/inbox' }); res.end(); return; }
-      res.writeHead(200, { 'Content-Type': 'text/javascript' }); res.end('void 0;');
-    });
-    let bridgeHits = 0;
-    const bridge = await listen((req, res) => {
-      if (req.method === 'OPTIONS') { res.writeHead(204, cors); res.end(); return; }
-      if (req.method === 'POST' && req.url.startsWith('/grab?key=K')) { bridgeHits++; req.resume(); res.writeHead(202, cors); res.end('{}'); return; }
-      res.writeHead(200, { 'Content-Type': 'text/javascript' }); res.end('void 0;');
-    });
-    const html = readFileSync(out, 'utf8')
-      + '<script src="http://127.0.0.1:' + stale.address().port + '/raven-grab.js?key=stale"></script>'
-      + '<script src="http://127.0.0.1:' + bridge.address().port + '/raven-grab.js?key=K"></script>';
-    const site = await listen((req, res) => {
-      if (req.method === 'GET' && req.url === '/') { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(html); return; }
-      res.writeHead(404); res.end();
-    });
-    const browser = await chromium.launch();
-    try {
-      const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
-      await page.goto('http://127.0.0.1:' + site.address().port + '/', { waitUntil: 'load' });
-      await page.waitForFunction(() => !!window.__ml && !!document.getElementById('send-agent'));
-      const status = await page.evaluate(async () => {
-        const $ = (id) => document.getElementById(id);
-        $('tab-agent').click();
-        $('status').textContent = '';
-        $('send-agent').click();
-        const deadline = Date.now() + 3000;
-        while (!$('status').textContent && Date.now() < deadline) await new Promise((r) => setTimeout(r, 20));
-        return $('status').textContent;
-      });
-      assert.deepEqual({ status, inboxHits, bridgeHits }, { status: 'Sent to your agent through Raven Grab.', inboxHits: 0, bridgeHits: 1 });
-    } finally {
-      await browser.close();
-      for (const s of [site, stale, inbox, bridge]) { s.closeAllConnections(); await new Promise((r) => s.close(r)); }
     }
   });
 });

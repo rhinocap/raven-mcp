@@ -90,6 +90,9 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .block p { margin: 0; color: var(--fg-2); font-size: var(--t-sm); }
 .block textarea { width: 100%; height: 120px; resize: vertical; background: var(--bg); border: 1px solid var(--line); border-radius: var(--r); padding: 8px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; color: var(--fg-2); }
 .block .row2 { display: flex; gap: 8px; flex-wrap: wrap; }
+.block label.ask { font-size: var(--t-sm); color: var(--fg-2); }
+.block textarea.note { height: 72px; font-family: inherit; font-size: var(--t-sm); color: var(--fg); }
+.block .context { color: var(--fg-3); }
 .menu-stack { display: flex; flex-direction: column; gap: 20px; }
 /* The direct exports sit behind a disclosure styled as a button, with no marker glyph. */
 .more-code { border-top: 1px solid var(--line); padding-top: 12px; }
@@ -192,10 +195,7 @@ main#preview { display: flex; flex-direction: column; min-height: 0; min-width: 
     <div id="status" role="status" aria-live="polite"></div>
   </header>
   <div class="work">
-    <!-- Raven Grab loads armed, so a click on the page selects instead of clicking. The panel, the bars above and
-         below the stage and the timeline strip are the playground's own controls and keep their clicks; the artwork
-         stays grabbable. -->
-    <aside id="panel" aria-label="Controls" data-raven-grab-ignore>
+    <aside id="panel" aria-label="Controls">
       <div class="tabs" role="tablist">
         <button role="tab" id="tab-controls" aria-controls="view-controls" aria-selected="true">Controls</button>
         <button role="tab" id="tab-agent" aria-controls="view-agent" aria-selected="false">Send to agent</button>
@@ -215,8 +215,15 @@ main#preview { display: flex; flex-direction: column; min-height: 0; min-width: 
         <div id="groups"></div>
       </div>
       <div class="view" id="view-agent" role="tabpanel" aria-labelledby="tab-agent" hidden>
-        <div class="block">
+        <div class="block" id="send-block" hidden>
           <h3>Send to your agent</h3>
+          <label class="ask" for="send-note">What should your agent do with it?</label>
+          <textarea class="note" id="send-note" placeholder="Use this for the hero on the home page" spellcheck="true"></textarea>
+          <p class="context">Sent with your note: <span id="send-context"></span></p>
+          <div class="row2"><button class="btn primary" id="send-agent">Send to your agent</button></div>
+        </div>
+        <div class="block" id="copy-block">
+          <h3 id="copy-title">Send to your agent</h3>
           <p id="agent-lede">Copy this and paste it into Claude, Cursor or any coding agent. It carries the motion as you tuned it, and the agent writes it in whatever language your project uses.</p>
           <textarea id="out-agent" readonly aria-label="Message for your agent" spellcheck="false"></textarea>
           <div class="row2"><button class="btn primary" id="copy-agent">Copy for your agent</button></div>
@@ -242,7 +249,7 @@ main#preview { display: flex; flex-direction: column; min-height: 0; min-width: 
       </div>
     </aside>
     <main id="preview">
-      <div class="viewbar" data-raven-grab-ignore>
+      <div class="viewbar">
         <div class="seg" role="group" aria-label="Frame" id="frames"></div>
         <div class="size" id="custom-size" hidden>
           <input type="number" id="frame-w" min="100" max="4000" step="1" inputmode="numeric" aria-label="Frame width">
@@ -253,7 +260,7 @@ main#preview { display: flex; flex-direction: column; min-height: 0; min-width: 
         <label class="switch"><input type="checkbox" id="reduced"> Reduced motion</label>
       </div>
       <div class="stage"><div id="frame"><div id="art"></div></div></div>
-      <div class="transport" data-raven-grab-ignore>
+      <div class="transport">
         <button class="btn" id="play">Pause</button>
         <button class="btn ghost" id="replay">Replay</button>
         <label class="switch"><input type="checkbox" id="loop" checked> Loop</label>
@@ -261,7 +268,7 @@ main#preview { display: flex; flex-direction: column; min-height: 0; min-width: 
         <span class="note" id="section"></span>
         <output id="clock"></output>
       </div>
-      <div class="strip" data-raven-grab-ignore>
+      <div class="strip">
         <div class="strip-labels" id="strip-labels" aria-hidden="true"></div>
         <div id="strip" tabindex="0" role="slider" aria-label="Playhead" aria-valuemin="0"></div>
       </div>
@@ -323,6 +330,7 @@ __SWIFTUI__
     $('custom-size').hidden = id !== 'custom';
     $('frame-w').value = frameState.w; $('frame-h').value = frameState.h;
     [].forEach.call($('frames').children, function (b) { b.setAttribute('aria-pressed', String(b.dataset.id === id)); });
+    showContext();
   }
   FRAMES.forEach(function (f) {
     var b = document.createElement('button');
@@ -360,6 +368,7 @@ __SWIFTUI__
     var pi = phaseIndexAt(at);
     strip.setAttribute('aria-valuetext', fmt(at) + ', ' + plan.phases[pi].label);
     $('clock').textContent = fmt(at) + ' of ' + fmt(plan.total);
+    showContext();
     if (pi !== shownPhase) {
       shownPhase = pi;
       [].forEach.call(strip.querySelectorAll('.phase'), function (e, i) { e.classList.toggle('now', i === pi); });
@@ -377,7 +386,7 @@ __SWIFTUI__
     draw();
     requestAnimationFrame(tick);
   }
-  function setPlaying(on) { playing = on; $('play').textContent = on ? 'Pause' : 'Play'; }
+  function setPlaying(on) { playing = on; $('play').textContent = on ? 'Pause' : 'Play'; showContext(); }
   function seek(ms) { setPlaying(false); t = Math.max(0, Math.min(plan.total, ms)); draw(); }
   $('play').addEventListener('click', function () { if (!playing && t >= plan.total) t = 0; setPlaying(!playing); });
   $('replay').addEventListener('click', function () { t = 0; setPlaying(true); });
@@ -386,7 +395,7 @@ __SWIFTUI__
     var b = document.createElement('button');
     b.textContent = v + '×'; b.setAttribute('aria-pressed', String(v === speed)); b.setAttribute('aria-label', v + ' times speed');
     b.addEventListener('click', function () {
-      speed = v;
+      speed = v; showContext();
       [].forEach.call($('speeds').children, function (x) { x.setAttribute('aria-pressed', String(x === b)); });
     });
     $('speeds').appendChild(b);
@@ -540,6 +549,15 @@ __SWIFTUI__
   }
   // A bar's tooltip adds what a press at the pointer would drag, from the same pick() the press uses, so it
   // can't name a drag that isn't there (handles past the strip's edge, a bar covered by another, reduced motion).
+  // Names a dragged bar for the agent: the property, its target and its section, then what changed.
+  function dragName(hd) {
+    var c = hd.steps.map(function (s) { return byId[s.pid].label; }).join(' and '), h = hd.h;
+    if (h.kind === 'edge') return 'the end of “' + plan.phases[h.phase].label + '”, which changed ' + c;
+    var tr = plan.tracks.filter(function (x) { return x.index === h.track; })[0];
+    if (!tr) return c;
+    var ph = plan.phases.filter(function (p) { return p.id === tr.phase; })[0];
+    return (PROP_LABEL[tr.property] || tr.property) + ' on ' + targetLabel(tr.target) + (ph ? ' in “' + ph.label + '”' : '') + ', which changed ' + c;
+  }
   function hintBar(b, hd) {
     if (!b || !b.classList || !b.classList.contains('bar')) return;
     if (b.dataset.tip === undefined) b.dataset.tip = b.title;
@@ -769,6 +787,7 @@ __SWIFTUI__
     function finish(e) {
       if (drag) {
         var d = drag; drag = null; delete strip.dataset.drag;
+        if (d.moved) lastDrag = dragName(d.handle);
         buildStrip();
         if (!d.moved && e) seek(timeAt(e)); else draw();
         commit();
@@ -1186,6 +1205,62 @@ __SWIFTUI__
     ].concat(web ? ['', 'Working web version:', '```html', web, '```'] : []).join('\n');
   }
   $('copy-agent').addEventListener('click', function () { var ta = $('out-agent'); ta.value = agentPacket(); copy(ta.value, ta, 'Copied. Paste it into your agent’s chat.'); });
+  // ---------- send ----------
+  // When Raven opens the playground it adds a #motion-send block naming where to post. Without it the page offers Copy only.
+  // What the designer was looking at goes with their note, so the agent knows which part they mean.
+  var lastDrag = null;
+  function contextValue(p, v) {
+    if (p.type === 'curve') return curveText(v);
+    if (p.type === 'enum') { var o = p.options.filter(function (x) { return x.value === v; })[0]; return o ? (o.label || String(o.value)) : String(v); }
+    if (p.type === 'boolean') return v ? 'on' : 'off';
+    if (p.type === 'number') return shown(p, v);
+    return String(v);
+  }
+  function sendContext() {
+    var at = reduced ? plan.restTime : Math.min(t, plan.total), parts = [];
+    var f = FRAMES.filter(function (x) { return x.id === frameState.id; })[0];
+    parts.push(playing && !reduced ? 'Playing the whole motion, ' + fmt(plan.total) + ' long.' : 'Paused at ' + fmt(at) + ', in “' + plan.phases[phaseIndexAt(at)].label + '”.');
+    if (playing && !reduced && speed !== 1) parts.push('Previewing at ' + speed + '× speed; the timing itself is unchanged.');
+    parts.push('Viewing ' + (frameState.id === 'custom' ? 'a custom frame, ' + frameState.w + ' × ' + frameState.h : f.label) + (reduced ? ', with reduced motion' : '') + '.');
+    var changed = params.filter(function (p) { return !sameValue(p, p.default, state.values[p.id]); });
+    parts.push(changed.length ? 'Changed: ' + changed.map(function (p) { return p.label + ' ' + contextValue(p, state.values[p.id]); }).join(', ') + '.' : 'No controls changed yet.');
+    if (lastDrag) parts.push('Last dragged: ' + lastDrag + '.');
+    return parts.join(' ');
+  }
+  var sendTo = (function () {
+    var b = document.getElementById('motion-send');
+    if (!b) return null;
+    try { var c = JSON.parse(b.textContent); return c && typeof c.url === 'string' && c.url.charAt(0) === '/' ? c : null; } catch (e) { return null; }
+  })();
+  function showContext() {
+    if (!sendTo || $('view-agent').hidden) return;
+    var c = sendContext();
+    if ($('send-context').textContent !== c) $('send-context').textContent = c;
+  }
+  if (sendTo) {
+    $('send-block').hidden = false;
+    $('copy-title').textContent = 'Or copy it';
+    $('copy-agent').className = 'btn';
+    $('send-agent').addEventListener('click', function () {
+      var btn = $('send-agent');
+      if (btn.disabled) return;
+      var typed = $('send-note').value, sent = typed.trim().slice(0, 4000);
+      var body = JSON.stringify({ playground: String(sendTo.playground || ''), title: doc.title, instruction: sent, context: sendContext(), packet: agentPacket() });
+      btn.disabled = true; say('Sending…');
+      // Raven answers at once, so a send that hangs is given up on and the button comes back. Raven never redirects.
+      var ctl = typeof AbortController === 'function' ? new AbortController() : null;
+      var timer = ctl ? setTimeout(function () { ctl.abort(); }, 8000) : 0;
+      fetch(sendTo.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body, redirect: 'error', signal: ctl ? ctl.signal : undefined }).then(function (r) {
+        if (r.status === 503) { say('Your agent has notes it hasn’t read yet. Ask it to check them, then send again.'); return; }
+        if (r.status !== 202) throw new Error(String(r.status));
+        // A note typed while this one was on its way stays put.
+        if ($('send-note').value === typed) $('send-note').value = '';
+        say('Sent. Your agent has it.');
+      }).catch(function () {
+        say('Couldn’t reach your agent. Ask it to open this playground again, or use Copy below.');
+      }).then(function () { clearTimeout(timer); btn.disabled = false; });
+    });
+  }
   var exportUI = {};
   exportsDef.forEach(function (x) {
     var b = el('div', { 'class': 'block' });
@@ -1215,7 +1290,7 @@ __SWIFTUI__
   function refreshExports() {
     var view = !$('view-agent').hidden ? 'agent' : !$('view-more').hidden ? 'more' : null;
     if (!view) return;
-    if (view === 'agent') { $('out-agent').value = agentPacket(); refreshRaven(); }
+    if (view === 'agent') { $('out-agent').value = agentPacket(); refreshRaven(); showContext(); }
     var codeOpen = $('code-more').open;
     exportsDef.forEach(function (x) {
       var v = x.view || 'agent';
@@ -1300,52 +1375,6 @@ __SWIFTUI__
     if (!t) ravenUI.note.textContent = ravenProblem(ravenFields());
   }
 
-  // ---------- Send through Raven Grab ----------
-  // Raven Grab adds its script to the page it serves, keyed like /raven-grab.js?key=K. When that script is here,
-  // the packet can go straight to the agent's queue: POST /grab with the same key, as the overlay's own Send does.
-  // The bridge's tag can sit after this script, so the page is checked once it has loaded.
-  // A saved page can still carry a tag from an earlier session. The overlay runs from the first tag that loads,
-  // so Send tries the keyed tags in page order and stops at the first one that accepts the packet.
-  function grabEndpoints() {
-    var out = [];
-    var scripts = document.getElementsByTagName('script');
-    for (var i = 0; i < scripts.length; i++) {
-      // .src is the address the browser loaded, after any <base>, which is the one the overlay itself reads.
-      if (!scripts[i].getAttribute('src')) continue;
-      try {
-        var u = new URL(scripts[i].src);
-        var key = u.searchParams.get('key');
-        if (/\/raven-grab\.js$/.test(u.pathname) && key) out.push(new URL('/grab?key=' + encodeURIComponent(key), u).href);
-      } catch (e) { /* not a URL: not the bridge */ }
-    }
-    return out;
-  }
-  var sendBtn = null;
-  function setupSend() {
-    if (sendBtn || !grabEndpoints().length) return;
-    sendBtn = el('button', { 'class': 'btn primary', id: 'send-agent', type: 'button' }, 'Send to your agent');
-    var copyBtn = $('copy-agent');
-    copyBtn.classList.remove('primary');
-    copyBtn.parentNode.insertBefore(sendBtn, copyBtn);
-    $('agent-lede').textContent = 'Raven Grab is open on this page, so this can go straight to your agent. It carries the motion as you tuned it, and the agent writes it in whatever language your project uses.';
-    sendBtn.addEventListener('click', function () {
-      var urls = grabEndpoints();
-      var ta = $('out-agent'); ta.value = agentPacket();
-      var body = JSON.stringify({ selector: '.stage', instruction: ta.value });
-      sendBtn.disabled = true;
-      (function next(i) {
-        if (i >= urls.length) { say('Couldn’t reach Raven Grab. Use Copy for your agent and paste it into your agent’s chat.'); sendBtn.disabled = false; return; }
-        // A tag whose server takes the request and never answers is given up on, so it cannot hold up the rest.
-        // The bridge answers /grab itself, so a redirect means another server: it counts as a failure, not a send.
-        var ctl = typeof AbortController === 'function' ? new AbortController() : null;
-        var timer = ctl ? setTimeout(function () { ctl.abort(); }, 4000) : 0;
-        fetch(urls[i], { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body, redirect: 'error', signal: ctl ? ctl.signal : undefined })
-          .then(function (r) { return r.status === 202; }, function () { return false; })
-          .then(function (ok) { clearTimeout(timer); if (!ok) { next(i + 1); return; } say('Sent to your agent through Raven Grab.'); sendBtn.disabled = false; });
-      })(0);
-    });
-  }
-  window.addEventListener('load', setupSend);
 
   // ---------- import ----------
   $('import').addEventListener('click', function () {
@@ -1374,6 +1403,6 @@ __SWIFTUI__
   syncControls();
   syncHistory();
   refreshRaven();
-  window.__ml = { state: state, setParam: setParam, agentPacket: agentPacket, ravenText: ravenText, plan: function () { return plan; }, geo: function () { return geo; }, seek: seek, apply: apply, time: function () { return t; }, history: function () { return { undo: hist.undo.length, redo: hist.redo.length }; } };
+  window.__ml = { state: state, setParam: setParam, agentPacket: agentPacket, ravenText: ravenText, plan: function () { return plan; }, geo: function () { return geo; }, seek: seek, apply: apply, sendContext: sendContext, time: function () { return t; }, history: function () { return { undo: hist.undo.length, redo: hist.redo.length }; } };
 })();
 </script>

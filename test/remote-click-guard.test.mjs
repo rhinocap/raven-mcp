@@ -313,7 +313,7 @@ test('the hosted 4/41 split is asserted over all 45 names, not spot-checked', ()
 });
 
 test('the stdio true-set IS TOOL_OPEN_WORLD, all 14 of it', () => {
-  assert.equal(Object.keys(localServer._registeredTools).length, 112,
+  assert.equal(Object.keys(localServer._registeredTools).length, 114,
     'stdio registers 113 names minus the hosted-only delete_taste_data');
   assert.deepEqual(openWorldTrueSet(localServer), STDIO_TRUE,
     'stdio publishes the reach-based meaning for every tool in TOOL_OPEN_WORLD and no other -- this is the surface the hosted half above diverges FROM, so if it drifts the divergence stops being measurable');

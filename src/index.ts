@@ -34,6 +34,7 @@ import type { ReferenceCapture, SurfaceBinding } from "./taste.js";
 import { generateTastePortrait, generateTastePortraitInline } from "./taste-portrait.js";
 import { generateMoodBoard } from "./mood-board.js";
 import { createMotionPlayground, timelineVocabulary, TIMELINE_MAX_BYTES, MOTION_MOTIFS, TITLE_MAX as MOTION_TITLE_MAX, CONTROL_LABEL_MAX as MOTION_CONTROL_LABEL_MAX, GROUP_LABEL_MAX as MOTION_GROUP_LABEL_MAX } from "./motion-playground/index.js";
+import { registerPlayground as registerMotionPlayground, getMotionSends, MAX_WAIT_MS as MOTION_SEND_MAX_WAIT_MS } from "./motion-session.js";
 import { setRemoteRuntime, isRemoteRuntime } from "./remote-runtime.js";
 import { ClosedTasteStore, FsTasteStore, type TasteStore } from "./taste-store.js";
 import { remoteUrlGuardError } from "./remote-url-guard.js";
@@ -1872,13 +1873,13 @@ function numberedDocMaterial(repoRelative: string, content: string): string {
   }).join("\n");
 }
 
-// The 66 gated tools are NOT served on a shared remote server (buildServer({remote:true})).
+// The 70 gated tools are NOT served on a shared remote server (buildServer({remote:true})).
 // They are the ones that are stateful/local (per-user ~/.raven files, or the
 // create_generation_job subprocess), reach the filesystem/network, have an
 // external side effect, or are pending a remote-safety pass — DESIGN.md,
 // review, grab-bridge, design-system diff, pattern-library and local-audit
 // tools among them. Everything else (45 stateless tools, including the 5
-// guarded browser URL audits added in Phase 3) is remote-safe, from 112 local
+// guarded browser URL audits added in Phase 3) is remote-safe, from 114 local
 // tools. The per-category split that used to sit here decayed silently against
 // several releases and summed to 63 against a stated 64, so only the totals —
 // which the count-asserting suites actually enforce — are claimed here.
@@ -1896,10 +1897,10 @@ const REMOTE_GATED_TOOLS = new Set<string>([
   // also what keeps the anonymous set frozen at the golden 45.
   "configure_design_system_source", "inventory_design_system",
   "diff_design_system", "list_design_system_components",
-  // stateful / local (34)
+  // stateful / local (36)
   "create_taste_profile", "get_taste_profile", "list_taste_profiles",
   "get_taste_interview", "bind_taste_surface", "record_taste_decision",
-  "list_taste_decisions", "generate_taste_portrait", "generate_mood_board", "create_motion_playground", "label_finding", "audit_taste",
+  "list_taste_decisions", "generate_taste_portrait", "generate_mood_board", "create_motion_playground", "open_motion_playground", "get_motion_sends", "label_finding", "audit_taste",
   "delete_taste_data",
   "create_brand_profile", "get_brand_profile", "list_brand_profiles",
   "register_creative_asset", "create_character_profile", "create_generation_job",
@@ -2190,6 +2191,10 @@ const TOOL_ACCESS: Record<string, "readOnly" | "destructive"> = {
   generate_taste_portrait: "destructive",
   generate_mood_board: "destructive",
   create_motion_playground: "destructive",
+  // Starts the local motion session server and registers a file with it.
+  open_motion_playground: "destructive",
+  // Drains the motion send queue.
+  get_motion_sends: "destructive",
   list_taste_profiles: "readOnly",
   label_finding: "destructive",
   audit_taste: "readOnly",
@@ -2306,14 +2311,14 @@ function remoteBlocksNetwork(toolName: string): boolean {
   return !!guard && guard.params.indexOf("url") !== -1;
 }
 
-// Which of the 37 destructive tools are IDEMPOTENT — calling twice with identical
+// Which of the 39 destructive tools are IDEMPOTENT — calling twice with identical
 // arguments leaves the same end state as calling once. The map is explicit and its
 // DEFAULT IS FALSE: under-claiming idempotency costs a client one retry it chose not
 // to make, while over-claiming is precisely the annotation-does-not-match-behaviour
 // finding this file now exists to prevent. A tool minting a fresh id, appending to a
 // log, draining a queue, or applying a RELATIVE change is not idempotent; one that
 // writes a value the caller supplied, or removes something by name, is.
-// None of these 37 is on the anonymous 45 — every one is in REMOTE_GATED_TOOLS — so
+// None of these 39 is on the anonymous 45 — every one is in REMOTE_GATED_TOOLS — so
 // this table describes the stdio surface only.
 const TOOL_IDEMPOTENT: { [tool: string]: boolean } = {
   configure_design_system_source: true,   // writes the config the caller passed
@@ -2351,6 +2356,8 @@ const TOOL_IDEMPOTENT: { [tool: string]: boolean } = {
   generate_taste_portrait: false,
   generate_mood_board: false,
   create_motion_playground: false,         // each call mints a fresh playground id unless output_path is given
+  open_motion_playground: false,           // each call mints a fresh playground id and url
+  get_motion_sends: false,                 // DRAINS the queue — second call differs
   label_finding: false,                   // appends a label
   capture_reference: false                // each capture mints a fresh ref_id
 };
@@ -2504,18 +2511,18 @@ function toolAnnotations(toolName: string, remote: boolean): {
       };
 }
 
-// buildServer() returns a FRESH McpServer with all 112 local tools + the usage-log/
+// buildServer() returns a FRESH McpServer with all 114 local tools + the usage-log/
 // update-banner wrapper registered. A new instance is required per transport
 // connection (SDK #961: one McpServer connects to exactly one transport, ever).
 // The stdio entry calls this once; a future HTTP entry calls it per request.
 // NOTE: importing this module does NOT start a server — only calling buildServer()
 // registers the tools, and only main() (guarded to direct-run) connects stdio.
 export function buildServer(opts?: { remote?: boolean; tasteStore?: TasteStore }): McpServer {
-// remote = serve only the 45 stateless remote-safe tools (gate off the 68 gated tools
+// remote = serve only the 45 stateless remote-safe tools (gate off the 70 gated tools
 // as appropriate; authenticated stores selectively restore taste tools). evaluate_design
 // stays but its screenshot pixel-diff is arg-guarded off).
 // Defaults from RAVEN_REMOTE env so a serverless entry can set it
-// without threading opts. stdio callers pass nothing → remote=false → all 112.
+// without threading opts. stdio callers pass nothing → remote=false → all 114.
 var remote: boolean = (opts && typeof opts.remote === "boolean")
   ? opts.remote
   : (process.env.RAVEN_REMOTE === "1" || process.env.RAVEN_REMOTE === "true");
@@ -8857,6 +8864,42 @@ server.tool(
   }
 );
 
+// Local motion session (src/motion-session.ts): a loopback server, separate
+// from Raven Grab, that serves a playground file and takes its Send posts.
+// Both tools are in REMOTE_GATED_TOOLS, so only stdio registers them.
+server.tool(
+  "open_motion_playground",
+  "Open a motion playground at a local link where the designer can tune it in their browser and use Send to your agent to send you a note along with the motion as they tuned it. Pass the html_path that create_motion_playground returned. Hand the designer the url, not the file path: the file opened on its own cannot send. Then call get_motion_sends to receive what they send. This is separate from Raven Grab and puts nothing on top of the page. The link works on this computer only, for as long as this Raven process runs, and the file is read fresh on every load, so a rebuilt playground shows up when the designer reloads.",
+  {
+    html_path: z.string().min(1).describe("Absolute path to the playground's .html file, usually the html_path from create_motion_playground. Must be a regular file, not a symlink, at most 8 MB."),
+  },
+  async function ({ html_path }) {
+    var opened = await registerMotionPlayground(html_path);
+    return { content: [{ type: "text" as const, text: JSON.stringify({
+      tool: "open_motion_playground",
+      url: opened.url,
+      playground_id: opened.id,
+      html_path: opened.html_path,
+      next: [
+        "Give the designer the url to open in their browser. Do not hand them html_path.",
+        "Call get_motion_sends with timeout_ms (up to " + MOTION_SEND_MAX_WAIT_MS + ") to wait for what they send from the playground.",
+      ],
+    }, null, 2) }] };
+  }
+);
+
+server.tool(
+  "get_motion_sends",
+  "Receive what the designer sent from a motion playground opened with open_motion_playground. Each send carries the designer's note (instruction), what they were looking at (context), and the motion as tuned (packet), along with the playground's url and html_path. Act on the note using the packet; when the note is empty, the packet itself is what they want. Returns at once with anything already sent, and each send is returned only once. When you expect a send, pass timeout_ms, up to " + MOTION_SEND_MAX_WAIT_MS + ", to wait for it.",
+  {
+    timeout_ms: z.number().int().min(0).optional().describe("How long to wait for the first send when none has arrived yet, in milliseconds, up to " + MOTION_SEND_MAX_WAIT_MS + "; larger values wait " + MOTION_SEND_MAX_WAIT_MS + ". 0 or omitted returns at once."),
+  },
+  async function ({ timeout_ms }) {
+    var drained = await getMotionSends(timeout_ms);
+    return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "get_motion_sends", count: drained.sends.length, sends: drained.sends, waiting_url_count: drained.waiting_url_count }, null, 2) }] };
+  }
+);
+
 server.tool(
   "list_taste_profiles",
   "List locally stored taste profiles with rule/corpus counts and last-updated timestamps.",
@@ -9217,7 +9260,7 @@ server.tool(
 // ── Start ───────────────────────────────────────────────────────────
 
 async function main() {
-  // Hardcode remote:false so stdio ALWAYS serves all 112 tools regardless of any
+  // Hardcode remote:false so stdio ALWAYS serves all 114 tools regardless of any
   // ambient RAVEN_REMOTE env — the stdio wire contract stays byte-for-byte
   // unchanged in every runtime condition (additive-only invariant).
   const server = buildServer({ remote: false, tasteStore: new FsTasteStore() });

@@ -4,9 +4,9 @@
 //
 // What these tests hold: exactly one of motif or timeline is accepted; the validator's errors come back in
 // full; font paths are absolute, named by extension, and held to Motion Lab's font limits; every playground,
-// keyfob included, carries a CSP that runs only its own inline scripts plus loopback (Raven Grab), and a
+// keyfob included, carries a CSP that runs only its own inline scripts plus loopback (so Raven Grab can still run over it), and a
 // browser shows no CSP violation; the timeline playground runs, its Copy for Raven text is accepted by
-// record_taste_decision, and Send goes through Grab; the tool description lists the schema's own words.
+// record_taste_decision, and Send posts to Raven's own motion session (not Grab); the tool description lists the schema's own words.
 //
 // Fixtures: test/fixtures/motion/composite.ttf and woff2-bomb.woff2 are built from code by Motion Lab's
 // scripts/make-font-fixtures.mjs (L is a 20-point leaf; A nests composites 14 levels deep).
@@ -29,7 +29,7 @@ const { buildServer } = await import('../dist/index.js');
 const { FsTasteStore } = await import('../dist/taste-store.js');
 const taste = await import('../dist/taste.js');
 const mp = await import('../dist/motion-playground/index.js');
-const bridge = await import('../dist/grab-bridge.js');
+const session = await import('../dist/motion-session.js');
 const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
 const { InMemoryTransport } = await import('@modelcontextprotocol/sdk/inMemory.js');
 
@@ -227,45 +227,57 @@ test('Copy for Raven on a timeline is accepted by record_taste_decision as-is', 
   });
 });
 
-test('with Raven Grab\'s script tag pasted in, the overlay starts under the CSP and Send queues the packet', { skip: noBrowser }, async () => {
+test('opened with open_motion_playground, Send posts the note and what was on screen, under the CSP, and get_motion_sends returns it', { skip: noBrowser }, async () => {
   await withHome(async ({ home, store }) => {
     const out = path.join(home, 'timeline.html');
     await mp.createMotionPlayground({ store, timeline: timeline(), output_path: out });
-    const designPath = path.join(home, 'DESIGN.md');
-    writeFileSync(designPath, '---\ncolor:\n  text:\n    primary: "#ffffff"\n---\n\n# Fixture\n');
-    const session = await bridge.startGrabSession(designPath);
-    const html = readFileSync(out, 'utf8').replace('</body>', session.script_tag + '</body>');
-    const site = createServer((req, res) => { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(html); });
-    await new Promise((r) => site.listen(0, '127.0.0.1', r));
+    const opened = await session.registerPlayground(out);
     const browser = await chromium.launch();
     try {
       const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+      const errors = [];
+      page.on('pageerror', (e) => errors.push(e.message));
       await page.addInitScript(() => { window.__csp = []; document.addEventListener('securitypolicyviolation', (e) => window.__csp.push(e.violatedDirective + ' ' + (e.blockedURI || 'inline'))); });
-      await page.goto('http://127.0.0.1:' + site.address().port + '/', { waitUntil: 'load' });
-      await page.waitForFunction(() => !!window.__ml && !!document.getElementById('send-agent') && !!document.querySelector('[data-raven-grab-overlay]')?.shadowRoot);
-      const got = await page.evaluate(async () => {
+      await page.goto(opened.url, { waitUntil: 'load' });
+      await page.waitForFunction(() => !!window.__ml);
+      const shown = await page.evaluate(() => {
         const $ = (id) => document.getElementById(id);
         window.__ml.setParam('letterTime', 600);
+        if ($('play').textContent === 'Pause') $('play').click();
+        window.__ml.seek(500);
         $('tab-agent').click();
-        $('status').textContent = '';
-        $('send-agent').click();
-        const deadline = Date.now() + 3000;
-        while (!$('status').textContent && Date.now() < deadline) await new Promise((r) => setTimeout(r, 20));
         return {
-          status: $('status').textContent, packet: window.__ml.agentPacket(), csp: window.__csp,
-          ignored: ['panel'].map((id) => $(id).hasAttribute('data-raven-grab-ignore')).concat(['.viewbar', '.transport', '.strip'].map((s) => document.querySelector(s).hasAttribute('data-raven-grab-ignore'))),
+          send: !$('send-block').hidden, copySecond: $('copy-agent').className === 'btn' && $('copy-title').textContent === 'Or copy it',
+          primaries: [...document.querySelectorAll('#view-agent .btn.primary')].filter((b) => b.offsetParent !== null).map((b) => b.id),
+          context: $('send-context').textContent, overlay: !!document.querySelector('[data-raven-grab-overlay]'),
         };
       });
-      assert.equal(got.status, 'Sent to your agent through Raven Grab.');
-      assert.deepEqual(got.ignored, [true, true, true, true]);
-      // The pasted tag's inline config is the one thing the CSP refuses; the overlay runs without it.
-      assert.ok(got.csp.every((v) => /^script-src(-elem)? inline$/.test(v)), JSON.stringify(got.csp));
-      assert.match(got.packet, /I tuned it in a Raven motion playground/);
+      assert.deepEqual({ ...shown, context: undefined }, { send: true, copySecond: true, primaries: ['send-agent'], context: undefined, overlay: false });
+      assert.match(shown.context, /^Paused at 0\.50 s, in “.+”\. Viewing Desktop\. Changed: Letter time 600 ms\.$/);
+      await page.fill('#send-note', 'Use this for the hero');
+      await page.click('#send-agent');
+      await page.waitForFunction(() => /Sent|reach/.test(document.getElementById('status').textContent));
+      const after = await page.evaluate(() => ({ status: document.getElementById('status').textContent, note: document.getElementById('send-note').value, packet: window.__ml.agentPacket(), csp: window.__csp }));
+      assert.deepEqual({ status: after.status, note: after.note, csp: after.csp }, { status: 'Sent. Your agent has it.', note: '', csp: [] });
+      const got = await session.getMotionSends(2000);
+      assert.equal(got.sends.length, 1);
+      const s = got.sends[0];
+      assert.deepEqual({ instruction: s.instruction, context: s.context, packet: s.packet === after.packet, url: s.playground_url, title: s.title },
+        { instruction: 'Use this for the hero', context: shown.context, packet: true, url: opened.url, title: timeline().title });
+      assert.match(s.packet, /I tuned it in a Raven motion playground/);
+      // With Raven gone the note stays and the page points to Copy.
+      await session.stopMotionSession();
+      await page.fill('#send-note', 'Slower');
+      await page.evaluate(() => { document.getElementById('status').textContent = ''; });
+      await page.click('#send-agent');
+      await page.waitForFunction(() => /Sent|reach/.test(document.getElementById('status').textContent), null, { timeout: 15000 });
+      const lost = await page.evaluate(() => ({ status: document.getElementById('status').textContent, note: document.getElementById('send-note').value }));
+      assert.match(lost.status, /^Couldn’t reach your agent\. .*Copy below\.$/);
+      assert.equal(lost.note, 'Slower');
+      assert.deepEqual(errors, []);
     } finally {
       await browser.close();
-      site.closeAllConnections();
-      await new Promise((r) => site.close(r));
-      await bridge.stopGrabSession?.();
+      await session.stopMotionSession();
     }
   });
 });

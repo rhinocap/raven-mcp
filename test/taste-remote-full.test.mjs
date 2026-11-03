@@ -179,7 +179,7 @@ test('gating: remote+store = 56 (45 + all 10 taste + delete_taste_data); bare re
   const extras = authedNames.filter((n) => !bareNames.includes(n)).sort();
   assert.deepEqual(extras, ALL_TASTE.concat('delete_taste_data').sort());
 
-  assert.equal(Object.keys(buildServer({})._registeredTools).length, 112, 'stdio includes audit, template/layer, review/polish, and 14 local Decision Graph tools');
+  assert.equal(Object.keys(buildServer({})._registeredTools).length, 114, 'stdio includes audit, template/layer, review/polish, and 14 local Decision Graph tools');
 });
 
 test('authed startup tuning appears only on store-backed remote metadata', () => {

@@ -3,7 +3,7 @@
 // src/data/motion/motifs.lock.json. Motion Lab stays the source of truth for these files;
 // test/motion-playground.test.mjs fails if a copy no longer matches the lock, so a hand edit in
 // src/data/motion/<motif>/ is caught. template.html and timeline-template.html are Raven forks (Copy for
-// Raven, Send through Grab, no bundled font), so they are not overwritten; the lock records the upstream
+// Raven, no bundled font), so they are not overwritten; the lock records the upstream
 // hash each was forked from and the fork's own hash, so an edit to a fork is re-locked on purpose by a sync. timeline/ mirrors Motion Lab's own layout (scripts/, src/timeline/, schemas/)
 // so the validator's relative imports resolve unchanged; timeline/package.json (Raven's, not synced) marks
 // the .js files CommonJS.

@@ -460,6 +460,14 @@
       "description": "Build a motion playground: one self-contained HTML file with an animation on a stage, its controls labelled in designer…"
     },
     {
+      "name": "open_motion_playground",
+      "description": "Open a motion playground at a local link where the designer can tune it in their browser and use Send to your agent to…"
+    },
+    {
+      "name": "get_motion_sends",
+      "description": "Receive what the designer sent from a motion playground opened with open_motion_playground."
+    },
+    {
       "name": "list_taste_profiles",
       "description": "List locally stored taste profiles with rule/corpus counts and last-updated timestamps."
     },

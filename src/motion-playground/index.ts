@@ -71,8 +71,8 @@ export type MotionPlaygroundResult = {
 };
 
 const NEXT = [
-  "Open html_path in a browser.",
-  "After tuning, use Copy for Raven on the Send to agent tab and paste the text back here to record it with record_taste_decision.",
+  "Call open_motion_playground with html_path and give the designer the url it returns, so Send to your agent reaches you. Then call get_motion_sends to receive what they send.",
+  "After tuning, the designer can also use Copy for Raven on the Send to agent tab and paste the text back here to record it with record_taste_decision.",
 ];
 
 function readMotif(motif: MotionMotif): { schema: MotionSchema; runtime: string } {
@@ -240,10 +240,11 @@ function readTimeline(input: unknown): TimelineDoc {
 
 /**
  * Content-Security-Policy for a generated playground. Inline scripts run only by hash, so injected markup
- * cannot run code or inline handlers. Raven Grab is the one outside script a playground expects, and it is
- * always served from loopback: by the bridge proxy (which also strips this meta tag), or by the script_tag an
- * agent pastes into a file. The pasted tag's inline config is refused, and the overlay reads its bridge from
- * its own script address instead, so loopback scripts and connections are allowed and nothing else is.
+ * cannot run code or inline handlers. open_motion_playground serves the page from loopback and Send posts back
+ * to that same origin. Raven Grab can still be run over a playground on its own, from the bridge proxy (which
+ * strips this meta tag) or from the script_tag an agent pastes into a file; the pasted tag's inline config is
+ * refused and the overlay reads its bridge from its own script address, so loopback scripts and connections
+ * are allowed and nothing else is.
  * Data blocks (type="application/json") are not run, so they need no hash. style-src allows inline styles
  * because the panel builds swatches and the snippet preview with style attributes. The Grab overlay imports
  * its Geist face from Google Fonts, so those two origins are allowed for styles and fonts only.
