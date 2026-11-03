@@ -189,7 +189,7 @@ test('real-site patterns: a floating nav, a cookie notice, a glow, a split card 
     // The glow is a decoration: left out of the hero, and said so.
     const hero = by('hero-entrance')[0];
     assert.ok(hero, ids);
-    assert.ok(hero.approximations.includes('A shape drawn for effect, apart from the layout, is left out.'), hero.approximations.join(' | '));
+    assert.ok(hero.approximations.includes('A decorative shape, such as a glow, is left out.'), hero.approximations.join(' | '));
     // Four tiles that differ by modifier classes are one group.
     assert.equal(by('card-hover').length, 1, ids);
     assert.match(by('card-hover')[0].why, /4 cards/);

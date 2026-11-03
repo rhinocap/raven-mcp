@@ -817,7 +817,7 @@ export async function collectMotionCandidatesInPage(arg: { maxNodes: number; max
       if (!isRoot && !visible(el)) return null;
       // A cookie bar or dialog fixed over the page is not part of the section it happens to sit in.
       if (!isRoot && !rootInOverlay && inOverlay(el)) return null;
-      if (!isRoot && decoration(el)) { approx.add("A shape drawn for effect, apart from the layout, is left out."); return null; }
+      if (!isRoot && decoration(el)) { approx.add("A decorative shape, such as a glow, is left out."); return null; }
       count++;
       elements.push(el);
       const box = boxOf(el);
