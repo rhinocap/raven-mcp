@@ -1,6 +1,6 @@
 {
   "source": "rhinocap/motion-lab",
-  "source_commit": "ffd5975e8c0faa86a1307bd4e05dd3f5e74b6998",
+  "source_commit": "6591d749569bc2797698cc6ea0a45b01ae0e47c9",
   "motifs": [
     "keyfob"
   ],
@@ -11,7 +11,7 @@
     "timeline/scripts/validate-timeline.mjs": "8508812be5e86605bb851818073b6aed996155e025a2e9acaae75a71e83f96e5",
     "timeline/scripts/validate.mjs": "4faabc93034319feff45103a94e27518b17a8f14fa416fd8eb968994436e585f",
     "timeline/src/timeline/evaluator.js": "cfc9bd7413bf23de241e50a95a8abf12e9dc7cf8311753e7e0b28a43fe1fcfb5",
-    "timeline/src/timeline/export.js": "a96a438e79e3cd1dd37be80ffa237c264e63499ea2ac8f2049f71eac88f2ff86",
+    "timeline/src/timeline/export.js": "33f47b41e7b5813a069b50fecf72446305319919adbaa44ced05ef858add697f",
     "timeline/src/timeline/swiftui.js": "7089f8ecdc42f5ab01a8bd508aaa5ed60084f11dd32b369600dd0d53432b90aa",
     "timeline/src/timeline/outline.js": "30ffebbf4b1b8e3efc4fcbe213fdecd4cd9c75b6b98b9a11e29a74753c750ed3",
     "timeline/src/timeline/fragment.js": "8f256d74fe016ad56027615a9f1459e3ee2f7a10a29d0a05576b2c1da072b80d",

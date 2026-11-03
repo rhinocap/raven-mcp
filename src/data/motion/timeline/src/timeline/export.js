@@ -370,22 +370,35 @@ ${triggerControl(plan)}
       ['focusout', (e) => { focus = area.contains(e.relatedTarget); sync(); }],
     ];
     on.forEach(([type, f]) => area.addEventListener(type, f));
+    // Set up again (reduced motion turned off) while already hovered or focused: start from that state.
+    pointer = area.matches(':hover');
+    focus = area.contains(document.activeElement);
+    sync();
     return () => on.forEach(([type, f]) => area.removeEventListener(type, f));
   }`
     }
     return `${head}
     // In view once ${trig.threshold} of the stage shows, or its visible height is ${trig.threshold} of the window's (tall stages).
-    let fired = false;
-    const io = new IntersectionObserver((entries) => {
-      for (const e of entries) {
-        const tall = e.rootBounds ? e.rootBounds.height : innerHeight;
-        const seen = e.isIntersecting && (e.intersectionRatio >= ${trig.threshold} - 1e-3 || e.intersectionRect.height >= ${trig.threshold} * tall - 0.5);
-        if (seen && !fired) { fired = true; forward();${trig.once ? ' io.disconnect();' : ''} }${trig.once ? '' : `
-        else if (!e.isIntersecting && fired) { fired = false; hold(); anims.forEach((a) => { a.currentTime = 0; }); }`}
-      }
-    }, { threshold: Array.from({ length: 101 }, (_, i) => i / 100).concat(${trig.threshold}) });
-    io.observe(root);
-    return () => io.disconnect();
+    // Measured on every scroll and resize, so a slow scroll past a tall stage cannot step over the threshold.
+    let fired = false, queued = 0;
+    const check = () => {
+      queued = 0;
+      const r = root.getBoundingClientRect();
+      const tall = document.documentElement.clientHeight || innerHeight;
+      const wide = document.documentElement.clientWidth || innerWidth;
+      const h = Math.max(0, Math.min(r.bottom, tall) - Math.max(r.top, 0));
+      const w = Math.max(0, Math.min(r.right, wide) - Math.max(r.left, 0));
+      const out = h <= 0 || w <= 0;
+      const seen = !out && (h / Math.max(r.height, 1) >= ${trig.threshold} - 1e-3 || h >= ${trig.threshold} * tall - 0.5);
+      if (seen && !fired) { fired = true; forward();${trig.once ? ' off();' : ''} }${trig.once ? '' : `
+      else if (out && fired) { fired = false; hold(); anims.forEach((a) => { a.currentTime = 0; }); }`}
+    };
+    const soon = () => { if (!queued) queued = requestAnimationFrame(check); };
+    const off = () => { removeEventListener('scroll', soon, true); removeEventListener('resize', soon); if (queued) cancelAnimationFrame(queued); queued = 0; };
+    addEventListener('scroll', soon, { capture: true, passive: true });
+    addEventListener('resize', soon);
+    check();
+    return off;
   }`
   }
 
