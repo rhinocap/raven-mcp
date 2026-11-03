@@ -418,6 +418,22 @@ test('from the map, open a suggestion, tune it, Send, and get_motion_sends names
       page.on('pageerror', (e) => errors.push(e.message));
       await page.addInitScript(() => { window.__csp = []; document.addEventListener('securitypolicyviolation', (e) => window.__csp.push(e.violatedDirective + ' ' + (e.blockedURI || 'inline'))); });
       await page.goto(opened.url, { waitUntil: 'load' });
+      // The list floats in a Grab panel on the right; the picture stays clear of it, the tiles close it and the edge tab
+      // brings it back. A closed panel is off screen and inert.
+      const geo = () => page.evaluate(() => {
+        const fp = document.querySelector('aside.fp').getBoundingClientRect(), shot = document.querySelector('.shot').getBoundingClientRect();
+        return { fpL: Math.round(fp.left), fpR: Math.round(fp.right), shotR: Math.round(shot.right), inert: document.querySelector('aside.fp').inert, tab: getComputedStyle(document.querySelector('.edge-tab')).display };
+      });
+      let g = await geo();
+      assert.deepEqual({ right: g.fpR, clear: g.shotR <= g.fpL, inert: g.inert, tab: g.tab }, { right: 1420, clear: true, inert: false, tab: 'none' });
+      await page.click('.tiles [data-layout="page"]');
+      await page.waitForTimeout(300);
+      g = await geo();
+      assert.deepEqual({ off: g.fpL >= 1440, inert: g.inert, tab: g.tab }, { off: true, inert: true, tab: 'flex' });
+      await page.click('.edge-tab');
+      await page.waitForTimeout(300);
+      g = await geo();
+      assert.deepEqual({ right: g.fpR, inert: g.inert }, { right: 1420, inert: false });
       const n = r.suggestions.findIndex((s) => s.kind === 'cta-hover') + 1;
       const s = r.suggestions[n - 1];
       // The served map points its links at the served playgrounds.
@@ -428,7 +444,7 @@ test('from the map, open a suggestion, tune it, Send, and get_motion_sends names
       await page.waitForFunction(() => !!window.__ml);
       const ctx = await page.evaluate(() => {
         window.__ml.setParam('lift', 5);
-        document.getElementById('tab-agent').click();
+        document.querySelector('#panel .tiles [data-layout="left"]').click(); document.querySelector('#panel .tiles [data-layout="both"]').click();
         return document.getElementById('send-context').textContent;
       });
       assert.match(ctx, /Plays on hover/);

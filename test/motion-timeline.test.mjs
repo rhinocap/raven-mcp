@@ -201,7 +201,7 @@ test('Copy for Raven on a timeline is accepted by record_taste_decision as-is', 
       text = await page.evaluate(() => {
         window.__ml.setParam('letterTime', 600);
         window.__ml.setParam('letterMotion', { kind: 'spring', duration: 500, bounce: 0.2 });
-        document.getElementById('tab-agent').click();
+        document.querySelector('#panel .tiles [data-layout="left"]').click(); document.querySelector('#panel .tiles [data-layout="both"]').click();
         return { box: document.getElementById('out-raven').value, raven: window.__ml.ravenText(), lede: !!document.getElementById('copy-raven') && !document.getElementById('copy-raven').disabled };
       });
     } finally {
@@ -245,7 +245,7 @@ test('opened with open_motion_playground, Send posts the note and what was on sc
         window.__ml.setParam('letterTime', 600);
         if ($('play').textContent === 'Pause') $('play').click();
         window.__ml.seek(500);
-        $('tab-agent').click();
+        document.querySelector('#panel .tiles [data-layout="left"]').click(); document.querySelector('#panel .tiles [data-layout="both"]').click();
         return {
           send: !$('send-block').hidden, copySecond: $('copy-agent').className === 'btn' && $('copy-title').textContent === 'Or copy it',
           primaries: [...document.querySelectorAll('#view-agent .btn.primary')].filter((b) => b.offsetParent !== null).map((b) => b.id),

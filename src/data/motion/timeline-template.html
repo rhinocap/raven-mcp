@@ -1,146 +1,200 @@
 <title>__TITLE_HTML__</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
-/* Layout: a quiet tool. Fixed-width control panel on the left, the stage takes the rest; one column on phones. */
+/* Layout: the Raven Grab panel pattern. The animation fills the window; a floating panel on the left holds the
+   controls, one on the right holds Send to agent, and a floating dock between them holds playback and the timeline.
+   Header tiles close and open the panels; one column on phones. Tokens, sizes and states follow raven-grab.js. */
 :root {
-  --bg: #17171d;
-  --panel: #1f1f26;
+  --bg: #1a1a22;
+  --panel: #212129;
   --raised: #2a2a33;
-  --line: #34343e;
+  --line: rgba(255, 255, 255, .12);
+  --hair: rgba(255, 255, 255, .06);
   --fg: #f0f0f2;
-  --fg-2: #a6aab3;
-  --fg-3: #8a8e98;
+  --fg-2: #9498a0;
+  --fg-3: #8e929c;
+  --accent: #00bfff;
+  --accent-hover: #33cfff;
+  --on-accent: #0a1018;
   --focus: #00bfff;
   --warn: #ffab40;
   --wall: #2b2b31;
   --wall-ink: #a6aab3;
   --swatch-ring: rgba(255, 255, 255, .18);
   --font: "Untitled Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
-  --t-xs: 11px; --t-sm: 12px; --t-md: 13px; --t-lg: 15px;
-  --r: 6px;
+  --t-xs: 11px; --t-sm: 12px; --t-md: 13px; --t-lg: 14px;
+  --r: 8px;
   --hit: 44px;
-  --panel-w: 340px;
+  --edge: 20px;
+  --panel-w: 360px;
+  --panel-r: 20px;
+  --gap: 12px;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .25), 0 0 32px rgba(0, 191, 255, .06), 0 8px 16px -4px rgba(0, 0, 0, .35), 0 24px 48px -12px rgba(0, 0, 0, .5);
   color-scheme: dark;
 }
+@media (max-width: 1280px) { :root { --panel-w: 320px; --edge: 12px; --panel-r: 16px; } }
+@media (max-width: 1024px) { :root { --panel-w: 300px; --edge: 10px; } }
 html, body { height: 100%; }
-body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font); font-size: var(--t-md); line-height: 1.4; -webkit-font-smoothing: antialiased; }
+body { margin: 0; background: var(--wall); color: var(--fg); font-family: var(--font); font-size: var(--t-md); line-height: 1.45; -webkit-font-smoothing: antialiased; }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 button, input, textarea { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
-.app { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); }
-header#summary { display: flex; align-items: center; gap: 16px; padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); border-bottom: 1px solid var(--line); min-width: 0; }
-header h1 { font-size: var(--t-lg); font-weight: 500; margin: 0; white-space: nowrap; }
-header p { margin: 0; color: var(--fg-2); font-size: var(--t-sm); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-#status { color: var(--fg-2); font-size: var(--t-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 45%; }
+/* Where the stage and dock sit: between whichever panels are open. */
+.app { --l: calc(var(--edge) + var(--panel-w) + var(--gap)); --rt: calc(var(--edge) + var(--panel-w) + var(--gap)); height: 100%; }
+/* A closed side keeps room for its edge tab. */
+.app[data-layout="right"], .app[data-layout="page"] { --l: calc(44px + var(--gap)); }
+.app[data-layout="left"], .app[data-layout="page"] { --rt: calc(44px + var(--gap)); }
 
-.work { display: grid; grid-template-columns: var(--panel-w) minmax(0, 1fr); min-height: 0; }
-aside#panel { background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
-.tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
-.tabs button { min-height: var(--hit); border: 0; background: transparent; color: var(--fg-2); border-radius: var(--r); cursor: pointer; font-weight: 500; }
-.tabs button:hover, .seg button:hover { color: var(--fg); }
-.tabs button[aria-selected="true"] { background: var(--raised); color: var(--fg); }
-.view { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 16px 24px; display: flex; flex-direction: column; gap: 16px; }
+.fp { position: fixed; top: var(--edge); bottom: var(--edge); z-index: 2; width: var(--panel-w); display: flex; flex-direction: column; overflow: hidden; color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: var(--panel-r); box-shadow: var(--shadow); transition: transform 200ms ease; }
+aside#panel { left: var(--edge); }
+aside#send-panel { right: var(--edge); }
+.app[data-layout="right"] aside#panel, .app[data-layout="page"] aside#panel { transform: translateX(calc(-100vw - 100%)); pointer-events: none; }
+.app[data-layout="left"] aside#send-panel, .app[data-layout="page"] aside#send-panel { transform: translateX(calc(100vw + 100%)); pointer-events: none; }
+.fp-head { flex: none; display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 12px 16px; background: rgba(255, 255, 255, .01); border-bottom: 1px solid var(--hair); }
+.fp-head h1, .fp-head h2 { flex: 1; min-width: 0; margin: 0; font-size: var(--t-lg); font-weight: 500; line-height: 1.3; letter-spacing: -.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Layout tiles: each draws the layout it gives, a solid bar for a panel left open and a faded one for a panel it closes. */
+.tiles { display: flex; gap: 4px; margin-left: auto; }
+.tiles button { position: relative; width: 26px; height: 19px; padding: 0; cursor: pointer; background: rgba(255, 255, 255, .05); border: 1px solid var(--line); border-radius: 4px; }
+.tiles button::before { content: ""; position: absolute; top: -12.5px; bottom: -12.5px; left: 0; right: 0; }
+.tiles button:hover { border-color: rgba(255, 255, 255, .28); }
+.tiles button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.tiles button[aria-checked="true"] { background: rgba(0, 191, 255, .12); border-color: var(--accent); }
+.tiles i { position: absolute; top: 3px; bottom: 3px; width: 5px; border-radius: 1.5px; background: var(--fg-2); }
+.tiles i:first-child { left: 3px; } .tiles i:last-child { right: 3px; }
+.tiles i.off { opacity: .18; }
+.tiles button[aria-checked="true"] i { background: var(--accent); }
+.edge-tab { position: fixed; top: 33px; z-index: 2; display: none; align-items: center; justify-content: center; width: 44px; min-height: 44px; padding: 0; cursor: pointer; color: var(--accent); background: rgba(22, 44, 66, .9); border: 1px solid var(--accent); box-shadow: 0 8px 24px rgba(0, 0, 0, .3); }
+.edge-tab[data-side="left"] { left: 0; border-left: 0; border-radius: 0 12px 12px 0; }
+.edge-tab[data-side="right"] { right: 0; border-right: 0; border-radius: 12px 0 0 12px; }
+.edge-tab:hover { background: rgba(22, 44, 66, 1); }
+.edge-tab svg { width: 18px; height: 18px; }
+.app[data-layout="right"] .edge-tab[data-side="left"], .app[data-layout="page"] .edge-tab[data-side="left"],
+.app[data-layout="left"] .edge-tab[data-side="right"], .app[data-layout="page"] .edge-tab[data-side="right"] { display: flex; }
+
+.tabs { flex: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); min-height: var(--hit); background: rgba(255, 255, 255, .01); border-bottom: 1px solid var(--line); }
+.tabs button { min-height: var(--hit); padding: 12px 6px; border: 0; border-bottom: 1px solid transparent; background: transparent; color: var(--fg); cursor: pointer; font-size: var(--t-xs); line-height: 1; }
+.tabs button:hover { color: var(--accent); }
+.tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: rgba(0, 191, 255, .3); font-weight: 500; }
+.view { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 16px; scrollbar-width: thin; scrollbar-color: #3c3c47 var(--panel); }
+/* As in Grab, a panel body fades over its last 16px so a cut-off row reads as more below. */
+.fp .view { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent); }
+.concept { margin: 0; color: var(--fg-2); font-size: var(--t-sm); }
 
 .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.btn { min-height: var(--hit); padding: 0 14px; border-radius: var(--r); border: 1px solid var(--line); background: var(--raised); cursor: pointer; font-weight: 500; }
-.btn:hover { border-color: var(--fg-3); }
+.btn { min-height: var(--hit); padding: 7px 12px; border-radius: var(--r); border: 1px solid var(--line); background: var(--raised); color: var(--fg); cursor: pointer; font-size: var(--t-sm); font-weight: 500; line-height: 1.3; }
+.btn:hover { border-color: rgba(0, 191, 255, .3); }
 .btn.ghost { background: transparent; }
-.btn.primary { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.btn.primary { width: 100%; height: var(--hit); padding: 12px 28px; border: 0; border-radius: 9999px; background: var(--accent); color: var(--on-accent); font-size: var(--t-lg); box-shadow: 0 4px 20px rgba(0, 191, 255, .4); transition: background 150ms ease, transform 150ms cubic-bezier(.16, 1, .3, 1); }
+.btn.primary:hover { background: var(--accent-hover); transform: translateY(-2px); }
+.btn.primary:focus-visible { outline: 3px solid rgba(0, 191, 255, .35); outline-offset: 2px; }
 
 .group { display: flex; flex-direction: column; }
-.group h2 { font-size: var(--t-xs); font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--fg-3); margin: 4px 0 2px; }
-.ctl { position: relative; display: flex; flex-direction: column; border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent); padding-block: 2px; }
+.group h2 { margin: 0 0 4px; color: var(--fg-3); font-size: var(--t-sm); font-weight: 500; letter-spacing: -.01em; }
+.ctl { position: relative; display: flex; flex-direction: column; border-bottom: 1px solid var(--hair); padding-block: 2px; }
 .ctl:last-child { border-bottom: 0; }
 .ctl .row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px; min-height: var(--hit); }
-.ctl label.name, .ctl span.name { color: var(--fg); min-width: 0; }
+.ctl label.name, .ctl span.name { color: var(--fg-2); font-size: var(--t-sm); min-width: 0; }
 /* Help sits over the row below, so showing it never moves a control under the pointer. */
-.ctl .help { position: absolute; top: 100%; min-height: var(--hit); left: 0; right: 0; z-index: 1; margin: 0; padding: 6px 8px; color: var(--fg-2); font-size: var(--t-sm); background: var(--raised); border: 1px solid var(--line); border-radius: var(--r); pointer-events: none; visibility: hidden; }
+.ctl .help { position: absolute; top: 100%; min-height: var(--hit); left: 0; right: 0; z-index: 1; margin: 0; padding: 7px 9px; color: var(--fg); font-size: var(--t-xs); background: var(--bg); border: 1px solid var(--line); border-radius: var(--r); box-shadow: 0 8px 24px rgba(0, 0, 0, .35); pointer-events: none; visibility: hidden; }
 .ctl.help-up .help { top: auto; bottom: 100%; }
 :root:not([data-input="key"]) .ctl:hover .help, :root[data-input="key"] .ctl:focus-within .help { visibility: visible; transition: visibility 0s linear .3s; }
 .num { display: flex; align-items: center; height: var(--hit); cursor: text; }
-.num input { width: 66px; height: 28px; text-align: right; background: var(--bg); border: 1px solid transparent; border-radius: 4px; padding: 0 6px; font-variant-numeric: tabular-nums; }
-.num input:hover { border-color: var(--line); }
-.num span { color: var(--fg-3); font-size: var(--t-sm); width: 26px; padding-left: 4px; }
+.num input { width: 66px; height: 32px; text-align: right; background: var(--bg); border: 1px solid var(--line); border-radius: var(--r); padding: 0 10px; font-size: var(--t-sm); font-variant-numeric: tabular-nums; outline: none; transition: border-color 150ms ease, box-shadow 150ms ease; }
+.num input:hover { border-color: rgba(0, 191, 255, .3); }
+.num input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0, 191, 255, .15); }
+.num span { color: var(--fg-3); font-size: var(--t-xs); width: 26px; padding-left: 6px; }
 
 input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: var(--hit); background: transparent; margin: -8px 0 -4px; cursor: pointer; --p: 50%; }
-input[type="range"]::-webkit-slider-runnable-track { height: 3px; border-radius: 2px; background: linear-gradient(to right, var(--fg-2) var(--p), var(--line) var(--p)); }
-input[type="range"]::-moz-range-track { height: 3px; border-radius: 2px; background: linear-gradient(to right, var(--fg-2) var(--p), var(--line) var(--p)); }
-input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; margin-top: -5.5px; border-radius: 50%; background: var(--fg); border: 0; }
+input[type="range"]::-webkit-slider-runnable-track { height: 3px; border-radius: 2px; background: linear-gradient(to right, var(--accent) var(--p), rgba(255, 255, 255, .16) var(--p)); }
+input[type="range"]::-moz-range-track { height: 3px; border-radius: 2px; background: linear-gradient(to right, var(--accent) var(--p), rgba(255, 255, 255, .16) var(--p)); }
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; margin-top: -5.5px; border-radius: 50%; background: var(--fg); border: 0; box-shadow: 0 1px 3px rgba(0, 0, 0, .4); }
 input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--fg); border: 0; }
 input[type="range"]:focus-visible { outline: none; }
 input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px var(--focus); }
 
-.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 2px; background: var(--bg); border-radius: var(--r); padding: 2px; margin-bottom: 6px; }
-.seg button { min-height: var(--hit); border: 0; border-radius: 4px; background: transparent; color: var(--fg-2); cursor: pointer; }
-.seg button[aria-pressed="true"] { background: var(--raised); color: var(--fg); }
+/* Choices: Grab's segmented settings control. */
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 2px; padding: 2px; margin-bottom: 6px; background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .1); border-radius: var(--r); }
+.seg button { min-height: 40px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--fg-2); cursor: pointer; font-size: var(--t-sm); font-weight: 500; }
+.seg button:hover { color: var(--fg); }
+.seg button[aria-pressed="true"] { background: rgba(255, 255, 255, .1); color: var(--fg); }
 .swatches { position: relative; display: flex; gap: 2px; align-items: center; margin-bottom: 6px; flex-wrap: wrap; }
 .swatches button, .swatches label { width: var(--hit); height: var(--hit); display: grid; place-items: center; background: transparent; border: 0; border-radius: var(--r); cursor: pointer; padding: 0; }
-.swatches button:hover, .swatches label:hover { background: var(--raised); }
+.swatches button:hover, .swatches label:hover { background: rgba(255, 255, 255, .05); }
 .swatches i { display: block; width: 22px; height: 22px; border-radius: 50%; box-shadow: inset 0 0 0 1px var(--swatch-ring); }
-.swatches button[aria-pressed="true"] i { box-shadow: 0 0 0 2px var(--panel), 0 0 0 3.5px var(--fg); }
+.swatches button[aria-pressed="true"] i { box-shadow: 0 0 0 2px var(--panel), 0 0 0 3.5px var(--accent); }
 .swatches label { color: var(--fg-2); }
 .swatches label svg { width: 18px; height: 18px; }
 .swatches input[type="color"] { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
-.swatches code { color: var(--fg-3); font-size: var(--t-sm); margin-left: 6px; font-variant-numeric: tabular-nums; }
+.swatches code { color: var(--fg-3); font-size: var(--t-xs); margin-left: 6px; font-family: inherit; font-variant-numeric: tabular-nums; }
 
 .block { display: flex; flex-direction: column; gap: 8px; }
-.block h3 { margin: 0; font-size: var(--t-md); font-weight: 500; }
+.block h3 { margin: 0; color: var(--fg); font-size: var(--t-lg); font-weight: 500; letter-spacing: -.01em; }
 .block p { margin: 0; color: var(--fg-2); font-size: var(--t-sm); }
-.block textarea { width: 100%; height: 120px; resize: vertical; background: var(--bg); border: 1px solid var(--line); border-radius: var(--r); padding: 8px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; color: var(--fg-2); }
+.block textarea { width: 100%; min-height: 88px; height: 120px; resize: vertical; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; color: var(--fg-2); outline: none; transition: border-color 150ms ease, box-shadow 150ms ease; }
+.block textarea:hover { border-color: rgba(0, 191, 255, .3); }
+.block textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0, 191, 255, .15); }
+.block textarea::placeholder { color: var(--fg-3); }
 .block .row2 { display: flex; gap: 8px; flex-wrap: wrap; }
-.block label.ask { font-size: var(--t-sm); color: var(--fg-2); }
-.block textarea.note { height: 72px; font-family: inherit; font-size: var(--t-sm); color: var(--fg); }
+.block label.ask { color: var(--fg-3); font-size: var(--t-sm); font-weight: 500; letter-spacing: -.01em; }
+.block textarea.note { height: 88px; font-family: inherit; font-size: var(--t-sm); color: var(--fg); }
 .block .context { color: var(--fg-3); }
 .menu-stack { display: flex; flex-direction: column; gap: 20px; }
 /* The direct exports sit behind a disclosure styled as a button, with no marker glyph. */
-.more-code { border-top: 1px solid var(--line); padding-top: 12px; }
+.more-code { border-top: 1px solid var(--hair); padding-top: 16px; }
 .more-code summary { list-style: none; display: inline-flex; align-items: center; }
 .more-code summary::-webkit-details-marker { display: none; }
-.more-code[open] summary { margin-bottom: 12px; }
+.more-code[open] summary { margin-bottom: 16px; }
 .more-code .when-open, .more-code[open] .when-closed { display: none; }
 .more-code[open] .when-open { display: inline; }
+/* The right panel: what goes with a send scrolls; the note and Send stay pinned at the foot. */
+#view-agent { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+#view-agent > .view { flex: 1 1 auto; }
+.fp-actions { flex: none; padding: 12px 16px 16px; background: var(--panel); border-top: 1px solid var(--hair); }
 
-/* Curve control: one square-ish plot for both kinds; handles only on the curve kind. */
-.curve-read { color: var(--fg-3); font-size: var(--t-sm); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.curve-plot { display: block; width: 100%; height: auto; background: var(--bg); border-radius: var(--r); margin-bottom: 6px; touch-action: none; }
-.curve-plot .box { fill: none; stroke: var(--line); }
-.curve-plot .guide { stroke: var(--line); stroke-dasharray: 2 3; }
-.curve-plot .arm { stroke: var(--fg-3); }
-.curve-plot .curve { fill: none; stroke: var(--fg); stroke-width: 2; }
-.curve-plot .handle { fill: var(--fg); cursor: grab; }
+/* Curve control: Grab's curve editor. */
+.curve-read { color: var(--fg-3); font-size: var(--t-xs); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.curve-plot { display: block; width: 100%; height: auto; background: rgba(255, 255, 255, .03); border: 1px solid rgba(255, 255, 255, .1); border-radius: var(--r); margin-bottom: 6px; touch-action: none; }
+.curve-plot .box { fill: none; stroke: rgba(255, 255, 255, .1); }
+.curve-plot .guide { stroke: rgba(255, 255, 255, .16); stroke-dasharray: 3 3; }
+.curve-plot .arm { stroke: rgba(0, 191, 255, .35); }
+.curve-plot .curve { fill: none; stroke: var(--accent); stroke-width: 2; }
+.curve-plot .handle { fill: var(--bg); stroke: var(--accent); stroke-width: 2; cursor: grab; }
 .curve-plot .handle:focus { outline: none; }
-.curve-plot .handle:focus-visible { stroke: var(--focus); stroke-width: 3; }
+.curve-plot .handle:focus-visible { stroke: var(--fg); stroke-width: 3; }
 .curve-plot .hit { fill: transparent; cursor: grab; }
 .curve-sub .row { min-height: 32px; }
-.curve-sub .name { color: var(--fg-2); }
+.curve-sub .name { color: var(--fg-3); }
 
-main#preview { display: flex; flex-direction: column; min-height: 0; min-width: 0; background: var(--wall); color: var(--wall-ink); }
-.viewbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding-block: 8px 0; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); font-size: var(--t-sm); }
-.viewbar .seg { margin: 0; background: var(--panel); }
-.viewbar .seg button { min-height: var(--hit); padding: 0 12px; }
+/* The stage column: between the open panels, with the frame choice on top and the dock below. */
+main#preview { position: fixed; top: var(--edge); bottom: var(--edge); left: var(--l); right: var(--rt); z-index: 1; display: flex; flex-direction: column; gap: var(--gap); min-width: 0; color: var(--wall-ink); transition: left 200ms ease, right 200ms ease; }
+.viewbar { flex: none; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: var(--t-sm); }
+.viewbar .seg { margin: 0; background: var(--panel); border-color: var(--line); box-shadow: 0 8px 24px rgba(0, 0, 0, .3); }
+.viewbar .seg button { padding: 0 12px; }
 .viewbar .size { display: flex; align-items: center; gap: 4px; color: var(--fg-3); }
-.viewbar .size input { width: 64px; height: 32px; text-align: right; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 0 6px; font-variant-numeric: tabular-nums; }
-.viewbar .grow { flex: 1; }
-.stage { flex: 1; min-height: 0; display: grid; place-items: center; padding: 16px 24px 24px; container-type: size; }
+.viewbar .size input { width: 64px; height: 32px; text-align: right; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 0 8px; font-variant-numeric: tabular-nums; }
+#status { flex: 1; min-width: 0; color: var(--fg-2); font-size: var(--t-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.viewbar .switch { padding: 0 12px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); box-shadow: 0 8px 24px rgba(0, 0, 0, .3); }
+.stage { flex: 1; min-height: 0; display: grid; place-items: center; container-type: size; }
 /* The frame keeps the chosen frame's aspect ratio and fits whichever side is tighter; the artwork keeps the
    stage's aspect ratio inside it, letterboxed in the page colour (spec: Stage and frames). */
 #frame { width: min(100cqw, calc(100cqh * var(--far))); aspect-ratio: var(--far); container-type: size; display: grid; place-items: center; overflow: hidden; border-radius: 2px; }
 #art { width: min(100cqw, calc(100cqh * var(--ar))); aspect-ratio: var(--ar); }
 #art > div { width: 100%; height: 100%; }
 #art svg { display: block; width: 100%; height: 100%; }
-.transport { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-block: 8px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); font-size: var(--t-sm); border-top: 1px solid var(--line); background: var(--panel); color: var(--fg-2); }
+#dock { position: static; width: auto; flex: none; max-height: 42vh; border-radius: 16px; transition: none; }
+.transport { flex: none; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 12px; font-size: var(--t-sm); border-bottom: 1px solid var(--hair); color: var(--fg-2); }
 .transport .btn { min-width: 76px; }
 .transport .seg { margin: 0; }
 .transport .seg button { padding: 0 10px; font-variant-numeric: tabular-nums; }
 .transport .note { flex: 1; min-width: 0; color: var(--fg-3); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.transport output { font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
-.switch { display: inline-flex; align-items: center; gap: 8px; min-height: var(--hit); cursor: pointer; color: var(--fg-2); }
-.switch input { width: 16px; height: 16px; margin: 0; accent-color: var(--fg-2); }
+.transport output { font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; color: var(--fg-2); }
+.switch { display: inline-flex; align-items: center; gap: 8px; min-height: var(--hit); cursor: pointer; color: var(--fg-2); font-size: var(--t-sm); }
+.switch input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
 
 /* Timeline strip: a read-only view of the plan. Labels left, lanes right, one playhead across every row. */
-.strip { --lab: 132px; display: grid; grid-template-columns: var(--lab) minmax(0, 1fr); max-height: 34vh; overflow-y: auto; background: var(--panel); border-top: 1px solid var(--line); padding: 6px max(16px, env(safe-area-inset-right, 0px)) 10px max(16px, env(safe-area-inset-left, 0px)); font-size: var(--t-xs); }
+.strip { --lab: 132px; flex: 0 1 auto; min-height: 0; display: grid; grid-template-columns: var(--lab) minmax(0, 1fr); overflow-y: auto; padding: 8px 12px 12px; font-size: var(--t-xs); scrollbar-width: thin; scrollbar-color: #3c3c47 var(--panel); }
 .strip-labels { display: flex; flex-direction: column; min-width: 0; padding-right: 12px; }
 .strip-labels div { display: flex; align-items: center; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--fg-3); }
 .strip-labels .tgt { color: var(--fg-2); font-weight: 500; }
@@ -152,34 +206,45 @@ main#preview { display: flex; flex-direction: column; min-height: 0; min-width: 
 .lane { position: relative; overflow: hidden; }
 .phase { position: absolute; top: 2px; bottom: 2px; display: flex; align-items: center; padding: 0 6px; border-left: 1px solid var(--line); color: var(--fg-3); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .phase:first-child { border-left-color: transparent; }
-.phase.now { color: var(--fg); background: var(--raised); border-radius: 2px; }
-.edge { position: absolute; top: 0; bottom: 0; width: 1px; background: color-mix(in srgb, var(--line) 70%, transparent); pointer-events: none; }
+.phase.now { color: var(--fg); background: var(--raised); border-radius: 4px; }
+.edge { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--hair); pointer-events: none; }
 .bar { position: absolute; background: var(--fg-3); border-radius: 1px; }
 .bar.cut { background: repeating-linear-gradient(135deg, var(--fg-3) 0 1px, transparent 1px 4px); }
-.playhead { position: absolute; top: 0; bottom: 0; left: calc(var(--x, 0) * 100%); width: 1px; margin-left: -0.5px; background: var(--fg); pointer-events: none; }
-.playhead::before { content: ""; position: absolute; top: 0; left: -4px; width: 9px; height: 9px; border-radius: 2px; background: var(--fg); }
+.playhead { position: absolute; top: 0; bottom: 0; left: calc(var(--x, 0) * 100%); width: 1px; margin-left: -0.5px; background: var(--accent); pointer-events: none; }
+.playhead::before { content: ""; position: absolute; top: 0; left: -4px; width: 9px; height: 9px; border-radius: 2px; background: var(--accent); }
 #strip[aria-disabled="true"] { cursor: default; opacity: .55; }
 /* Direct editing: an editable end or section edge shows a resize cursor, a movable bar a grab hand. */
 #strip[data-hot="end"], #strip[data-drag="end"] { cursor: col-resize; }
 #strip[data-hot="move"] { cursor: grab; }
 #strip[data-drag="move"] { cursor: grabbing; }
-.bar.hot { background: var(--fg); }
-.bar.cut.hot { background: repeating-linear-gradient(135deg, var(--fg) 0 1px, transparent 1px 4px); }
-.edge.hot { background: var(--fg); }
+.bar.hot { background: var(--accent); }
+.bar.cut.hot { background: repeating-linear-gradient(135deg, var(--accent) 0 1px, transparent 1px 4px); }
+.edge.hot { background: var(--accent); }
 .edge.end { margin-left: -1px; background: transparent; }
-.edge.end.hot { background: var(--fg); }
-.btn:disabled { color: var(--fg-3); cursor: default; }
+.edge.end.hot { background: var(--accent); }
+.btn:disabled { color: var(--fg-3); cursor: default; opacity: .45; }
 .btn:disabled:hover { border-color: var(--line); }
 
-@media (max-width: 800px) {
-  .app { height: auto; min-height: 100%; }
-  .work { grid-template-columns: minmax(0, 1fr); }
+/* Copy for Raven's profile and project fields: Grab's text inputs. */
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label { color: var(--fg-3); font-size: var(--t-sm); font-weight: 500; letter-spacing: -.01em; }
+.field input { height: var(--hit); padding: 0 14px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; font-size: var(--t-md); outline: none; transition: border-color 150ms ease, box-shadow 150ms ease; }
+.field input:hover { border-color: rgba(0, 191, 255, .3); }
+.field input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0, 191, 255, .15); }
+@media (prefers-reduced-motion: reduce) {
+  .fp, main#preview, .btn.primary { transition: none !important; }
+}
+/* Phones: one column, the stage first, then the controls, Send and the dock; no tiles. */
+@media (max-width: 760px) {
+  .app { height: auto; min-height: 100%; display: flex; flex-direction: column; gap: 10px; padding: 10px; }
+  .fp, main#preview { position: static; width: auto; transform: none !important; pointer-events: auto !important; }
   main#preview { order: -1; }
   .stage { height: 56vw; flex: none; }
-  .strip { --lab: 96px; max-height: none; }
-  aside#panel { border-right: 0; border-top: 1px solid var(--line); }
+  .tiles, .edge-tab { display: none !important; }
   .view { overflow: visible; }
-  header p { display: none; }
+  .fp .view { -webkit-mask-image: none; mask-image: none; }
+  .strip { --lab: 96px; }
+  #dock { max-height: none; }
   .transport .note { flex-basis: 100%; order: 9; }
 }
 </style>
@@ -188,78 +253,89 @@ main#preview { display: flex; flex-direction: column; min-height: 0; min-width: 
 <script type="application/json" id="layout">__LAYOUT__</script>
 <script type="application/json" id="raven-ctx">__RAVEN_CTX__</script>
 
-<div class="app">
-  <header id="summary">
-    <h1 id="title"></h1>
-    <p id="concept"></p>
-    <div id="status" role="status" aria-live="polite"></div>
-  </header>
-  <div class="work">
-    <aside id="panel" aria-label="Controls">
-      <div class="tabs" role="tablist">
-        <button role="tab" id="tab-controls" aria-controls="view-controls" aria-selected="true">Controls</button>
-        <button role="tab" id="tab-agent" aria-controls="view-agent" aria-selected="false">Send to agent</button>
-        <button role="tab" id="tab-more" aria-controls="view-more" aria-selected="false">More</button>
+<div class="app" data-layout="both">
+  <aside class="fp" id="panel" aria-label="Controls">
+    <div class="fp-head">
+      <h1 id="title"></h1>
+      <div class="tiles" role="radiogroup" aria-label="Panels"></div>
+    </div>
+    <div class="tabs" role="tablist">
+      <button role="tab" id="tab-controls" aria-controls="view-controls" aria-selected="true">Controls</button>
+      <button role="tab" id="tab-more" aria-controls="view-more" aria-selected="false">More</button>
+    </div>
+    <div class="view" id="view-controls" role="tabpanel" aria-labelledby="tab-controls">
+      <p class="concept" id="concept"></p>
+      <div class="ctl" id="presets-row" hidden>
+        <div class="row"><span class="name">Start from</span></div>
+        <div class="seg" role="group" aria-label="Start from" id="presets"></div>
       </div>
-      <div class="view" id="view-controls" role="tabpanel" aria-labelledby="tab-controls">
-        <div class="ctl" id="presets-row" hidden>
-          <div class="row"><span class="name">Start from</span></div>
-          <div class="seg" role="group" aria-label="Start from" id="presets"></div>
-        </div>
-        <div class="actions">
-          <button class="btn" id="randomise">Randomise</button>
-          <button class="btn ghost" id="reset">Reset</button>
-          <button class="btn ghost" id="undo" disabled>Undo</button>
-          <button class="btn ghost" id="redo" disabled>Redo</button>
-        </div>
-        <div id="groups"></div>
+      <div class="actions">
+        <button class="btn" id="randomise">Randomise</button>
+        <button class="btn ghost" id="reset">Reset</button>
+        <button class="btn ghost" id="undo" disabled>Undo</button>
+        <button class="btn ghost" id="redo" disabled>Redo</button>
       </div>
-      <div class="view" id="view-agent" role="tabpanel" aria-labelledby="tab-agent" hidden>
-        <div class="block" id="send-block" hidden>
-          <h3>Send to your agent</h3>
-          <label class="ask" for="send-note">What should your agent do with it?</label>
-          <textarea class="note" id="send-note" placeholder="Use this for the hero on the home page" spellcheck="true"></textarea>
-          <p class="context">Sent with your note: <span id="send-context"></span></p>
-          <div class="row2"><button class="btn primary" id="send-agent">Send to your agent</button></div>
-        </div>
+      <div id="groups"></div>
+    </div>
+    <div class="view" id="view-more" role="tabpanel" aria-labelledby="tab-more" hidden>
+      <div id="settings-menu" class="menu-stack"></div>
+      <div class="block">
+        <h3>Import settings</h3>
+        <p>Paste the settings you copied above.</p>
+        <textarea id="import-text" aria-label="Settings JSON to import" spellcheck="false"></textarea>
+        <div class="row2"><button class="btn" id="import">Import</button></div>
+      </div>
+      <div class="block">
+        <h3>Text</h3>
+        <p id="text-note"></p>
+      </div>
+    </div>
+  </aside>
+  <aside class="fp" id="send-panel" aria-labelledby="send-title">
+    <div class="fp-head">
+      <h2 id="send-title">Send to agent</h2>
+      <div class="tiles" role="radiogroup" aria-label="Panels"></div>
+    </div>
+    <div id="view-agent">
+      <div class="view">
         <div class="block" id="copy-block">
-          <h3 id="copy-title">Send to your agent</h3>
-          <p id="agent-lede">Copy this and paste it into Claude, Cursor or any coding agent. It carries the motion as you tuned it, and the agent writes it in whatever language your project uses.</p>
+          <h3 id="copy-title">Copy for your agent</h3>
+          <p id="agent-lede">Paste this into Claude, Cursor or any coding agent. It carries the motion as you tuned it, and the agent writes it in whatever language your project uses.</p>
           <textarea id="out-agent" readonly aria-label="Message for your agent" spellcheck="false"></textarea>
           <div class="row2"><button class="btn primary" id="copy-agent">Copy for your agent</button></div>
         </div>
         <div id="raven-menu" class="menu-stack"></div>
+        <div class="block" id="send-about" hidden>
+          <h3>Sent with your note</h3>
+          <p class="context" id="send-context"></p>
+        </div>
         <details class="more-code" id="code-more">
           <summary class="btn"><span class="when-closed">Show code without an agent</span><span class="when-open">Hide code without an agent</span></summary>
           <div id="export-menu" class="menu-stack"></div>
         </details>
       </div>
-      <div class="view" id="view-more" role="tabpanel" aria-labelledby="tab-more" hidden>
-        <div id="settings-menu" class="menu-stack"></div>
-        <div class="block">
-          <h3>Import settings</h3>
-          <p>Paste the settings you copied above.</p>
-          <textarea id="import-text" aria-label="Settings JSON to import" spellcheck="false"></textarea>
-          <div class="row2"><button class="btn" id="import">Import</button></div>
-        </div>
-        <div class="block">
-          <h3>Text</h3>
-          <p id="text-note"></p>
-        </div>
+      <div class="fp-actions block" id="send-block" hidden>
+        <label class="ask" for="send-note">What should your agent do with it?</label>
+        <textarea class="note" id="send-note" placeholder="Use this for the hero on the home page" spellcheck="true"></textarea>
+        <button class="btn primary" id="send-agent">Send to your agent</button>
       </div>
-    </aside>
-    <main id="preview">
-      <div class="viewbar">
-        <div class="seg" role="group" aria-label="Frame" id="frames"></div>
-        <div class="size" id="custom-size" hidden>
-          <input type="number" id="frame-w" min="100" max="4000" step="1" inputmode="numeric" aria-label="Frame width">
-          <span>×</span>
-          <input type="number" id="frame-h" min="100" max="4000" step="1" inputmode="numeric" aria-label="Frame height">
-        </div>
-        <span class="grow"></span>
-        <label class="switch"><input type="checkbox" id="reduced"> Reduced motion</label>
+    </div>
+  </aside>
+  <button class="edge-tab" data-side="left" aria-label="Open controls"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2.75" y="3.75" width="12.5" height="10.5" rx="2"/><path d="M7 4v10"/></svg></button>
+  <button class="edge-tab" data-side="right" aria-label="Open Send to agent"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2.75" y="3.75" width="12.5" height="10.5" rx="2"/><path d="M11 4v10"/></svg></button>
+  <main id="preview">
+    <div class="viewbar">
+      <div class="seg" role="group" aria-label="Frame" id="frames"></div>
+      <div class="size" id="custom-size" hidden>
+        <input type="number" id="frame-w" min="100" max="4000" step="1" inputmode="numeric" aria-label="Frame width">
+        <span>×</span>
+        <input type="number" id="frame-h" min="100" max="4000" step="1" inputmode="numeric" aria-label="Frame height">
       </div>
-      <div class="stage"><div id="frame"><div id="art"></div></div></div>
+      <div id="status" role="status" aria-live="polite"></div>
+      <label class="switch"><input type="checkbox" id="reduced"> Reduced motion</label>
+    </div>
+    <div class="stage"><div id="frame"><div id="art"></div></div></div>
+    <section class="fp" id="dock" aria-label="Playback and timeline">
       <div class="transport">
         <button class="btn" id="play">Pause</button>
         <button class="btn ghost" id="replay">Replay</button>
@@ -275,8 +351,8 @@ main#preview { display: flex; flex-direction: column; min-height: 0; min-width: 
         <div class="strip-labels" id="strip-labels" aria-hidden="true"></div>
         <div id="strip" tabindex="0" role="slider" aria-label="Playhead" aria-valuemin="0"></div>
       </div>
-    </main>
-  </div>
+    </section>
+  </main>
 </div>
 
 <script>
@@ -298,6 +374,7 @@ __SWIFTUI__
   var byId = {}; params.forEach(function (p) { byId[p.id] = p; });
   var $ = function (id) { return document.getElementById(id); };
   function say(msg) { $('status').textContent = msg; }
+  var app = document.querySelector('.app'), narrow = matchMedia('(max-width: 760px)');
   function defaults() { var v = {}; params.forEach(function (p) { v[p.id] = p.default; }); return v; }
   var state = { values: defaults(), valueSeed: doc.seed >>> 0 };
 
@@ -1321,12 +1398,13 @@ __SWIFTUI__
     try { var c = JSON.parse(b.textContent); return c && typeof c.url === 'string' && c.url.charAt(0) === '/' ? c : null; } catch (e) { return null; }
   })();
   function showContext() {
-    if (!sendTo || $('view-agent').hidden) return;
+    if (!sendTo || !agentShown()) return;
     var c = sendContext();
     if ($('send-context').textContent !== c) $('send-context').textContent = c;
   }
   if (sendTo) {
     $('send-block').hidden = false;
+    $('send-about').hidden = false;
     $('copy-title').textContent = 'Or copy it';
     $('copy-agent').className = 'btn';
     $('send-agent').addEventListener('click', function () {
@@ -1372,7 +1450,7 @@ __SWIFTUI__
   // Exports sample the whole timeline, so they refresh after the controls settle, and only while visible.
   var exportTimer = null;
   function queueExports() {
-    if ($('view-agent').hidden && $('view-more').hidden) return;
+    if (!agentShown() && !moreShown()) return;
     clearTimeout(exportTimer);
     exportTimer = setTimeout(refreshExports, 250);
   }
@@ -1383,13 +1461,12 @@ __SWIFTUI__
   // Visibility is read when the refresh runs, so a queued refresh for a view that has since closed does nothing.
   // The direct exports sit behind "Show code without an agent" and are made only while it is open.
   function refreshExports() {
-    var view = !$('view-agent').hidden ? 'agent' : !$('view-more').hidden ? 'more' : null;
-    if (!view) return;
-    if (view === 'agent') { $('out-agent').value = agentPacket(); refreshRaven(); showContext(); }
+    var agent = agentShown(), more = moreShown();
+    if (agent) { $('out-agent').value = agentPacket(); refreshRaven(); showContext(); }
     var codeOpen = $('code-more').open;
     exportsDef.forEach(function (x) {
       var v = x.view || 'agent';
-      if (exportUI[x.id] && v === view && (v !== 'agent' || codeOpen)) exportUI[x.id].value = made(x);
+      if (exportUI[x.id] && (v === 'agent' ? agent && codeOpen : v === 'more' && more)) exportUI[x.id].value = made(x);
     });
   }
   $('code-more').addEventListener('toggle', function () { if ($('code-more').open) refreshExports(); });
@@ -1498,17 +1575,82 @@ __SWIFTUI__
   });
 
   // ---------- tabs ----------
-  var tabs = ['controls', 'agent', 'more'];
+  var tabs = ['controls', 'more'];
   function showTab(name) {
     tabs.forEach(function (n) { $('tab-' + n).setAttribute('aria-selected', String(n === name)); $('view-' + n).hidden = n !== name; });
     if (name !== 'controls') refreshExports();
   }
   tabs.forEach(function (n) { $('tab-' + n).addEventListener('click', function () { showTab(n); }); });
 
+  // ---------- panels ----------
+  // The tiles in each panel header give four layouts, as in Raven Grab: both panels, the controls only, Send only,
+  // or neither. ⌘. switches between both and neither; an edge tab opens a closed panel. Phones show everything.
+  var LAYOUTS = [
+    { id: 'both', label: 'Open both', bars: [1, 1] },
+    { id: 'left', label: 'Show controls only', bars: [1, 0] },
+    { id: 'right', label: 'Show Send only', bars: [0, 1] },
+    { id: 'page', label: 'Close both', bars: [0, 0] }
+  ];
+  function panelLayout() { return app.getAttribute('data-layout'); }
+  function panelOpen(side) { var l = panelLayout(); return narrow.matches || l === 'both' || l === side; }
+  function agentShown() { return panelOpen('right'); }
+  function moreShown() { return panelOpen('left') && !$('view-more').hidden; }
+  function syncPanels() {
+    $('panel').inert = !panelOpen('left');
+    $('send-panel').inert = !panelOpen('right');
+  }
+  function setLayout(name, focusTile) {
+    var was = { left: panelOpen('left'), right: panelOpen('right') };
+    var a = document.activeElement, lost = a && a.closest ? a.closest('#panel, #send-panel') : null;
+    app.setAttribute('data-layout', name);
+    document.querySelectorAll('.tiles button').forEach(function (b) {
+      var on = b.getAttribute('data-layout') === name;
+      b.setAttribute('aria-checked', String(on)); b.tabIndex = on ? 0 : -1;
+    });
+    syncPanels();
+    if (lost && lost.inert) {
+      var tab = document.querySelector('.edge-tab[data-side="' + (lost.id === 'panel' ? 'left' : 'right') + '"]');
+      if (tab) tab.focus();
+    } else if (focusTile) focusTile.focus();
+    if ((panelOpen('right') && !was.right) || (panelOpen('left') && !was.left)) refreshExports();
+  }
+  document.querySelectorAll('.tiles').forEach(function (g) {
+    LAYOUTS.forEach(function (L) {
+      var b = el('button', { type: 'button', role: 'radio', 'data-layout': L.id, 'aria-label': L.label, title: L.label + (L.id === 'both' || L.id === 'page' ? ' (' + (/Mac/.test(navigator.platform) ? '⌘.' : 'Ctrl+.') + ')' : '') });
+      L.bars.forEach(function (on) { b.appendChild(el('i', on ? {} : { 'class': 'off' })); });
+      b.addEventListener('click', function () { setLayout(L.id); });
+      b.addEventListener('keydown', function (e) {
+        var d = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
+        if (!d) return;
+        e.preventDefault();
+        var i = (LAYOUTS.indexOf(L) + d + LAYOUTS.length) % LAYOUTS.length;
+        setLayout(LAYOUTS[i].id, g.children[i]);
+      });
+      g.appendChild(b);
+    });
+  });
+  document.querySelectorAll('.edge-tab').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var side = b.getAttribute('data-side'), other = side === 'left' ? 'right' : 'left';
+      setLayout(panelLayout() === other ? 'both' : side);
+      var p = $(side === 'left' ? 'panel' : 'send-panel'), f = p.querySelector('.tiles button[tabindex="0"]');
+      if (f) f.focus();
+    });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey || e.key !== '.') return;
+    if (narrow.matches) return;
+    e.preventDefault();
+    setLayout(panelLayout() === 'both' ? 'page' : 'both');
+  });
+  narrow.addEventListener('change', function () { syncPanels(); refreshExports(); });
+  setLayout('both');
+
   buildPanel();
   syncControls();
   syncHistory();
   refreshRaven();
+  refreshExports();
   window.__ml = { state: state, setParam: setParam, agentPacket: agentPacket, ravenText: ravenText, plan: function () { return plan; }, geo: function () { return geo; }, seek: seek, apply: apply, sendContext: sendContext, time: function () { return t; }, history: function () { return { undo: hist.undo.length, redo: hist.redo.length }; } };
 })();
 </script>
