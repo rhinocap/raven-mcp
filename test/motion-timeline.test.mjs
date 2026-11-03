@@ -272,7 +272,7 @@ test('opened with open_motion_playground, Send posts the note and what was on sc
       await page.click('#send-agent');
       await page.waitForFunction(() => /Sent|reach/.test(document.getElementById('status').textContent), null, { timeout: 15000 });
       const lost = await page.evaluate(() => ({ status: document.getElementById('status').textContent, note: document.getElementById('send-note').value }));
-      assert.match(lost.status, /^Couldn’t reach your agent\. .*Copy below\.$/);
+      assert.match(lost.status, /^Couldn’t reach your agent\. .*Copy for your agent\.$/);
       assert.equal(lost.note, 'Slower');
       assert.deepEqual(errors, []);
     } finally {

@@ -1423,7 +1423,7 @@ __SWIFTUI__
         if ($('send-note').value === typed) $('send-note').value = '';
         say('Sent. Your agent has it.');
       }).catch(function () {
-        say('Couldn’t reach your agent. Ask it to open this playground again, or use Copy below.');
+        say('Couldn’t reach your agent. Ask it to open this playground again, or use Copy for your agent.');
       }).then(function () { clearTimeout(timer); btn.disabled = false; });
     });
   }
@@ -1643,7 +1643,8 @@ __SWIFTUI__
     e.preventDefault();
     setLayout(panelLayout() === 'both' ? 'page' : 'both');
   });
-  narrow.addEventListener('change', function () { syncPanels(); refreshExports(); });
+  // Crossing the phone width shows or hides panels by CSS; setLayout keeps inert and focus in step.
+  narrow.addEventListener('change', function () { setLayout(panelLayout()); refreshExports(); });
   setLayout('both');
 
   buildPanel();

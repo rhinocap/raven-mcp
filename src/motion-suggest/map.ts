@@ -54,16 +54,16 @@ const SWAP = `(function () {
   // The tiles open or close the list, as in Raven Grab; Cmd+. or Ctrl+. switches, and the edge tab reopens it.
   var app = document.querySelector(".app"), panel = document.querySelector(".fp"), tab = document.querySelector(".edge-tab");
   if (!app || !panel) return;
-  var tiles = document.querySelectorAll(".tiles button");
+  var tiles = document.querySelectorAll(".tiles button"), narrow = matchMedia("(max-width: 760px)");
   function set(name, focus) {
     var had = panel.contains(document.activeElement);
     app.setAttribute("data-layout", name);
-    panel.inert = name === "page" && !matchMedia("(max-width: 760px)").matches;
+    panel.inert = name === "page" && !narrow.matches;
     for (var i = 0; i < tiles.length; i++) {
       var on = tiles[i].getAttribute("data-layout") === name;
       tiles[i].setAttribute("aria-checked", String(on)); tiles[i].tabIndex = on ? 0 : -1;
     }
-    if (name === "page" && had) tab.focus();
+    if (panel.inert && had) tab.focus();
     else if (focus) focus.focus();
   }
   for (var i = 0; i < tiles.length; i++) {
@@ -82,6 +82,8 @@ const SWAP = `(function () {
     e.preventDefault();
     set(app.getAttribute("data-layout") === "page" ? "list" : "page");
   });
+  // Crossing the phone width shows or hides the panel by CSS, so inert and focus follow it here.
+  narrow.addEventListener("change", function () { set(app.getAttribute("data-layout")); });
 })();`;
 
 const STYLE = `

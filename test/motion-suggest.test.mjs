@@ -434,6 +434,19 @@ test('from the map, open a suggestion, tune it, Send, and get_motion_sends names
       await page.waitForTimeout(300);
       g = await geo();
       assert.deepEqual({ right: g.fpR, inert: g.inert }, { right: 1420, inert: false });
+      // Across the phone width: the list closed on desktop is usable on a phone, and widening again closes it and
+      // moves focus from it to the edge tab.
+      await page.click('.tiles [data-layout="page"]');
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.waitForTimeout(300);
+      assert.equal(await page.evaluate(() => document.querySelector('aside.fp').inert), false, 'phone: the list is not inert');
+      await page.focus('ol a');
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.waitForTimeout(300);
+      g = await geo();
+      assert.deepEqual({ off: g.fpL >= 1440, inert: g.inert, focus: await page.evaluate(() => document.activeElement.matches('.edge-tab')) }, { off: true, inert: true, focus: true });
+      await page.click('.edge-tab');
+      await page.waitForTimeout(300);
       const n = r.suggestions.findIndex((s) => s.kind === 'cta-hover') + 1;
       const s = r.suggestions[n - 1];
       // The served map points its links at the served playgrounds.
