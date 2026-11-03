@@ -57,12 +57,12 @@ const STYLE = `
   --fg: #f0f0f2; --fg-2: #9498a0; --fg-3: #8e929c; --accent: #00bfff; --on-accent: #0a1018; --focus: #00bfff;
   --font: "Untitled Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
   --t-xs: 11px; --t-sm: 12px; --t-md: 13px; --t-lg: 14px; --r: 8px;
-  --edge: 20px; --panel-w: 360px; --panel-r: 20px; --gap: 12px;
+  --edge: 20px; --panel-w: 420px; --panel-r: 20px; --gap: 12px;
   --shadow: 0 1px 2px rgba(0, 0, 0, .25), 0 0 32px rgba(0, 191, 255, .06), 0 8px 16px -4px rgba(0, 0, 0, .35), 0 24px 48px -12px rgba(0, 0, 0, .5);
   color-scheme: dark;
 }
-@media (max-width: 1280px) { :root { --panel-w: 320px; --edge: 12px; --panel-r: 16px; } }
-@media (max-width: 1024px) { :root { --panel-w: 300px; --edge: 10px; } }
+@media (max-width: 1280px) { :root { --panel-w: 360px; --edge: 12px; --panel-r: 16px; } }
+@media (max-width: 1024px) { :root { --panel-w: 320px; --edge: 10px; } }
 html, body { height: 100%; }
 body { margin: 0; background: #2b2b31; color: var(--fg); font-family: var(--font); font-size: var(--t-md); line-height: 1.45; -webkit-font-smoothing: antialiased; }
 * { box-sizing: border-box; }
@@ -81,6 +81,8 @@ a { color: inherit; }
 .fp { position: fixed; top: var(--edge); right: var(--edge); bottom: var(--edge); z-index: 2; width: var(--panel-w); display: flex; flex-direction: column; overflow: hidden; background: var(--panel); border: 1px solid var(--line); border-radius: var(--panel-r); box-shadow: var(--shadow); }
 .fp-head { flex: none; display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 12px 16px; background: rgba(255, 255, 255, .01); border-bottom: 1px solid var(--hair); }
 .fp-head .titles { flex: 1; min-width: 0; }
+/* Wider than Grab's 360px, with type one step larger, so the suggestion list reads at a glance. */
+.fp { --t-xs: 12px; --t-sm: 13px; --t-md: 14px; --t-lg: 15px; }
 .fp-head h1 { margin: 0; font-size: var(--t-lg); font-weight: 500; line-height: 1.3; letter-spacing: -.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fp-head p { margin: 2px 0 0; color: var(--fg-3); font-size: var(--t-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .body { flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #3c3c47 var(--panel); -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent); }
