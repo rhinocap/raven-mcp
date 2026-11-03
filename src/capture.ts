@@ -360,7 +360,7 @@ export type VideoArtifact = {
   networkState?: number;
 };
 
-export type CaptureResult = {
+export type CaptureResult<T = unknown> = {
   url: string;
   renderedHtml: string;
   screenshotBase64: string;
@@ -398,11 +398,15 @@ export type CaptureResult = {
   imageEdges?: ImageEdgeSample[];
   traits?: PageTraits;
   warnings: string[];
+  /** What `CaptureOptions.inspect` returned, when it was given and did not throw. */
+  inspection?: T;
+  /** The message `CaptureOptions.inspect` threw, when it threw. The capture itself still succeeds. */
+  inspectionError?: string;
 };
 
 export type Interaction = { selector: string; event: "hover" | "click" | "focus"; delay_ms: number };
 
-export type CaptureOptions = {
+export type CaptureOptions<T = unknown> = {
   interactions?: Interaction[];
   scroll_settle?: boolean;
   viewport?: { w: number; h: number };
@@ -414,9 +418,22 @@ export type CaptureOptions = {
   animation_settle_timeout_ms?: number;
   /** Wall-clock ceiling for the whole capture. Default {@link CAPTURE_DEADLINE_MS}. */
   overall_timeout_ms?: number;
+  /**
+   * Runs on the new page before navigation, for example to install request
+   * interception. A throw aborts the capture. The page is a Playwright Page.
+   */
+  beforeNavigate?: (page: any) => Promise<void>;
+  /**
+   * Runs on the loaded, settled page in the same browser after the screenshot
+   * and before the browser closes. Its result is returned as `inspection`; a
+   * throw is returned as `inspectionError` and a warning. The page is a
+   * Playwright Page. With this or `beforeNavigate` set, a missing browser throws
+   * CaptureUnavailableError instead of taking the file:// no-browser fallback.
+   */
+  inspect?: (page: any) => Promise<T>;
 };
 
-export async function capturePage(url: string, opts?: CaptureOptions): Promise<CaptureResult> {
+export async function capturePage<T = unknown>(url: string, opts?: CaptureOptions<T>): Promise<CaptureResult<T>> {
   const viewport = opts && opts.viewport ? opts.viewport : { w: 1440, h: 900 };
   const timeoutMs = opts && typeof opts.timeoutMs === "number" ? opts.timeoutMs : 30000;
   const scrollSettle = opts ? opts.scroll_settle === true : false;
@@ -450,6 +467,9 @@ export async function capturePage(url: string, opts?: CaptureOptions): Promise<C
     try {
       browser = await launchAuditChromium() as unknown as BrowserLike;
     } catch (error) {
+      if (opts && (typeof opts.inspect === "function" || typeof opts.beforeNavigate === "function")) {
+        throw new CaptureUnavailableError();
+      }
       const fallback = captureFileUrlWithoutBrowser(
         url,
         viewport,
@@ -460,7 +480,7 @@ export async function capturePage(url: string, opts?: CaptureOptions): Promise<C
         error
       );
       if (fallback !== null) {
-        return fallback;
+        return fallback as CaptureResult<T>;
       }
       throw new CaptureUnavailableError();
     }
@@ -474,6 +494,10 @@ export async function capturePage(url: string, opts?: CaptureOptions): Promise<C
       } catch (error) {
         warnings.push("Failed to emulate color scheme " + theme + ": " + errorMessage(error));
       }
+    }
+
+    if (opts && typeof opts.beforeNavigate === "function") {
+      await opts.beforeNavigate(page);
     }
 
     await page.goto(url, { waitUntil: "load", timeout: timeoutMs });
@@ -571,7 +595,19 @@ export async function capturePage(url: string, opts?: CaptureOptions): Promise<C
     const screenshotBuffer = await page.screenshot({ fullPage: true });
     const screenshotBase64 = screenshotBuffer.toString("base64");
 
-    return {
+    let inspection: T | undefined = undefined;
+    let inspectionError: string | undefined = undefined;
+    if (opts && typeof opts.inspect === "function") {
+      try {
+        inspection = await opts.inspect(page);
+      } catch (error) {
+        if (deadlineHit) throw error;
+        inspectionError = errorMessage(error);
+        warnings.push("Page inspection failed: " + inspectionError);
+      }
+    }
+
+    const result: CaptureResult<T> = {
       url: url,
       renderedHtml: renderedHtml,
       screenshotBase64: screenshotBase64,
@@ -588,6 +624,11 @@ export async function capturePage(url: string, opts?: CaptureOptions): Promise<C
       traits: traits,
       warnings: warnings
     };
+    if (opts && typeof opts.inspect === "function") {
+      result.inspection = inspection;
+      if (inspectionError !== undefined) result.inspectionError = inspectionError;
+    }
+    return result;
   } catch (error) {
     // A step that failed only because the deadline closed the browser out from
     // under it reports as a timeout, not as whatever Playwright happened to say.

@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Field Studio</title>
+<style>
+  @font-face {
+    font-family: "Fixture Sans";
+    src: url("fonts/untitled-sans-regular.woff2") format("woff2");
+    font-weight: 400;
+    font-style: normal;
+    font-display: block;
+  }
+  body { margin: 0; font-family: "Fixture Sans", sans-serif; background: #f4f2ee; color: #1d1d1f; }
+  header#site-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 48px; background: #ffffff; }
+  .brand { font-size: 18px; }
+  nav#main-nav { display: flex; gap: 24px; }
+  nav#main-nav a { color: #1d1d1f; text-decoration: none; font-size: 15px; }
+  section#hero { padding: 96px 48px; min-height: 360px; box-sizing: border-box; }
+  h1#hero-title { font-size: 64px; line-height: 1.1; font-weight: 400; letter-spacing: -1px; margin: 0 0 24px; }
+  .lede { font-size: 20px; max-width: 560px; margin: 0 0 32px; }
+  .actions { display: flex; gap: 16px; align-items: center; }
+  a#cta-primary { display: inline-block; background: #1a4dff; color: #ffffff; padding: 14px 24px; border-radius: 8px; text-decoration: none; font-size: 16px; }
+  button#cta-gradient { background-image: linear-gradient(90deg, #ff5f6d, #ffc371); border: 0; color: #1d1d1f; padding: 14px 24px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2); font: inherit; font-size: 16px; }
+  section#work { padding: 48px; background: #ebe7df; }
+  .cards { display: flex; gap: 24px; }
+  .card { width: 300px; background: #ffffff; border-radius: 12px; padding: 16px; box-sizing: border-box; }
+  .card img { display: block; width: 268px; height: 180px; }
+  .card h3 { font-size: 20px; margin: 12px 0 0; }
+  section#about, section#process { padding: 96px 48px; }
+  section#about { padding-top: 200px; }
+  section#process { background: #ffffff; }
+  h2 { font-size: 36px; margin: 0 0 16px; }
+  .step { padding: 12px 0; border-top: 1px solid #d0ccc4; }
+  section#gallery { padding: 48px; }
+  img#wide-image { display: block; width: 640px; height: 320px; }
+  footer { padding: 48px; }
+</style>
+</head>
+<body>
+  <header id="site-header">
+    <span class="brand">Field Studio</span>
+    <nav id="main-nav">
+      <a href="#work">Work</a>
+      <a href="#about">About</a>
+      <a href="#process">Process</a>
+      <a href="#contact">Contact</a>
+    </nav>
+  </header>
+
+  <section id="hero">
+    <h1 id="hero-title">Calm websites for busy studios</h1>
+    <p class="lede">We design and build sites that load fast and read clearly.</p>
+    <div class="actions">
+      <a id="cta-primary" href="#contact">Book a call</a>
+      <button id="cta-gradient" type="button">See pricing</button>
+    </div>
+  </section>
+
+  <section id="work">
+    <div class="cards">
+      <article class="card" id="card-1"><img src="images/card.png" alt="Harbour cafe site"><h3>Harbour Cafe</h3></article>
+      <article class="card" id="card-2"><img src="images/card.png" alt="North press site"><h3>North Press</h3></article>
+      <article class="card" id="card-3"><img src="images/card.png" alt="Loom studio site"><h3>Loom Studio</h3></article>
+    </div>
+  </section>
+
+  <section id="about">
+    <h2 id="about-title">How we work</h2>
+    <p>We start with the words, then the layout.</p>
+    <p>Every page is tested on a slow phone.</p>
+    <p>You get the code and the design files.</p>
+  </section>
+
+  <section id="process">
+    <h2 id="process-title">Four steps</h2>
+    <div class="step">Listen</div>
+    <div class="step">Sketch</div>
+    <div class="step">Build</div>
+    <div class="step">Launch</div>
+  </section>
+
+  <section id="gallery">
+    <img id="wide-image" src="images/wide.png" alt="A wide view of the studio">
+  </section>
+
+  <footer id="contact">hello@field.example</footer>
+</body>
+</html>
