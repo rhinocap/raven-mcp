@@ -492,12 +492,17 @@ ${tracks.join(',\n')}
       Object.assign(layer.style, { position: 'absolute', left: r3(fp[0]) + 'px', top: r3(fp[1]) + 'px' })
       layer.textContent = ''
       layer.appendChild(fragmentDom(plan, d))
+      // A page font is registered under a private name in the playground, so a page that uses the playground's own
+      // font (Untitled Sans) cannot replace the controls' type. Exports keep the page's family name.
+      const PRIVATE = 'ml-page '
+      const embedded = new Set(Object.values((plan.layout && plan.layout.fontFaces) || {}).map((f) => f.family.replace(/["\\]/g, '')))
+      const privateFamily = (v) => v.replace(/^"([^"]+)"/, (m, fam) => (embedded.has(fam) ? `"${PRIVATE}${fam}", ${m}` : m))
       // Same reset as the exports: headings and paragraphs take their size and spacing only from styles.
       for (const e of layer.querySelectorAll('h1, h2, h3, h4, h5, h6, p')) { e.style.margin = '0'; e.style.fontSize = 'inherit'; e.style.fontWeight = 'inherit' }
       // Static node styles through the style object, one property at a time; no style string is parsed.
       for (const [sel, decls] of fragmentRules(plan)) {
         const e = layer.querySelector(sel)
-        if (e) for (const [k, v] of decls) e.style.setProperty(k, v)
+        if (e) for (const [k, v] of decls) e.style.setProperty(k, k === 'font-family' ? privateFamily(v) : v)
       }
       for (const ep of elementParts(plan)) {
         const e = layer.querySelector('.' + cls(plan, ep.target, ep.part))
@@ -511,7 +516,7 @@ ${tracks.join(',\n')}
       if (d.fonts && typeof FontFace === 'function') {
         for (const f of Object.values(faces)) {
           const bin = Uint8Array.from(atob(f.data), (c) => c.charCodeAt(0))
-          const ff = new FontFace(f.family, bin)
+          const ff = new FontFace(PRIVATE + f.family, bin, { weight: String(f.weight || 400), style: f.style || 'normal' })
           d.fonts.add(ff)
           ff.load().catch(() => {})
         }

@@ -1,6 +1,6 @@
 {
   "source": "rhinocap/motion-lab",
-  "source_commit": "b1f79357cf85a91965d69b8f75674a7bc9d6e943",
+  "source_commit": "78646a6a9f23a990010cd5a9da37f5e97d5a57cb",
   "motifs": [
     "keyfob"
   ],
@@ -11,10 +11,10 @@
     "timeline/scripts/validate-timeline.mjs": "8508812be5e86605bb851818073b6aed996155e025a2e9acaae75a71e83f96e5",
     "timeline/scripts/validate.mjs": "4faabc93034319feff45103a94e27518b17a8f14fa416fd8eb968994436e585f",
     "timeline/src/timeline/evaluator.js": "cfc9bd7413bf23de241e50a95a8abf12e9dc7cf8311753e7e0b28a43fe1fcfb5",
-    "timeline/src/timeline/export.js": "33f47b41e7b5813a069b50fecf72446305319919adbaa44ced05ef858add697f",
+    "timeline/src/timeline/export.js": "fb5c5138e82def28cb7d29cfc6e7fc228eb5f795b3bc1f1e2d18bc44bb77e9a7",
     "timeline/src/timeline/swiftui.js": "7089f8ecdc42f5ab01a8bd508aaa5ed60084f11dd32b369600dd0d53432b90aa",
     "timeline/src/timeline/outline.js": "30ffebbf4b1b8e3efc4fcbe213fdecd4cd9c75b6b98b9a11e29a74753c750ed3",
-    "timeline/src/timeline/fragment.js": "8f256d74fe016ad56027615a9f1459e3ee2f7a10a29d0a05576b2c1da072b80d",
+    "timeline/src/timeline/fragment.js": "58c13d8482b8615d0c92fa562509bbe12115c37781ee972c035f74fdd0fffe97",
     "timeline/src/timeline/images.js": "2428e738ade1cb93d65ba274ee01272aea0d0c6b601d2295f67da165f16b3ff5",
     "timeline/schemas/timeline.schema.json": "db6db80bb01658d34664fe328e3cd14880bdfe5872aa473da0c006d11b048bad",
     "timeline/schemas/playground.schema.json": "6d5825b72a35f2dab6b538bdee09092c75877f6cab9aa908e7431d938dc51d3d"

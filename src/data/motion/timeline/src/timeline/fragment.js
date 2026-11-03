@@ -221,7 +221,11 @@ function attachFragment(doc, layout, sanitized, readFont, fontPaths) {
     const path = (fontPaths && fontPaths[key]) || def.path
     const f = readFont(path)
     const family = String(f.font.familyName || key).replace(/[^\p{L}\p{N} _-]/gu, '').slice(0, 64) || key
-    faces[key] = { family, format: f.format, data: f.bytes.toString('base64'), file: path }
+    // Weight and style travel with the face, so two files of one family (a regular and a bold) do not replace each other.
+    const os2 = f.font['OS/2'] || {}
+    const weight = Number.isInteger(os2.usWeightClass) && os2.usWeightClass >= 1 && os2.usWeightClass <= 1000 ? os2.usWeightClass : 400
+    const style = f.font.italicAngle || (os2.fsSelection && os2.fsSelection.italic) ? 'italic' : 'normal'
+    faces[key] = { family, weight, style, format: f.format, data: f.bytes.toString('base64'), file: path }
   }
   layout.fontFaces = faces
   return layout
