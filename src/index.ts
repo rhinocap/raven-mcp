@@ -1968,6 +1968,10 @@ const AUTHED_USER_TASTE_TOOLS = new Set<string>([
   "delete_taste_data"
 ]);
 
+// Local Raven only: suggest_motion is not on the remote endpoints, whose instructions stay pinned.
+const LOCAL_MOTION_INSTRUCTIONS =
+  "\n\nMOTION — once a project is bound and its pages exist, offer suggest_motion when the person asks about motion, polish, or making a page feel alive, or after the first full page is built. It finds the places where motion would help, builds a playground for each from the page's own content, and writes a map of the page. Ask before running it unprompted, and never add motion against a design_notes.motion of none or instant.";
+
 const AUTHED_USER_TASTE_STARTUP_INSTRUCTIONS =
   "\n\nAUTHENTICATED STARTUP: this remote endpoint is connected to a per-user taste store. At project kickoff or the first real design/copy/UI work for a project, call get_taste_interview for the connected user's taste profile and project name before choosing direction. Ask the returned questions, then persist the user's answers with bind_taste_surface before generating design work. If the profile name is not known yet, call list_taste_profiles first.";
 
@@ -2552,6 +2556,9 @@ var server = new McpServer({
 if (remote && hasUserStore) {
   (server as any).server._options.instructions += AUTHED_USER_TASTE_STARTUP_INSTRUCTIONS;
 }
+if (!remote) {
+  (server as any).server._options.instructions += LOCAL_MOTION_INSTRUCTIONS;
+}
 // The standing GRAB instruction above tells the agent to wait for a batchCommit
 // on every plain drain, and in proxy mode that commit can never arrive — the
 // bridge withholds the route that produces one. get_grabbed_elements says so in
@@ -2561,6 +2568,11 @@ if (remote && hasUserStore) {
 // tools, and the anonymous instructions are a hash-frozen surface.
 if (!remote) {
   (server as any).server._options.instructions += "\n\nGRAB, CAPTURE-ONLY PROXY — the exception to waiting for batchCommit. When a drain returns captureOnly true the session is proxying a third-party site: the authoring routes are withheld, no batchCommit will ever arrive, and waiting for one strands the capture. Keep each selection with capture_reference and map it onto this project's tokens with map_reference_to_tokens. The grab itself is the outcome; do not try to apply anything to the page. A proxy of the user's own loopback server is proxyMode true but captureOnly FALSE: it keeps the full authoring surface, so wait for batchCommit exactly as in a local session.";
+}
+// The SDK copies instructions when the server is built, so text appended above reaches a client only if the
+// copy is refreshed. Local only for now: the remote endpoints' instructions are left as they are.
+if (!remote) {
+  (server as any).server._instructions = (server as any).server._options.instructions;
 }
 
 // Wrap every tool handler: log the call to the local usage log, then inject
@@ -8893,6 +8905,13 @@ server.tool(
   }
 );
 
+// Site Motion Spec Part F: what the agent does with a send, so the choice becomes taste data.
+const MOTION_SENDS_NEXT = [
+  "Build the motion as sent: use the timeline in the packet and follow the note.",
+  "Record the choice with record_taste_decision: the project, dimension 'motion', source 'user-directed'. The first line of decision is 'motion:<kind> {\"<control id>\": <value>, ...}', where kind is that playground's kind in the suggest_motion result (matched by url) and the values are the controls as sent; the next line says the same in words, for example 'Button hover: a 3 px lift over 200 ms'. suggest_motion starts from these values next time.",
+  "When the designer says no to a suggestion, record that too: decision says in words what they want instead (or 'no motion here'), and an entry in rejected starts with 'motion:<kind>', with their reason in why if they gave one. suggest_motion stops offering that kind on this project until a later choice brings it back.",
+];
+
 server.tool(
   "get_motion_sends",
   "Receive what the designer sent from a motion playground opened with open_motion_playground. Each send carries the designer's note (instruction), what they were looking at (context), and the motion as tuned (packet), along with the playground's url and html_path. Act on the note using the packet; when the note is empty, the packet itself is what they want. Returns at once with anything already sent, and each send is returned only once. When you expect a send, pass timeout_ms, up to " + MOTION_SEND_MAX_WAIT_MS + ", to wait for it.",
@@ -8901,7 +8920,7 @@ server.tool(
   },
   async function ({ timeout_ms }) {
     var drained = await getMotionSends(timeout_ms);
-    return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "get_motion_sends", count: drained.sends.length, sends: drained.sends, waiting_url_count: drained.waiting_url_count }, null, 2) }] };
+    return { content: [{ type: "text" as const, text: JSON.stringify({ tool: "get_motion_sends", count: drained.sends.length, sends: drained.sends, waiting_url_count: drained.waiting_url_count, next: MOTION_SENDS_NEXT }, null, 2) }] };
   }
 );
 

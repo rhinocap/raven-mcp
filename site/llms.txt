@@ -18,6 +18,7 @@ Key facts:
 - Audits for web pages, layouts, SwiftUI/iOS screens, Android, and React Native — checking principles, patterns, contrast, tap targets, typography, and accessibility.
 - Content voice guides, brand profiles, research methods, and service blueprints.
 - A Taste Engine that makes a person's design judgment portable: calibrate a profile once, then audit_taste returns a BLOCK/WARN/PASS verdict on any build, citing the rule_id and evidence behind every finding — and learning from your corrections. Profiles stay local under ~/.raven/taste.
+- suggest_motion finds where motion would help on a page and builds a motion playground for each from the page's own content, with a map of the page and a reason for each that quotes the project's notes. Local only.
 - Cinematic build recipes that name their paid external dependency (e.g. the Higgsfield MCP) and a still-photography fallback, so the agent confirms any spend with you before running it.
 - 100% free and open source. No tiers, no limits, no account required.
 

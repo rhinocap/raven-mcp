@@ -967,6 +967,21 @@ cd raven-mcp && npm install && npm run build</code></pre>
       <p class="tool-desc">Run adversarial queries against a live endpoint and return a per-query verdict — shape-valid / shape-invalid / confident-wrong / uncertain — against an expected shape schema plus per-query contains/equals expectations. Catches responses that pass shape but are wrong.</p>
     </div>
 
+    <h3>Motion</h3>
+
+    <div class="tool-card reveal">
+      <h3>suggest_motion</h3>
+      <p class="tool-desc">Find the places on a page where motion would help and build a motion playground for each from the page's own content, plus a map of the page with a numbered marker per suggestion. Suggestions follow the project's motion note, and each comes with a short reason that quotes the notes it relies on. Local only.</p>
+      <dl class="params">
+        <dt>url <span class="required">required</span></dt>
+        <dd>The page to read, usually your local dev server</dd>
+        <dt>profile, project <span class="optional">optional</span></dt>
+        <dd>The taste profile and bound project whose notes and motion decisions shape the suggestions</dd>
+      </dl>
+      <pre><code>// Try:
+"Where could motion help on this page?"</code></pre>
+    </div>
+
     <h3>Reflection &amp; Registration</h3>
 
     <div class="tool-card reveal">

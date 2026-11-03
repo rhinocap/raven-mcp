@@ -327,3 +327,56 @@ test('from the map, open a suggestion, tune it, Send, and get_motion_sends names
     }
   });
 });
+
+// Part F: the taste loop and the instructions that point at suggest_motion.
+async function withClient(fn) {
+  const indexMod = await import('../dist/index.js');
+  const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
+  const { InMemoryTransport } = await import('@modelcontextprotocol/sdk/inMemory.js');
+  const [ct, st] = InMemoryTransport.createLinkedPair();
+  const server = indexMod.buildServer({});
+  const client = new Client({ name: 'motion-suggest-test', version: '1.0.0' }, { capabilities: {} });
+  await server.connect(st);
+  await client.connect(ct);
+  try { return await fn(client); } finally { await client.close(); await server.close(); }
+}
+
+test('get_motion_sends says to build the send and record it as a motion decision, and that record is read back', async () => {
+  const next = await withClient(async (client) => {
+    const res = await client.callTool({ name: 'get_motion_sends', arguments: { timeout_ms: 0 } });
+    return JSON.parse(res.content[0].text).next;
+  });
+  assert.ok(Array.isArray(next) && next.length === 3);
+  assert.match(next[0], /Build the motion as sent/);
+  assert.match(next[1], /record_taste_decision/);
+  assert.match(next[1], /dimension 'motion'/);
+  assert.match(next[1], /'user-directed'/);
+  assert.match(next[1], /first line of decision is 'motion:<kind> \{/);
+  assert.match(next[2], /rejected starts with 'motion:<kind>'/);
+
+  // Record exactly as the text says: canonical first line, words on the next.
+  await withHome(async ({ store }) => {
+    const b = await bound(store, { customer: 'Studio clients choosing a designer.' });
+    await taste.recordTasteDecision(store, b.profile, { project: b.project, dimension: 'motion', decision: 'motion:cta-hover {"lift": 4}\nButton hover: a 4 px lift.', source: 'user-directed' });
+    await taste.recordTasteDecision(store, b.profile, { project: b.project, dimension: 'motion', decision: 'no motion here', rejected: ['motion:image-reveal'], why: 'Too much.' });
+    const out = await suggest(store, b);
+    assert.ok(!out.suggestions.some((s) => s.kind === 'image-reveal'), 'turned-down kind is gone');
+    const cta = out.suggestions.find((s) => s.kind === 'cta-hover');
+    const lift = cta.timeline.params.find((p) => p.id === 'lift');
+    assert.equal(lift.default, 4);
+  });
+});
+
+test('the server instructions and the kickoff interview offer suggest_motion, and never against a none note', async () => {
+  const instructions = await withClient(async (client) => client.getInstructions());
+  assert.match(instructions, /MOTION — once a project is bound and its pages exist, offer suggest_motion/);
+  assert.match(instructions, /GRAB, CAPTURE-ONLY PROXY/, 'the other local paragraph also reaches the client');
+  assert.match(instructions, /Ask before running it unprompted, and never add motion against a design_notes\.motion of none or instant/);
+  await withHome(async ({ store }) => {
+    const b = await bound(store, {});
+    for (const depth of ['first_run', 'full']) {
+      const iv = await taste.getTasteInterview(store, b.profile, 'another-site', 'kickoff', depth);
+      assert.match(iv.then, /Once the build starts and a first page exists, suggest_motion/);
+    }
+  });
+});

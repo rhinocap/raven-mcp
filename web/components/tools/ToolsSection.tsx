@@ -166,6 +166,9 @@ const ACTS: Act[] = [
       { name: "generate_taste_portrait", desc: "Render a bound surface as a self-contained designed page built from its own taste store" },
       { name: "generate_mood_board", desc: "Compose a mood board from the binding's notes, its captured references, and your own images—a self-contained page, and an approval stop" },
       { name: "create_motion_playground", desc: "Build a motion playground—one self-contained page with live controls in designer language and copyable exports, started from the binding's motion notes" },
+      { name: "open_motion_playground", desc: "Open a playground at a local link, so the designer can tune it and send the result back to the agent" },
+      { name: "get_motion_sends", desc: "Receive what the designer sent from a playground: their note and the motion as tuned" },
+      { name: "suggest_motion", desc: "Find where motion would help on a page and build a playground for each from the page's own content, with a map of the page" },
     ],
   },
   {

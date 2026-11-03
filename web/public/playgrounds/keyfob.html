@@ -1,3 +1,9 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src &#39;none&#39;; script-src &#39;sha256-mCPoR1R6XYvsHrJiZr5KYKPFxPrlfphO9v1gP6icEbk=&#39; &#39;sha256-CxLQCA9mTGo2/bbGh24CBsPTQqdANX1za4/4ZdLOnPY=&#39; http://127.0.0.1:* http://localhost:*; style-src &#39;unsafe-inline&#39; http://127.0.0.1:* http://localhost:* https://fonts.googleapis.com; img-src data: blob: http://127.0.0.1:* http://localhost:*; font-src data: http://127.0.0.1:* http://localhost:* https://fonts.gstatic.com; connect-src &#39;self&#39; http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:*; form-action &#39;none&#39;; object-src &#39;none&#39;">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>911 key hover-jingle</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
@@ -103,6 +109,17 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px var(
 .block p { margin: 0; color: var(--fg-2); font-size: var(--t-sm); }
 .block textarea { width: 100%; height: 120px; resize: vertical; background: var(--bg); border: 1px solid var(--line); border-radius: var(--r); padding: 8px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; color: var(--fg-2); }
 .block .row2 { display: flex; gap: 8px; flex-wrap: wrap; }
+.block label.ask { font-size: var(--t-sm); color: var(--fg-2); }
+.block textarea.note { height: 72px; font-family: inherit; font-size: var(--t-sm); color: var(--fg); }
+.block .context { color: var(--fg-3); }
+.menu-stack { display: flex; flex-direction: column; gap: 20px; }
+/* The direct exports sit behind a disclosure styled as a button, with no marker glyph. */
+.more-code { border-top: 1px solid var(--line); padding-top: 12px; }
+.more-code summary { list-style: none; display: inline-flex; align-items: center; }
+.more-code summary::-webkit-details-marker { display: none; }
+.more-code[open] summary { margin-bottom: 12px; }
+.more-code .when-open, .more-code[open] .when-closed { display: none; }
+.more-code[open] .when-open { display: inline; }
 .field { display: grid; grid-template-columns: minmax(0, 1fr) 128px; align-items: center; gap: 8px; min-height: var(--hit); }
 .field input { height: 32px; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 0 8px; font-variant-numeric: tabular-nums; min-width: 0; }
 details#raw-json summary { cursor: pointer; min-height: var(--hit); display: flex; align-items: center; color: var(--fg-2); }
@@ -133,6 +150,8 @@ main#preview { display: flex; flex-direction: column; min-height: 0; min-width: 
 }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
 </style>
+</head>
+<body>
 
 <script type="application/json" id="schema">{"schemaVersion":"1.0","id":"keyfob","title":"911 key hover-jingle","concept":"On hover or click, the ring moves and a 964/993-era Porsche 911 key and its remote fob swing from it as chained damped pendulums under gravity, then settle at their original hanging angles.","source":{"kind":"prompt","prompt":"Draw an air-cooled Porsche 911 key from the 964/993 years (1989-98): a black-headed key with a plain round badge, and its separate black remote fob, on one steel ring. Make it jingle on hover: the ring is the hinge, the fob and key swing under gravity and settle. Keep all the shading."},"motif":"object-physics","renderer":"svg+waapi","canvas":{"width":480,"height":480,"background":"#E8E9EC"},"interaction":{"events":["hover","click"],"hinges":[{"target":"ring-1-3","origin":"50% 0%"},{"target":"fob-1-4","origin":"50% 0%","parent":"ring-1-3"},{"target":"key-1-5","origin":"50% 0%","parent":"ring-1-3"}]},"seed":2718,"groups":[{"id":"jingle","label":"Jingle"},{"id":"pendants","label":"Hanging pieces"},{"id":"finish","label":"Fob and metal"}],"params":[{"id":"hoverAngle","label":"Hover swing","type":"number","group":"jingle","role":"amplitude","min":2,"max":20,"step":1,"default":9,"unit":"deg","help":"How far the keys swing when the pointer passes over them."},{"id":"clickStrength","label":"Click strength","type":"number","group":"jingle","role":"amplitude","min":1,"max":2,"step":0.1,"default":1.5,"unit":"x","help":"How much harder a click swings them than a hover."},{"id":"settleTime","label":"Settle time","type":"number","group":"jingle","role":"duration","min":600,"max":2400,"step":100,"default":1400,"unit":"ms","help":"How long until the keys hang still again."},{"id":"swingFeel","label":"Swing finish","type":"enum","group":"jingle","role":"easing","options":[{"value":"soft","label":"Soft settle"},{"value":"firm","label":"Firm settle"}],"default":"soft","widget":"segmented","help":"Soft keeps swinging longer; Firm calms down sooner."},{"id":"ringAngle","label":"Ring tilt","type":"number","group":"pendants","role":"amplitude","min":0,"max":6,"step":0.5,"default":2,"unit":"deg","help":"How much the ring itself rocks on its pin."},{"id":"fobPeriod","label":"Fob swing time","type":"number","group":"pendants","role":"speed","min":400,"max":1000,"step":20,"default":640,"unit":"ms","help":"Time for the remote to swing out and back once. Longer feels heavier."},{"id":"keyPeriod","label":"Key swing time","type":"number","group":"pendants","role":"speed","min":300,"max":800,"step":20,"default":480,"unit":"ms","help":"Keep it quicker than the remote so the two don’t move as one."},{"id":"keyDelay","label":"Key response delay","type":"number","group":"pendants","role":"delay","min":0,"max":120,"step":10,"default":30,"unit":"ms","help":"A short lag before the key reacts, so the two pieces don’t start together."},{"id":"fobColor","label":"Fob colour","type":"color","group":"finish","role":"color","default":"#1C1C1E","swatches":["#1C1C1E","#3A3A3C","#6E1F1F","#30485D"],"help":"Colour of the remote and the key head. The shading stays."},{"id":"bevelLight","label":"Metal edge light","type":"number","group":"finish","role":"other","min":50,"max":120,"step":5,"default":100,"unit":"%","help":"Brightness of the light catching the metal edges.","clientSafe":false},{"id":"innerShade","label":"Fob inset shade","type":"number","group":"finish","role":"other","min":50,"max":120,"step":5,"default":100,"unit":"%","help":"Depth of the shading around the remote’s edge.","clientSafe":false},{"id":"dropShadow","label":"Hanging shadows","type":"number","group":"finish","role":"other","min":40,"max":120,"step":5,"default":100,"unit":"%","help":"Strength of the shadow the keys cast on the wall.","clientSafe":false}],"exports":["params-json","svg-frame","waapi-snippet"],"constraints":[{"a":"settleTime","op":"gte","b":"fobPeriod","factor":1.82,"why":"Gives Firm settle enough time to show a swing before the keys hang still."},{"a":"keyPeriod","op":"lte","b":"fobPeriod","factor":0.9,"why":"The key swings faster than the fob so the two read as separate pieces."}]}</script>
 <script type="application/json" id="raven-ctx">{}</script>
@@ -147,7 +166,7 @@ main#preview { display: flex; flex-direction: column; min-height: 0; min-width: 
     <aside id="panel" aria-label="Controls">
       <div class="tabs" role="tablist">
         <button role="tab" id="tab-controls" aria-controls="view-controls" aria-selected="true">Controls</button>
-        <button role="tab" id="tab-code" aria-controls="view-code" aria-selected="false">Get code</button>
+        <button role="tab" id="tab-agent" aria-controls="view-agent" aria-selected="false">Send to agent</button>
         <button role="tab" id="tab-more" aria-controls="view-more" aria-selected="false">More</button>
       </div>
       <div class="view" id="view-controls" role="tabpanel" aria-labelledby="tab-controls">
@@ -161,8 +180,25 @@ main#preview { display: flex; flex-direction: column; min-height: 0; min-width: 
         </div>
         <div id="groups"></div>
       </div>
-      <div class="view" id="view-code" role="tabpanel" aria-labelledby="tab-code" hidden>
-        <div id="export-menu" class="block-list" style="display:flex;flex-direction:column;gap:20px"></div>
+      <div class="view" id="view-agent" role="tabpanel" aria-labelledby="tab-agent" hidden>
+        <div class="block" id="send-block" hidden>
+          <h3>Send to your agent</h3>
+          <label class="ask" for="send-note">What should your agent do with it?</label>
+          <textarea class="note" id="send-note" placeholder="Use this on the contact page, beside the address" spellcheck="true"></textarea>
+          <p class="context">Sent with your note: <span id="send-context"></span></p>
+          <div class="row2"><button class="btn primary" id="send-agent">Send to your agent</button></div>
+        </div>
+        <div class="block" id="copy-block">
+          <h3 id="copy-title">Send to your agent</h3>
+          <p id="agent-lede">Copy this and paste it into Claude, Cursor or any coding agent. It carries the motion as you tuned it, and the agent writes it in whatever language your project uses.</p>
+          <textarea id="out-agent" readonly aria-label="Message for your agent" spellcheck="false"></textarea>
+          <div class="row2"><button class="btn primary" id="copy-agent">Copy for your agent</button></div>
+        </div>
+        <div id="raven-menu" class="menu-stack"></div>
+        <details class="more-code" id="code-more">
+          <summary class="btn"><span class="when-closed">Show code without an agent</span><span class="when-open">Hide code without an agent</span></summary>
+          <div id="export-menu" class="menu-stack"></div>
+        </details>
       </div>
       <div class="view" id="view-more" role="tabpanel" aria-labelledby="tab-more" hidden>
         <div class="block">
@@ -177,9 +213,10 @@ main#preview { display: flex; flex-direction: column; min-height: 0; min-width: 
           <div class="field"><label for="seed">Seed</label><input id="seed" type="number" min="0" max="4294967295" step="1"></div>
           <div class="row2"><button class="btn" id="reroll" disabled title="No generated shapes in this playground">Reroll</button></div>
         </div>
+        <div id="settings-menu" class="menu-stack"></div>
         <div class="block">
           <h3>Import settings</h3>
-          <p>Paste settings JSON from Get code, or a review someone sent you.</p>
+          <p>Paste settings you saved, or a review someone sent you.</p>
           <textarea id="import-text" aria-label="Settings JSON to import" spellcheck="false"></textarea>
           <div class="row2"><button class="btn" id="import">Import</button></div>
         </div>
@@ -420,7 +457,7 @@ function mlJingle(svg, P, opts) {
   function say(msg) { statusEl.textContent = msg; }
 
   $('title').textContent = schema.title;
-  $('concept').textContent = 'Tune how the keys swing, then copy the code into your site.';
+  $('concept').textContent = 'Tune how the keys swing, then send it to your agent.';
 
   // ---------- artwork + motion ----------
   var svg = $('art');
@@ -709,7 +746,7 @@ function mlJingle(svg, P, opts) {
   function major(v) { return String(v || '').split('.')[0]; }
   function importText(text) {
     var env;
-    try { env = JSON.parse(text); } catch (e) { return 'That isn’t valid JSON. Copy it again from Get code and paste the whole thing.'; }
+    try { env = JSON.parse(text); } catch (e) { return 'That isn’t valid JSON. Copy your settings again and paste the whole thing.'; }
     if (env && typeof env === 'object' && env.changes && env.settings) env = env.settings;
     var isObj = function (o) { return !!o && typeof o === 'object' && !Array.isArray(o); };
     if (!isObj(env) || !isObj(env.values)) return 'That JSON doesn’t look like Motion Lab settings: it has no values.';
@@ -783,12 +820,11 @@ function mlJingle(svg, P, opts) {
   }
   var exportsDef = [
     { id: 'waapi-snippet', title: 'Embed on your site', text: 'The artwork and the motion with your settings, in one block of HTML. Paste it into a Webflow Embed, a Framer Embed or any web page. It respects reduced motion.', make: embedCode, copyLabel: 'Copy embed code' },
-    { id: 'params-json', title: 'Settings JSON', text: 'Your settings. Paste them into Import later to pick up where you left off.', make: function () { return JSON.stringify(envelope('author'), null, 2); }, copyLabel: 'Copy settings' },
+    { id: 'params-json', title: 'Save settings', text: 'Your settings. Paste them into Import below later to pick up where you left off.', make: function () { return JSON.stringify(envelope('author'), null, 2); }, copyLabel: 'Copy settings', menu: 'settings-menu', view: 'more' },
     { id: 'svg-frame', title: 'Still frame (SVG)', text: 'The frame on screen right now as an SVG file, for a poster or a Figma mock-up.', make: frameSVG, copyLabel: 'Copy SVG' }
   ].filter(function (x) { return schema.exports.indexOf(x.id) !== -1; });
   var exportUI = {};
   (function buildExports() {
-    var root = $('export-menu');
     exportsDef.forEach(function (x) {
       var b = el('div', { 'class': 'block' });
       b.appendChild(el('h3')).textContent = x.title;
@@ -796,9 +832,9 @@ function mlJingle(svg, P, opts) {
       var ta = el('textarea', { readonly: '', id: 'out-' + x.id, 'aria-label': x.title, spellcheck: 'false' });
       b.appendChild(ta);
       var r = el('div', { 'class': 'row2' });
-      var btn = el('button', { 'class': x.id === 'waapi-snippet' ? 'btn primary' : 'btn' }); btn.textContent = x.copyLabel;
+      var btn = el('button', { 'class': 'btn', id: 'copy-' + x.id }); btn.textContent = x.copyLabel;
       btn.addEventListener('click', function () { ta.value = x.make(); copy(ta.value, ta, x.title + ' copied.'); });
-      r.appendChild(btn); b.appendChild(r); root.appendChild(b);
+      r.appendChild(btn); b.appendChild(r); $(x.menu || 'export-menu').appendChild(b);
       exportUI[x.id] = { ta: ta, make: x.make };
     });
   })();
@@ -843,16 +879,18 @@ function mlJingle(svg, P, opts) {
     var r = el('div', { 'class': 'row2' });
     var btn = el('button', { 'class': 'btn', id: 'copy-raven' }); btn.textContent = 'Copy for Raven';
     btn.addEventListener('click', function () { var t = ravenText(); if (!t) { refreshRaven(); return; } ta.value = t; copy(t, ta, 'Copied for Raven. Paste it into your agent’s chat.'); });
-    r.appendChild(btn); b.appendChild(r); $('export-menu').appendChild(b);
+    r.appendChild(btn); b.appendChild(r); $('raven-menu').appendChild(b);
     return { inputs: inputs, ta: ta, btn: btn, note: note };
   })();
-  // The same project rule record_taste_decision applies, so a copied decision is one Raven accepts.
+  // The same profile and project rules record_taste_decision applies, so a copied decision is one Raven accepts.
+  var RAVEN_PROFILE = /^[a-z0-9][a-z0-9-_]{0,63}$/i;
   var RAVEN_PROJECT = /^[a-z0-9][a-z0-9-_.]{0,63}$/i;
   function ravenFields() {
     return { profile: String(ravenUI.inputs.profile.value).trim(), project: String(ravenUI.inputs.project.value).trim() };
   }
   function ravenProblem(f) {
     if (!f.profile || !f.project) return 'Add the taste profile and project your agent uses, then copy.';
+    if (!RAVEN_PROFILE.test(f.profile)) return 'Profile names use letters, numbers, dashes and underscores, start with a letter or number, and stay under 65 characters: “andrew”, not “Andrew C.”.';
     if (!RAVEN_PROJECT.test(f.project)) return 'Project names use letters, numbers, dots, dashes and underscores, start with a letter or number, and stay under 65 characters: “client-website”, not “Client website”.';
     return '';
   }
@@ -866,11 +904,100 @@ function mlJingle(svg, P, opts) {
     ravenUI.ta.value = t; ravenUI.btn.disabled = !t; ravenUI.note.hidden = !!t;
     if (!t) ravenUI.note.textContent = ravenProblem(ravenFields());
   }
-  function refreshExports() {
-    if ($('view-code').hidden) return;
-    exportsDef.forEach(function (x) { exportUI[x.id].ta.value = x.make(); });
-    refreshRaven();
+  // The agent picks the language, so it gets the settings in words plus one exact rendering to match.
+  function settingLine(p) {
+    var v = state.values[p.id], shown;
+    if (p.type === 'enum') shown = p.options.filter(function (o) { return o.value === v; })[0].label;
+    else if (p.type === 'number') shown = v + (p.unit === 'ms' ? ' ms' : unitText(p));
+    else shown = String(v);
+    return '- ' + p.label + ' (' + p.id + '): ' + shown + '. ' + p.help;
   }
+  function agentPacket() {
+    var w = Math.min(1200, Math.max(120, Math.round(Number(state.width)) || schema.canvas.width));
+    return [
+      'Please build this motion in my project. I tuned it in a Raven motion playground.',
+      '',
+      'Write it in whatever fits the code you are working in: HTML and JavaScript, React, SwiftUI or something else. If you can’t tell, ask me.',
+      '',
+      'It is a Porsche 911 key and its remote hanging from a ring. When the pointer passes over them they swing, a click swings them harder, and they settle back to where they hung. With keyboard focus, Enter or Space works like a click.',
+      '',
+      'Below are two things:',
+      '1. My settings, with what each one does.',
+      '2. A working web version, one block of HTML, that plays exactly what I approved. Match it: the same artwork, swing, timing and settle. The swing is worked out frame by frame in its script, so carry that logic over rather than replacing it with keyframes.',
+      '',
+      'Size: up to ' + w + ' px wide, with the height following the width at 15:16.',
+      '',
+      'For people who ask for reduced motion, don’t animate: keep the keys hanging still, as the working version does.',
+      '',
+      'Settings:'
+    ].concat(schema.params.map(settingLine), ['', 'Working web version:', '```html', embedCode(), '```']).join('\n');
+  }
+  $('copy-agent').addEventListener('click', function () { var ta = $('out-agent'); ta.value = agentPacket(); copy(ta.value, ta, 'Copied. Paste it into your agent’s chat.'); });
+  // ---------- send ----------
+  // When Raven opens the playground it adds a #motion-send block naming where to post. Without it the page offers Copy only.
+  // What the designer was looking at goes with their note, so the agent knows which part they mean.
+  function contextValue(p, v) {
+    if (p.type === 'enum') { var o = p.options.filter(function (x) { return x.value === v; })[0]; return o ? o.label : String(v); }
+    if (p.type === 'boolean') return v ? 'on' : 'off';
+    if (p.type === 'number') return v + (p.unit === 'ms' ? ' ms' : unitText(p));
+    return String(v);
+  }
+  function sendContext() {
+    var w = Math.min(1200, Math.max(120, Math.round(Number(state.width)) || schema.canvas.width)), parts = [];
+    parts.push('Embed ' + w + ' px wide' + (state.mode === 'review' ? ', in review mode' : '') + '.');
+    var changed = params.filter(function (p) { return state.values[p.id] !== p.default; });
+    parts.push(changed.length ? 'Changed: ' + changed.map(function (p) { return p.label + ' ' + contextValue(p, state.values[p.id]); }).join(', ') + '.' : 'No controls changed yet.');
+    if (state.locks.size) parts.push('Locked: ' + params.filter(function (p) { return state.locks.has(p.id); }).map(function (p) { return p.label; }).join(', ') + '.');
+    return parts.join(' ');
+  }
+  var sendTo = (function () {
+    var b = document.getElementById('motion-send');
+    if (!b) return null;
+    try { var c = JSON.parse(b.textContent); return c && typeof c.url === 'string' && c.url.charAt(0) === '/' ? c : null; } catch (e) { return null; }
+  })();
+  function showContext() {
+    if (!sendTo || $('view-agent').hidden) return;
+    var c = sendContext();
+    if ($('send-context').textContent !== c) $('send-context').textContent = c;
+  }
+  if (sendTo) {
+    $('send-block').hidden = false;
+    $('copy-title').textContent = 'Or copy it';
+    $('copy-agent').className = 'btn';
+    $('send-agent').addEventListener('click', function () {
+      var btn = $('send-agent');
+      if (btn.disabled) return;
+      var typed = $('send-note').value, sent = typed.trim().slice(0, 4000);
+      var body = JSON.stringify({ playground: String(sendTo.playground || ''), title: schema.title, instruction: sent, context: sendContext(), packet: agentPacket() });
+      btn.disabled = true; say('Sending…');
+      // Raven answers at once, so a send that hangs is given up on and the button comes back. Raven never redirects.
+      var ctl = typeof AbortController === 'function' ? new AbortController() : null;
+      var timer = ctl ? setTimeout(function () { ctl.abort(); }, 8000) : 0;
+      fetch(sendTo.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body, redirect: 'error', signal: ctl ? ctl.signal : undefined }).then(function (r) {
+        if (r.status === 503) { say('Your agent has notes it hasn’t read yet. Ask it to check them, then send again.'); return; }
+        if (r.status !== 202) throw new Error(String(r.status));
+        // A note typed while this one was on its way stays put.
+        if ($('send-note').value === typed) $('send-note').value = '';
+        say('Sent. Your agent has it.');
+      }).catch(function () {
+        say('Couldn’t reach your agent. Ask it to open this playground again, or use Copy below.');
+      }).then(function () { clearTimeout(timer); btn.disabled = false; });
+    });
+  }
+  // Visibility is read when the refresh runs, so a queued refresh for a view that has since closed does nothing.
+  // The direct exports sit behind "Show code without an agent" and are made only while it is open.
+  function refreshExports() {
+    var view = !$('view-agent').hidden ? 'agent' : !$('view-more').hidden ? 'more' : null;
+    if (!view) return; // early exit only: with no view open, the view checks below skip every box anyway
+    if (view === 'agent') { $('out-agent').value = agentPacket(); showContext(); }
+    var codeOpen = $('code-more').open;
+    exportsDef.forEach(function (x) {
+      var v = x.view || 'agent';
+      if (v === view && (v !== 'agent' || codeOpen)) exportUI[x.id].ta.value = x.make();
+    });
+    if (view === 'agent') refreshRaven();
+  }
+  $('code-more').addEventListener('toggle', function () { if ($('code-more').open) refreshExports(); });
   // A sandboxed frame has an opaque origin and no clipboard, so a framed playground hands the text to the
   // parent page and waits for its answer. The text is the designer's own settings, so '*' leaks nothing.
   var framed = window.parent !== window;
@@ -901,7 +1028,7 @@ function mlJingle(svg, P, opts) {
   }
 
   // ---------- tabs ----------
-  var tabs = ['controls', 'code', 'more'];
+  var tabs = ['controls', 'agent', 'more'];
   function showTab(name) {
     tabs.forEach(function (t) {
       $('tab-' + t).setAttribute('aria-selected', String(t === name));
@@ -914,6 +1041,8 @@ function mlJingle(svg, P, opts) {
   buildPanel();
   syncControls();
   refreshRaven();
-  window.__ml = { state: state, jingle: jingle, setParam: setParam, importText: importText, envelope: envelope, embedCode: embedCode, ravenText: ravenText };
+  window.__ml = { state: state, jingle: jingle, setParam: setParam, importText: importText, envelope: envelope, embedCode: embedCode, agentPacket: agentPacket, sendContext: sendContext, ravenText: ravenText };
 })();
 </script>
+</body>
+</html>
