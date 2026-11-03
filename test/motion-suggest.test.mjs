@@ -226,6 +226,10 @@ test('a fixed dialog stays out of the section it sits in; the main button is fou
     assert.ok(by('cta-hover').length <= 4);
     assert.equal(by('card-hover').length, 1, ids);
     assert.match(by('card-hover')[0].why, /3 cards/);
+    // The tag row wraps on the page, so it wraps in the playground and is not listed as a difference.
+    const card = by('card-hover')[0];
+    assert.ok(Object.values(card.timeline.styles || {}).some((st) => st.flexWrap === 'wrap'), JSON.stringify(card.timeline.styles));
+    assert.ok(!card.approximations.some((a) => /wrapping/.test(a)), card.approximations.join(' | '));
     assert.ok(r.warnings.some((w) => /<product-hero>/.test(w)), r.warnings.join('\n'));
   });
 });
@@ -416,8 +420,12 @@ test('from the map, open a suggestion, tune it, Send, and get_motion_sends names
         return window.__ml.ravenText();
       });
       const record = JSON.parse(copied.slice(copied.indexOf('{')));
-      assert.match(record.decision, /^motion:cta-hover \{"lift":5\}\n/);
-      assert.equal(readMotionDecisions([{ decision: record.decision, rejected: record.rejected, recorded_at: new Date().toISOString() }]).tuned['cta-hover'].lift, 5);
+      assert.match(record.decision, /^motion:cta-hover \{.*"lift":5.*\}\n/);
+      // Every value is in the line, including unchanged ones, so a value restored from an earlier decision
+      // is not dropped when the designer saves again.
+      const tuned = readMotionDecisions([{ decision: record.decision, rejected: record.rejected, recorded_at: new Date().toISOString() }]).tuned['cta-hover'];
+      assert.equal(tuned.lift, 5);
+      assert.equal(typeof tuned.timing, 'number', JSON.stringify(tuned));
       await page.fill('#send-note', 'Use this on the main button');
       await page.click('#send-agent');
       await page.waitForFunction(() => /Sent|reach/.test(document.getElementById('status').textContent));

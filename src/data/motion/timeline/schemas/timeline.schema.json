@@ -768,6 +768,11 @@
             "column"
           ]
         },
+        "flexWrap": {
+          "enum": [
+            "wrap"
+          ]
+        },
         "alignItems": {
           "enum": [
             "start",

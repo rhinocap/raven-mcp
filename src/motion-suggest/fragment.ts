@@ -30,6 +30,7 @@ export type FragmentStyle = {
   borderRadius?: number;
   display?: "block" | "flex" | "inline-block";
   flexDirection?: "row" | "column";
+  flexWrap?: "wrap";
   alignItems?: "start" | "center" | "end" | "stretch";
   justifyContent?: "start" | "center" | "end" | "between";
   textAlign?: "left" | "center" | "right";
@@ -179,6 +180,7 @@ export function mapStyles(ctx: FragmentContext, st: MotionNodeStyles): FragmentS
   if (st.display) out.display = st.display;
   if (st.display === "flex") {
     if (st.flexDirection) out.flexDirection = st.flexDirection;
+    if (st.flexWrap === "wrap") out.flexWrap = "wrap";
     const a = mapAlign(st.alignItems);
     if (a) out.alignItems = a;
     const j = mapJustify(st.justifyContent);

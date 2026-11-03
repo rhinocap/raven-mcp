@@ -53,6 +53,7 @@ export type MotionNodeStyles = {
   borderWidth?: number;
   display?: "block" | "flex" | "inline-block";
   flexDirection?: "row" | "column";
+  flexWrap?: "wrap";
   alignItems?: "flex-start" | "center" | "flex-end" | "stretch" | "baseline";
   justifyContent?: "flex-start" | "center" | "flex-end" | "space-between" | "space-around" | "space-evenly";
   textAlign?: "left" | "center" | "right" | "justify";
@@ -730,7 +731,8 @@ export async function collectMotionCandidatesInPage(arg: { maxNodes: number; max
       out.display = "flex";
       out.flexDirection = cs.flexDirection.indexOf("column") === 0 ? "column" : "row";
       if (/reverse/.test(cs.flexDirection)) approx.add("The " + name + "'s reversed order is not shown.");
-      if (cs.flexWrap === "wrap" || cs.flexWrap === "wrap-reverse") approx.add("The " + name + "'s wrapping is not shown.");
+      if (cs.flexWrap === "wrap" || cs.flexWrap === "wrap-reverse") out.flexWrap = "wrap";
+      if (cs.flexWrap === "wrap-reverse") approx.add("The " + name + "'s reversed wrapping is shown in page order.");
     } else if (isGrid) {
       out.display = "flex";
       const cols = cs.gridTemplateColumns === "none" ? 1 : cs.gridTemplateColumns.split(/\s+/).filter(Boolean).length;

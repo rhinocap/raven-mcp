@@ -70,6 +70,7 @@
     if (st.display) d.push(['display', st.display])
     else if (isPart && node.tag === 'span') d.push(['display', 'inline-block'])
     if (st.flexDirection) d.push(['flex-direction', st.flexDirection])
+    if (st.flexWrap) d.push(['flex-wrap', st.flexWrap])
     if (st.alignItems) d.push(['align-items', ALIGN[st.alignItems]])
     if (st.justifyContent) d.push(['justify-content', ALIGN[st.justifyContent]])
     if (st.gap !== undefined) d.push(['gap', px(st.gap)])

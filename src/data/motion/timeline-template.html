@@ -1416,13 +1416,15 @@ __SWIFTUI__
     var d = defaults();
     var changed = params.filter(function (p) { return p.type !== 'action' && !sameValue(p, state.values[p.id], d[p.id]); });
     // A suggested motion's id is "<kind>-<n>". Its decision starts with the canonical line Raven reads back
-    // (Site Motion Spec Revision 13), so the next suggestion for this kind starts from these values.
+    // (Site Motion Spec Revision 13), so the next suggestion for this kind starts from these values. The line
+    // carries every value, not only the changed ones: a playground built from saved values has them as its
+    // defaults, and the reader replaces the saved set, so a changed-only line would drop them (revision 30).
     var kindMatch = /^(hero-entrance|cta-hover|card-hover|section-reveal|nav-hover|image-reveal)-\d+$/.exec(String(doc.id));
     var canon = '';
     if (kindMatch) {
-      var vals = {};
-      changed.forEach(function (p) { vals[p.id] = state.values[p.id]; });
-      canon = 'motion:' + kindMatch[1] + (changed.length ? ' ' + JSON.stringify(vals) : '') + '\n';
+      var vals = {}, any = false;
+      params.forEach(function (p) { if (p.type !== 'action' && state.values[p.id] !== undefined) { vals[p.id] = state.values[p.id]; any = true; } });
+      canon = 'motion:' + kindMatch[1] + (any ? ' ' + JSON.stringify(vals) : '') + '\n';
     }
     return {
       profile: profile, project: project, dimension: 'motion',
