@@ -43,6 +43,8 @@ const TIMELINE = Object.fromEntries([
   "src/timeline/export.js",
   "src/timeline/swiftui.js",
   "src/timeline/outline.js",
+  "src/timeline/fragment.js",
+  "src/timeline/images.js",
   "schemas/timeline.schema.json",
   "schemas/playground.schema.json",
 ].map((f) => ["timeline/" + f, f]));

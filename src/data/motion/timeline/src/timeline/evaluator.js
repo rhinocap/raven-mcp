@@ -48,7 +48,12 @@
   const KIND_PROPS = {
     text: ['opacity', 'translateX', 'translateY', 'scale', 'scaleX', 'scaleY', 'rotate', 'color', 'clip', 'blur'],
     surface: ['background'],
+    element: ['opacity', 'translateX', 'translateY', 'scale', 'scaleX', 'scaleY', 'rotate', 'background', 'clip', 'blur'],
+    svg: ['opacity', 'translateX', 'translateY', 'scale', 'scaleX', 'scaleY', 'rotate', 'clip', 'blur'],
   }
+  // Targets whose parts can be staggered: split text, element targets split into their children, and svg
+  // groups split into their child groups.
+  const isSplit = (t) => (t.kind === 'text' || t.kind === 'element' || t.kind === 'svg') && (t.split || 'none') !== 'none'
   const NAMED = { linear: [0, 0, 1, 1], 'ease-in': [0.42, 0, 1, 1], 'ease-out': [0, 0, 0.58, 1], 'ease-in-out': [0.42, 0, 0.58, 1] }
 
   // ---------- small helpers ----------
@@ -329,10 +334,18 @@
     const warnings = []
     const targets = doc.targets || {}
     for (const [id, t] of Object.entries(targets)) {
-      if (t.kind === 'svg' || t.kind === 'element') throw new TimelineError('phase3', `target "${id}" is ${t.kind === 'svg' ? 'an svg' : 'an element'} target; those arrive in phase 3`, { target: id })
+      if ((t.kind === 'svg' || t.kind === 'element') && !(layout && layout.targets && layout.targets[id] && layout.targets[id].node)) {
+        throw new TimelineError('no-node', `target "${id}" names ${t.kind === 'svg' ? 'artwork group' : 'fragment element'} "${t.id}", which the ${t.kind === 'svg' ? 'artwork' : 'fragment'} does not have`, { target: id })
+      }
       if (t.kind === 'surface' && (t.role || 'stage') !== 'stage') throw new TimelineError('phase3', `target "${id}" is a ${t.role} surface; page transitions arrive in phase 3`, { target: id })
     }
-    const partCount = (id) => (targets[id] && targets[id].kind === 'text' ? (layout?.targets?.[id]?.parts ?? 1) : 1)
+    const trigger = triggerOf(doc)
+    if (trigger.on === 'hover' && trigger.target) {
+      const tg = targets[trigger.target]
+      if (!tg) throw new TimelineError('trigger', `the hover trigger names "${trigger.target}", which is not a target`, { target: trigger.target })
+      if (tg.kind !== 'element') throw new TimelineError('trigger', `the hover trigger names "${tg.label || trigger.target}", a ${tg.kind} target; hover needs a page element, or no target to use the whole stage`, { target: trigger.target })
+    }
+    const partCount = (id) => (targets[id] && targets[id].kind !== 'surface' ? (layout?.targets?.[id]?.parts ?? 1) : 1)
     const perms = randomPerms(doc, partCount)
 
     const tracks = (doc.tracks || []).map((tr, i) => {
@@ -342,11 +355,11 @@
       const prop = PROPS[tr.property]
       if (!prop || !(KIND_PROPS[target.kind] || []).includes(tr.property)) {
         const later = ['fill', 'stroke', 'draw'].includes(tr.property)
-        throw new TimelineError('property', `${where}: ${tr.property} does not apply to a ${target.kind} target${later ? ' (svg targets only, phase 3)' : ''}`, { track: i })
+        throw new TimelineError('property', `${where}: ${tr.property} does not apply to a ${target.kind} target${later ? ' (svg paint and draw are not built yet)' : ''}`, { track: i })
       }
       const n = partCount(tr.target)
       const each = tr.stagger ? R.num(tr.stagger.each, where + ' stagger') : 0
-      if (tr.stagger && !(target.kind === 'text' && (target.split || 'none') !== 'none')) throw new TimelineError('stagger', `${where}: stagger needs a split text target`, { track: i })
+      if (tr.stagger && !isSplit(target)) throw new TimelineError('stagger', `${where}: stagger needs a split target (text split into letters, words or lines, or an element or svg target split into its children)`, { track: i })
       if (!(Number.isFinite(each) && each >= 0 && each <= MAX_MS)) throw new TimelineError('time', `${where}: stagger must be 0 to ${MAX_MS} ms`, { track: i })
       const ranks = ranksFor(tr.stagger?.order || 'forward', n, perms[tr.target])
       const delay = tr.delay === undefined ? 0 : R.num(tr.delay, where + ' delay')
@@ -449,6 +462,7 @@
         const joins = Math.abs(s.t0 - endT) <= EPS_T
         if (s.from !== undefined) { s.sv = s.from; s.v0 = 0 }
         else {
+          if (!Number.isFinite(cur)) throw new TimelineError('no-start', `track ${s.track + 1} moves ${c.target} background but ${c.target} has none to start from; give the track a starting value, or set a background on it in styles`, { track: s.track, target: c.target })
           s.sv = cur
           s.v0 = 0
           if (s.easing.type === 'spring' && joins) {
@@ -470,13 +484,67 @@
       if (!bases.has(key)) bases.set(key, baseValue(doc, R, target, name))
       return bases.get(key)
     }
-    return { doc, layout, total, restTime, phases, channels: [...channels.values()], byKey: channels, tracks: stripTracks, warnings, baseOf, resolve: R }
+    // Two targets on one element may not move the same property: the page could show only one of them.
+    const owner = new Map()
+    for (const c of channels.values()) {
+      const lt = layout && layout.targets && layout.targets[c.target]
+      if (!lt || !lt.paths) continue
+      const at = lt.paths[c.part]
+      const group = PROP_GROUP[c.name] || c.name
+      const key = at + '|' + group
+      const prev = owner.get(key)
+      if (prev && prev.target !== c.target) throw new TimelineError('overlap', `"${targets[prev.target].label || prev.target}" and "${targets[c.target].label || c.target}" both move the ${group} of the same element; move it in one of them`, { targets: [prev.target, c.target] })
+      owner.set(key, c)
+    }
+    return { doc, layout, total, restTime, phases, channels: [...channels.values()], byKey: channels, tracks: stripTracks, warnings, baseOf, resolve: R, trigger }
   }
 
+  // ---------- triggers ----------
+  // "load", or { on: "hover", target?, leave? } or { on: "scroll", threshold?, once? }, with defaults filled in.
+  function triggerOf(doc) {
+    const tr = doc.trigger
+    if (tr === undefined || tr === null || tr === 'load') return { on: 'load' }
+    if (tr.on === 'hover') return { on: 'hover', target: tr.target || null, leave: tr.leave || 'reverse' }
+    if (tr.on === 'scroll') return { on: 'scroll', threshold: tr.threshold ?? 0.25, once: tr.once ?? true }
+    throw new TimelineError('trigger', `trigger "${typeof tr === 'string' ? tr : tr.on}" is not load, hover or scroll`, {})
+  }
+  // Timeline time at clock time \`now\` after events [{ at, type }] (type: enter, leave for hover; in, out for scroll),
+  // in clock milliseconds. The playground and both web exports follow this; the trigger tests check them against it.
+  // hover: enter plays forward from the current time; leave plays back to 0 at the same speed ("reverse") or
+  // changes nothing ("finish"). scroll: in plays forward; with once false, out rewinds to 0 and the next in plays again.
+  function triggerClock(trigger, total, events, now) {
+    let t = 0, rate = trigger.on === 'load' ? 1 : 0, since = 0, fired = false
+    const advance = (at) => {
+      t = Math.min(total, Math.max(0, t + (at - since) * rate))
+      since = at
+      if ((rate > 0 && t >= total) || (rate < 0 && t <= 0)) rate = 0
+    }
+    for (const e of events) {
+      advance(e.at)
+      if (trigger.on === 'hover') {
+        if (e.type === 'enter') rate = t < total ? 1 : 0
+        else if (e.type === 'leave' && trigger.leave === 'reverse') rate = t > 0 ? -1 : 0
+      } else if (trigger.on === 'scroll') {
+        if (e.type === 'in' && !fired) { fired = true; rate = t < total ? 1 : 0 }
+        else if (e.type === 'out' && fired && !trigger.once) { fired = false; t = 0; rate = 0 }
+      }
+    }
+    advance(now)
+    return t
+  }
+
+  const PROP_GROUP = { opacity: 'opacity', tx: 'position', ty: 'position', sx: 'scale', sy: 'scale', r: 'rotation', blur: 'blur', br: 'background', bg: 'background', bb: 'background', clipT: 'clip', clipR: 'clip', clipB: 'clip', clipL: 'clip' }
   function baseValue(doc, R, target, name) {
     const ci = ['cr', 'cg', 'cb'].indexOf(name)
     if (ci >= 0) return hexToRgb(R.color(doc.targets[target].color, `${target} colour`))[ci]
     const bi = ['br', 'bg', 'bb'].indexOf(name)
+    if (bi >= 0 && doc.targets[target].kind === 'element') {
+      // A split target's parts are its children, each with its own style, so they share no starting background.
+      if ((doc.targets[target].split || 'none') !== 'none') return NaN
+      const own = doc.styles && doc.styles[doc.targets[target].id] && doc.styles[doc.targets[target].id].background
+      if (!own) return NaN
+      return hexToRgb(R.color(own, `${target} background`))[bi]
+    }
     if (bi >= 0) return hexToRgb(R.color(doc.stage.background, 'stage background'))[bi]
     return CHANNEL[name].base
   }
@@ -540,14 +608,20 @@
       const v = c ? channelValue(c, t, side) : plan.baseOf(target, name)
       return clampTo(v, CHANNEL[name].clamp)
     }
-    if (plan.doc.targets[target].kind === 'surface') return { background: [get('br'), get('bg'), get('bb')] }
+    const kind = plan.doc.targets[target].kind
+    if (kind === 'surface') return { background: [get('br'), get('bg'), get('bb')] }
     const s = { opacity: get('opacity'), tx: get('tx'), ty: get('ty'), sx: get('sx'), sy: get('sy'), r: get('r'), blur: get('blur') }
-    s.color = [get('cr'), get('cg'), get('cb')]
+    if (kind === 'text') s.color = [get('cr'), get('cg'), get('cb')]
+    if (kind === 'element' && hasBackground(plan, target, part)) s.background = [get('br'), get('bg'), get('bb')]
     let ct = get('clipT'), cr = get('clipR'), cb = get('clipB'), cl = get('clipL')
     if (cl + cr > 1) { const k = 1 / (cl + cr); cl *= k; cr *= k }
     if (ct + cb > 1) { const k = 1 / (ct + cb); ct *= k; cb *= k }
     s.clip = [ct, cr, cb, cl]
     return s
+  }
+  // An element part has a background to write when a track moves it or its style sets one.
+  function hasBackground(plan, target, part) {
+    return plan.byKey.has(`${target}/${part}/br`) || Number.isFinite(plan.baseOf(target, 'br'))
   }
   function evaluate(plan, t, opts) {
     const side = (opts && opts.side) || 'R'
@@ -567,9 +641,26 @@
 
   // ---------- written values (shared by renderer and exports) ----------
   // CSS property groups per target kind, each a list of output quantities with their limits.
-  function cssGroups(plan, target) {
+  function cssGroups(plan, target, part) {
     const tg = plan.doc.targets[target]
     if (tg.kind === 'surface') return [{ prop: 'background-color', names: ['br', 'bg', 'bb'], color: true }]
+    if (tg.kind === 'element' || tg.kind === 'svg') {
+      const g = [
+        { prop: 'opacity', names: ['opacity'] },
+        { prop: 'transform', names: ['tx', 'ty', 'r', 'sx', 'sy'] },
+        { prop: 'filter', names: ['blur'] },
+      ]
+      if (tg.kind === 'element') {
+        g.push({ prop: 'background-color', names: ['br', 'bg', 'bb'], color: true, own: true })
+        g.push({ prop: 'clip-path', names: ['clipT', 'clipR', 'clipB', 'clipL'] })
+        // An element keeps its own look from styles; a part writes only what its tracks move, so two targets
+        // that share an element (a card's children and its button) each write their own properties.
+        const p = part === undefined ? 0 : part
+        return g.filter((x) => x.names.some((n) => plan.byKey.has(`${target}/${p}/${n}`)))
+      }
+      g.push({ prop: 'clip', names: ['clipT', 'clipR', 'clipB', 'clipL'] })
+      return g
+    }
     return [
       { prop: 'opacity', names: ['opacity'] },
       { prop: 'transform', names: ['tx', 'ty', 'r', 'sx', 'sy'] },
@@ -579,7 +670,7 @@
     ]
   }
   // Digits written per quantity; each rounding error is far inside its limit.
-  const DIGITS = { opacity: [4], transform: [3, 3, 3, 5, 5], filter: [3], clip: [3, 3, 3, 3] }
+  const DIGITS = { opacity: [4], transform: [3, 3, 3, 5, 5], filter: [3], clip: [3, 3, 3, 3], 'clip-path': [3, 3, 3, 3] }
   function roundVector(group, v) {
     if (group.color) return v.map((x) => Math.round(x))
     return v.map((x, k) => round(x, DIGITS[group.prop][k]))
@@ -591,11 +682,13 @@
     if (group.prop === 'opacity') return [st.opacity]
     if (group.prop === 'transform') return [st.tx, st.ty, st.r, st.sx, st.sy]
     if (group.prop === 'filter') return [st.blur]
+    if (group.prop === 'clip-path') return st.clip.map((x) => x * 100)
     return clipRect(st.clip, box)
   }
   function groupLimits(group, box) {
     if (group.color) return [1, 1, 1]
     if (group.prop === 'clip') return [0.002 * box.w, 0.002 * box.h, 0.002 * box.w, 0.002 * box.h]
+    if (group.prop === 'clip-path') return [0.2, 0.2, 0.2, 0.2]
     return group.names.map((n) => CHANNEL[n].limit)
   }
   // Clip inset as a rect in stage units: x, y, width, height.
@@ -605,6 +698,7 @@
     if (group.prop === 'opacity') return String(w[0])
     if (group.prop === 'transform') return `translate(${w[0]}px, ${w[1]}px) rotate(${w[2]}deg) scale(${w[3]}, ${w[4]})`
     if (group.prop === 'filter') return `blur(${w[0]}px)`
+    if (group.prop === 'clip-path') return `inset(${w[0]}% ${w[1]}% ${w[2]}% ${w[3]}%)`
     return { x: w[0], y: w[1], width: w[2], height: w[3] }
   }
 
@@ -732,7 +826,7 @@
       const n = tg.kind === 'surface' ? 1 : (plan.layout?.targets?.[id]?.parts ?? 1)
       for (let p = 0; p < n; p++) {
         const box = boxes?.[id]?.[p] || { x: 0, y: 0, w: 1, h: 1 }
-        for (const group of cssGroups(plan, id)) {
+        for (const group of cssGroups(plan, id, p)) {
           const cp = checkPoints(plan, id, p, group, box)
           if (!cp) continue
           const tolFor = cp.limits.map((l) => (group.color ? 0.75 : l / 2))
@@ -781,7 +875,7 @@
 
   return {
     TimelineError, MAX_MS, PROPS, CHANNEL, NAMED,
-    compile, evaluate, walkBindings, resolveTimeline, parseEasingString, easingFromValue, checkEasing, curveValueOk, curveKey,
+    compile, evaluate, triggerOf, triggerClock, walkBindings, resolveTimeline, parseEasingString, easingFromValue, checkEasing, curveValueOk, curveKey,
     bezierY, bezierS, bezierSlope, bezierTurns, springCoef, springY, springV, springTurns,
     channelValue, channelVelocity, partState, checkPoints, countCheckPoints, sampleExport, reconstruct,
     cssGroups, writtenVector, roundVector, exactVector, formatCss, clipRect, groupLimits, hexToRgb, rgbToHex, round, mulberry32, ranksFor,

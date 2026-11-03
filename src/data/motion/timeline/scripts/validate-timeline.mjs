@@ -10,7 +10,8 @@ import { contractErrors, compare, LIMITS } from './validate.mjs'
 
 const require = createRequire(import.meta.url)
 const TL = require('../src/timeline/evaluator.js')
-const { outline } = require('../src/timeline/outline.js')
+const { outline, readFont } = require('../src/timeline/outline.js')
+const { sanitizeFragment, attachFragment } = require('../src/timeline/fragment.js')
 
 const root = new URL('..', import.meta.url).pathname
 const readJson = (f) => JSON.parse(readFileSync(f, 'utf8'))
@@ -114,13 +115,26 @@ export function checkTimeline(doc, opts) {
     for (const e of validateShape.errors) errs.push(`shape ${e.instancePath || '/'} ${e.message}`)
     return { errs, warnings: [] }
   }
-  errs.push(...contractErrors(asPlayground(doc)))
+  errs.push(...contractErrors(asPlayground(doc), { small: true }))
   errs.push(...bindingErrors(doc))
+  // Artwork targets are specified but not built: their boxes need measured SVG geometry at build time.
+  const svgT = Object.keys(doc.targets).filter((id) => doc.targets[id].kind === 'svg')
+  if (svgT.length) { errs.push(`artwork: "${svgT.join('", "')}" ${svgT.length > 1 ? 'are artwork targets' : 'is an artwork target'}, which this version can't build yet. Put the artwork in the fragment as a PNG image and animate it as an element target.`); return { errs, warnings: [] } }
   let layout
   try { layout = outline(doc, opts) } catch (e) { errs.push(`text: ${e.message}`); return { errs, warnings: [] } }
+  try {
+    const html = opts && opts.fragmentHtml
+    attachFragment(doc, layout, html !== undefined && html !== null ? sanitizeFragment(html) : null, readFont, opts && opts.fontPaths)
+  } catch (e) { errs.push(`fragment: ${e.message}`); return { errs, warnings: [] } }
   const c = compileErrors(doc, layout)
   errs.push(...c.errs)
   return { errs, warnings: [...layout.warnings, ...c.warnings], layout }
+}
+
+// A timeline's fragment lives beside it as <name>.fragment.html.
+export function siblingFragment(file) {
+  const p = file.replace(/\.json$/, '.fragment.html')
+  return p !== file && existsSync(p) ? readFileSync(p, 'utf8') : undefined
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main()
@@ -135,7 +149,7 @@ function main() {
   for (const f of files) {
     let doc
     try { doc = readJson(f) } catch (e) { failed++; console.log(`FAIL ${f}\n  - not JSON: ${e.message}`); continue }
-    const r = checkTimeline(doc)
+    const r = checkTimeline(doc, { fragmentHtml: siblingFragment(f) })
     if (r.errs.length) { failed++; console.log(`FAIL ${f}`); for (const e of r.errs) console.log(`  - ${e}`) }
     else { console.log(`PASS ${f} (${doc.params.length} params, ${doc.tracks.length} tracks)`); ok.push({ file: resolve(f), doc: asPlayground(doc) }) }
     for (const w of r.warnings) console.log(`  note: ${w}`)
@@ -156,8 +170,12 @@ function main() {
     console.log(`\nmenu overlap (label | id | structure); limits ${LIMITS.label} | ${LIMITS.id} | ${LIMITS.structure}`)
     for (const [x, y] of pairs) {
       const m = compare(x.doc, y.doc)
-      const over = Object.keys(LIMITS).filter((k) => m[k] > LIMITS[k])
-      console.log(`  ${x.doc.id} vs ${y.doc.id}: ${m.label.toFixed(2)} | ${m.id.toFixed(2)} | ${m.structure.toFixed(2)}${over.length ? `  FAIL ${over.join(', ')}` : ''}`)
+      // A small menu (under 8 controls) is mostly timing, gap, distance and feel, so its structure matches other
+      // menus by nature; for it, shared structure is a note and only shared labels or ids fail.
+      const small = x.doc.params.length < 8 || y.doc.params.length < 8
+      const over = Object.keys(LIMITS).filter((k) => m[k] > LIMITS[k] && !(small && k === 'structure'))
+      const note = small && m.structure > LIMITS.structure ? '  note: shared structure, small menu' : ''
+      console.log(`  ${x.doc.id} vs ${y.doc.id}: ${m.label.toFixed(2)} | ${m.id.toFixed(2)} | ${m.structure.toFixed(2)}${over.length ? `  FAIL ${over.join(', ')}` : note}`)
       if (over.length) failed++
     }
   }

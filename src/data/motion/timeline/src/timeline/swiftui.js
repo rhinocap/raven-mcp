@@ -68,6 +68,14 @@
 
   // Refuse what the SwiftUI export cannot draw yet, naming it.
   function check(plan) {
+    const web = Object.entries(plan.doc.targets).filter(([, tg]) => tg.kind === 'element' || tg.kind === 'svg').map(([id]) => id)
+    if (web.length) {
+      throw new TL.TimelineError('swiftui-target', `The SwiftUI export can't draw ${web.map((id) => '"' + (plan.doc.targets[id].label || id) + '"').join(', ')}: page elements and artwork are web only for now. Use the CSS or JavaScript export, or rebuild the motion with text targets for iOS.`, { targets: web })
+    }
+    // Touch screens have no hover, so a hover motion has no iOS form.
+    if ((plan.trigger || TL.triggerOf(plan.doc)).on === 'hover') {
+      throw new TL.TimelineError('swiftui-hover', 'The SwiftUI export can’t play on hover: touch screens have no hover. Change the trigger to load or scroll to export it for iOS.', {})
+    }
     for (const [id, tg] of Object.entries(plan.doc.targets)) {
       if (tg.kind !== 'text' && tg.kind !== 'surface') throw new TL.TimelineError('swiftui-target', `${id} is a ${tg.kind} target; the SwiftUI export draws text and the page in this phase`, { target: id })
     }
@@ -106,6 +114,37 @@
       })
     }
     const label = labels.join(' ')
+    const trig = plan.trigger || TL.triggerOf(doc)
+    const scroll = trig.on === 'scroll'
+    // Scroll: onScrollVisibilityChange(threshold:_:) (iOS 18, checked in the iOS 27.2 SDK) starts it once the stage is
+    // threshold visible inside a scroll view. With once false it rewinds when under 1% visible, SwiftUI's closest
+    // match to "fully out of view".
+    const startDecl = scroll ? `    @State private var start: Date?` : `    private let start: Date`
+    const inits = scroll
+      ? `    /// Plays once ${Math.round(trig.threshold * 100)}% of it has scrolled into view inside a ScrollView${trig.once ? '' : ', and rewinds when it scrolls out'}.
+    public init() { fixedTime = nil }
+    /// Draws one fixed frame, \`time\` seconds in.
+    public init(time: Double) { fixedTime = time }`
+      : `    /// Plays once from \`start\` and holds the last frame.
+    public init(start: Date = .now) { fixedTime = nil; self.start = start }
+    /// Draws one fixed frame, \`time\` seconds in.
+    public init(time: Double) { fixedTime = time; start = .now }`
+    const timeline = scroll
+      ? `                TimelineView(.animation(minimumInterval: nil, paused: start == nil)) { context in
+                    Self.frame(at: start.map { min(max(context.date.timeIntervalSince($0), 0), Self.duration) } ?? 0)
+                }`
+      : `                TimelineView(.animation) { context in
+                    Self.frame(at: min(max(context.date.timeIntervalSince(start), 0), Self.duration))
+                }`
+    const watch = scroll
+      ? `
+        .onScrollVisibilityChange(threshold: ${num(trig.threshold)}) { visible in
+            if visible, start == nil { start = .now }
+        }${trig.once ? '' : `
+        .onScrollVisibilityChange(threshold: 0.01) { visible in
+            if !visible { start = nil }
+        }`}`
+      : ''
     const swift = `// ${name}.swift, exported by Motion Lab from the "${doc.id}" timeline${doc.title ? ` (${doc.title})` : ''}.
 // Generated code: change the timeline in Motion Lab and export again rather than editing this file.
 // Needs iOS 26 or later. Stage ${W} × ${H} pt; place it with .frame or scale it to fit.
@@ -118,13 +157,10 @@ public struct ${name}: View {
     public static let size = CGSize(width: ${num(W)}, height: ${num(H)})
 
     private let fixedTime: Double?
-    private let start: Date
+${startDecl}
     @Environment(\\.accessibilityReduceMotion) private var reduceMotion
 
-    /// Plays once from \`start\` and holds the last frame.
-    public init(start: Date = .now) { fixedTime = nil; self.start = start }
-    /// Draws one fixed frame, \`time\` seconds in.
-    public init(time: Double) { fixedTime = time; start = .now }
+${inits}
 
     public var body: some View {
         Group {
@@ -133,12 +169,10 @@ public struct ${name}: View {
             } else if reduceMotion {
                 Self.frame(at: Self.restTime)
             } else {
-                TimelineView(.animation) { context in
-                    Self.frame(at: min(max(context.date.timeIntervalSince(start), 0), Self.duration))
-                }
+${timeline}
             }
         }
-        .frame(width: Self.size.width, height: Self.size.height)
+        .frame(width: Self.size.width, height: Self.size.height)${watch}
         .accessibilityElement()
         .accessibilityLabel(${swiftString(label)})
     }

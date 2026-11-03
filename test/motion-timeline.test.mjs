@@ -286,7 +286,7 @@ test('the tool description lists the schema\'s properties, the built target kind
   const words = mp.timelineVocabulary();
   const schema = JSON.parse(readFileSync(path.join(__dirname, '..', 'src', 'data', 'motion', 'timeline', 'schemas', 'timeline.schema.json'), 'utf8'));
   assert.deepEqual(words.properties, schema.$defs.track.properties.property.enum);
-  assert.deepEqual(words.targetKinds, ['surface', 'text']);
+  assert.deepEqual(words.targetKinds, ['surface', 'text', 'element']);
   assert.deepEqual(words.easings, schema.$defs.easing.oneOf.find((o) => o.enum).enum);
   await withHome(async ({ store }) => {
     const server = buildServer({ remote: false, tasteStore: store });
@@ -298,7 +298,7 @@ test('the tool description lists the schema\'s properties, the built target kind
     const tool = tools.find((t) => t.name === 'create_motion_playground');
     await client.close();
     for (const w of [...words.properties, ...words.easings]) assert.ok(tool.description.includes(w), w);
-    assert.match(tool.description, /Target kinds: surface, text\./);
+    assert.match(tool.description, /Target kinds: surface, text, element\./);
     assert.match(tool.description, /Use ONLY these\.$/);
     assert.ok(tool.inputSchema.properties.timeline, 'timeline is an input');
     assert.deepEqual(tool.inputSchema.required ?? [], []);
@@ -308,7 +308,7 @@ test('the tool description lists the schema\'s properties, the built target kind
 test('the lock pins every timeline file the validator loads and both template forks', () => {
   const DATA = path.join(__dirname, '..', 'src', 'data', 'motion');
   const lock = JSON.parse(readFileSync(path.join(DATA, 'motifs.lock.json'), 'utf8'));
-  for (const f of ['scripts/validate-timeline.mjs', 'scripts/validate.mjs', 'src/timeline/evaluator.js', 'src/timeline/export.js', 'src/timeline/swiftui.js', 'src/timeline/outline.js', 'schemas/timeline.schema.json', 'schemas/playground.schema.json']) {
+  for (const f of ['scripts/validate-timeline.mjs', 'scripts/validate.mjs', 'src/timeline/evaluator.js', 'src/timeline/export.js', 'src/timeline/swiftui.js', 'src/timeline/outline.js', 'src/timeline/fragment.js', 'src/timeline/images.js', 'schemas/timeline.schema.json', 'schemas/playground.schema.json']) {
     const rel = 'timeline/' + f;
     assert.ok(lock.files[rel], rel + ' is not in the lock');
     assert.equal(createHash('sha256').update(readFileSync(path.join(DATA, rel))).digest('hex'), lock.files[rel], rel + ' no longer matches the lock');

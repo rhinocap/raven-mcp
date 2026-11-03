@@ -48,6 +48,8 @@ export type MotionPlaygroundInput = {
   store: TasteStore;
   motif?: string;
   timeline?: unknown;
+  /** HTML for a timeline's element targets; cleaned by Motion Lab's fragment sanitiser before use. */
+  fragment?: unknown;
   title?: string;
   overrides?: PlaygroundOverrides;
   profile?: string;
@@ -193,16 +195,18 @@ export function checkConstraintReach(schema: MotionSchema): void {
 export const TIMELINE_MAX_BYTES = 256 * 1024;
 const FONT_EXT = /\.(otf|ttf|woff2?)$/i;
 
-// Kinds the synced evaluator builds today. svg and element targets are in the schema but refused
-// by the evaluator until the fragment sanitiser lands.
-export const TIMELINE_TARGET_KINDS = ["surface", "text"] as const;
+// Kinds the synced evaluator builds today. svg targets are in the schema but refused by the validator
+// until artwork boxes are measured at build.
+export const TIMELINE_TARGET_KINDS = ["surface", "text", "element"] as const;
+// The sanitiser's own limit is 3 MB; this refuses a larger string before it is read.
+export const FRAGMENT_MAX_BYTES = 3 * 1024 * 1024;
 
 type TimelineDoc = {
   id: string; title: string; seed?: number; fonts?: Record<string, { path: string }>;
   params: MotionParam[]; groups: { id: string; advanced?: boolean }[];
 };
 type TimelineCheck = { errs: string[]; warnings: string[]; layout?: unknown };
-type TimelineModule = { checkTimeline: (doc: unknown) => TimelineCheck };
+type TimelineModule = { checkTimeline: (doc: unknown, opts?: { fragmentHtml?: string }) => TimelineCheck };
 let timelineModule: Promise<TimelineModule> | null = null;
 function loadTimelineValidator(): Promise<TimelineModule> {
   timelineModule ??= import(pathToFileURL(join(TIMELINE_DIR, "scripts", "validate-timeline.mjs")).href) as Promise<TimelineModule>;
@@ -216,6 +220,14 @@ export function timelineVocabulary(): { properties: string[]; targetKinds: strin
   const easings = (defs.easing.oneOf as { enum?: string[] }[]).find((o) => Array.isArray(o.enum))?.enum ?? [];
   const kinds = (defs.target.properties.kind.enum as string[]).filter((k) => (TIMELINE_TARGET_KINDS as readonly string[]).includes(k));
   return { properties: defs.track.properties.property.enum as string[], targetKinds: kinds, easings };
+}
+
+function readFragment(input: unknown): string | undefined {
+  if (input === undefined) return undefined;
+  if (typeof input !== "string") throw new Error("fragment must be a string of HTML");
+  const bytes = Buffer.byteLength(input, "utf8");
+  if (bytes > FRAGMENT_MAX_BYTES) throw new Error(`fragment is ${bytes} bytes; at most ${FRAGMENT_MAX_BYTES}`);
+  return input;
 }
 
 function readTimeline(input: unknown): TimelineDoc {
@@ -332,6 +344,7 @@ export async function createMotionPlayground(input: MotionPlaygroundInput): Prom
 async function buildTimeline(input: MotionPlaygroundInput): Promise<Built> {
   if (input.overrides !== undefined) throw new Error("overrides apply to built-in motifs. For a timeline, set labels, defaults and ranges in the timeline document itself.");
   const doc = readTimeline(input.timeline);
+  const fragmentHtml = readFragment(input.fragment);
   const title = readTitle(input);
   if (title !== undefined) doc.title = title;
   const seed = readSeed(input);
@@ -350,7 +363,7 @@ async function buildTimeline(input: MotionPlaygroundInput): Promise<Built> {
       : `No surface binding for project '${projectArg}' on profile '${profile.name}'. Copy for Raven still records against this profile and project.`);
   }
   const { checkTimeline } = await loadTimelineValidator();
-  const check = checkTimeline(doc);
+  const check = checkTimeline(doc, { fragmentHtml });
   if (check.errs.length) throw new Error("The timeline breaks the Motion Lab contract:\n- " + check.errs.join("\n- "));
   warnings.push(...check.warnings);
   const template = readFileSync(join(MOTION_DIR, "timeline-template.html"), "utf8");

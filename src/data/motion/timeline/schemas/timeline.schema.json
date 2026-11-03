@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://motion-lab.local/timeline.schema.json",
   "title": "Motion Lab timeline schema",
-  "description": "One document carries a declarative timeline (stage, targets, phases, tracks) and its playground controls. See docs/Motion Lab \u2014 Timeline Spec.md.",
+  "description": "One document carries a declarative timeline (stage, targets, phases, tracks) and its playground controls. See docs/Motion Lab — Timeline Spec.md.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -59,6 +59,9 @@
         },
         "artworkPosition": {
           "$ref": "#/$defs/pair"
+        },
+        "fragmentPosition": {
+          "$ref": "#/$defs/pair"
         }
       }
     },
@@ -69,10 +72,61 @@
       "default": 0
     },
     "trigger": {
-      "enum": [
-        "load"
-      ],
-      "description": "What starts playback in exports. Phase 1 builds load only."
+      "description": "What starts playback. \"load\": when the page or view appears. hover: while the pointer is over the target (or the stage) or focus is inside it. scroll: when the stage scrolls into view.",
+      "oneOf": [
+        {
+          "const": "load"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "on"
+          ],
+          "properties": {
+            "on": {
+              "const": "hover"
+            },
+            "target": {
+              "type": "string",
+              "pattern": "^[a-z][a-zA-Z0-9]*$",
+              "description": "An element target; without it the whole stage is the hover area."
+            },
+            "leave": {
+              "enum": [
+                "reverse",
+                "finish"
+              ],
+              "default": "reverse",
+              "description": "reverse: plays back to the start at the same speed. finish: plays to the end and stays."
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "on"
+          ],
+          "properties": {
+            "on": {
+              "const": "scroll"
+            },
+            "threshold": {
+              "type": "number",
+              "minimum": 0.05,
+              "maximum": 1,
+              "default": 0.25,
+              "description": "How much of the stage is in view before it plays."
+            },
+            "once": {
+              "type": "boolean",
+              "default": true,
+              "description": "false: rewinds to the start when fully out of view and plays again on the way back."
+            }
+          }
+        }
+      ]
     },
     "restPhase": {
       "type": "string",
@@ -82,7 +136,13 @@
     "fonts": {
       "type": "object",
       "propertyNames": {
-        "pattern": "^[a-z][a-zA-Z0-9]*$"
+        "pattern": "^[a-z][a-zA-Z0-9]*$",
+        "not": {
+          "enum": [
+            "sans",
+            "serif"
+          ]
+        }
       },
       "additionalProperties": {
         "type": "object",
@@ -156,13 +216,30 @@
       "$ref": "playground.schema.json#/properties/groups"
     },
     "params": {
-      "$ref": "playground.schema.json#/properties/params"
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 16,
+      "items": {
+        "$ref": "playground.schema.json#/properties/params/items"
+      },
+      "description": "3 to 16 controls. Fewer than 8 (site motion recipes) puts every control in the default panel."
     },
     "presets": {
       "$ref": "playground.schema.json#/properties/presets"
     },
     "constraints": {
       "$ref": "playground.schema.json#/properties/constraints"
+    },
+    "styles": {
+      "type": "object",
+      "maxProperties": 64,
+      "propertyNames": {
+        "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/style"
+      },
+      "description": "Styles for fragment elements, keyed by fragment id."
     }
   },
   "$defs": {
@@ -426,10 +503,7 @@
           "if": {
             "properties": {
               "kind": {
-                "enum": [
-                  "svg",
-                  "element"
-                ]
+                "const": "svg"
               }
             }
           },
@@ -442,10 +516,61 @@
               "kind": true,
               "id": {
                 "type": "string",
-                "minLength": 1
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$"
               },
               "origin": {
                 "$ref": "#/$defs/pair"
+              },
+              "split": {
+                "enum": [
+                  "none",
+                  "children"
+                ],
+                "default": "none"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 24
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "element"
+              }
+            }
+          },
+          "then": {
+            "additionalProperties": false,
+            "required": [
+              "id"
+            ],
+            "properties": {
+              "kind": true,
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$"
+              },
+              "origin": {
+                "$ref": "#/$defs/pair"
+              },
+              "split": {
+                "enum": [
+                  "none",
+                  "children"
+                ],
+                "default": "none",
+                "description": "children: each direct child element is a part, for stagger."
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 24,
+                "description": "Designer name for the target in the playground, e.g. \"Button\"."
               }
             }
           }
@@ -530,6 +655,147 @@
               "default": "forward"
             }
           }
+        }
+      }
+    },
+    "style": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Typed layout and look for one fragment element. No CSS strings.",
+      "properties": {
+        "width": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 8192
+        },
+        "height": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 8192
+        },
+        "padding": {
+          "oneOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "minItems": 4,
+              "maxItems": 4
+            }
+          ]
+        },
+        "gap": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "fontSize": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "font": {
+          "type": "string",
+          "pattern": "^[a-z][a-zA-Z0-9]*$",
+          "description": "A key in fonts, or sans or serif for a system font."
+        },
+        "fontWeight": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 900,
+          "multipleOf": 100
+        },
+        "lineHeight": {
+          "type": "number",
+          "minimum": 0.5,
+          "maximum": 4
+        },
+        "letterSpacing": {
+          "type": "number",
+          "minimum": -50,
+          "maximum": 200
+        },
+        "color": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "background": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "borderColor": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "borderWidth": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "borderRadius": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 4096
+        },
+        "display": {
+          "enum": [
+            "block",
+            "flex",
+            "inline-block"
+          ]
+        },
+        "flexDirection": {
+          "enum": [
+            "row",
+            "column"
+          ]
+        },
+        "alignItems": {
+          "enum": [
+            "start",
+            "center",
+            "end",
+            "stretch"
+          ]
+        },
+        "justifyContent": {
+          "enum": [
+            "start",
+            "center",
+            "end",
+            "between"
+          ]
+        },
+        "textAlign": {
+          "enum": [
+            "left",
+            "center",
+            "right"
+          ]
+        },
+        "overflow": {
+          "enum": [
+            "hidden",
+            "visible"
+          ]
         }
       }
     }

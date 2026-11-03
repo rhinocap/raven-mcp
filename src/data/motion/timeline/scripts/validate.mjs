@@ -68,7 +68,8 @@ function check(file) {
 }
 
 // The contract rules JSON Schema cannot express. Exported so the timeline validator applies the same panel rules.
-export function contractErrors(doc) {
+// opts.small: a timeline built from a site motion recipe may have 3 to 7 controls, all in the default panel.
+export function contractErrors(doc, opts) {
   const errs = []
   const params = Array.isArray(doc.params) ? doc.params : []
   const groups = Array.isArray(doc.groups) ? doc.groups : []
@@ -142,10 +143,17 @@ export function contractErrors(doc) {
   const genericCount = groups.filter((g) => GENERIC_GROUPS.includes(String(g.label).toLowerCase())).length
   if (genericCount > 1 || (groups.length && genericCount === groups.length)) errs.push(`${genericCount} generic settings-sheet group label(s); name groups for the motif`)
   const adv = params.filter(isAdvanced).length
-  if (params.length - adv < 6) errs.push(`only ${params.length - adv} non-advanced params; the default panel needs at least 6`)
-  if (adv * 3 > params.length) errs.push(`${adv} of ${params.length} params are advanced; at most one third`)
+  const small = opts && opts.small && params.length < 8
   const visibleToClient = params.filter((p) => p.type !== 'action' && !isAdvanced(p) && p.clientSafe !== false).length
-  if (visibleToClient < 5 || visibleToClient > 12) errs.push(`${visibleToClient} client-safe controls; review mode needs 5-12 (set clientSafe:false on structure and size controls)`)
+  if (small) {
+    if (params.length < 3) errs.push(`${params.length} params; a small timeline needs at least 3`)
+    if (adv) errs.push(`${adv} advanced params in a timeline with ${params.length} controls; with fewer than 8, every control is in the default panel`)
+    if (visibleToClient < 3) errs.push(`${visibleToClient} client-safe controls; a small timeline needs at least 3`)
+  } else {
+    if (params.length - adv < 6) errs.push(`only ${params.length - adv} non-advanced params; the default panel needs at least 6`)
+    if (adv * 3 > params.length) errs.push(`${adv} of ${params.length} params are advanced; at most one third`)
+    if (visibleToClient < 5 || visibleToClient > 12) errs.push(`${visibleToClient} client-safe controls; review mode needs 5-12 (set clientSafe:false on structure and size controls)`)
+  }
 
   // Motion minimum (brief): duration/speed, easing or exit style, loop when looping, stagger/delay where several things move.
   const has = (role) => params.some((p) => p.role === role && (!ROLE_TYPES[role] || ROLE_TYPES[role](p)))

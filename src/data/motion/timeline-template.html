@@ -264,6 +264,9 @@ main#preview { display: flex; flex-direction: column; min-height: 0; min-width: 
         <button class="btn" id="play">Pause</button>
         <button class="btn ghost" id="replay">Replay</button>
         <label class="switch"><input type="checkbox" id="loop" checked> Loop</label>
+        <button class="btn ghost" id="hover-in" hidden>Hover</button>
+        <button class="btn ghost" id="hover-out" hidden>Leave</button>
+        <button class="btn ghost" id="scroll-in" hidden>Scroll into view</button>
         <div class="seg" role="group" aria-label="Speed" id="speeds"></div>
         <span class="note" id="section"></span>
         <output id="clock"></output>
@@ -301,7 +304,9 @@ __SWIFTUI__
   $('title').textContent = doc.title;
   $('concept').textContent = 'Tune the timing, then send it to your agent.';
   var textTargets = Object.keys(doc.targets).filter(function (id) { return doc.targets[id].kind === 'text'; });
-  $('text-note').textContent = 'This playground shows “' + textTargets.map(function (id) { return layout.targets[id].label; }).join('”, “') + '”. The letter shapes are made when the playground is built, so other text needs a rebuild.';
+  if (textTargets.length) $('text-note').textContent = 'This playground shows “' + textTargets.map(function (id) { return layout.targets[id].label; }).join('”, “') + '”. The letter shapes are made when the playground is built, so other text needs a rebuild.';
+  else if (layout.fragment) $('text-note').textContent = 'This playground shows your content as it was when the playground was built. To change the words or pictures, rebuild it.';
+  else $('text-note').hidden = true;
 
   // ---------- timeline ----------
   var plan, geo, renderer, art = $('art'), frame = $('frame');
@@ -309,7 +314,9 @@ __SWIFTUI__
   function build(values) {
     var next = TL.compile(doc, layout, values);
     plan = next; geo = EX.geometry(plan, layout);
-    art.innerHTML = EX.markup(plan, geo);
+    if (renderer && renderer.destroy) renderer.destroy();
+    // The fragment is never written as markup here: mountRenderer builds it with createElement.
+    art.innerHTML = EX.markup(plan, geo, { fragment: false });
     renderer = EX.mountRenderer(art, plan, geo);
     buildStrip();
   }
@@ -350,8 +357,11 @@ __SWIFTUI__
   // ---------- playback ----------
   var END_PAUSE = 900;
   var rm = window.matchMedia('(prefers-reduced-motion: reduce)');
-  var reduced = rm.matches, loop = true, speed = 1;
-  var t = 0, playing = true, last = null;
+  // A hover or scroll motion starts paused at 0 with Loop off and waits for its trigger.
+  var trig = TL.triggerOf(doc), triggered = trig.on !== 'load';
+  var reduced = rm.matches, loop = !triggered, speed = 1;
+  var t = 0, playing = !triggered, last = null, dir = 1;
+  $('loop').checked = loop;
   function fmt(ms) { return (ms / 1000).toFixed(2) + ' s'; }
   function phaseIndexAt(time) {
     for (var i = 0; i < plan.phases.length; i++) if (time < plan.phases[i].end || i === plan.phases.length - 1) return i;
@@ -377,20 +387,94 @@ __SWIFTUI__
   function tick(now) {
     if (playing && !reduced) {
       if (last != null) {
-        t += (now - last) * speed;
-        if (t >= plan.total && !loop) { t = plan.total; setPlaying(false); }
+        t += (now - last) * speed * dir;
+        if (dir < 0) { if (t <= 0) { t = 0; setPlaying(false); } }
+        else if (t >= plan.total && !loop) { t = plan.total; setPlaying(false); }
         else if (t > plan.total + END_PAUSE * speed) t = 0;
       }
       last = now;
     } else last = null;
+    scrollStep(now);
     draw();
     requestAnimationFrame(tick);
   }
-  function setPlaying(on) { playing = on; $('play').textContent = on ? 'Pause' : 'Play'; showContext(); }
+  // back: play towards 0, as a hover does when the pointer leaves.
+  function setPlaying(on, back) { playing = on; dir = on && back ? -1 : 1; $('play').textContent = on ? 'Pause' : 'Play'; showContext(); }
   function seek(ms) { setPlaying(false); t = Math.max(0, Math.min(plan.total, ms)); draw(); }
   $('play').addEventListener('click', function () { if (!playing && t >= plan.total) t = 0; setPlaying(!playing); });
   $('replay').addEventListener('click', function () { t = 0; setPlaying(true); });
   $('loop').addEventListener('change', function (e) { loop = e.target.checked; if (loop && !playing && t >= plan.total) { t = 0; setPlaying(true); } });
+
+  // ---------- triggers ----------
+  // The same rules as the exports (TL.triggerClock): entering plays forward from the current time; leaving plays
+  // back to 0 at the same speed, or with "finish" changes nothing. The pointer over the hover area, focus inside it,
+  // or the Hover button make it active.
+  var hov = { pointer: false, focus: false, button: false }, hovActive = false;
+  function hoverArea() {
+    var sel = EX.hoverSelector(plan);
+    return sel ? art.querySelector(sel) : art.firstElementChild;
+  }
+  function enter() { if (reduced || t >= plan.total) return; setPlaying(true); }
+  function leave() {
+    if (reduced || trig.leave === 'finish') return;
+    if (t > 0) setPlaying(true, true); else setPlaying(false);
+  }
+  function syncHover() {
+    var on = hov.pointer || hov.focus || hov.button;
+    if (on === hovActive) return;
+    hovActive = on;
+    if (on) enter(); else leave();
+  }
+  if (trig.on === 'hover') {
+    $('hover-in').hidden = $('hover-out').hidden = false;
+    art.addEventListener('pointerover', function (e) { var a = hoverArea(); hov.pointer = !!a && a.contains(e.target); syncHover(); });
+    art.addEventListener('pointerleave', function () { hov.pointer = false; syncHover(); });
+    art.addEventListener('focusin', function (e) { var a = hoverArea(); hov.focus = !!a && a.contains(e.target); syncHover(); });
+    art.addEventListener('focusout', function (e) { var a = hoverArea(); hov.focus = !!a && a.contains(e.relatedTarget); syncHover(); });
+    $('hover-in').addEventListener('click', function () { hov.button = true; syncHover(); });
+    $('hover-out').addEventListener('click', function () { hov.button = false; hov.pointer = false; syncHover(); });
+  }
+  // Scroll into view moves the stage up into its frame from below, as a page scroll would, and plays the motion once
+  // the visible part reaches the threshold (or, for a stage taller than the frame, that share of the frame's height).
+  var scrollSim = null, SCROLL_MS = 900;
+  function scrollStep(now) {
+    if (!scrollSim) return;
+    if (scrollSim.t0 == null) scrollSim.t0 = now;
+    var u = Math.min(1, (now - scrollSim.t0) / SCROLL_MS), k = 1 - Math.pow(1 - u, 3);
+    art.style.transform = u < 1 ? 'translateY(' + (scrollSim.from * (1 - k)).toFixed(2) + 'px)' : '';
+    if (!scrollSim.fired) {
+      var a = art.getBoundingClientRect(), f = frame.getBoundingClientRect();
+      var seen = Math.max(0, Math.min(a.bottom, f.bottom) - Math.max(a.top, f.top));
+      if (seen >= trig.threshold * a.height - 0.5 || seen >= trig.threshold * f.height - 0.5) { scrollSim.fired = true; if (!reduced) setPlaying(true); }
+    }
+    if (u >= 1) scrollSim = null;
+  }
+  if (trig.on === 'scroll') {
+    $('scroll-in').hidden = false;
+    $('scroll-in').addEventListener('click', function () {
+      t = 0; setPlaying(false);
+      var a = art.getBoundingClientRect(), f = frame.getBoundingClientRect();
+      scrollSim = { t0: null, from: f.bottom - a.top + 1, fired: false };
+      art.style.transform = 'translateY(' + scrollSim.from.toFixed(2) + 'px)';
+    });
+  }
+  function triggerHint() {
+    if (trig.on === 'hover') return 'Plays on hover. Point at ' + (trig.target ? 'the ' + targetWord(trig.target) : 'the stage') + ', or press Hover and Leave.';
+    if (trig.on === 'scroll') return 'Plays when it scrolls into view. Press Scroll into view to watch it.';
+    return '';
+  }
+  // The trigger for the agent, in plain words.
+  function triggerWords() {
+    if (trig.on === 'hover') {
+      var what = trig.target ? 'the ' + targetWord(trig.target) : 'the motion';
+      return 'Plays when the pointer is over ' + what + (trig.leave === 'finish' ? ' and plays to the end even if the pointer leaves; it stays at the end.' : ' and plays back to the start, at the same speed, when it leaves. If the pointer comes back mid-way, it plays forward again from there, with no jump.') + ' Keyboard focus on ' + what + ' counts as hover, so make it focusable. CSS alone can’t reverse from the middle of an animation, so the web version starts its keyframes paused and a short script plays them.';
+    }
+    if (trig.on === 'scroll') {
+      return 'Plays when ' + Math.round(trig.threshold * 100) + '% of it has scrolled into view (for something taller than the window, when it fills ' + Math.round(trig.threshold * 100) + '% of the window’s height)' + (trig.once ? ', once.' : '. When it scrolls fully out of view it goes back to the start, and plays again on the way back.') + ' It doesn’t follow the scroll position. The web version starts its keyframes paused and a short script plays them.';
+    }
+    return 'Plays once when the page or view appears.';
+  }
+  function targetWord(id) { return ((doc.targets[id] && doc.targets[id].label) || (layout.targets[id] && layout.targets[id].label) || id).toLowerCase(); }
   [0.25, 0.5, 1].forEach(function (v) {
     var b = document.createElement('button');
     b.textContent = v + '×'; b.setAttribute('aria-pressed', String(v === speed)); b.setAttribute('aria-label', v + ' times speed');
@@ -403,9 +487,9 @@ __SWIFTUI__
   // Reduced motion: shows the rest frame, as the exports do when people ask for less motion.
   function syncReduced() {
     $('reduced').checked = reduced;
-    $('play').disabled = $('replay').disabled = reduced;
+    $('play').disabled = $('replay').disabled = $('hover-in').disabled = $('hover-out').disabled = $('scroll-in').disabled = reduced;
     $('strip').setAttribute('aria-disabled', String(reduced));
-    $('section').textContent = reduced ? 'The still frame people see when they ask for reduced motion.' : '';
+    $('section').textContent = reduced ? 'The still frame people see when they ask for reduced motion.' : triggerHint();
     if (reduced) document.querySelectorAll('#strip .bar[data-tip]').forEach(function (b) { b.title = b.dataset.tip; });
     draw();
   }
@@ -1177,7 +1261,7 @@ __SWIFTUI__
   var exportsDef = [
     { id: 'css', title: 'Embed with CSS', text: 'One block of HTML and CSS keyframes. Paste it into a Webflow or Framer Embed, or any page. It plays once on load, and people who ask for reduced motion see the still frame.', make: function () { return EX.cssExport(plan, geo).snippet; }, copyLabel: 'Copy CSS embed', done: 'CSS embed copied.' },
     { id: 'waapi', title: 'Embed with JavaScript', text: 'The same motion as a short script, for pages where you start it yourself. It stops and shows the still frame if reduced motion turns on.', make: function () { return EX.waapiExport(plan, geo).snippet; }, copyLabel: 'Copy JavaScript embed', done: 'JavaScript embed copied.' },
-    { id: 'swiftui', title: 'SwiftUI view', text: 'The same motion as a SwiftUI view for iOS 26 and later. Add the file to your Xcode project and show the view; it plays when it appears, and shows the still frame when Reduce Motion is on.', make: function () { return SW.swiftExport(plan, geo).swift; }, copyLabel: 'Copy SwiftUI', done: 'SwiftUI view copied.' },
+    { id: 'swiftui', title: 'SwiftUI view', text: 'The same motion as a SwiftUI view for iOS 26 and later. Add the file to your Xcode project and show the view; it plays when it appears, and shows the still frame when Reduce Motion is on.', make: function () { return SW.swiftExport(plan, geo).swift; }, webOnly: 'This motion moves page elements, which the SwiftUI view can’t draw yet. Use the CSS or JavaScript embed for the web.', copyLabel: 'Copy SwiftUI', done: 'SwiftUI view copied.' },
     { id: 'timeline', title: 'Timeline JSON', text: 'The whole motion as data, with your settings filled in and no controls left. For a developer who wants to read it or build from it.', make: function () { return JSON.stringify(TL.resolveTimeline(doc, state.values), null, 2); }, copyLabel: 'Copy timeline JSON', done: 'Timeline JSON copied.' },
     { id: 'json', title: 'Save settings', text: 'Your settings. Paste them into Import below later to pick up where you left off.', make: function () { return JSON.stringify(envelope(), null, 2); }, copyLabel: 'Copy settings', done: 'Settings copied.', menu: 'settings-menu', view: 'more' }
   ];
@@ -1196,7 +1280,9 @@ __SWIFTUI__
       '',
       web ? 'Below are two things:' : 'Below is the timeline:',
       '1. The timeline: the whole motion as data, with my settings filled in. Times are in milliseconds. A curve is a CSS easing name, { "cubicBezier": [x1, y1, x2, y2] }, or { "spring": { "duration": ms, "bounce": -0.9 to 0.9 } }, the same spring as SwiftUI’s Spring(duration:bounce:).',
-      web ? '2. A working web version, HTML with CSS keyframes, that plays exactly what I approved. Match it: the same timing, curves and order.' : 'There is no web version for these settings: ' + why,
+      web ? '2. A working web version, HTML with CSS keyframes' + (triggered ? ' and a short script that starts them' : '') + ', that plays exactly what I approved. Match it: the same timing, curves and order.' : 'There is no web version for these settings: ' + why,
+      '',
+      triggerWords(),
       '',
       'For people who ask for reduced motion, don’t animate: show the still frame at the end of the “' + restLabel() + '” phase.',
       '',
@@ -1219,7 +1305,9 @@ __SWIFTUI__
   function sendContext() {
     var at = reduced ? plan.restTime : Math.min(t, plan.total), parts = [];
     var f = FRAMES.filter(function (x) { return x.id === frameState.id; })[0];
-    parts.push(playing && !reduced ? 'Playing the whole motion, ' + fmt(plan.total) + ' long.' : 'Paused at ' + fmt(at) + ', in “' + plan.phases[phaseIndexAt(at)].label + '”.');
+    if (trig.on === 'hover') parts.push('Plays on hover' + (reduced ? '.' : playing ? (dir < 0 ? '; showing the hover-out.' : '; showing the hover-in.') : '.'));
+    if (trig.on === 'scroll') parts.push('Plays when it scrolls into view.');
+    parts.push(playing && !reduced ? (triggered ? 'Playing ' + (dir < 0 ? 'back from ' : 'from ') + fmt(at) + ' of ' + fmt(plan.total) + '.' : 'Playing the whole motion, ' + fmt(plan.total) + ' long.') : 'Paused at ' + fmt(at) + ', in “' + plan.phases[phaseIndexAt(at)].label + '”.');
     if (playing && !reduced && speed !== 1) parts.push('Previewing at ' + speed + '× speed; the timing itself is unchanged.');
     parts.push('Viewing ' + (frameState.id === 'custom' ? 'a custom frame, ' + frameState.w + ' × ' + frameState.h : f.label) + (reduced ? ', with reduced motion' : '') + '.');
     var changed = params.filter(function (p) { return !sameValue(p, p.default, state.values[p.id]); });
@@ -1265,6 +1353,13 @@ __SWIFTUI__
   exportsDef.forEach(function (x) {
     var b = el('div', { 'class': 'block' });
     b.appendChild(el('h3')).textContent = x.title;
+    // Page elements are web only: the SwiftUI block says so instead of offering a copy that can't be made.
+    if (x.webOnly && Object.keys(doc.targets).some(function (k) { return doc.targets[k].kind === 'element' || doc.targets[k].kind === 'svg'; })) {
+      var note = b.appendChild(el('p', { id: 'unavailable-' + x.id }));
+      note.textContent = x.webOnly;
+      $(x.menu || 'export-menu').appendChild(b);
+      return;
+    }
     b.appendChild(el('p')).textContent = x.text;
     var ta = el('textarea', { readonly: '', id: 'out-' + x.id, 'aria-label': x.title, spellcheck: 'false' });
     b.appendChild(ta);
@@ -1294,7 +1389,7 @@ __SWIFTUI__
     var codeOpen = $('code-more').open;
     exportsDef.forEach(function (x) {
       var v = x.view || 'agent';
-      if (v === view && (v !== 'agent' || codeOpen)) exportUI[x.id].value = made(x);
+      if (exportUI[x.id] && v === view && (v !== 'agent' || codeOpen)) exportUI[x.id].value = made(x);
     });
   }
   $('code-more').addEventListener('toggle', function () { if ($('code-more').open) refreshExports(); });

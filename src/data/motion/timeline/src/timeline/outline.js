@@ -144,12 +144,13 @@ function readFont(p) {
   const tag = sig.toString('latin1')
   const ok = buf.length >= 4 && (sig.equals(Buffer.from([0, 1, 0, 0])) || ['OTTO', 'true', 'wOFF', 'wOF2'].includes(tag))
   if (!ok) throw new OutlineError(`font ${p} has no font signature`)
+  const bytes = buf
   if (tag === 'wOFF') buf = unwrapWoff(buf, p)
   else if (tag === 'wOF2') checkWoff2(buf, p)
   let font
   try { font = fontkit.create(buf) } catch (e) { throw new OutlineError(`font ${p} does not parse: ${e.message}`) }
   if (font.fonts) font = font.fonts[0]
-  return { font, real }
+  return { font, real, bytes, format: { wOFF: 'woff', wOF2: 'woff2', OTTO: 'opentype' }[tag] || 'truetype' }
 }
 
 // Composite glyphs are walked from their decoded component lists before any path is asked for, since

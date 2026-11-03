@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "id": "button-hover",
+  "title": "Button lifts on hover",
+  "concept": "When the pointer is over the button it lifts, grows a little and turns to its brand colour; when the pointer leaves it settles back.",
+  "stage": { "width": 520, "height": 260, "background": "#f4f4f2", "fragmentPosition": [60, 60] },
+  "seed": 1,
+  "trigger": { "on": "hover", "target": "button", "leave": "reverse" },
+  "fonts": { "ui": { "path": "~/Library/Fonts/UntitledSans-Medium.otf" } },
+  "styles": {
+    "panel": { "width": 400, "display": "flex", "flexDirection": "column", "gap": 20, "font": "ui" },
+    "line": { "fontSize": 28, "fontWeight": 500, "lineHeight": 1.15, "color": "#141414" },
+    "cta": { "display": "inline-block", "padding": [12, 22], "borderRadius": 999, "background": "#141414", "color": "#ffffff", "fontSize": 16, "textAlign": "center" }
+  },
+  "targets": {
+    "button": { "kind": "element", "id": "cta", "label": "Button", "origin": [0.5, 0.5] }
+  },
+  "phases": [
+    { "id": "lift", "label": "Button lifts", "duration": "auto" }
+  ],
+  "tracks": [
+    { "target": "button", "phase": "lift", "property": "translateY", "from": 0, "to": { "param": "lift", "times": -1 }, "duration": { "param": "liftTime" }, "easing": { "param": "liftFeel" } },
+    { "target": "button", "phase": "lift", "property": "scale", "from": 1, "to": { "param": "grow" }, "duration": { "param": "liftTime" }, "easing": { "param": "liftFeel" } },
+    { "target": "button", "phase": "lift", "property": "background", "from": "#141414", "to": { "param": "hoverColour" }, "duration": { "param": "liftTime" }, "easing": "ease-out" }
+  ],
+  "groups": [
+    { "id": "lift", "label": "On hover" }
+  ],
+  "params": [
+    { "id": "liftTime", "label": "Hover time", "type": "number", "group": "lift", "role": "duration", "min": 80, "max": 600, "step": 10, "default": 220, "unit": "ms", "help": "How long the button takes to lift. Leaving takes as long." },
+    { "id": "lift", "label": "Lift height", "type": "number", "group": "lift", "role": "amplitude", "min": 0, "max": 12, "step": 1, "default": 3, "unit": "px", "help": "How far the button rises." },
+    { "id": "grow", "label": "Grow", "type": "number", "group": "lift", "role": "amplitude", "min": 1, "max": 1.12, "step": 0.01, "default": 1.03, "help": "How much bigger the button gets. 1 keeps its size." },
+    {
+      "id": "liftFeel", "label": "Lift feel", "type": "curve", "group": "lift", "role": "easing", "kinds": ["spring", "bezier"],
+      "default": { "kind": "bezier", "points": [0.2, 0.8, 0.2, 1] },
+      "stops": [
+        { "label": "Smooth", "value": { "kind": "bezier", "points": [0.2, 0.8, 0.2, 1] } },
+        { "label": "Springy", "value": { "kind": "spring", "duration": 260, "bounce": 0.3 } },
+        { "label": "Even", "value": { "kind": "bezier", "points": [0.4, 0, 0.6, 1] } }
+      ],
+      "help": "How the button moves as it lifts."
+    },
+    { "id": "hoverColour", "label": "Hover colour", "type": "color", "group": "lift", "role": "color", "default": "#c2410c", "swatches": ["#c2410c", "#1d4ed8", "#15803d", "#141414"], "help": "The colour the button turns to under the pointer." }
+  ],
+  "presets": [
+    { "id": "subtle", "label": "Subtle", "values": { "lift": 1, "grow": 1.01, "liftTime": 160 } },
+    { "id": "playful", "label": "Playful", "values": { "lift": 6, "grow": 1.06, "liftFeel": { "kind": "spring", "duration": 300, "bounce": 0.35 } } }
+  ]
+}
