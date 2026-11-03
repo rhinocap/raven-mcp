@@ -3,7 +3,7 @@
 <style>
 /* Layout: the Raven Grab panel pattern. The animation fills the window; a floating panel on the left holds the
    controls, one on the right holds Send to agent, and a floating dock between them holds playback and the timeline.
-   Header tiles close and open the panels; one column on phones. Tokens, sizes and states follow raven-grab.js. */
+   Both panels stay open; one column on phones. Tokens, sizes and states follow raven-grab.js. */
 :root {
   --bg: #1a1a22;
   --panel: #212129;
@@ -41,37 +41,14 @@ body { margin: 0; background: var(--wall); color: var(--fg); font-family: var(--
 button, input, textarea { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
-/* Where the stage and dock sit: between whichever panels are open. */
+/* Where the stage and dock sit: between the two panels. */
 .app { --l: calc(var(--edge) + var(--panel-w) + var(--gap)); --rt: calc(var(--edge) + var(--panel-w) + var(--gap)); height: 100%; }
-/* A closed side keeps room for its edge tab. */
-.app[data-layout="right"], .app[data-layout="page"] { --l: calc(44px + var(--gap)); }
-.app[data-layout="left"], .app[data-layout="page"] { --rt: calc(44px + var(--gap)); }
 
-.fp { position: fixed; top: var(--edge); bottom: var(--edge); z-index: 2; width: var(--panel-w); display: flex; flex-direction: column; overflow: hidden; color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: var(--panel-r); box-shadow: var(--shadow); transition: transform 200ms ease; }
+.fp { position: fixed; top: var(--edge); bottom: var(--edge); z-index: 2; width: var(--panel-w); display: flex; flex-direction: column; overflow: hidden; color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: var(--panel-r); box-shadow: var(--shadow); }
 aside#panel { left: var(--edge); }
 aside#send-panel { right: var(--edge); }
-.app[data-layout="right"] aside#panel, .app[data-layout="page"] aside#panel { transform: translateX(calc(-100vw - 100%)); pointer-events: none; }
-.app[data-layout="left"] aside#send-panel, .app[data-layout="page"] aside#send-panel { transform: translateX(calc(100vw + 100%)); pointer-events: none; }
 .fp-head { flex: none; display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 12px 16px; background: rgba(255, 255, 255, .01); border-bottom: 1px solid var(--hair); }
 .fp-head h1, .fp-head h2 { flex: 1; min-width: 0; margin: 0; font-size: var(--t-lg); font-weight: 500; line-height: 1.3; letter-spacing: -.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* Layout tiles: each draws the layout it gives, a solid bar for a panel left open and a faded one for a panel it closes. */
-.tiles { display: flex; gap: 4px; margin-left: auto; }
-.tiles button { position: relative; width: 26px; height: 19px; padding: 0; cursor: pointer; background: rgba(255, 255, 255, .05); border: 1px solid var(--line); border-radius: 4px; }
-.tiles button::before { content: ""; position: absolute; top: -12.5px; bottom: -12.5px; left: 0; right: 0; }
-.tiles button:hover { border-color: rgba(255, 255, 255, .28); }
-.tiles button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.tiles button[aria-checked="true"] { background: rgba(0, 191, 255, .12); border-color: var(--accent); }
-.tiles i { position: absolute; top: 3px; bottom: 3px; width: 5px; border-radius: 1.5px; background: var(--fg-2); }
-.tiles i:first-child { left: 3px; } .tiles i:last-child { right: 3px; }
-.tiles i.off { opacity: .18; }
-.tiles button[aria-checked="true"] i { background: var(--accent); }
-.edge-tab { position: fixed; top: 33px; z-index: 2; display: none; align-items: center; justify-content: center; width: 44px; min-height: 44px; padding: 0; cursor: pointer; color: var(--accent); background: rgba(22, 44, 66, .9); border: 1px solid var(--accent); box-shadow: 0 8px 24px rgba(0, 0, 0, .3); }
-.edge-tab[data-side="left"] { left: 0; border-left: 0; border-radius: 0 12px 12px 0; }
-.edge-tab[data-side="right"] { right: 0; border-right: 0; border-radius: 12px 0 0 12px; }
-.edge-tab:hover { background: rgba(22, 44, 66, 1); }
-.edge-tab svg { width: 18px; height: 18px; }
-.app[data-layout="right"] .edge-tab[data-side="left"], .app[data-layout="page"] .edge-tab[data-side="left"],
-.app[data-layout="left"] .edge-tab[data-side="right"], .app[data-layout="page"] .edge-tab[data-side="right"] { display: flex; }
 
 .tabs { flex: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); min-height: var(--hit); background: rgba(255, 255, 255, .01); border-bottom: 1px solid var(--line); }
 .tabs button { min-height: var(--hit); padding: 12px 6px; border: 0; border-bottom: 1px solid transparent; background: transparent; color: var(--fg); cursor: pointer; font-size: var(--t-xs); line-height: 1; }
@@ -168,7 +145,7 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .curve-sub .name { color: var(--fg-3); }
 
 /* The stage column: between the open panels, with the frame choice on top and the dock below. */
-main#preview { position: fixed; top: var(--edge); bottom: var(--edge); left: var(--l); right: var(--rt); z-index: 1; display: flex; flex-direction: column; gap: var(--gap); min-width: 0; color: var(--wall-ink); transition: left 200ms ease, right 200ms ease; }
+main#preview { position: fixed; top: var(--edge); bottom: var(--edge); left: var(--l); right: var(--rt); z-index: 1; display: flex; flex-direction: column; gap: var(--gap); min-width: 0; color: var(--wall-ink); }
 .viewbar { flex: none; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: var(--t-sm); }
 .viewbar .seg { margin: 0; background: var(--panel); border-color: var(--line); box-shadow: 0 8px 24px rgba(0, 0, 0, .3); }
 .viewbar .seg button { padding: 0 12px; }
@@ -232,15 +209,14 @@ main#preview { position: fixed; top: var(--edge); bottom: var(--edge); left: var
 .field input:hover { border-color: rgba(0, 191, 255, .3); }
 .field input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0, 191, 255, .15); }
 @media (prefers-reduced-motion: reduce) {
-  .fp, main#preview, .btn.primary { transition: none !important; }
+  .btn.primary { transition: none !important; }
 }
-/* Phones: one column, the stage first, then the controls, Send and the dock; no tiles. */
+/* Phones: one column, the stage first, then the controls, Send and the dock. */
 @media (max-width: 760px) {
   .app { height: auto; min-height: 100%; display: flex; flex-direction: column; gap: 10px; padding: 10px; }
-  .fp, main#preview { position: static; width: auto; transform: none !important; pointer-events: auto !important; }
+  .fp, main#preview { position: static; width: auto; }
   main#preview { order: -1; }
   .stage { height: 56vw; flex: none; }
-  .tiles, .edge-tab { display: none !important; }
   .view { overflow: visible; }
   .fp .view { -webkit-mask-image: none; mask-image: none; }
   .strip { --lab: 96px; }
@@ -255,11 +231,10 @@ main#preview { position: fixed; top: var(--edge); bottom: var(--edge); left: var
 <script type="application/json" id="layout">__LAYOUT__</script>
 <script type="application/json" id="raven-ctx">__RAVEN_CTX__</script>
 
-<div class="app" data-layout="both">
+<div class="app">
   <aside class="fp" id="panel" aria-label="Controls">
     <div class="fp-head">
       <h1 id="title"></h1>
-      <div class="tiles" role="radiogroup" aria-label="Panels"></div>
     </div>
     <div class="tabs" role="tablist">
       <button role="tab" id="tab-controls" aria-controls="view-controls" aria-selected="true">Controls</button>
@@ -296,7 +271,6 @@ main#preview { position: fixed; top: var(--edge); bottom: var(--edge); left: var
   <aside class="fp" id="send-panel" aria-labelledby="send-title">
     <div class="fp-head">
       <h2 id="send-title">Send to agent</h2>
-      <div class="tiles" role="radiogroup" aria-label="Panels"></div>
     </div>
     <div id="view-agent">
       <div class="view">
@@ -323,8 +297,6 @@ main#preview { position: fixed; top: var(--edge); bottom: var(--edge); left: var
       </div>
     </div>
   </aside>
-  <button class="edge-tab" data-side="left" aria-label="Open controls"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2.75" y="3.75" width="12.5" height="10.5" rx="2"/><path d="M7 4v10"/></svg></button>
-  <button class="edge-tab" data-side="right" aria-label="Open Send to agent"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2.75" y="3.75" width="12.5" height="10.5" rx="2"/><path d="M11 4v10"/></svg></button>
   <main id="preview">
     <div class="viewbar">
       <div class="seg" role="group" aria-label="Frame" id="frames"></div>
@@ -376,7 +348,6 @@ __SWIFTUI__
   var byId = {}; params.forEach(function (p) { byId[p.id] = p; });
   var $ = function (id) { return document.getElementById(id); };
   function say(msg) { $('status').textContent = msg; }
-  var app = document.querySelector('.app'), narrow = matchMedia('(max-width: 760px)');
   function defaults() { var v = {}; params.forEach(function (p) { v[p.id] = p.default; }); return v; }
   var state = { values: defaults(), valueSeed: doc.seed >>> 0 };
 
@@ -1400,7 +1371,7 @@ __SWIFTUI__
     try { var c = JSON.parse(b.textContent); return c && typeof c.url === 'string' && c.url.charAt(0) === '/' ? c : null; } catch (e) { return null; }
   })();
   function showContext() {
-    if (!sendTo || !agentShown()) return;
+    if (!sendTo) return;
     var c = sendContext();
     if ($('send-context').textContent !== c) $('send-context').textContent = c;
   }
@@ -1449,10 +1420,9 @@ __SWIFTUI__
     r.appendChild(btn); b.appendChild(r); $(x.menu || 'export-menu').appendChild(b);
     exportUI[x.id] = ta;
   });
-  // Exports sample the whole timeline, so they refresh after the controls settle, and only while visible.
+  // Exports sample the whole timeline, so they refresh after the controls settle.
   var exportTimer = null;
   function queueExports() {
-    if (!agentShown() && !moreShown()) return;
     clearTimeout(exportTimer);
     exportTimer = setTimeout(refreshExports, 250);
   }
@@ -1460,15 +1430,15 @@ __SWIFTUI__
   function made(x) {
     try { return x.make(); } catch (e) { if (!(e instanceof TL.TimelineError)) throw e; return '// This export can’t be made with these settings: ' + e.message; }
   }
-  // Visibility is read when the refresh runs, so a queued refresh for a view that has since closed does nothing.
+  // Visibility is read when the refresh runs, so a queued refresh for the More view while it is hidden does nothing.
   // The direct exports sit behind "Show code without an agent" and are made only while it is open.
   function refreshExports() {
-    var agent = agentShown(), more = moreShown();
-    if (agent) { $('out-agent').value = agentPacket(); refreshRaven(); showContext(); }
+    var more = !$('view-more').hidden;
+    $('out-agent').value = agentPacket(); refreshRaven(); showContext();
     var codeOpen = $('code-more').open;
     exportsDef.forEach(function (x) {
       var v = x.view || 'agent';
-      if (exportUI[x.id] && (v === 'agent' ? agent && codeOpen : v === 'more' && more)) exportUI[x.id].value = made(x);
+      if (exportUI[x.id] && (v === 'agent' ? codeOpen : v === 'more' && more)) exportUI[x.id].value = made(x);
     });
   }
   $('code-more').addEventListener('toggle', function () { if ($('code-more').open) refreshExports(); });
@@ -1584,70 +1554,6 @@ __SWIFTUI__
   }
   tabs.forEach(function (n) { $('tab-' + n).addEventListener('click', function () { showTab(n); }); });
 
-  // ---------- panels ----------
-  // The tiles in each panel header give four layouts, as in Raven Grab: both panels, the controls only, Send only,
-  // or neither. ⌘. switches between both and neither; an edge tab opens a closed panel. Phones show everything.
-  var LAYOUTS = [
-    { id: 'both', label: 'Open both', bars: [1, 1] },
-    { id: 'left', label: 'Show controls only', bars: [1, 0] },
-    { id: 'right', label: 'Show Send only', bars: [0, 1] },
-    { id: 'page', label: 'Close both', bars: [0, 0] }
-  ];
-  function panelLayout() { return app.getAttribute('data-layout'); }
-  function panelOpen(side) { var l = panelLayout(); return narrow.matches || l === 'both' || l === side; }
-  function agentShown() { return panelOpen('right'); }
-  function moreShown() { return panelOpen('left') && !$('view-more').hidden; }
-  function syncPanels() {
-    $('panel').inert = !panelOpen('left');
-    $('send-panel').inert = !panelOpen('right');
-  }
-  function setLayout(name, focusTile) {
-    var was = { left: panelOpen('left'), right: panelOpen('right') };
-    var a = document.activeElement, lost = a && a.closest ? a.closest('#panel, #send-panel') : null;
-    app.setAttribute('data-layout', name);
-    document.querySelectorAll('.tiles button').forEach(function (b) {
-      var on = b.getAttribute('data-layout') === name;
-      b.setAttribute('aria-checked', String(on)); b.tabIndex = on ? 0 : -1;
-    });
-    syncPanels();
-    if (lost && lost.inert) {
-      var tab = document.querySelector('.edge-tab[data-side="' + (lost.id === 'panel' ? 'left' : 'right') + '"]');
-      if (tab) tab.focus();
-    } else if (focusTile) focusTile.focus();
-    if ((panelOpen('right') && !was.right) || (panelOpen('left') && !was.left)) refreshExports();
-  }
-  document.querySelectorAll('.tiles').forEach(function (g) {
-    LAYOUTS.forEach(function (L) {
-      var b = el('button', { type: 'button', role: 'radio', 'data-layout': L.id, 'aria-label': L.label, title: L.label + (L.id === 'both' || L.id === 'page' ? ' (' + (/Mac/.test(navigator.platform) ? '⌘.' : 'Ctrl+.') + ')' : '') });
-      L.bars.forEach(function (on) { b.appendChild(el('i', on ? {} : { 'class': 'off' })); });
-      b.addEventListener('click', function () { setLayout(L.id); });
-      b.addEventListener('keydown', function (e) {
-        var d = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
-        if (!d) return;
-        e.preventDefault();
-        var i = (LAYOUTS.indexOf(L) + d + LAYOUTS.length) % LAYOUTS.length;
-        setLayout(LAYOUTS[i].id, g.children[i]);
-      });
-      g.appendChild(b);
-    });
-  });
-  document.querySelectorAll('.edge-tab').forEach(function (b) {
-    b.addEventListener('click', function () {
-      var side = b.getAttribute('data-side'), other = side === 'left' ? 'right' : 'left';
-      setLayout(panelLayout() === other ? 'both' : side);
-      var p = $(side === 'left' ? 'panel' : 'send-panel'), f = p.querySelector('.tiles button[tabindex="0"]');
-      if (f) f.focus();
-    });
-  });
-  document.addEventListener('keydown', function (e) {
-    if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey || e.key !== '.') return;
-    if (narrow.matches) return;
-    e.preventDefault();
-    setLayout(panelLayout() === 'both' ? 'page' : 'both');
-  });
-  // Crossing the phone width shows or hides panels by CSS; setLayout keeps inert and focus in step.
-  narrow.addEventListener('change', function () { setLayout(panelLayout()); refreshExports(); });
-  setLayout('both');
 
   buildPanel();
   syncControls();

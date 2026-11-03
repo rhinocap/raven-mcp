@@ -198,10 +198,10 @@ test('Copy for Raven on a timeline is accepted by record_taste_decision as-is', 
       const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
       await page.goto(pathToFileURL(r.html_path).href, { waitUntil: 'load' });
       await page.waitForFunction(() => !!window.__ml);
-      text = await page.evaluate(() => {
+      text = await page.evaluate(async () => {
         window.__ml.setParam('letterTime', 600);
         window.__ml.setParam('letterMotion', { kind: 'spring', duration: 500, bounce: 0.2 });
-        document.querySelector('#panel .tiles [data-layout="left"]').click(); document.querySelector('#panel .tiles [data-layout="both"]').click();
+        await new Promise((r) => setTimeout(r, 400)); // the exports refresh 250 ms after a change
         return { box: document.getElementById('out-raven').value, raven: window.__ml.ravenText(), lede: !!document.getElementById('copy-raven') && !document.getElementById('copy-raven').disabled };
       });
     } finally {
@@ -240,12 +240,12 @@ test('opened with open_motion_playground, Send posts the note and what was on sc
       await page.addInitScript(() => { window.__csp = []; document.addEventListener('securitypolicyviolation', (e) => window.__csp.push(e.violatedDirective + ' ' + (e.blockedURI || 'inline'))); });
       await page.goto(opened.url, { waitUntil: 'load' });
       await page.waitForFunction(() => !!window.__ml);
-      const shown = await page.evaluate(() => {
+      const shown = await page.evaluate(async () => {
         const $ = (id) => document.getElementById(id);
         window.__ml.setParam('letterTime', 600);
         if ($('play').textContent === 'Pause') $('play').click();
         window.__ml.seek(500);
-        document.querySelector('#panel .tiles [data-layout="left"]').click(); document.querySelector('#panel .tiles [data-layout="both"]').click();
+        await new Promise((r) => setTimeout(r, 400)); // the exports refresh 250 ms after a change
         return {
           send: !$('send-block').hidden, copySecond: $('copy-agent').className === 'btn' && $('copy-title').textContent === 'Copy instead of sending',
           primaries: [...document.querySelectorAll('#view-agent .btn.primary')].filter((b) => b.offsetParent !== null).map((b) => b.id),

@@ -131,7 +131,7 @@ test('each map marker sits on its suggestion\'s box, and the list matches', { sk
     assert.ok(img, 'the screenshot is a data JPEG');
     const W = Number(img[1]), H = Number(img[2]);
     assert.equal(W, 1440);
-    const markers = [...html.matchAll(/<a class="marker" data-n="(\d+)" href="([^"]+)" data-served="([^"]+)" style="left:([\d.]+)%;top:([\d.]+)%;width:([\d.]+)%;height:([\d.]+)%"/g)];
+    const markers = [...html.matchAll(/<a class="marker" target="_blank" rel="noopener" data-n="(\d+)" href="([^"]+)" data-served="([^"]+)" style="left:([\d.]+)%;top:([\d.]+)%;width:([\d.]+)%;height:([\d.]+)%"/g)];
     const shown = r.suggestions.filter((s) => s.box.y < H);
     assert.equal(markers.length, shown.length);
     for (const m of markers) {
@@ -142,7 +142,7 @@ test('each map marker sits on its suggestion\'s box, and the list matches', { sk
       assert.equal(m[2], path.basename(s.html_path));
       assert.equal(m[3], new URL(s.url).pathname);
     }
-    const listed = [...html.matchAll(/<li data-n="(\d+)"><div class="item-head"><span class="n" aria-hidden="true">\d+<\/span><a href="[^"]+"[^>]*>([^<]+)<\/a><span class="trigger">([^<]+)<\/span>/g)];
+    const listed = [...html.matchAll(/<li data-n="(\d+)"><div class="item-head"><span class="n" aria-hidden="true">\d+<\/span><a target="_blank" rel="noopener" href="[^"]+"[^>]*>([^<]+)<\/a><span class="trigger">([^<]+)<\/span>/g)];
     assert.deepEqual(listed.map((l) => [l[2], l[3]]), r.suggestions.map((s) => [s.label, s.trigger_words]));
     assert.match(html, /Here's where motion could help\. Open one to try it on your page\./);
     assert.doesNotMatch(html, /→|↗|&rarr;/, 'no arrows beside links');
@@ -413,51 +413,42 @@ test('from the map, open a suggestion, tune it, Send, and get_motion_sends names
     const opened = await session.registerPlayground(r.map_path);
     const browser = await chromium.launch();
     try {
-      const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+      let page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
       const errors = [];
       page.on('pageerror', (e) => errors.push(e.message));
-      await page.addInitScript(() => { window.__csp = []; document.addEventListener('securitypolicyviolation', (e) => window.__csp.push(e.violatedDirective + ' ' + (e.blockedURI || 'inline'))); });
+      await page.context().addInitScript(() => { window.__csp = []; document.addEventListener('securitypolicyviolation', (e) => window.__csp.push(e.violatedDirective + ' ' + (e.blockedURI || 'inline'))); });
       await page.goto(opened.url, { waitUntil: 'load' });
-      // The list floats in a Grab panel on the right; the picture stays clear of it, the tiles close it and the edge tab
-      // brings it back. A closed panel is off screen and inert.
+      // The list floats in a Grab panel on the right and the picture stays clear of it. It has no close controls.
       const geo = () => page.evaluate(() => {
         const fp = document.querySelector('aside.fp').getBoundingClientRect(), shot = document.querySelector('.shot').getBoundingClientRect();
-        return { fpL: Math.round(fp.left), fpR: Math.round(fp.right), shotR: Math.round(shot.right), inert: document.querySelector('aside.fp').inert, tab: getComputedStyle(document.querySelector('.edge-tab')).display };
+        return { fpL: Math.round(fp.left), fpR: Math.round(fp.right), shotR: Math.round(shot.right), inert: document.querySelector('aside.fp').inert, collapse: document.querySelectorAll('.tiles, .edge-tab, [data-layout]').length };
       });
       let g = await geo();
-      assert.deepEqual({ right: g.fpR, clear: g.shotR <= g.fpL, inert: g.inert, tab: g.tab }, { right: 1420, clear: true, inert: false, tab: 'none' });
-      await page.click('.tiles [data-layout="page"]');
-      await page.waitForTimeout(300);
-      g = await geo();
-      assert.deepEqual({ off: g.fpL >= 1440, inert: g.inert, tab: g.tab }, { off: true, inert: true, tab: 'flex' });
-      await page.click('.edge-tab');
-      await page.waitForTimeout(300);
-      g = await geo();
-      assert.deepEqual({ right: g.fpR, inert: g.inert }, { right: 1420, inert: false });
-      // Across the phone width: the list closed on desktop is usable on a phone, and widening again closes it and
-      // moves focus from it to the edge tab.
-      await page.click('.tiles [data-layout="page"]');
+      assert.deepEqual({ right: g.fpR, clear: g.shotR <= g.fpL, inert: g.inert, collapse: g.collapse }, { right: 1420, clear: true, inert: false, collapse: 0 });
       await page.setViewportSize({ width: 390, height: 844 });
       await page.waitForTimeout(300);
       assert.equal(await page.evaluate(() => document.querySelector('aside.fp').inert), false, 'phone: the list is not inert');
-      await page.focus('ol a');
       await page.setViewportSize({ width: 1440, height: 900 });
       await page.waitForTimeout(300);
       g = await geo();
-      assert.deepEqual({ off: g.fpL >= 1440, inert: g.inert, focus: await page.evaluate(() => document.activeElement.matches('.edge-tab')) }, { off: true, inert: true, focus: true });
-      await page.click('.edge-tab');
-      await page.waitForTimeout(300);
+      assert.deepEqual({ right: g.fpR, clear: g.shotR <= g.fpL }, { right: 1420, clear: true });
+      // Every suggestion link, in the list and on the picture, opens its playground in a new tab.
+      assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('ol .item-head a, a.marker')].filter((a) => a.target !== '_blank' || a.rel !== 'noopener').length), 0);
       const n = r.suggestions.findIndex((s) => s.kind === 'cta-hover') + 1;
       const s = r.suggestions[n - 1];
       // The served map points its links at the served playgrounds.
       assert.equal(await page.getAttribute(`li[data-n="${n}"] .item-head a`, 'href'), new URL(s.url).pathname);
       assert.deepEqual(await page.evaluate(() => window.__csp), []);
-      await page.click(`.marker[data-n="${n}"]`);
+      const mapPage = page;
+      const [tab] = await Promise.all([page.context().waitForEvent('page'), page.click(`.marker[data-n="${n}"]`)]);
+      assert.equal(mapPage.url(), opened.url, 'the map stays open in its own tab');
+      page = tab;
+      page.on('pageerror', (e) => errors.push(e.message));
       await page.waitForURL(s.url);
       await page.waitForFunction(() => !!window.__ml);
-      const ctx = await page.evaluate(() => {
+      const ctx = await page.evaluate(async () => {
         window.__ml.setParam('lift', 5);
-        document.querySelector('#panel .tiles [data-layout="left"]').click(); document.querySelector('#panel .tiles [data-layout="both"]').click();
+        await new Promise((r) => setTimeout(r, 400)); // the exports refresh 250 ms after a change
         return document.getElementById('send-context').textContent;
       });
       assert.match(ctx, /Plays on hover/);
