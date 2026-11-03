@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Edge cases</title>
+<style>
+  body { margin: 0; font: 16px/1.5 Helvetica, Arial, sans-serif; color: #1d1d1f; background: #ffffff; }
+  #hero { padding: 80px 40px; }
+  #hero h1 { font-size: 56px; margin: 0 0 24px; }
+  .row { display: flex; gap: 12px; }
+  .row a { display: inline-block; padding: 10px 16px; border-radius: 8px; color: #1d1d1f; text-decoration: none; background: #d6d6d6; }
+  .row a#primary { background: #e0301e; color: #ffffff; }
+  #consent { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; }
+  #consent .box { background: #ffffff; padding: 24px; width: 360px; }
+  article.card { display: inline-block; vertical-align: top; width: 280px; margin: 600px 12px 0; padding: 24px; border-radius: 12px; background: #f2f2f2; }
+  product-hero { display: block; }
+</style>
+</head>
+<body>
+<section id="hero">
+  <h1>Edge cases studio</h1>
+  <div class="row">
+    <a href="/a">Grey one</a>
+    <a href="/b">Grey two</a>
+    <a href="/c">Grey three</a>
+    <a href="/d">Grey four</a>
+    <a href="/e" id="primary">Book a call</a>
+  </div>
+  <div id="consent" role="dialog"><div class="box"><p>Consent dialog text</p><button type="button">Allow</button></div></div>
+</section>
+<article class="card"><h2>One</h2><p>First card.</p></article>
+<article class="card"><h2>Two</h2><p>Second card.</p></article>
+<article class="card"><h2>Three</h2><p>Third card.</p></article>
+<product-hero>
+  <template shadowrootmode="open"><div><span>Product headline</span></div></template>
+</product-hero>
+</body>
+</html>

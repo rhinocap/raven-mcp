@@ -89,6 +89,10 @@ li.lit { background: var(--raised); }
 .why { margin: 6px 0 0 34px; color: var(--fg); }
 .approx { margin: 6px 0 0 34px; padding: 0; list-style: none; color: var(--fg-2); font-size: var(--t-sm); }
 .approx li { padding: 0; border: 0; }
+.more { margin: 4px 0 0 34px; color: var(--fg-2); font-size: var(--t-sm); }
+.more summary { cursor: pointer; color: var(--fg-3); }
+.more summary:hover { color: var(--fg-2); }
+.more .approx { margin-left: 0; }
 .below { margin: 6px 0 0 34px; color: var(--fg-3); font-size: var(--t-sm); }
 .empty { margin: 0; padding: 16px; color: var(--fg); }
 @media (max-width: 860px) { .work { grid-template-columns: 1fr; } aside { border-left: 0; border-top: 1px solid var(--line); } }
@@ -111,9 +115,12 @@ export function buildMotionMap(input: MapInput): string {
     return `<a class="marker" data-n="${it.number}" href="${escapeHtml(it.file)}"${it.served ? ` data-served="${escapeHtml(it.served)}"` : ""} style="${style}" aria-label="${escapeHtml(`${it.number}. ${it.label}`)}"><span class="num">${it.number}</span></a>`;
   }).join("");
   const list = items.map((it) => {
-    const approx = it.approximations.length
-      ? `<ul class="approx">${it.approximations.map((a) => `<li>${escapeHtml(a)}</li>`).join("")}</ul>`
+    // Three differences show; the rest open on request, so a long list does not bury the reason.
+    const lines = it.approximations.map((a) => `<li>${escapeHtml(a)}</li>`);
+    const more = lines.length > 3
+      ? `<details class="more"><summary>${lines.length - 3} more ${lines.length - 3 === 1 ? "difference" : "differences"} from your page</summary><ul class="approx">${lines.slice(3).join("")}</ul></details>`
       : "";
+    const approx = lines.length ? `<ul class="approx">${lines.slice(0, 3).join("")}</ul>${more}` : "";
     const below = shown(it.box) ? "" : `<p class="below">This one is further down the page than the picture shows.</p>`;
     return `<li data-n="${it.number}"><div class="item-head"><span class="n" aria-hidden="true">${it.number}</span>` +
       `<a href="${escapeHtml(it.file)}"${it.served ? ` data-served="${escapeHtml(it.served)}"` : ""}>${escapeHtml(it.label)}</a>` +

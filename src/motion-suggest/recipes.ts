@@ -94,27 +94,28 @@ function snap(p: Param, v: number): number {
 /** Params whose resting value is 1 (a scale): taste changes their distance from 1. */
 const SCALE_PARAMS = new Set(["zoom"]);
 
-function applyTerms(params: Param[], terms: TasteTermHit[]): TasteTermHit[] {
-  const used: TasteTermHit[] = [];
+/** Applies the taste terms; returns each term that changed a default, with the ids of the params it changed. */
+function applyTerms(params: Param[], terms: TasteTermHit[]): { hit: TasteTermHit; ids: string[] }[] {
+  const used: { hit: TasteTermHit; ids: string[] }[] = [];
   for (const t of terms) {
-    let changed = false;
+    const ids: string[] = [];
     for (const p of params) {
       if (t.id === "restrained" && p.type === "number" && p.role === "amplitude") {
         const d = p.default as number;
         p.default = SCALE_PARAMS.has(p.id) ? snap(p, 1 + (d - 1) * (2 / 3)) : snap(p, d * (2 / 3));
-        changed = true;
+        ids.push(p.id);
       } else if (t.id === "snappy" && p.type === "number" && p.role === "duration") {
         p.default = snap(p, (p.default as number) * 0.75);
-        changed = true;
+        ids.push(p.id);
       } else if (t.id === "no-bounce" && p.type === "curve") {
         const stops = (p.stops as { label: string; value: Curve }[]).filter((s) => s.value.kind !== "spring" || s.value.bounce <= 0);
         p.stops = stops;
         const d = p.default as Curve;
         if (d.kind === "spring" && d.bounce > 0) p.default = stops[0].value;
-        changed = true;
+        ids.push(p.id);
       }
     }
-    if (changed) used.push(t);
+    if (ids.length) used.push({ hit: t, ids });
   }
   return used;
 }
@@ -196,8 +197,10 @@ function finish(
   settleSpacing(ctx, root, split);
   const { html, styles } = serialize(root);
   const warnings: string[] = [];
-  const termsApplied = applyTerms(parts.params, opts.terms);
+  const applied = applyTerms(parts.params, opts.terms);
   const restored = applyTuned(parts.params, opts.tuned, warnings);
+  // A term whose every change was replaced by a restored value no longer describes the motion.
+  const termsApplied = applied.filter((a) => a.ids.some((id) => !restored.includes(id))).map((a) => a.hit);
   const values: Record<string, unknown> = {};
   for (const p of parts.params) values[p.id] = p.default;
   const doc = {

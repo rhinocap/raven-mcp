@@ -1,6 +1,6 @@
 {
   "source": "rhinocap/motion-lab",
-  "source_commit": "6591d749569bc2797698cc6ea0a45b01ae0e47c9",
+  "source_commit": "b1f79357cf85a91965d69b8f75674a7bc9d6e943",
   "motifs": [
     "keyfob"
   ],
@@ -28,7 +28,7 @@
     "timeline-template.html": {
       "forked_from": "src/timeline/template.html",
       "upstream_sha256": "09d305349683b9ec2bcc3897ab2628d57b44556554b88174732a06c67dc04fdd",
-      "fork_sha256": "5b546d1e123d56bd1afea2fca6a60b36d4db7db83ac6fa8fa2324d4f6b162268"
+      "fork_sha256": "db0eaa63aa520ac5d20cd5dd6d95bbf2dca590f68d34a2c36574c12400335e8a"
     }
   }
 }

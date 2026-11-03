@@ -153,7 +153,9 @@ const HOVER_OR_REVEAL: ReadonlySet<MotionKind> = new Set<MotionKind>([
 export function motionGate(note: string | undefined): MotionGate {
   if (typeof note !== "string") return null;
   const n = note.toLowerCase();
-  if (/none[\s-]*instant|\bno[\s-]+motion\b/.test(n)) return "none";
+  // The interview offers "None" and "Instant"; notes also say "none/instant" or "no motion".
+  const flat = n.trim().replace(/[.!]+$/, "");
+  if (/none[\s/-]*(?:or[\s-]+)?instant|\bno[\s-]+motion\b/.test(n) || /^(?:none|instant)$/.test(flat)) return "none";
   if (/\brestrained\b|\bsubtle\b/.test(n)) return "restrained";
   if (/\bcinematic\b/.test(n)) return "cinematic";
   return null;
@@ -805,11 +807,14 @@ export async function collectMotionCandidatesInPage(arg: { maxNodes: number; max
     let count = 0;
     let truncated = false;
     const elements: Element[] = [];
+    const rootInOverlay = inOverlay(root);
     function visit(el: Element, isRoot: boolean): any | null {
       if (count >= maxNodes) { truncated = true; return null; }
       const tag = tagOf(el);
       if (SKIP_TAGS.has(tag)) return null;
       if (!isRoot && !visible(el)) return null;
+      // A cookie bar or dialog fixed over the page is not part of the section it happens to sit in.
+      if (!isRoot && !rootInOverlay && inOverlay(el)) return null;
       if (!isRoot && decoration(el)) { approx.add("A shape drawn for effect, apart from the layout, is left out."); return null; }
       count++;
       elements.push(el);
@@ -908,11 +913,8 @@ export async function collectMotionCandidatesInPage(arg: { maxNodes: number; max
   }
   const actionSel = "a[href], button, [role=button], input[type=submit], input[type=button]";
   const actions = (Array.prototype.slice.call(document.querySelectorAll(actionSel)) as Element[]).filter(isVisible);
-  const ctas: Element[] = [];
-  for (const a of actions) {
-    if (ctas.length >= 4) break;
-    if (inFirstViewport(boxOf(a)) && hasFill(a)) ctas.push(a);
-  }
+  // Every filled action in the first screen competes for main action before the list is cut to four.
+  const filled = actions.filter(function (a) { return inFirstViewport(boxOf(a)) && hasFill(a); });
   // The main action is the most colourful fill, then the largest: a bright button over a grey one.
   function prominence(el: Element): number {
     const m = /^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/.exec(getComputedStyle(el).backgroundColor);
@@ -921,7 +923,12 @@ export async function collectMotionCandidatesInPage(arg: { maxNodes: number; max
     return Math.round(chroma / 32) * 1e6 + b.w * b.h;
   }
   let mainAction: Element | null = null;
-  for (const c of ctas) if (!mainAction || prominence(c) > prominence(mainAction)) mainAction = c;
+  for (const c of filled) if (!mainAction || prominence(c) > prominence(mainAction)) mainAction = c;
+  const ctas: Element[] = mainAction ? [mainAction] : [];
+  for (const a of filled) {
+    if (ctas.length >= 4) break;
+    if (a !== mainAction) ctas.push(a);
+  }
   if (!mainAction) {
     const firstButton = (Array.prototype.slice.call(document.querySelectorAll("button")) as Element[]).filter(isVisible)[0];
     if (firstButton) { mainAction = firstButton; ctas.push(firstButton); }
@@ -934,6 +941,7 @@ export async function collectMotionCandidatesInPage(arg: { maxNodes: number; max
   const navLike = function (el: Element): boolean { return !!el.closest("nav, header"); };
   const cardGroups: Element[][] = [];
   const parents = new Set<Element>();
+  if (document.body && document.body.children.length >= 3) parents.add(document.body);
   for (const el of all) if (el.children.length >= 3) parents.add(el);
   const NOT_CARD = new Set(["section", "header", "footer", "main", "nav", "body", "html", "script", "style", "option", "tr", "td", "th"]);
   parents.forEach(function (parent) {
@@ -1051,7 +1059,10 @@ export async function collectMotionCandidatesInPage(arg: { maxNodes: number; max
     const sr = (el as any).shadowRoot as ShadowRoot | null;
     if (!sr || hosts.length >= 3) continue;
     // The host can be zero height while its content is fixed in place, so judge the content.
-    const shown = Array.prototype.slice.call(sr.querySelectorAll("a[href], button, h1, h2, h3, img, p")).some(function (c: Element) {
+    // Any sized element with its own words, or a picture or control, counts.
+    const shown = Array.prototype.slice.call(sr.querySelectorAll("*")).some(function (c: Element) {
+      if (SKIP_TAGS.has(c.localName)) return false;
+      if (!c.matches("a[href], button, img, svg, video, input") && !directText(c)) return false;
       const r = c.getBoundingClientRect();
       return r.width > 0 && r.height > 0 && getComputedStyle(c).visibility !== "hidden";
     });

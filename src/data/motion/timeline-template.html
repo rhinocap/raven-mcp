@@ -1415,9 +1415,18 @@ __SWIFTUI__
   function ravenRecord(profile, project) {
     var d = defaults();
     var changed = params.filter(function (p) { return p.type !== 'action' && !sameValue(p, state.values[p.id], d[p.id]); });
+    // A suggested motion's id is "<kind>-<n>". Its decision starts with the canonical line Raven reads back
+    // (Site Motion Spec Revision 13), so the next suggestion for this kind starts from these values.
+    var kindMatch = /^(hero-entrance|cta-hover|card-hover|section-reveal|nav-hover|image-reveal)-\d+$/.exec(String(doc.id));
+    var canon = '';
+    if (kindMatch) {
+      var vals = {};
+      changed.forEach(function (p) { vals[p.id] = state.values[p.id]; });
+      canon = 'motion:' + kindMatch[1] + (changed.length ? ' ' + JSON.stringify(vals) : '') + '\n';
+    }
     return {
       profile: profile, project: project, dimension: 'motion',
-      decision: doc.id + ': ' + (changed.length ? changed.map(function (p) { return p.label + ' ' + valueText(p, state.values[p.id]); }).join(', ') : 'kept the defaults'),
+      decision: canon + doc.id + ': ' + (changed.length ? changed.map(function (p) { return p.label + ' ' + valueText(p, state.values[p.id]); }).join(', ') : 'kept the defaults'),
       rejected: changed.map(function (p) { return p.label + ' ' + valueText(p, d[p.id]) + ' (default)'; }),
       why: '', source: 'user-approved'
     };

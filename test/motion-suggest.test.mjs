@@ -26,6 +26,9 @@ const TIMELINE = path.join(__dirname, '../src/data/motion/timeline');
 
 const { suggestMotion } = await import('../dist/motion-suggest/index.js');
 const { quotePhrase } = await import('../dist/motion-suggest/why.js');
+const { motionGate } = await import('../dist/motion-suggest/candidates.js');
+const { buildMotionMap } = await import('../dist/motion-suggest/map.js');
+const { readMotionDecisions } = await import('../dist/motion-suggest/decisions.js');
 const { FsTasteStore } = await import('../dist/taste-store.js');
 const taste = await import('../dist/taste.js');
 const session = await import('../dist/motion-session.js');
@@ -207,6 +210,43 @@ test('real-site patterns: a floating nav, a cookie notice, a glow, a split card 
   });
 });
 
+test('a fixed dialog stays out of the section it sits in; the main button is found past the first four; cards under the body group; shadow text is named', { skip: noBrowser }, async () => {
+  await withHome(async ({ store }) => {
+    const site = await serveSite();
+    let r;
+    try { r = await suggestMotion({ store, url: site.url + 'edge.html', max: 8 }); } finally { await site.close(); }
+    const by = (k) => r.suggestions.filter((s) => s.kind === k);
+    const ids = r.suggestions.map((s) => s.id).join(', ');
+    const hero = by('hero-entrance')[0];
+    assert.ok(hero, ids);
+    assert.doesNotMatch(hero.fragment, /Consent dialog/);
+    assert.ok(!r.suggestions.some((s) => /Consent dialog|Allow/.test(s.fragment)), 'dialog left out everywhere');
+    const main = by('cta-hover').find((s) => /main button/.test(s.why));
+    assert.ok(main && /Book a call/.test(main.fragment), 'main action is the red fifth button: ' + ids);
+    assert.ok(by('cta-hover').length <= 4);
+    assert.equal(by('card-hover').length, 1, ids);
+    assert.match(by('card-hover')[0].why, /3 cards/);
+    assert.ok(r.warnings.some((w) => /<product-hero>/.test(w)), r.warnings.join('\n'));
+  });
+});
+
+test('none, instant and none or instant all read as no motion', () => {
+  for (const n of ['none', 'None.', 'instant', 'none/instant', 'none or instant', 'none-instant', 'no motion please']) assert.equal(motionGate(n), 'none', n);
+  for (const n of ['instant feedback, restrained', 'subtle']) assert.notEqual(motionGate(n), 'none', n);
+});
+
+test('the map shows three differences and puts the rest behind a disclosure', () => {
+  const approximations = ['One.', 'Two.', 'Three.', 'Four.', 'Five.'];
+  const html = buildMotionMap({
+    pageUrl: 'https://example.com/',
+    screenshot: { mime: 'image/png', base64: 'iVBORw0KGgo=', width: 100, height: 100 },
+    items: [{ number: 1, label: 'Button hover', why: 'Why.', triggerWords: 'On hover', approximations, box: { x: 0, y: 0, w: 10, h: 10 }, file: 'a.html' }],
+  });
+  const firstList = /<ul class="approx">([\s\S]*?)<\/ul>/.exec(html)[1];
+  assert.equal((firstList.match(/<li>/g) || []).length, 3);
+  assert.match(html, /<details class="more"><summary>2 more differences from your page<\/summary><ul class="approx"><li>Four\.<\/li><li>Five\.<\/li><\/ul><\/details>/);
+});
+
 // ── fonts ────────────────────────────────────────────────────────────────────
 
 test('the page\'s web font is fetched into the taste home and used; a missing one falls back with a warning', { skip: noBrowser }, async () => {
@@ -325,6 +365,23 @@ test('a rejected kind is left out, and a chosen one starts from the values sent'
   });
 });
 
+test('a reason does not claim a note\'s effect that a restored value replaced', { skip: noBrowser }, async () => {
+  await withHome(async ({ store }) => {
+    const who = await bound(store, { motion: 'snappy, restrained, no bounce' });
+    await taste.recordTasteDecision(store, who.profile, { project: who.project, dimension: 'motion', decision: 'motion:cta-hover {"lift":8,"feel":{"kind":"spring","duration":260,"bounce":0.25}}', source: 'user-directed' });
+    const r = await suggest(store, who);
+    const cta = r.suggestions.filter((s) => s.kind === 'cta-hover');
+    assert.ok(cta.length > 0);
+    for (const s of cta) {
+      const p = Object.fromEntries(s.timeline.params.map((x) => [x.id, x.default]));
+      assert.equal(p.lift, 8);
+      assert.doesNotMatch(s.why, /a third smaller|without overshooting/, s.why);
+      assert.match(s.why, /snappy/, s.why);
+      assert.match(s.why, /values you sent last time/, s.why);
+    }
+  });
+});
+
 // ── end to end ───────────────────────────────────────────────────────────────
 
 test('from the map, open a suggestion, tune it, Send, and get_motion_sends names the trigger', { skip: noBrowser }, async () => {
@@ -353,6 +410,14 @@ test('from the map, open a suggestion, tune it, Send, and get_motion_sends names
       });
       assert.match(ctx, /Plays on hover/);
       assert.match(ctx, /Lift 5/);
+      // Copy for Raven starts with the line the next suggestion reads back.
+      const copied = await page.evaluate(() => {
+        for (const [k, v] of [['raven-profile', 'site-p'], ['raven-project', 'studio-site']]) { const i = document.getElementById(k); if (i) i.value = v; }
+        return window.__ml.ravenText();
+      });
+      const record = JSON.parse(copied.slice(copied.indexOf('{')));
+      assert.match(record.decision, /^motion:cta-hover \{"lift":5\}\n/);
+      assert.equal(readMotionDecisions([{ decision: record.decision, rejected: record.rejected, recorded_at: new Date().toISOString() }]).tuned['cta-hover'].lift, 5);
       await page.fill('#send-note', 'Use this on the main button');
       await page.click('#send-agent');
       await page.waitForFunction(() => /Sent|reach/.test(document.getElementById('status').textContent));
