@@ -23,12 +23,12 @@ const GOLDEN_45_HASH = 'f64bb18529f458276acfe7886bd912165faa0b6f7d12025e51b79eb7
 // Rebaselined 2026-07-26 when main merged into this branch (the anonymous
 // instructions/description TEXT evolved across 364 main commits), and again
 // 2026-08-07 when the kickoff interview grew its genesis question (the shared
-// server instructions moved from 4 to 5 core questions). These two pins guard
+// server instructions moved from 4 to 5 core questions, and again 2026-11-02 when it grew its customer question, 5 to 6). These two pins guard
 // against authed tuning leaking into an anon build, not against the text
 // changing. Re-verified at each rebaseline: anon never contains the authed
 // block, and an anon build made AFTER an authed one is byte-identical to an
 // anon-first build. GOLDEN_45_HASH — the frozen wire contract — is unchanged.
-const ANONYMOUS_INSTRUCTIONS_HASH = '3ccce9cf2e9366439f0ffed251815176bb7ee7b78ace0f03252c6c7807090658';
+const ANONYMOUS_INSTRUCTIONS_HASH = 'bb94e99e693cef52a451248d01c1358201ba66aac3c24a33c6030058654420c1';
 // Rebaselined again 2026-08-19 (OpenAI resubmission prep). SEVEN anonymous
 // top-level descriptions changed, and the chain from HEAD to this pin is
 // MEASURED end to end by .claude/openai-rejection-2026-08-19/verify-anon-hash.mjs,
@@ -116,7 +116,8 @@ const ANONYMOUS_INSTRUCTIONS_HASH = '3ccce9cf2e9366439f0ffed251815176bb7ee7b78ac
 // did not move, which is what the freeze actually covers. Sentence 1 of all ten is
 // byte-identical to stdio, so manifest.json does not move either (verified: the
 // regenerated manifest is unchanged).
-const ANONYMOUS_INSTRUCTIONS_AND_TOOL_DESCRIPTIONS_HASH = 'c901ab890f50f7d420045304374208a37f7fce79627ff91665a39e03edf94203';
+// Rebaselined 2026-11-02: get_taste_interview description and the instructions now name the sixth core question, customer.
+const ANONYMOUS_INSTRUCTIONS_AND_TOOL_DESCRIPTIONS_HASH = '1f5501dc18fc6b52510edeeaa346defd59afa578c6c201ccce3389df979d02ca';
 const AUTHED_STARTUP_INSTRUCTIONS = "AUTHENTICATED STARTUP: this remote endpoint is connected to a per-user taste store. At project kickoff or the first real design/copy/UI work for a project, call get_taste_interview for the connected user's taste profile and project name before choosing direction. Ask the returned questions, then persist the user's answers with bind_taste_surface before generating design work. If the profile name is not known yet, call list_taste_profiles first.";
 const AUTHED_INTERVIEW_DESCRIPTION = "AUTHENTICATED STARTUP: on the remote authed endpoint, use this as the first taste step for the connected user's per-user store at project kickoff; if you do not know the profile name, call list_taste_profiles first, then call get_taste_interview with that profile and project name before design/copy/UI decisions.";
 const ALL_TASTE = [

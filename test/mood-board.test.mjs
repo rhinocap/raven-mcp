@@ -299,7 +299,7 @@ test('mode:board composes notes and references, and embeds only host-matched pat
       project: 'night-product',
       surface: 'product marketing site',
       voice_note: 'Punchy editorial.',
-      design_notes: { color: 'near-black ground, one accent', motion: 'subtle only' },
+      design_notes: { color: 'near-black ground, one accent', motion: 'subtle only', customer: 'Studio designers who leave when controls read as jargon.' },
       references: [
         { url: 'https://example.com', liked: 'the restraint', traits: { scheme: 'dark' } },
         { url: 'https://stripe.com', traits: { scheme: 'dark' } },
@@ -308,7 +308,7 @@ test('mode:board composes notes and references, and embeds only host-matched pat
 
     const result = await mood.generateMoodBoard({ store, profile: 'mood-bound', project: 'night-product' });
     assert.equal(result.example, false);
-    assert.deepEqual(result.counts, { notes: 2, references: 2, patterns: 1, images: 0 });
+    assert.deepEqual(result.counts, { notes: 3, references: 2, patterns: 1, images: 0 });
     const html = readFileSync(result.html_path, 'utf8');
     assertSelfContained(html);
     // Measured ground: both references are dark.
@@ -316,6 +316,9 @@ test('mode:board composes notes and references, and embeds only host-matched pat
     // Notes as chips, references as rows.
     assert.ok(html.includes('near-black ground, one accent'));
     assert.ok(html.includes('the restraint'));
+    // The customer note shows as a chip.
+    assert.ok(html.includes('<span class="note-key">customer</span>'));
+    assert.ok(html.includes('Studio designers who leave when controls read as jargon.'));
     // The matched pattern arrives as an embedded picture WITH its credit — the
     // picture and the attribution are one unit, same rule as search_references.
     assert.ok(html.includes('data:image/png;base64,'), 'the host-matched thumbnail is embedded');

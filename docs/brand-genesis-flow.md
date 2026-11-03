@@ -27,8 +27,8 @@ is built and everything downstream inherits it.
 Run the kickoff interview even though the project doesn't exist yet:
 
 - `get_taste_interview` with your profile and the new brand's working name.
-- Answer the five core questions as *decisions*, not descriptions: what the
-  product is, what already exists for it (genesis — a brand, a design system,
+- Answer the six core questions as *decisions*, not descriptions: what the
+  product is, who it is for and what would make them leave (customer), what already exists for it (genesis — a brand, a design system,
   brand assets, or nothing yet), how it should read (aesthetic), how it should
   sound (voice), and what hosts will identify it later.
 - The genesis answer is the fork in this whole flow: point Raven at a design

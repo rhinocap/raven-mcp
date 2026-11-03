@@ -1166,7 +1166,7 @@ test('surface calibration interview is built from the profile’s own scopes and
     // non-global scope — every kickoff starts fresh (does not presume the
     // profile's pre-existing scopes apply). The scopes array is still returned.
     assert.deepEqual(ids, [
-      'identity', 'genesis', 'references', 'mood_board',
+      'identity', 'customer', 'genesis', 'references', 'mood_board',
       'design:typography', 'design:spacing', 'design:color', 'design:layout', 'design:motion', 'design:imagery',
       'design:entrance', 'design:loading', 'design:navigation', 'design:aesthetic', 'design:libraries',
       'voice', 'exceptions', 'matchers', 'special',
@@ -1186,7 +1186,7 @@ test('surface calibration interview is built from the profile’s own scopes and
     await taste.createTasteProfile(store, { name: 'plain', rules: [baseRules()[2]] });
     const bare = await taste.getTasteInterview(store, 'plain', undefined, undefined, 'full');
     assert.deepEqual(bare.questions.map((q) => q.id), [
-      'identity', 'genesis', 'references', 'mood_board',
+      'identity', 'customer', 'genesis', 'references', 'mood_board',
       'design:typography', 'design:spacing', 'design:color', 'design:layout', 'design:motion', 'design:imagery',
       'design:entrance', 'design:loading', 'design:navigation', 'design:aesthetic', 'design:libraries',
       'voice', 'exceptions', 'matchers', 'special',
@@ -1246,7 +1246,7 @@ test('the AI-cinematic-video / scroll-scrub interview options are present, and t
 
     // The dimension/question count is unaffected by adding options to existing questions.
     assert.deepEqual(interview.questions.map((q) => q.id), [
-      'identity', 'genesis', 'references', 'mood_board',
+      'identity', 'customer', 'genesis', 'references', 'mood_board',
       'design:typography', 'design:spacing', 'design:color', 'design:layout', 'design:motion', 'design:imagery',
       'design:entrance', 'design:loading', 'design:navigation', 'design:aesthetic', 'design:libraries',
       'voice', 'exceptions', 'matchers', 'special',
@@ -1271,7 +1271,7 @@ test('libraries question suggests Next.js as the default build target, and the k
   });
 });
 
-test('getTasteInterview depth: first_run (default) returns exactly 5 core questions + more_questions; full returns everything with more_questions empty', async () => {
+test('getTasteInterview depth: first_run (default) returns exactly 6 core questions + more_questions; full returns everything with more_questions empty', async () => {
   await withTasteHome(async (_home, store) => {
     await taste.createTasteProfile(store, { name: 'depth-test', rules: baseRules() });
 
@@ -1279,7 +1279,7 @@ test('getTasteInterview depth: first_run (default) returns exactly 5 core questi
     const byDefault = await taste.getTasteInterview(store, 'depth-test', 'some-project');
     const explicitFirstRun = await taste.getTasteInterview(store, 'depth-test', 'some-project', undefined, 'first_run');
     for (const interview of [byDefault, explicitFirstRun]) {
-      assert.deepEqual(interview.questions.map((q) => q.id), ['identity', 'genesis', 'design:aesthetic', 'voice', 'matchers']);
+      assert.deepEqual(interview.questions.map((q) => q.id), ['identity', 'customer', 'genesis', 'design:aesthetic', 'voice', 'matchers']);
       const identityQ = interview.questions.find((q) => q.id === 'identity');
       assert.equal(identityQ.skippable, false);
       const genesisQ = interview.questions.find((q) => q.id === 'genesis');
@@ -1308,7 +1308,7 @@ test('getTasteInterview depth: first_run (default) returns exactly 5 core questi
     const full = await taste.getTasteInterview(store, 'depth-test', 'some-project', undefined, 'full');
     assert.deepEqual(full.more_questions, []);
     assert.deepEqual(full.questions.map((q) => q.id), [
-      'identity', 'genesis', 'references', 'mood_board',
+      'identity', 'customer', 'genesis', 'references', 'mood_board',
       'design:typography', 'design:spacing', 'design:color', 'design:layout', 'design:motion', 'design:imagery',
       'design:entrance', 'design:loading', 'design:navigation', 'design:aesthetic', 'design:libraries',
       'voice', 'exceptions', 'matchers', 'special',
@@ -1925,15 +1925,15 @@ test('the references question invites examples right behind identity and genesis
   await withTasteHome(async (_home, store) => {
     await taste.createTasteProfile(store, { name: 'refs', rules: baseRules() });
     const interview = await taste.getTasteInterview(store, 'refs', 'demo', undefined, 'full');
-    assert.equal(interview.questions[2].id, 'references');
-    assert.equal(interview.questions[2].skippable, true);
-    assert.equal(interview.questions[2].priority, 'core');
-    assert.ok(/examples/i.test(interview.questions[2].question));
-    assert.ok(/what specifically draws you/i.test(interview.questions[2].question));
+    assert.equal(interview.questions[3].id, 'references');
+    assert.equal(interview.questions[3].skippable, true);
+    assert.equal(interview.questions[3].priority, 'core');
+    assert.ok(/examples/i.test(interview.questions[3].question));
+    assert.ok(/what specifically draws you/i.test(interview.questions[3].question));
     assert.ok(interview.then.includes('design_notes.references'));
 
     // depth:'first_run' (the default) defers references into more_questions —
-    // it is not one of the 5 core questions.
+    // it is not one of the 6 core questions.
     const firstRun = await taste.getTasteInterview(store, 'refs', 'demo');
     assert.equal(firstRun.questions.find((q) => q.id === 'references'), undefined);
     assert.ok(firstRun.more_questions.some((q) => q.id === 'references'));
@@ -1944,7 +1944,7 @@ test('the genesis question rides second, is core in first_run, and routes missin
   await withTasteHome(async (_home, store) => {
     await taste.createTasteProfile(store, { name: 'genesis-test', rules: baseRules() });
     const full = await taste.getTasteInterview(store, 'genesis-test', 'demo', undefined, 'full');
-    const q = full.questions[1];
+    const q = full.questions[2];
     assert.equal(q.id, 'genesis', 'genesis rides directly behind identity — kickoff is when a project comes into existence');
     assert.equal(q.priority, 'core');
     assert.equal(q.skippable, true);
@@ -2547,5 +2547,53 @@ test('stored reference traits are sanitized: corrupt fields degrade to null/unkn
     // The consistency check runs over the sanitized traits without throwing.
     const warnings = taste.checkBindingConsistency(loaded.design_notes, loaded.references);
     assert.ok(Array.isArray(warnings));
+  });
+});
+
+test('customer is the second core question, skippable, and stored as design_notes.customer', async () => {
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'customer-test', rules: baseRules() });
+    const interview = await taste.getTasteInterview(store, 'customer-test', 'demo');
+    assert.equal(interview.questions[1].id, 'customer');
+    const q = interview.questions[1];
+    assert.equal(q.skippable, true);
+    assert.equal(q.priority, 'core');
+    assert.ok(/who .* for/i.test(q.question));
+    assert.ok(/trying to do/i.test(q.question));
+    assert.ok(/make them leave/i.test(q.question));
+    assert.ok(q.question.includes('design_notes.customer'));
+    assert.ok(interview.then.includes('6 core questions'));
+    assert.ok(interview.then.includes('design_notes.customer'));
+    assert.equal(interview.more_questions.some((m) => m.id === 'customer'), false, 'customer is core, not deferred');
+    const full = await taste.getTasteInterview(store, 'customer-test', 'demo', undefined, 'full');
+    assert.equal(full.questions[1].id, 'customer');
+    assert.ok(full.then.includes('design_notes.customer'));
+  });
+});
+
+test('refine re-asks customer when the stored note is missing and not when it is filled; bind persists and audit echoes it', async () => {
+  await withTasteHome(async (_home, store) => {
+    await taste.createTasteProfile(store, { name: 'customer-refine', rules: baseRules() });
+    await taste.bindTasteSurface(store, 'customer-refine', {
+      project: 'empty-customer',
+      surface: 'product-site',
+      design_notes: { color: 'dark ground' },
+    });
+    const missing = await taste.getTasteInterview(store, 'customer-refine', 'empty-customer', 'refine');
+    assert.ok(missing.questions.some((q) => q.id === 'customer'), 'refine re-asks customer when empty');
+
+    const customer = 'Freelance brand designers tuning motion by hand. They leave when the controls read as engine jargon.';
+    const bound = await taste.bindTasteSurface(store, 'customer-refine', {
+      project: 'filled-customer',
+      surface: 'product-site',
+      design_notes: { color: 'dark ground', customer },
+    });
+    assert.equal(bound.design_notes.customer, customer);
+    const filled = await taste.getTasteInterview(store, 'customer-refine', 'filled-customer', 'refine');
+    assert.equal(filled.questions.some((q) => q.id === 'customer'), false, 'refine does not re-ask a filled customer');
+    assert.ok(filled.questions.some((q) => q.id === 'revise:customer'), 'a filled customer is offered as keep/tighten/replace');
+
+    const audited = await taste.auditTaste(store, { profile: 'customer-refine', html: '<p>hello</p>', project: 'filled-customer' });
+    assert.equal(audited.design_notes.customer, customer);
   });
 });

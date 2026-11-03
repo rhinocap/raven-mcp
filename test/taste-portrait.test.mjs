@@ -112,6 +112,7 @@ test('full profile renders all portrait sections from store data', async () => {
         color: 'Monochrome warm paper, accent none, zero hue.',
         typography: 'Fraunces only for quoted evidence; Inter carries structure.',
         motion: 'Curtain wipe and reveal only; reduced motion must render static.',
+        customer: 'Art directors who browse on a laptop and leave when the work is hard to find.',
       },
     });
     await taste.recordTasteDecision(store, 'portrait-full', {
@@ -132,6 +133,8 @@ test('full profile renders all portrait sections from store data', async () => {
     const html = await readFile(result.files[0].path, 'utf8');
     assertHtmlSane(html);
     assert.match(html, /Surface rules/);
+    assert.match(html, /<p class="note-key">customer<\/p>/);
+    assert.ok(html.includes('Art directors who browse on a laptop'));
     assert.match(html, /In-scope laws/);
     assert.match(html, /Wrong → right ledger/);
     assert.match(html, /Decision evidence/);
