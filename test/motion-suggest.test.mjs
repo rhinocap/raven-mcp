@@ -220,6 +220,9 @@ test('a fixed dialog stays out of the section it sits in; the main button is fou
     const hero = by('hero-entrance')[0];
     assert.ok(hero, ids);
     assert.doesNotMatch(hero.fragment, /Consent dialog/);
+    // The hero wraps, so the box holding everything after the headline wraps too.
+    const restStyles = Object.entries(hero.timeline.styles || {}).filter(([k]) => /-rest$/.test(k)).map(([, v]) => v);
+    assert.ok(restStyles.length && restStyles.every((st) => st.flexWrap === 'wrap'), JSON.stringify(hero.timeline.styles));
     assert.ok(!r.suggestions.some((s) => /Consent dialog|Allow/.test(s.fragment)), 'dialog left out everywhere');
     const main = by('cta-hover').find((s) => /main button/.test(s.why));
     assert.ok(main && /Book a call/.test(main.fragment), 'main action is the red fifth button: ' + ids);
@@ -366,6 +369,22 @@ test('a rejected kind is left out, and a chosen one starts from the values sent'
     await taste.recordTasteDecision(store, who.profile, { project: who.project, dimension: 'motion', decision: 'motion:card-hover', source: 'user-directed' });
     const r2 = await suggest(store, who);
     assert.ok(r2.suggestions.some((s) => s.kind === 'card-hover'));
+  });
+});
+
+test('a saved curve is restored when the playground accepts it, and left out when it does not', { skip: noBrowser }, async () => {
+  await withHome(async ({ store }) => {
+    const who = await bound(store, {});
+    const longSpring = { kind: 'spring', duration: 20000, bounce: 0.2 };
+    await taste.recordTasteDecision(store, who.profile, { project: who.project, dimension: 'motion', decision: 'motion:cta-hover ' + JSON.stringify({ feel: longSpring }), source: 'user-directed' });
+    await taste.recordTasteDecision(store, who.profile, { project: who.project, dimension: 'motion', decision: 'motion:card-hover {"feel":{"kind":"bezier","points":[0.2,3,0.2,1]}}', source: 'user-directed' });
+    const r = await suggest(store, who);
+    const cta = r.suggestions.find((s) => s.kind === 'cta-hover');
+    assert.deepEqual(cta.timeline.params.find((p) => p.id === 'feel').default, longSpring);
+    const card = r.suggestions.find((s) => s.kind === 'card-hover');
+    assert.ok(card, 'the card suggestion is still offered: ' + r.suggestions.map((s) => s.id).join(', '));
+    assert.notDeepEqual(card.timeline.params.find((p) => p.id === 'feel').default.points, [0.2, 3, 0.2, 1]);
+    assert.ok(r.warnings.some((w) => /could not be used/.test(w)), r.warnings.join('\n'));
   });
 });
 

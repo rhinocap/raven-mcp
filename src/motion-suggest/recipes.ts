@@ -6,6 +6,7 @@
 // feel), then any values the designer tuned and sent before for this kind (recorded motion decisions).
 
 import type { MotionCandidate, MotionKind } from "./candidates.js";
+import { curveValueOk } from "../motion-playground/validate.js";
 import type { TasteTermHit } from "../motion-playground/taste-map.js";
 import {
   type FNode, type FragmentContext, type FragmentStyle,
@@ -120,19 +121,6 @@ function applyTerms(params: Param[], terms: TasteTermHit[]): { hit: TasteTermHit
   return used;
 }
 
-function validCurve(v: unknown): v is Curve {
-  if (!v || typeof v !== "object") return false;
-  const c = v as Record<string, unknown>;
-  if (c.kind === "bezier") {
-    const p = c.points;
-    return Array.isArray(p) && p.length === 4 && p.every((x) => typeof x === "number" && Number.isFinite(x)) && p[0] >= 0 && p[0] <= 1 && p[2] >= 0 && p[2] <= 1;
-  }
-  if (c.kind === "spring") {
-    return typeof c.duration === "number" && c.duration >= 10 && c.duration <= 10000 && typeof c.bounce === "number" && c.bounce >= -0.9 && c.bounce <= 0.9;
-  }
-  return false;
-}
-
 function applyTuned(params: Param[], tuned: Record<string, unknown> | undefined, warnings: string[]): string[] {
   const restored: string[] = [];
   if (!tuned) return restored;
@@ -145,7 +133,8 @@ function applyTuned(params: Param[], tuned: Record<string, unknown> | undefined,
       const sw = p.swatches as string[];
       if (!sw.includes(p.default as string)) p.swatches = [p.default as string, ...sw].slice(0, 8);
       restored.push(id);
-    } else if (p.type === "curve" && validCurve(v)) { p.default = v; restored.push(id); }
+    } // The playground's own check, so a value it accepts is restored and one it rejects is not.
+    else if (p.type === "curve" && curveValueOk(v, p.kinds as string[] | undefined)) { p.default = v as Curve; restored.push(id); }
     else warnings.push(`A saved value for ${String(p.label)} could not be used, so it starts from the usual default.`);
   }
   return restored;
@@ -253,6 +242,7 @@ function heroEntrance(c: MotionCandidate, ctx: FragmentContext, opts: RecipeOpti
       if (ps.display === "flex") {
         rs.display = "flex";
         if (ps.flexDirection) rs.flexDirection = ps.flexDirection;
+        if (ps.flexWrap) rs.flexWrap = ps.flexWrap;
         if (ps.gap !== undefined) rs.gap = ps.gap;
         if (ps.alignItems) rs.alignItems = ps.alignItems;
         if (ps.justifyContent) rs.justifyContent = ps.justifyContent;
