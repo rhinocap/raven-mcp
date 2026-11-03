@@ -219,7 +219,7 @@ main#preview { position: fixed; top: var(--edge); bottom: var(--edge); left: var
 /* Phones and narrow windows (below 1100px, where the timeline lanes would fall under 200px): one column, the stage first, then the controls, Send and the dock. */
 @media (max-width: 1099px) {
   .app { height: auto; min-height: 100%; display: flex; flex-direction: column; gap: 10px; padding: 10px; }
-  .fp, main#preview { position: static; width: auto; }
+  .fp, aside#panel, main#preview { position: static; width: auto; }
   main#preview { order: -1; }
   .stage { height: 56vw; flex: none; }
   .view { overflow: visible; }
