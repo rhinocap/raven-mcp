@@ -149,7 +149,7 @@
     @container raven-nav (max-width: 300px) {\
       .nav-actions .btn-primary { display: none; }\
     }\
-    @container raven-nav (max-width: 200px) {\
+    @container raven-nav (max-width: 147px) {\
       .nav-brand { display: none; }\
       .nav-inner { justify-content: center; }\
     }\
@@ -188,6 +188,11 @@
     @media (max-width: 768px) {\
       .nav-brand { margin-left: 32px; }\
     }\
+    /* Between 761px and 793px the nav is too narrow for the brand, so the menu carries Home. */\
+    .nav-mobile-menu .nav-menu-home { display: none; }\
+    @media (min-width: 761px) and (max-width: 793px) {\
+      .nav-mobile-menu .nav-menu-home { display: block; }\
+    }\
   ' : '');
 
   // On the playground pages Grab picks whatever is clicked; the site nav keeps its own clicks there.
@@ -206,7 +211,7 @@
         </div>\
       </div>\
     </nav>\
-    <div class="nav-mobile-menu"' + GRAB_IGNORE + '>' + allMobileLinks() + '\
+    <div class="nav-mobile-menu"' + GRAB_IGNORE + '>' + (GRAB_IGNORE ? '<a href="/" class="nav-menu-home">Home</a>' : '') + allMobileLinks() + '\
       <a href="https://github.com/rhinocap/raven-mcp">GitHub</a>\
     </div>\
   ';
