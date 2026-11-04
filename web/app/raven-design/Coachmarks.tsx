@@ -286,12 +286,29 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
       }
     }
     retry()
+    // Dragging Grab's phone sheet fires no scroll or resize. Its pointerup reaches the
+    // window, so re-measure each frame until the 200ms snap transition has settled.
+    let settleRaf = 0
+    const settle = () => {
+      cancelAnimationFrame(settleRaf)
+      const until = performance.now() + 400
+      const tick = () => {
+        apply()
+        if (performance.now() < until) settleRaf = requestAnimationFrame(tick)
+      }
+      settleRaf = requestAnimationFrame(tick)
+    }
     addEventListener('scroll', apply, true)
     addEventListener('resize', apply)
+    addEventListener('pointerup', settle, true)
+    addEventListener('pointercancel', settle, true)
     return () => {
       cancelAnimationFrame(raf)
+      cancelAnimationFrame(settleRaf)
       removeEventListener('scroll', apply, true)
       removeEventListener('resize', apply)
+      removeEventListener('pointerup', settle, true)
+      removeEventListener('pointercancel', settle, true)
     }
   }, [step])
 
@@ -332,6 +349,15 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
   // Spotlight coachmarks sit ABOVE their target, centred on it, with a tail pointing
   // down at what they describe — matching the panel's icon tooltips. Below-and-
   // left-aligned made the reader hunt for which element the card was about.
+  // Below the target when there is too little headroom, unless the space below is
+  // smaller still (short windows), so the card and its buttons stay on screen.
+  const spotlightBelow = (): boolean => {
+    if (!targetRect) return false
+    const vh = typeof window === 'undefined' ? 900 : window.innerHeight
+    const above = targetRect.top
+    const under = vh - (targetRect.top + targetRect.height)
+    return targetRect.top < FLIP_THRESHOLD && under >= above
+  }
   const spotlightStyle = (): React.CSSProperties => {
     if (!targetRect) return {}
     const viewportWidth = typeof window === 'undefined' ? 1440 : window.innerWidth
@@ -341,8 +367,11 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
     const left = Math.min(Math.max(centre, half + EDGE_GAP), viewportWidth - half - EDGE_GAP)
     // Not enough headroom (target near the top of the viewport) → flip underneath,
     // and the tail flips with it rather than pointing away from the target.
-    const below = targetRect.top < FLIP_THRESHOLD
+    const below = spotlightBelow()
+    const vh = typeof window === 'undefined' ? 900 : window.innerHeight
+    const room = below ? vh - (targetRect.top + targetRect.height) - TAIL_GAP - EDGE_GAP : targetRect.top - TAIL_GAP - EDGE_GAP
     return {
+      maxHeight: Math.max(room, 120),
       position: 'fixed',
       top: below ? targetRect.top + targetRect.height + TAIL_GAP : targetRect.top - TAIL_GAP,
       left,
@@ -378,7 +407,7 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
     // card placed over it would be occluded; we point at the panel foot instead.
     if (vAlign === 'foot') {
       const bottom = Math.max(vh - (targetRect.top + targetRect.height) + EDGE_GAP, EDGE_GAP)
-      return { position: 'fixed', bottom, left, width: TIP_WIDTH }
+      return { position: 'fixed', bottom, left, width: TIP_WIDTH, maxHeight: vh - bottom - EDGE_GAP }
     }
     const top = Math.min(Math.max(targetRect.top + targetRect.height / 2, 150), vh - 150)
     return { position: 'fixed', top, left, width: TIP_WIDTH, transform: 'translateY(-50%)' }
@@ -437,9 +466,7 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
   }
   const phonePlacement = isPhoneLayout ? phoneCardPlacement() : null
 
-  const cardStyle: React.CSSProperties = phonePlacement
-    ? phonePlacement.style
-    : current?.anchor === 'panel'
+  const desktopCardStyle = (): React.CSSProperties => current?.anchor === 'panel'
       ? panelCardStyle('right')
       : current?.anchor === 'panel-left'
         ? panelCardStyle('left')
@@ -448,11 +475,15 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
           : (current?.anchor.startsWith('target:') || current?.anchor.startsWith('grab:')) && targetRect
             ? spotlightStyle()
             : { position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 360 }
+  // Wider screens: no card is taller than the window; its text scrolls past that.
+  const cardStyle: React.CSSProperties = phonePlacement
+    ? phonePlacement.style
+    : { maxHeight: viewport.h - 2 * EDGE_GAP, ...desktopCardStyle() }
 
   const tailSide = phonePlacement
     ? phonePlacement.tail
     : (current?.anchor.startsWith('target:') || current?.anchor.startsWith('grab:')) && targetRect
-      ? targetRect.top < FLIP_THRESHOLD
+      ? spotlightBelow()
         ? 'top'
         : 'bottom'
       : current?.anchor === 'panel' && targetRect
