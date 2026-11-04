@@ -2628,7 +2628,8 @@
     return visible;
   }
   function openSettingsModal(trigger) {
-    if (settingsModalOpen) return;
+    // The Motion viewer is a modal; Settings would open behind it, inert.
+    if (settingsModalOpen || motionViewer) return;
     settingsModalOpen = true;
     // Both panels carry a trigger and CSS hides one; returning focus to the hidden
     // one drops focus to the body, so pick the panel that currently owns the gear.
@@ -12620,6 +12621,9 @@
   }
 
   function paintMotionMarkers() {
+    // While the viewer is open the page behind it is inert; new badges would not be,
+    // so painting waits until the viewer closes.
+    if (motionViewer) { motion.paintAfterViewer = true; return; }
     syncMotionObserver();
     clearMotionMarkers();
     if (!motionMarkersWanted()) return;
@@ -13220,6 +13224,7 @@
     motionViewer = null;
     if (v.wrap.parentNode) v.wrap.parentNode.removeChild(v.wrap);
     for (var i = 0; i < v.benched.length; i++) v.benched[i].inert = false;
+    if (motion.paintAfterViewer) { motion.paintAfterViewer = false; paintMotionMarkers(); }
     if (restoreFocus && v.trigger && v.trigger.isConnected) {
       try { v.trigger.focus({ preventScroll: true }); } catch (error) { v.trigger.focus(); }
     }

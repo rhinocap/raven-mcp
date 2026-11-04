@@ -177,6 +177,30 @@ test('the viewer is modal: the page and panels go inert, and Escape inside the p
   });
 });
 
+test('while the viewer is open, a resize leaves every marker inert and Cmd+K does not open Settings', { skip }, async () => {
+  await withPage({}, async (page) => {
+    await find(page);
+    assert.ok(await clickGrab(page, '[data-motion-play="1"]'));
+    await page.setViewportSize({ width: 1200, height: 800 });
+    await page.waitForTimeout(250);
+    const state = () => page.evaluate(() => {
+      const root = [...document.querySelectorAll('*')].find((el) => el.shadowRoot && el.shadowRoot.querySelector('.raven-grab-panel')).shadowRoot;
+      const live = (el) => { for (let n = el; n; n = n.parentNode && n.parentNode.nodeType === 1 ? n.parentNode : null) if (n.inert) return false; return true; };
+      return {
+        liveBadges: [...root.querySelectorAll('[data-motion-marker], .raven-grab-motion-badge')].filter(live).length,
+        settingsHidden: [...root.querySelectorAll('[data-settings-close]')].every((b) => !b.getClientRects().length),
+      };
+    });
+    assert.deepEqual(await state(), { liveBadges: 0, settingsHidden: true });
+    await page.keyboard.press(process.platform === 'darwin' ? 'Meta+K' : 'Control+K');
+    assert.deepEqual(await state(), { liveBadges: 0, settingsHidden: true });
+    await page.keyboard.press('Escape');
+    assert.equal(await inGrab(page, '[data-motion-viewer]'), 0);
+    // Painting resumes once the viewer closes.
+    assert.equal(await inGrab(page, '[data-motion-marker]'), 2);
+  });
+});
+
 test('a message from anything but the open playground frame is ignored', { skip }, async () => {
   await withPage({}, async (page) => {
     await find(page);

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src &#39;none&#39;; script-src &#39;sha256-Wn3PrHlGGmfCIXOs5e9Wn6OFOkh0V4gFxsZlYed9OtM=&#39; &#39;sha256-5VmNLGAJ0vpHCkGmn/n5xqB0gNFUWBi1qas1REZceiw=&#39; &#39;sha256-csvGlZ5oOoAKZBSPhv/P0EH6HTnIxgz9xXehcwbcFAg=&#39; &#39;sha256-POh+pqzv5FKx+LzcrwX2CSYRhgECPD3ckgKhyA2RCXU=&#39;; style-src &#39;unsafe-inline&#39; https://fonts.googleapis.com; img-src data: blob:; font-src data: https://fonts.gstatic.com; connect-src &#39;self&#39;; form-action &#39;none&#39;; object-src &#39;none&#39;">
+<meta http-equiv="Content-Security-Policy" content="default-src &#39;none&#39;; script-src &#39;sha256-Wn3PrHlGGmfCIXOs5e9Wn6OFOkh0V4gFxsZlYed9OtM=&#39; &#39;sha256-5VmNLGAJ0vpHCkGmn/n5xqB0gNFUWBi1qas1REZceiw=&#39; &#39;sha256-csvGlZ5oOoAKZBSPhv/P0EH6HTnIxgz9xXehcwbcFAg=&#39; &#39;sha256-zdicp0Vi8nb6QtDOjQX5+pzltefkkC0JIY668bMX2Ws=&#39;; style-src &#39;unsafe-inline&#39; https://fonts.googleapis.com; img-src data: blob:; font-src data: https://fonts.gstatic.com; connect-src &#39;self&#39;; form-action &#39;none&#39;; object-src &#39;none&#39;">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Hero entrance: Keep project work in</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -3210,8 +3210,8 @@ ${tracks.join(',\n')}
   // A sandboxed frame has an opaque origin and no clipboard, so a framed playground hands the text to the
   // parent page and waits for its answer. The text is the designer's own settings, so '*' leaks nothing.
   var framed = window.parent !== window;
-  // Keys pressed in a framed playground never reach the page around it, so Escape is handed over to close the viewer.
-  if (framed) document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !e.defaultPrevented) window.parent.postMessage({ type: 'raven-motion-close' }, '*'); });
+  // Keys pressed in a framed playground never reach the page around it, so Escape is handed over to close the viewer, even when it also ends a drag.
+  if (framed) document.addEventListener('keydown', function (e) { if (e.key === 'Escape') window.parent.postMessage({ type: 'raven-motion-close' }, '*'); });
   var copySeq = 0;
   function copyViaParent(text, done, fail) {
     var id = 'c' + (++copySeq) + '-' + Date.now();

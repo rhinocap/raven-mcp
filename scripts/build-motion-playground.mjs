@@ -9,11 +9,11 @@
 // 3. Builds suggestions.json and one <id>.html per suggestion in memory. Local paths
 //    and loopback URLs are removed; the script fails if any remain.
 // 4. Checks every suggestion's parts resolve on the real /motion page.
-// 5. Only then replaces web/public/playgrounds/motion/, adding source.json with hashes of the wireframe inputs and the outputs, which
+// 5. Only then swaps in web/public/playgrounds/motion/ (staged beside it), adding source.json with hashes of the wireframe inputs and the outputs, which
 //    scripts/check-site-drift.mjs compares.
 import { spawn, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync, unlinkSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import http from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -51,6 +51,27 @@ export function portablePlayground(html) {
   // Copy for Raven asks for a taste profile and project, which a visitor to the demo does not have.
   out = out.replace("</head>", "<style>#raven-block{display:none!important}</style></head>");
   return out;
+}
+
+// Writes the new bundle beside the old one, then swaps directories, so the served
+// bundle is always whole: the old one or the new one. A failed swap puts the old one back.
+export function publish(outputs, dir = outDir) {
+  const parent = path.dirname(dir);
+  const staging = path.join(parent, ".motion-next");
+  const backup = path.join(parent, ".motion-prev");
+  rmSync(staging, { recursive: true, force: true });
+  rmSync(backup, { recursive: true, force: true });
+  mkdirSync(staging, { recursive: true });
+  for (const [name, body] of outputs) writeFileSync(path.join(staging, name), body);
+  const had = existsSync(dir);
+  if (had) renameSync(dir, backup);
+  try {
+    renameSync(staging, dir);
+  } catch (error) {
+    if (had) renameSync(backup, dir);
+    throw error;
+  }
+  rmSync(backup, { recursive: true, force: true });
 }
 
 async function freePort() {
@@ -178,9 +199,7 @@ async function main() {
 
     const source = { inputs: inputsHash(), files };
     outputs.set("source.json", JSON.stringify(source, null, 2) + "\n");
-    mkdirSync(outDir, { recursive: true });
-    for (const name of readdirSync(outDir)) if (/\.(html|json)$/.test(name) && !outputs.has(name)) unlinkSync(path.join(outDir, name));
-    for (const [name, body] of outputs) writeFileSync(path.join(outDir, name), body);
+    publish(outputs);
     console.log(`build-motion-playground: ${suggestions.length} suggestions`);
     suggestions.forEach((s, i) => console.log(`  ${i + 1}. ${s.label} (${s.url})`));
   } finally {

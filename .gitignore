@@ -124,3 +124,5 @@ sol-*.log
 # committed and is what every @font-face points at. Keep the .otf locally as
 # the conversion source.
 site/assets/fonts/*.otf
+/web/public/playgrounds/.motion-next
+/web/public/playgrounds/.motion-prev
