@@ -17,7 +17,28 @@ export type MotionKind =
   | "card-hover"
   | "section-reveal"
   | "nav-hover"
-  | "image-reveal";
+  | "image-reveal"
+  | "element-entrance"
+  | "element-hover"
+  | "element-reveal";
+
+/** When a chosen element moves: the three triggers a designer can pick. */
+export type MotionTrigger = "entrance" | "hover" | "scroll";
+
+export const KIND_TRIGGER: Record<MotionKind, MotionTrigger> = {
+  "hero-entrance": "entrance",
+  "cta-hover": "hover",
+  "card-hover": "hover",
+  "section-reveal": "scroll",
+  "nav-hover": "hover",
+  "image-reveal": "scroll",
+  "element-entrance": "entrance",
+  "element-hover": "hover",
+  "element-reveal": "scroll"
+};
+
+/** The page's own kinds, which the full-page pass finds. The element kinds come only from a selector. */
+export const PAGE_KINDS: readonly MotionKind[] = ["hero-entrance", "cta-hover", "card-hover", "section-reveal", "nav-hover", "image-reveal"];
 
 export const MOTION_KIND_LABELS: Record<MotionKind, string> = {
   "hero-entrance": "Hero entrance",
@@ -25,7 +46,10 @@ export const MOTION_KIND_LABELS: Record<MotionKind, string> = {
   "card-hover": "Card hover",
   "section-reveal": "Section reveal",
   "nav-hover": "Navigation hover",
-  "image-reveal": "Image reveal"
+  "image-reveal": "Image reveal",
+  "element-entrance": "Entrance",
+  "element-hover": "Hover lift",
+  "element-reveal": "Scroll reveal"
 };
 
 /** Page CSS px, relative to the top-left of the document. */
@@ -81,6 +105,18 @@ export type MotionNode = {
   children: MotionNode[];
 };
 
+/**
+ * One part the playground animates, as found on the captured page: a selector to find it again in
+ * the designer's live page and a fingerprint to confirm it is the same element there.
+ */
+/**
+ * One element a suggestion animates, as found on the captured page, so Grab can find it on the live page.
+ * The fingerprint is tag, role, text (alt text for an image), the image's file name and the link's path;
+ * `dup` is how many elements on the captured page share it and `nth` which of them this one is (from 0).
+ * Every field is page data: Grab only compares it and never inserts it.
+ */
+export type MotionPart = { selector: string; tag: string; role: string; text: string; src: string; href: string; dup: number; nth: number };
+
 export type MotionCandidate = {
   kind: MotionKind;
   label: string;
@@ -96,13 +132,24 @@ export type MotionCandidate = {
   order: number;
   /** card-hover: how many matching cards were found. */
   count?: number;
+  /** What the playground animates, at most 12 parts, for markers on the live page. */
+  parts: MotionPart[];
 };
 
 export type MotionCandidatePass = {
   viewport: { w: number; h: number };
   candidates: MotionCandidate[];
   warnings: string[];
+  /** Selector mode only: the selector matched nothing shown on the freshly loaded page. */
+  selectorMissing?: boolean;
+  /** Selector mode only: the selector could not be parsed. */
+  selectorInvalid?: boolean;
 };
+
+export const MAX_SELECTOR_LENGTH = 512;
+export const MAX_PARTS = 12;
+
+export type SelectorRequest = { selector: string; trigger?: MotionTrigger };
 
 export const MAX_FRAGMENT_NODES = 40;
 export const MAX_CROP_CSS_PX = 2400;
@@ -113,10 +160,13 @@ type EvaluatePage = {
 };
 
 /** Runs the DOM pass on a loaded Playwright page. */
-export async function findMotionCandidates(page: unknown): Promise<MotionCandidatePass> {
+export async function findMotionCandidates(page: unknown, pick?: SelectorRequest): Promise<MotionCandidatePass> {
   const pass = await (page as EvaluatePage).evaluate(collectMotionCandidatesInPage, {
     maxNodes: MAX_FRAGMENT_NODES,
-    maxCrop: MAX_CROP_CSS_PX
+    maxCrop: MAX_CROP_CSS_PX,
+    maxParts: MAX_PARTS,
+    maxSelector: MAX_SELECTOR_LENGTH,
+    ...(pick ? { selector: pick.selector, ...(pick.trigger ? { trigger: pick.trigger } : {}) } : {})
   });
   for (const c of pass.candidates) c.label = MOTION_KIND_LABELS[c.kind];
   return pass;
@@ -413,9 +463,14 @@ export function averagePngColor(png: Buffer): string | null {
  * Evaluated in the page. Self-contained: it may not reference anything outside
  * its own body. Returns only typed values.
  */
-export async function collectMotionCandidatesInPage(arg: { maxNodes: number; maxCrop: number }): Promise<MotionCandidatePass> {
+export async function collectMotionCandidatesInPage(arg: {
+  maxNodes: number; maxCrop: number; maxParts?: number; maxSelector?: number;
+  selector?: string; trigger?: "entrance" | "hover" | "scroll";
+}): Promise<MotionCandidatePass> {
   const maxNodes = arg.maxNodes;
   const maxCrop = arg.maxCrop;
+  const maxParts = typeof arg.maxParts === "number" ? arg.maxParts : 12;
+  const maxSelector = typeof arg.maxSelector === "number" ? arg.maxSelector : 512;
   const vw = window.innerWidth;
   const vh = window.innerHeight;
   const sx = window.scrollX;
@@ -1074,6 +1129,162 @@ export async function collectMotionCandidatesInPage(arg: { maxNodes: number; max
     warnings.push("Part of the page is built inside " + hosts.map(function (h) { return "<" + h + ">"; }).join(", ") + ", which this cannot read, so its buttons, links and images are not suggested.");
   }
 
+  // ── a chosen element (selector mode) ──
+  // The selector is untrusted: it is only ever handed to querySelector, inside a try/catch.
+  let selectorMissing = false;
+  let selectorInvalid = false;
+  let picked: Raw[] = raws;
+  if (typeof arg.selector === "string") {
+    let el: Element | null = null;
+    try {
+      el = arg.selector.length <= maxSelector ? document.querySelector(arg.selector) : null;
+    } catch {
+      selectorInvalid = true;
+    }
+    picked = [];
+    if (!selectorInvalid && (!el || el === document.body || el === document.documentElement || !visible(el))) selectorMissing = true;
+    if (el && !selectorInvalid && !selectorMissing) {
+      const target = el;
+      const KIND_TRIGGER: Record<string, string> = {
+        "hero-entrance": "entrance", "cta-hover": "hover", "card-hover": "hover",
+        "section-reveal": "scroll", "nav-hover": "hover", "image-reveal": "scroll"
+      };
+      // Any card in a card group is a card, not only the first one the page pass keeps.
+      for (const g of cardGroups) {
+        if (g[0] === target || g.indexOf(target) < 0) continue;
+        const roles = new Map<Element, string>();
+        const img = target.localName === "img" ? target : target.querySelector("img");
+        if (img) roles.set(img, "image");
+        const head = target.querySelector("h1, h2, h3, h4, h5, h6");
+        if (head) roles.set(head, "heading");
+        raws.push({ kind: "card-hover", root: target, rootName: "card", roles: roles, only: null, count: g.length });
+      }
+      // An existing kind is used when its own element is the one chosen and its trigger is the one asked for.
+      const matches = raws.filter(function (r) {
+        if (r.root === target) return true;
+        if (r.kind === "hero-entrance" && heroText === target) return true;
+        if (r.kind === "section-reveal" && r.only && r.only[0] === target) return true;
+        return false;
+      });
+      const want = arg.trigger;
+      const match = matches.find(function (r) { return !want || KIND_TRIGGER[r.kind] === want; });
+      if (match) {
+        picked = [match];
+      } else {
+        const tag = target.localName.toLowerCase();
+        let trigger = want;
+        if (!trigger) {
+          if (matches.length) trigger = KIND_TRIGGER[matches[0].kind] as any;
+          else if (target.matches("img, picture, video, section, article, figure")) trigger = "scroll";
+          else if (target.matches("a[href], button, [role=button], input[type=submit], input[type=button]")) trigger = "hover";
+          else if (inFirstViewport(boxOf(target))) trigger = "entrance";
+          else trigger = "scroll";
+        }
+        const roles = new Map<Element, string>();
+        if (trigger === "entrance") {
+          const kids = (Array.prototype.slice.call(target.children) as Element[]).filter(function (k) {
+            return !SKIP_TAGS.has(k.localName) && visible(k);
+          });
+          if (kids.length >= 2 && kids.length <= 8) for (const k of kids) roles.set(k, "item");
+          else roles.set(target, HEADING_TAGS.has(tag) ? "heading" : "item");
+        } else if (trigger === "hover") {
+          roles.set(target, "action");
+        } else {
+          roles.set(target, tag === "img" ? "image" : "item");
+        }
+        const kind: MotionKind = trigger === "entrance" ? "element-entrance" : trigger === "hover" ? "element-hover" : "element-reveal";
+        const generic: Raw = { kind: kind, root: target, rootName: "element", roles: roles, only: null };
+        raws.push(generic);
+        picked = [generic];
+      }
+    }
+  }
+
+  // ── parts and fingerprints, for markers on the designer's live page ──
+  // The selector is rebuilt the way Grab builds one (ids, data-testid, then a short path of classes
+  // and :nth-of-type), so the live page can find the same element; the fingerprint confirms it.
+  function cssEscape(v: string): string {
+    if ((window as any).CSS && typeof (window as any).CSS.escape === "function") return (window as any).CSS.escape(v);
+    return String(v).replace(/[^a-zA-Z0-9_-]/g, function (c) { return "\\" + c.charCodeAt(0).toString(16) + " "; });
+  }
+  function unique(sel: string): boolean {
+    try { return document.querySelectorAll(sel).length === 1; } catch { return false; }
+  }
+  function selectorOf(el: Element): string {
+    if (el.id) {
+      const idSel = "#" + cssEscape(el.id);
+      if (idSel.length <= maxSelector && unique(idSel)) return idSel;
+    }
+    const testId = el.getAttribute("data-testid");
+    if (testId) {
+      const t = '[data-testid="' + String(testId).replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"]';
+      if (t.length <= maxSelector && unique(t)) return t;
+    }
+    const segs: string[] = [];
+    let node: Element | null = el;
+    while (node && node.nodeType === 1 && node !== document.documentElement && segs.length < 5) {
+      let seg = node.localName.toLowerCase();
+      const cls = (Array.prototype.slice.call(node.classList || []) as string[]).filter(function (c) {
+        return c.indexOf("raven-grab-") !== 0 && c.length < 48;
+      }).slice(0, 2);
+      if (cls.length) seg += "." + cls.map(cssEscape).join(".");
+      const n: Element = node;
+      const sibs = n.parentElement
+        ? (Array.prototype.slice.call(n.parentElement.children) as Element[]).filter(function (c) { return c.localName === n.localName; })
+        : [];
+      if (sibs.length > 1) seg += ":nth-of-type(" + (sibs.indexOf(n) + 1) + ")";
+      segs.unshift(seg);
+      const path = segs.join(" > ");
+      if (path.length > maxSelector) { segs.shift(); break; }
+      if (unique(path)) return path;
+      node = node.parentElement;
+    }
+    return segs.join(" > ").slice(0, maxSelector) || tagOf(el);
+  }
+  function fingerprintText(el: Element): string {
+    const t = el.localName === "img" ? (el.getAttribute("alt") || "") : (el.textContent || "");
+    return t.replace(/\s+/g, " ").trim().slice(0, 40);
+  }
+  function partsOf(r: Raw): Element[] {
+    let els: Element[];
+    if (r.kind === "section-reveal" && r.only) els = r.only.slice();
+    else if (r.kind === "nav-hover") {
+      els = [];
+      r.roles.forEach(function (role, e) { if (role === "item") els.push(e); });
+    } else if (r.kind === "hero-entrance" && heroText) {
+      els = [heroText];
+      const parent = heroText.parentElement;
+      if (heroText !== r.root && parent && r.root.contains(parent)) {
+        for (let s = heroText.nextElementSibling; s; s = s.nextElementSibling) {
+          if (!SKIP_TAGS.has(s.localName) && visible(s) && !decoration(s)) els.push(s);
+        }
+      }
+    } else els = [r.root];
+    return els.slice(0, maxParts);
+  }
+  function fingerprintOf(el: Element): { tag: string; role: string; text: string; src: string; href: string } {
+    const tag = el.localName.toLowerCase();
+    const strip = function (v: string | null): string { return String(v || "").split("#")[0].split("?")[0]; };
+    const src = tag === "img" ? (strip(el.getAttribute("src")).split("/").pop() || "").slice(0, 80) : "";
+    const href = tag === "a" ? strip(el.getAttribute("href")).slice(0, 120) : "";
+    return { tag: tag, role: (el.getAttribute("role") || "").slice(0, 40), text: fingerprintText(el), src: src, href: href };
+  }
+  function sameFingerprint(a: { tag: string; role: string; text: string; src: string; href: string }, b: { tag: string; role: string; text: string; src: string; href: string }): boolean {
+    return a.tag === b.tag && a.role === b.role && a.text === b.text && a.src === b.src && a.href === b.href;
+  }
+  function partRecord(el: Element): MotionPart {
+    const fp = fingerprintOf(el);
+    let dup = 0;
+    let nth = 0;
+    const all = document.getElementsByTagName(fp.tag);
+    for (let i = 0; i < all.length; i++) {
+      if (!sameFingerprint(fingerprintOf(all[i]), fp)) continue;
+      if (all[i] === el) nth = dup;
+      dup++;
+    }
+    return { selector: selectorOf(el), tag: fp.tag, role: fp.role, text: fp.text, src: fp.src, href: fp.href, dup: dup, nth: nth };
+  }
+
   // Load lazy images that will be cropped, so the crop is not blank.
   const lazy: Promise<unknown>[] = [];
 
@@ -1086,7 +1297,7 @@ export async function collectMotionCandidatesInPage(arg: { maxNodes: number; max
   ordered.forEach(function (r, i) { orderOf.set(r, i); });
   const vArea = Math.max(1, vw * vh);
   const candidates: MotionCandidate[] = [];
-  for (const r of raws) {
+  for (const r of picked) {
     const built = buildTree(r.root, r.rootName, r.roles, r.only);
     if (!built.node) continue;
     for (const el of built.elements) {
@@ -1111,7 +1322,8 @@ export async function collectMotionCandidatesInPage(arg: { maxNodes: number; max
         mainAction: r.kind === "cta-hover" && r.root === mainAction,
         area: r2(Math.min(1, (box.w * box.h) / vArea))
       },
-      order: orderOf.get(r) as number
+      order: orderOf.has(r) ? orderOf.get(r) as number : 0,
+      parts: partsOf(r).map(partRecord)
     };
     if (r.count !== undefined) c.count = r.count;
     candidates.push(c);
@@ -1122,5 +1334,8 @@ export async function collectMotionCandidatesInPage(arg: { maxNodes: number; max
       new Promise(function (res) { setTimeout(res, 1500); })
     ]);
   }
-  return { viewport: { w: vw, h: vh }, candidates: candidates, warnings: warnings };
+  const out: MotionCandidatePass = { viewport: { w: vw, h: vh }, candidates: candidates, warnings: warnings };
+  if (selectorMissing) out.selectorMissing = true;
+  if (selectorInvalid) out.selectorInvalid = true;
+  return out;
 }

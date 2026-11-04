@@ -471,6 +471,96 @@ function imageReveal(c: MotionCandidate, ctx: FragmentContext, opts: RecipeOptio
   });
 }
 
+// ── the three element recipes (Motion in Grab: a chosen element with no matching kind) ──
+
+function elementName(c: MotionCandidate): string {
+  const t = (c.parts && c.parts[0] && c.parts[0].text) || c.node.text || "";
+  return t ? ": " + shortText(t, 24) : "";
+}
+
+function elementEntrance(c: MotionCandidate, ctx: FragmentContext, opts: RecipeOptions): RecipeResult {
+  const root = toFNode(ctx, c.node);
+  const g = "entrance";
+  const stagger = root.children.filter((k) => k.role === "item").length >= 2;
+  return finish(c, ctx, opts, root, new Set(stagger ? [root.id] : []), {
+    title: "Entrance" + elementName(c),
+    concept: stagger
+      ? "When the page opens, each part of this element rises and fades in one after another."
+      : "When the page opens, this element rises and fades in.",
+    trigger: "load", triggerWords: "When the page opens",
+    targets: { el: { kind: "element", id: root.id, ...(stagger ? { split: "children" } : {}), label: stagger ? "Parts" : "Element", origin: [0.5, 0.5] } },
+    phases: [{ id: "in", label: "Rises in", duration: "auto" }],
+    tracks: [
+      { target: "el", phase: "in", property: "opacity", from: 0, to: 1, duration: { param: "timing" }, easing: "ease-out", ...(stagger ? { stagger: { each: { param: "gap" }, order: "forward" } } : {}) },
+      { target: "el", phase: "in", property: "translateY", from: { param: "rise" }, to: 0, duration: { param: "timing" }, easing: { param: "feel" }, ...(stagger ? { stagger: { each: { param: "gap" }, order: "forward" } } : {}) },
+    ],
+    groups: [{ id: g, label: "Entrance" }],
+    params: [
+      num("rise", "Rise", g, "amplitude", 0, 80, 2, 20, "px", "How far below its place it starts."),
+      num("timing", "Timing", g, "duration", 200, 1400, 20, 520, "ms", "How long it takes to arrive."),
+      ...(stagger ? [num("gap", "Gap between parts", g, "stagger", 0, 300, 10, 70, "ms", "Wait before the next part starts.")] : []),
+      feel("feel", "Feel", g, [
+        { label: "Settle", value: { kind: "spring", duration: 520, bounce: 0 } },
+        { label: "Glide", value: GLIDE },
+        { label: "Even", value: EVEN },
+      ], "How it moves into place."),
+    ],
+  });
+}
+
+function elementHover(c: MotionCandidate, ctx: FragmentContext, opts: RecipeOptions): RecipeResult {
+  const root = toFNode(ctx, c.node);
+  const g = "hover";
+  return finish(c, ctx, opts, root, new Set(), {
+    title: "Hover lift" + elementName(c),
+    concept: "When the pointer is over it, the element lifts and grows a little; leaving settles it back.",
+    trigger: { on: "hover", target: "el", leave: "reverse" }, triggerWords: "On hover",
+    targets: { el: { kind: "element", id: root.id, label: "Element", origin: [0.5, 0.5] } },
+    phases: [{ id: "lift", label: "Lifts", duration: "auto" }],
+    tracks: [
+      { target: "el", phase: "lift", property: "translateY", from: 0, to: { param: "lift", times: -1 }, duration: { param: "timing" }, easing: { param: "feel" } },
+      { target: "el", phase: "lift", property: "scale", from: 1, to: { param: "grow" }, duration: { param: "timing" }, easing: { param: "feel" } },
+    ],
+    groups: [{ id: g, label: "On hover" }],
+    params: [
+      num("lift", "Lift", g, "amplitude", 0, 12, 1, 3, "px", "How far it rises."),
+      num("grow", "Grow", g, "amplitude", 1, 1.1, 0.01, 1.02, "", "How much larger it gets. 1 keeps its size."),
+      num("timing", "Timing", g, "duration", 80, 800, 10, 220, "ms", "How long the lift takes. Leaving takes as long."),
+      feel("feel", "Feel", g, [
+        { label: "Smooth", value: SMOOTH },
+        { label: "Springy", value: { kind: "spring", duration: 300, bounce: 0.2 } },
+        { label: "Even", value: EVEN },
+      ], "How it moves as it lifts."),
+    ],
+  });
+}
+
+function elementReveal(c: MotionCandidate, ctx: FragmentContext, opts: RecipeOptions): RecipeResult {
+  const root = toFNode(ctx, c.node);
+  const g = "reveal";
+  return finish(c, ctx, opts, root, new Set(), {
+    title: "Scroll reveal" + elementName(c),
+    concept: "As it scrolls into view, the element rises and fades in.",
+    trigger: { on: "scroll", threshold: 0.25, once: true }, triggerWords: "When it scrolls into view",
+    targets: { el: { kind: "element", id: root.id, label: "Element", origin: [0.5, 0.5] } },
+    phases: [{ id: "reveal", label: "Rises in", duration: "auto" }],
+    tracks: [
+      { target: "el", phase: "reveal", property: "opacity", from: 0, to: 1, duration: { param: "timing" }, easing: "ease-out" },
+      { target: "el", phase: "reveal", property: "translateY", from: { param: "rise" }, to: 0, duration: { param: "timing" }, easing: { param: "feel" } },
+    ],
+    groups: [{ id: g, label: "Reveal" }],
+    params: [
+      num("rise", "Rise", g, "amplitude", 0, 80, 2, 24, "px", "How far below its place it starts."),
+      num("timing", "Timing", g, "duration", 200, 1400, 20, 560, "ms", "How long it takes to arrive."),
+      feel("feel", "Feel", g, [
+        { label: "Settle", value: { kind: "spring", duration: 560, bounce: 0 } },
+        { label: "Glide", value: GLIDE },
+        { label: "Even", value: EVEN },
+      ], "How it moves into place."),
+    ],
+  });
+}
+
 const RECIPES: Record<MotionKind, (c: MotionCandidate, ctx: FragmentContext, opts: RecipeOptions) => RecipeResult> = {
   "hero-entrance": heroEntrance,
   "cta-hover": buttonHover,
@@ -478,6 +568,9 @@ const RECIPES: Record<MotionKind, (c: MotionCandidate, ctx: FragmentContext, opt
   "section-reveal": sectionReveal,
   "nav-hover": navHover,
   "image-reveal": imageReveal,
+  "element-entrance": elementEntrance,
+  "element-hover": elementHover,
+  "element-reveal": elementReveal,
 };
 
 export function buildRecipe(c: MotionCandidate, ctx: FragmentContext, opts: RecipeOptions): RecipeResult {

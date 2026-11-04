@@ -32,7 +32,7 @@ export type MotionSendsResult = {
   waiting_url_count: number;
 };
 
-type Registered = { id: string; htmlPath: string; url: string };
+type Registered = { id: string; htmlPath: string; url: string; owner?: string };
 
 type Session = {
   server: Server;
@@ -318,7 +318,8 @@ function resolveWaiters(): void {
   waiter(queue.splice(0));
 }
 
-export async function registerPlayground(htmlPath: string): Promise<{ id: string; url: string; html_path: string }> {
+/** Registers a playground file. `owner` names who made it (a Grab session id), so that owner can unregister it. */
+export async function registerPlayground(htmlPath: string, opts?: { owner?: string }): Promise<{ id: string; url: string; html_path: string }> {
   if (typeof htmlPath !== "string" || htmlPath.trim() === "") throw new Error("html_path is required");
   var full = resolve(htmlPath);
   if (!/\.html$/i.test(full)) throw new Error("html_path must end in .html: " + full);
@@ -334,12 +335,22 @@ export async function registerPlayground(htmlPath: string): Promise<{ id: string
   var s = await startSession();
   var id = randomBytes(8).toString("hex");
   var url = "http://127.0.0.1:" + s.port + "/p/" + id;
-  registry.set(id, { id: id, htmlPath: full, url: url });
+  registry.set(id, { id: id, htmlPath: full, url: url, ...(opts && typeof opts.owner === "string" ? { owner: opts.owner } : {}) });
   while (registry.size > MAX_REGISTERED) {
     var oldest = registry.keys().next().value as string;
     registry.delete(oldest);
   }
   return { id: id, url: url, html_path: full };
+}
+
+/** Stops serving a registered playground. Returns whether it was registered. */
+export function unregisterPlayground(id: string): boolean {
+  return typeof id === "string" && registry.delete(id);
+}
+
+/** Tests and the bridge: whether an id is still served. */
+export function isPlaygroundRegistered(id: string): boolean {
+  return registry.has(id);
 }
 
 export function getMotionSends(timeoutMs?: number): Promise<MotionSendsResult> {

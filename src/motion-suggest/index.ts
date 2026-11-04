@@ -5,15 +5,15 @@ import { randomBytes } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 
-import { capturePage } from "../capture.js";
+import { CaptureAbortedError, capturePage } from "../capture.js";
 import { createMotionPlayground } from "../motion-playground/index.js";
 import { findTasteTerms, type TasteTermHit } from "../motion-playground/taste-map.js";
-import { registerPlayground } from "../motion-session.js";
+import { registerPlayground, unregisterPlayground } from "../motion-session.js";
 import { getTasteProfile, listTasteDecisions, resolveSurfaceBinding } from "../taste.js";
 import { tasteHome, type TasteStore } from "../taste-store.js";
 import {
-  type Box, type MotionCandidate, type MotionGate, type MotionKind,
-  cropImages, findMotionCandidates, imageCropRequests, rankCandidates, MAX_SUGGESTIONS,
+  type Box, type MotionCandidate, type MotionGate, type MotionKind, type MotionPart, type MotionTrigger,
+  cropImages, findMotionCandidates, imageCropRequests, motionGate, rankCandidates, MAX_SELECTOR_LENGTH, MAX_SUGGESTIONS,
 } from "./candidates.js";
 import { readMotionDecisions } from "./decisions.js";
 import { type FontPlan, type FragmentStyle, type ImageData, fallbackKeyword, newContext, newFontPlan } from "./fragment.js";
@@ -33,9 +33,22 @@ export type SuggestMotionInput = {
   project?: string;
   max?: number;
   viewport?: "desktop" | "mobile";
+  /** One element to build a playground for. Forces max to 1 and builds no map. */
+  selector?: string;
+  /** For a selector: when the element moves. */
+  trigger?: MotionTrigger;
+  /** Aborting stops the work: nothing is written or registered after it, and what was registered is removed. */
+  signal?: AbortSignal;
+  /** Who the playgrounds belong to (a Grab session id), passed to registration. */
+  owner?: string;
   /** Tests only: treat named hosts as public. */
   classifyHost?: HostClassifier;
+  /** Tests only: fail every suggestion at this stage. */
+  faultAt?: FailStage;
 };
+
+export type FailStage = "recipe" | "playground" | "register";
+export type FailedSuggestion = { kind: MotionKind; label: string; stage: FailStage; reason: string };
 
 export type MotionSuggestion = {
   id: string;
@@ -51,13 +64,21 @@ export type MotionSuggestion = {
   approximations: string[];
   html_path: string;
   url?: string;
+  playground_id?: string;
+  /** The page elements this animates, for markers on the live page. Page data: compare, never insert. */
+  parts: MotionPart[];
 };
 
 export type SuggestMotionResult = {
   tool: "suggest_motion";
   url: string;
   suggestions: MotionSuggestion[];
-  map_path: string;
+  /** Suggestions that found a place but could not be built, with the stage that failed. */
+  failed: FailedSuggestion[];
+  /** Absent in selector mode. */
+  map_path?: string;
+  /** Selector mode: the one playground's URL. */
+  preview_url?: string;
   message?: string;
   customer_used: string | null;
   notes_used: string[];
@@ -70,7 +91,13 @@ const NEXT = [
   "When the designer says no to a suggestion, record it with record_taste_decision on dimension motion, with rejected starting \"motion:<kind>\".",
 ];
 
-function readArgs(input: SuggestMotionInput): { url: string; profile: string; project: string; max: number; viewport: "desktop" | "mobile" } {
+const NEXT_SELECTOR = [
+  "Give the designer preview_url: it opens the playground for the element they named, on the same origin, so Send to your agent reaches you; then call get_motion_sends.",
+];
+
+type Args = { url: string; profile: string; project: string; max: number; viewport: "desktop" | "mobile"; selector?: string; trigger?: MotionTrigger };
+
+function readArgs(input: SuggestMotionInput): Args {
   const url = typeof input.url === "string" ? input.url.trim() : "";
   if (!url) throw new Error("url is required");
   const profile = typeof input.profile === "string" ? input.profile.trim() : "";
@@ -84,7 +111,19 @@ function readArgs(input: SuggestMotionInput): { url: string; profile: string; pr
   }
   const viewport = input.viewport === undefined ? "desktop" : input.viewport;
   if (viewport !== "desktop" && viewport !== "mobile") throw new Error("viewport must be desktop or mobile");
-  return { url, profile, project, max, viewport };
+  const args: Args = { url, profile, project, max, viewport };
+  if (input.selector !== undefined) {
+    if (typeof input.selector !== "string" || !input.selector.trim()) throw new Error("selector must be a non-empty string");
+    if (input.selector.length > MAX_SELECTOR_LENGTH) throw new Error(`selector must be at most ${MAX_SELECTOR_LENGTH} characters`);
+    args.selector = input.selector.trim();
+    args.max = 1;
+  }
+  if (input.trigger !== undefined) {
+    if (args.selector === undefined) throw new Error("trigger goes with selector");
+    if (input.trigger !== "entrance" && input.trigger !== "hover" && input.trigger !== "scroll") throw new Error("trigger must be entrance, hover or scroll");
+    args.trigger = input.trigger;
+  }
+  return args;
 }
 
 type Inspection = {
@@ -120,9 +159,34 @@ async function resolveFonts(plan: FontPlan, pageUrl: string, classifyHost: HostC
   return paths;
 }
 
+class SuggestAbortedError extends Error {
+  constructor() { super("Motion suggestions were stopped."); this.name = "AbortError"; }
+}
+
 export async function suggestMotion(input: SuggestMotionInput): Promise<SuggestMotionResult> {
   const args = readArgs(input);
   const warnings: string[] = [];
+  const signal = input.signal;
+  const registered: string[] = [];
+  // Called before every write, registration and return once the capture is done.
+  const checkAbort = (): void => {
+    if (signal && signal.aborted) {
+      for (const id of registered) unregisterPlayground(id);
+      registered.length = 0;
+      throw new SuggestAbortedError();
+    }
+  };
+  try {
+    return await run();
+  } catch (e) {
+    if (e instanceof CaptureAbortedError || (signal && signal.aborted)) {
+      for (const id of registered) unregisterPlayground(id);
+      throw new SuggestAbortedError();
+    }
+    throw e;
+  }
+
+  async function run(): Promise<SuggestMotionResult> {
 
   // Taste: the binding's notes and the recorded motion decisions.
   let notes: Record<string, string> = {};
@@ -156,9 +220,20 @@ export async function suggestMotion(input: SuggestMotionInput): Promise<SuggestM
     viewport,
     // Scroll the page first so content that waits to scroll into view is there to read and in the map.
     scroll_settle: true,
+    signal,
     inspect: async (page) => {
-      const pass = await findMotionCandidates(page);
-      const ranked = rankCandidates(pass.candidates, { max: args.max, rejectedKinds, motionNote });
+      const pass = await findMotionCandidates(page, args.selector !== undefined ? { selector: args.selector, ...(args.trigger ? { trigger: args.trigger } : {}) } : undefined);
+      // A chosen element skips ranking and rejected kinds; a note that turns motion off still applies.
+      let ranked: { candidates: MotionCandidate[]; gate: MotionGate; message?: string };
+      if (args.selector !== undefined) {
+        const gate = motionGate(motionNote);
+        if (gate === "none") ranked = rankCandidates(pass.candidates, { max: 1, motionNote });
+        else if (pass.selectorInvalid) ranked = { candidates: [], gate: null, message: "That selector isn't one the page can read, so Raven couldn't find the element." };
+        else if (pass.selectorMissing) ranked = { candidates: [], gate: null, message: "Raven loads the page fresh to copy it, and this element wasn't there. Open the state it's in as its own page, or ask your agent." };
+        else ranked = { candidates: pass.candidates.slice(0, 1), gate: null };
+      } else {
+        ranked = rankCandidates(pass.candidates, { max: args.max, rejectedKinds, motionNote });
+      }
       const crops = new Map<string, ImageData>();
       for (const c of await cropImages(page, imageCropRequests(ranked.candidates))) {
         crops.set(c.id, "png" in c ? { png: c.png } : { color: c.color, approximation: c.approximation });
@@ -176,18 +251,27 @@ export async function suggestMotion(input: SuggestMotionInput): Promise<SuggestM
   }
   const insp = result.inspection;
   warnings.push(...insp.passWarnings);
+  checkAbort();
 
   // Build each suggestion.
   const fontPlan = newFontPlan();
   const built: { c: MotionCandidate; recipe: ReturnType<typeof buildRecipe> }[] = [];
+  const failed: FailedSuggestion[] = [];
+  const fail = (c: MotionCandidate, stage: FailStage, e: unknown): void => {
+    const reason = e instanceof Error ? e.message : String(e);
+    failed.push({ kind: c.kind, label: c.label, stage, reason });
+    warnings.push(`The ${c.label.toLowerCase()} suggestion could not be built: ${reason}`);
+  };
   insp.candidates.forEach((c, i) => {
     try {
+      if (input.faultAt === "recipe") throw new Error("forced failure (test)");
       const ctx = newContext(insp.crops, fontPlan);
       built.push({ c, recipe: buildRecipe(c, ctx, { index: i + 1, terms, tuned: tuned[c.kind] }) });
     } catch (e) {
-      warnings.push(`The ${c.label.toLowerCase()} suggestion could not be built: ${(e as Error).message}`);
+      fail(c, "recipe", e);
     }
   });
+  checkAbort();
   const fontPaths = await resolveFonts(fontPlan, args.url, input.classifyHost, warnings);
 
   const suggestions: MotionSuggestion[] = [];
@@ -204,29 +288,51 @@ export async function suggestMotion(input: SuggestMotionInput): Promise<SuggestM
     if (Object.keys(fonts).length) doc.fonts = fonts;
     const why = buildWhy({ candidate: c, customer, motionNote, gate: insp.gate, termsApplied: recipe.termsApplied, values: recipe.values, restored: recipe.restored });
     let playground;
+    checkAbort();
     try {
+      if (input.faultAt === "playground") throw new Error("forced failure (test)");
       playground = await createMotionPlayground({ store: input.store, timeline: doc, fragment: recipe.fragment, ...(profileName ? { profile: profileName, project: args.project } : {}) });
     } catch (e) {
-      warnings.push(`The ${c.label.toLowerCase()} suggestion could not be built: ${(e as Error).message}`);
+      fail(c, "playground", e);
       continue;
     }
     // The playground's own note about taste and timelines does not apply: the recipe already used the notes.
     warnings.push(...playground.warnings.filter((w) => !/^Taste notes set defaults on built-in motifs only|^No surface binding/.test(w)), ...recipe.warnings);
     let served: { id: string; url: string } | null = null;
-    try { served = await registerPlayground(playground.html_path); } catch (e) { warnings.push(`The playground for ${c.label.toLowerCase()} could not be served: ${(e as Error).message}`); }
+    checkAbort();
+    try {
+      if (input.faultAt === "register") throw new Error("forced failure (test)");
+      served = await registerPlayground(playground.html_path, input.owner ? { owner: input.owner } : undefined);
+      registered.push(served.id);
+    } catch (e) {
+      fail(c, "register", e);
+      continue;
+    }
     for (const k of why.cites) if (k !== "decisions.motion") notesUsed.add(k);
     const number = suggestions.length + 1;
     suggestions.push({
       id: String(doc.id), kind: c.kind, label: c.label, box: c.box, why: why.why, cites: why.cites,
       trigger: doc.trigger, trigger_words: recipe.triggerWords, timeline: doc, fragment: recipe.fragment,
-      approximations: recipe.approximations, html_path: playground.html_path, ...(served ? { url: served.url } : {}),
+      approximations: recipe.approximations, html_path: playground.html_path, url: served.url, playground_id: served.id, parts: c.parts,
     });
-    mapItems.push({ number, label: c.label, why: why.why, triggerWords: recipe.triggerWords, approximations: recipe.approximations, box: c.box, file: basename(playground.html_path), ...(served ? { served: "/p/" + served.id } : {}) });
+    mapItems.push({ number, label: c.label, why: why.why, triggerWords: recipe.triggerWords, approximations: recipe.approximations, box: c.box, file: basename(playground.html_path), served: "/p/" + served.id });
   }
+  checkAbort();
 
   // The map, beside the playgrounds.
   let message = insp.message;
+  if (!suggestions.length && failed.length && !message) message = "Raven found places for motion but couldn't build any previews. The warnings say why.";
   if (!suggestions.length && !message) message = "Nothing on this page could be turned into a playground. The warnings say why.";
+
+  if (args.selector !== undefined) {
+    const out: SuggestMotionResult = {
+      tool: "suggest_motion", url: args.url, suggestions, failed,
+      customer_used: customer || null, notes_used: [...notesUsed], warnings: Array.from(new Set(warnings)), next: NEXT_SELECTOR,
+    };
+    if (suggestions[0] && suggestions[0].url) out.preview_url = suggestions[0].url;
+    if (message && !suggestions.length) out.message = message;
+    return out;
+  }
   const shot = insp.shot || { base64: "", width: viewport.w, height: 1 };
   const html = buildMotionMap({ pageUrl: args.url, screenshot: { mime: "image/jpeg", ...shot }, items: mapItems, message: suggestions.length ? undefined : message });
   const dir = join(tasteHome(), "playgrounds");
@@ -234,12 +340,14 @@ export async function suggestMotion(input: SuggestMotionInput): Promise<SuggestM
   let host = "page";
   try { host = new URL(args.url).hostname.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "page"; } catch { /* keep "page" */ }
   const mapPath = join(dir, `motion-map-${host.slice(0, 40)}-${randomBytes(3).toString("hex")}.html`);
+  checkAbort();
   writeFileSync(mapPath, html, { encoding: "utf8", flag: "wx" });
 
   const out: SuggestMotionResult = {
     tool: "suggest_motion",
     url: args.url,
     suggestions,
+    failed,
     map_path: mapPath,
     customer_used: customer || null,
     notes_used: [...notesUsed],
@@ -248,4 +356,5 @@ export async function suggestMotion(input: SuggestMotionInput): Promise<SuggestM
   };
   if (message && !suggestions.length) out.message = message;
   return out;
+  }
 }

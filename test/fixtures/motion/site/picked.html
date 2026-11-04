@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Picked elements</title>
+<style>
+  body { margin: 0; font-family: sans-serif; background: #f4f2ee; color: #1d1d1f; }
+  section { padding: 48px; }
+  h2 { font-size: 32px; margin: 0 0 16px; }
+  .few { display: flex; gap: 16px; }
+  .few div, .many span { background: #ffffff; padding: 12px 16px; border-radius: 8px; }
+  .many { display: flex; flex-wrap: wrap; gap: 8px; }
+  #photo { display: block; width: 240px; height: 160px; }
+  #go { background: #1a4dff; color: #ffffff; border: 0; padding: 12px 20px; border-radius: 8px; font: inherit; }
+  .twin img { width: 120px; height: 80px; }
+  .more a { margin-right: 16px; }
+  .hostile { background-image: url("https://tracker.example/bg.png"); padding: 16px; }
+</style>
+</head>
+<body>
+  <section id="top">
+    <h2 id="intro-title">A heading near the top</h2>
+    <div class="few" id="few"><div>One</div><div>Two</div><div>Three</div></div>
+  </section>
+  <section id="middle">
+    <img id="photo" src="images/card.png" alt="A small photo">
+    <button id="go" type="button">Start a project</button>
+    <div class="many" id="many"><span>a</span><span>b</span><span>c</span><span>d</span><span>e</span><span>f</span><span>g</span><span>h</span><span>i</span><span>j</span></div>
+  </section>
+  <section id="twins" class="twin">
+    <img class="t" src="images/card.png" alt="Same alt">
+    <img class="t" src="images/card.png" alt="Same alt">
+  </section>
+  <section class="more" id="more">
+    <a href="/one">Learn more</a>
+    <a href="/one">Learn more</a>
+  </section>
+  <div style="height: 1400px"></div>
+  <section id="lower">
+    <h2 id="lower-title">A heading further down</h2>
+  </section>
+  <section id="bad">
+    <div class="hostile" id="hostile" onclick="alert(1)">
+      <script>window.__ran = 1;</script>
+      <a href="https://evil.example/x" onmouseover="steal()">Visit <img src="https://evil.example/pixel.png" alt="pixel" onerror="steal()"></a>
+      <span style="color: red; background: url(javascript:alert(1))">Styled &lt;b&gt;text&lt;/b&gt;</span>
+    </div>
+  </section>
+</body>
+</html>

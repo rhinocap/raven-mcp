@@ -8926,16 +8926,18 @@ server.tool(
 
 server.tool(
   "suggest_motion",
-  "Find the places on a page where motion would help, and build a playground for each from the page's own content. Captures the page at url, picks moments (hero entrance, button hover, card hover, section reveal, navigation hover, image reveal), and for each writes a playground the designer can tune, built from the captured text, styles, images and fonts. Also writes a map: a picture of the page with a numbered spot on each suggestion and a list of why each was picked. Pass profile and project so the suggestions follow the designer's motion notes, customer note and earlier decisions; a 'none-instant' or 'no motion' note returns no suggestions. Anything the playground cannot show exactly, such as a gradient or a shadow, is listed in approximations. Then call open_motion_playground with map_path and hand the designer the url. Captures only http and https pages; a local or private address is allowed only when url itself is one.",
+  "Find the places on a page where motion would help, and build a playground for each from the page's own content. Captures the page at url, picks moments (hero entrance, button hover, card hover, section reveal, navigation hover, image reveal), and for each writes a playground the designer can tune, built from the captured text, styles, images and fonts. Also writes a map: a picture of the page with a numbered spot on each suggestion and a list of why each was picked. Pass profile and project so the suggestions follow the designer's motion notes, customer note and earlier decisions; a 'none-instant' or 'no motion' note returns no suggestions. Anything the playground cannot show exactly, such as a gradient or a shadow, is listed in approximations. Then call open_motion_playground with map_path and hand the designer the url. When the designer names one element in chat (\"add motion to the pricing cards\"), find its CSS selector in the code or from get_grabbed_elements and pass selector (and trigger if they said when it should move): that builds one playground for that element from the same capture, with no map, and returns preview_url to give the designer. Captures only http and https pages; a local or private address is allowed only when url itself is one.",
   {
     url: z.string().min(1).describe("The page to look at: a local dev server (http://localhost:3000/) or a published site (https://…)."),
     profile: z.string().optional().describe("Taste profile name (see list_taste_profiles). Pass with project, or omit both."),
     project: z.string().optional().describe("Bound project name. Pass with profile, or omit both."),
     max: z.number().int().min(1).max(8).optional().describe("Most suggestions to return, 1-8. Default 5."),
     viewport: z.enum(["desktop", "mobile"]).optional().describe("Page width to capture at: desktop (1440 px, default) or mobile (390 px)."),
+    selector: z.string().min(1).max(512).optional().describe("A CSS selector for one element to build a playground for. Sets max to 1 and builds no map."),
+    trigger: z.enum(["entrance", "hover", "scroll"]).optional().describe("With selector: when the element moves. entrance = when the page opens, hover = on hover, scroll = when it scrolls into view. Omit to choose from the element."),
   },
-  async function ({ url, profile, project, max, viewport }) {
-    var result = await suggestMotion({ store: tasteStore, url: url, profile: profile, project: project, max: max, viewport: viewport });
+  async function ({ url, profile, project, max, viewport, selector, trigger }) {
+    var result = await suggestMotion({ store: tasteStore, url: url, profile: profile, project: project, max: max, viewport: viewport, selector: selector, trigger: trigger });
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
 );

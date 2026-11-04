@@ -431,7 +431,16 @@ export type CaptureOptions<T = unknown> = {
    * CaptureUnavailableError instead of taking the file:// no-browser fallback.
    */
   inspect?: (page: any) => Promise<T>;
+  /** Aborting closes the browser, as the deadline does, and the capture throws CaptureAbortedError. */
+  signal?: AbortSignal;
 };
+
+export class CaptureAbortedError extends Error {
+  constructor(url: string) {
+    super("The capture of " + url + " was stopped.");
+    this.name = "CaptureAbortedError";
+  }
+}
 
 export async function capturePage<T = unknown>(url: string, opts?: CaptureOptions<T>): Promise<CaptureResult<T>> {
   const viewport = opts && opts.viewport ? opts.viewport : { w: 1440, h: 900 };
@@ -462,11 +471,22 @@ export async function capturePage<T = unknown>(url: string, opts?: CaptureOption
     }
   }, deadlineMs);
   if (typeof deadlineTimer.unref === "function") deadlineTimer.unref();
+  const signal = opts && opts.signal ? opts.signal : undefined;
+  if (signal && signal.aborted) {
+    clearTimeout(deadlineTimer);
+    throw new CaptureAbortedError(url);
+  }
+  const onAbort = function () {
+    if (browser !== null) Promise.resolve(browser.close()).catch(function () {});
+  };
+  if (signal) signal.addEventListener("abort", onAbort, { once: true });
 
   try {
     try {
       browser = await launchAuditChromium() as unknown as BrowserLike;
+      if (signal && signal.aborted) throw new CaptureAbortedError(url);
     } catch (error) {
+      if (error instanceof CaptureAbortedError) throw error;
       if (opts && (typeof opts.inspect === "function" || typeof opts.beforeNavigate === "function")) {
         throw new CaptureUnavailableError();
       }
@@ -632,10 +652,12 @@ export async function capturePage<T = unknown>(url: string, opts?: CaptureOption
   } catch (error) {
     // A step that failed only because the deadline closed the browser out from
     // under it reports as a timeout, not as whatever Playwright happened to say.
+    if (signal && signal.aborted) throw new CaptureAbortedError(url);
     if (deadlineHit) throw new CaptureTimeoutError(url, deadlineMs);
     throw error;
   } finally {
     clearTimeout(deadlineTimer);
+    if (signal) signal.removeEventListener("abort", onAbort);
     if (browser !== null) {
       try {
         await browser.close();

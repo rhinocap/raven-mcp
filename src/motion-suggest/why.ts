@@ -50,6 +50,12 @@ function pageReason(c: MotionCandidate): string {
       return "these are the page's main links, and a line under the one the pointer is on shows where it goes";
     case "image-reveal":
       return "this is a large image below the first screen, so it can open as it scrolls into view";
+    case "element-entrance":
+      return "you picked this element, so it can arrive as the page opens";
+    case "element-hover":
+      return "you picked this element, so a small lift shows the pointer is on it";
+    case "element-reveal":
+      return "you picked this element, so it can arrive as it scrolls into view";
   }
 }
 
