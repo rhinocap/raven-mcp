@@ -542,6 +542,7 @@ export const PLAYGROUND_CSS = `
         .playground-tour__body {
           min-height: 0;
           overflow-y: auto;
+          overscroll-behavior: contain;
         }
 
         @media (max-height: 480px) {

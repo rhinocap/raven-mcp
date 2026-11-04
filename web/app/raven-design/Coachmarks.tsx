@@ -310,14 +310,19 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
       }
       settleRaf = requestAnimationFrame(tick)
     }
-    addEventListener('scroll', apply, true)
+    // Scrolling the card's own text must not re-place the card.
+    const onScroll = (e: Event) => {
+      if (e.target instanceof Element && e.target.closest('.playground-tour')) return
+      apply()
+    }
+    addEventListener('scroll', onScroll, true)
     addEventListener('resize', apply)
     addEventListener('pointerup', settle, true)
     addEventListener('pointercancel', settle, true)
     return () => {
       cancelAnimationFrame(raf)
       cancelAnimationFrame(settleRaf)
-      removeEventListener('scroll', apply, true)
+      removeEventListener('scroll', onScroll, true)
       removeEventListener('resize', apply)
       removeEventListener('pointerup', settle, true)
       removeEventListener('pointercancel', settle, true)
@@ -358,6 +363,18 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
 
   const current = step >= 0 ? STEPS[step] : null
 
+  // Grab swallows every wheel outside its panels (a capture listener on document) so
+  // the page can't move under them, which also froze the card's scrolling text. A
+  // window capture listener runs first: wheels over the tour stop there and scroll
+  // the text natively; overscroll-behavior keeps the page still at the ends.
+  useEffect(() => {
+    const onWheel = (e: WheelEvent) => {
+      if (e.target instanceof Element && e.target.closest('.playground-tour__card')) e.stopImmediatePropagation()
+    }
+    addEventListener('wheel', onWheel, { capture: true })
+    return () => removeEventListener('wheel', onWheel, { capture: true })
+  }, [])
+
   // Last check after every render: keep the whole card inside the window, whatever
   // the placement above computed (a window resized mid-step, a very short window).
   // The card is never taller than the window, and a card moved this way hides its
@@ -366,12 +383,13 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
     const card = cardRef.current
     if (!card) return
     card.style.translate = ''
-    // Restore the height cap this render computed before measuring.
-    const cap = cardStyle.maxHeight
-    card.style.maxHeight = typeof cap === 'number' ? `${cap}px` : cap ?? ''
     delete card.dataset.clamped
+    // One final cap: the smaller of this render's computed cap and the window, set
+    // before measuring so the text's scroll position is never reset.
     const room = innerHeight - 2 * EDGE_GAP
-    if (card.getBoundingClientRect().height > room) card.style.maxHeight = `${room}px`
+    const cap = cardStyle.maxHeight
+    const capPx = typeof cap === 'number' ? cap : typeof cap === 'string' && cap.endsWith('px') ? parseFloat(cap) : Infinity
+    card.style.maxHeight = `${Math.min(capPx, room)}px`
     const r = card.getBoundingClientRect()
     let dy = 0
     if (r.bottom > innerHeight - EDGE_GAP) dy = innerHeight - EDGE_GAP - r.bottom
