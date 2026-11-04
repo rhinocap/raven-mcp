@@ -113,8 +113,9 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
   const [role, setRole] = useState<Role | null>(null)
   const [step, setStep] = useState(-1)
   const [targetRect, setTargetRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null)
-  // Top edge of Grab's phone sheet; null on wider screens or before it mounts.
-  const [sheetTop, setSheetTop] = useState<number | null>(null)
+  // The visible part of Grab's phone sheet; null on wider screens, before it mounts,
+  // or while it is collapsed off-screen. The sheet can dock to the top or bottom.
+  const [sheet, setSheet] = useState<{ top: number; bottom: number } | null>(null)
   const [viewport, setViewport] = useState({ w: 1440, h: 900 })
   // The tour renders last in <html>, after Grab's overlay host, so on a phone a card
   // that has to sit over the sheet is drawn above it instead of underneath.
@@ -177,7 +178,7 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
   useEffect(() => {
     if (step < 0) {
       setTargetRect(null)
-      setSheetTop(null)
+      setSheet(null)
       return
     }
     const anchor = STEPS[step].anchor
@@ -198,8 +199,11 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
       return panels.sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left)
     }
     const readSheet = () => {
-      const sheet = isPhone() ? visiblePanels()[0] : undefined
-      setSheetTop(sheet ? sheet.getBoundingClientRect().top : null)
+      const el = isPhone() ? visiblePanels()[0] : undefined
+      const r = el?.getBoundingClientRect()
+      const top = r ? Math.max(r.top, 0) : 0
+      const bottom = r ? Math.min(r.bottom, innerHeight) : 0
+      setSheet(r && bottom - top > 1 ? { top, bottom } : null)
     }
     readSheet()
     if (!anchor.startsWith('target:') && !isPanel) {
@@ -230,8 +234,12 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
       if (el) {
         const r = el.getBoundingClientRect()
         if (isPhone()) {
-          const freeTop = 88
-          const freeBottom = innerHeight - PHONE_CARD_ROOM
+          // The card covers the sheet (or the bottom of the screen with no sheet), so
+          // the target goes in the space on the other side of it.
+          const el = visiblePanels()[0]?.getBoundingClientRect()
+          const sheetOnTop = !!el && el.top + el.height / 2 < innerHeight / 2 && el.bottom > 0
+          const freeTop = sheetOnTop && el ? Math.max(el.bottom, 0) + EDGE_GAP : 88
+          const freeBottom = sheetOnTop ? innerHeight - EDGE_GAP : el && el.top < innerHeight ? el.top : innerHeight - PHONE_CARD_ROOM
           const want = freeTop + Math.max((freeBottom - freeTop - r.height) / 2, 0)
           scrollBy({ top: r.top - want, behavior: 'instant' as ScrollBehavior })
         } else if (r.bottom > innerHeight - EDGE_GAP || r.top < 0) {
@@ -372,27 +380,56 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
     return { position: 'fixed', top, left, width: TIP_WIDTH, transform: 'translateY(-50%)' }
   }
 
-  // Phone (Grab's sheet layout): the card spans the width with a 16px inset and no
-  // horizontal transform. Page targets get the card pinned to the bottom, over the
-  // sheet, with the target scrolled into view above it; every other step sits just
-  // above the sheet's top edge.
+  // Phone (Grab's sheet layout): the card spans the width with a 16px inset, no
+  // horizontal transform, and a max height that scrolls on short screens.
+  // - Page targets: the card covers the sheet, at whichever edge the sheet is docked
+  //   (bottom with no sheet), and the target is scrolled into the space opposite.
+  // - Other steps: the card goes in the larger space beside the sheet, tail toward it.
   const isPhoneLayout = viewport.w <= PHONE_MAX
   const isTargetStep = !!current?.anchor.startsWith('target:')
-  const phoneCardStyle = (): React.CSSProperties => {
+  const sheetOnTop = !!sheet && (sheet.top + sheet.bottom) / 2 < viewport.h / 2
+  const phoneCardPlacement = (): { style: React.CSSProperties; tail?: 'top' | 'bottom' } => {
     const base: React.CSSProperties = { position: 'fixed', left: EDGE_GAP, right: EDGE_GAP, width: 'auto' }
+    const full = viewport.h - 2 * EDGE_GAP
+    // Below this the text has too little room to read, so the card covers more.
+    const minCard = Math.min(full, viewport.h * 0.55)
     if (isTargetStep) {
       const tailLeft = targetRect ? targetRect.left + targetRect.width / 2 - EDGE_GAP : 0
-      return { ...base, bottom: EDGE_GAP, ['--tail-left' as string]: `${tailLeft}px` }
+      const pin = sheetOnTop ? { top: EDGE_GAP } : { bottom: EDGE_GAP }
+      // Leave the target visible: the card may use the room past the target, and on
+      // short screens at least 55% of the height, scrolling its text beyond that.
+      const room = !targetRect ? full : sheetOnTop
+        ? targetRect.top - TAIL_GAP - EDGE_GAP
+        : viewport.h - (targetRect.top + targetRect.height) - TAIL_GAP - EDGE_GAP
+      return {
+        style: { ...base, ...pin, maxHeight: Math.min(full, Math.max(room, minCard)), ['--tail-left' as string]: `${tailLeft}px` },
+        tail: targetRect ? (sheetOnTop ? 'bottom' : 'top') : undefined,
+      }
     }
-    if (sheetTop !== null && current?.anchor !== 'center') {
-      return { ...base, bottom: viewport.h - sheetTop + TAIL_GAP, ['--tail-left' as string]: '50%' }
+    if (!sheet) return { style: { ...base, top: '50%', transform: 'translateY(-50%)', maxHeight: full } }
+    const above = sheet.top
+    const below = viewport.h - sheet.bottom
+    const pointAt = current?.anchor !== 'center'
+    const room = Math.max(above, below) - TAIL_GAP - EDGE_GAP
+    if (room < minCard) {
+      // Short screens: pin to the far edge from the sheet and overlap it; no tail.
+      return { style: { ...base, ...(above >= below ? { top: EDGE_GAP } : { bottom: EDGE_GAP }), maxHeight: minCard } }
     }
-    if (sheetTop !== null) return { ...base, bottom: viewport.h - sheetTop + TAIL_GAP }
-    return { ...base, top: '50%', transform: 'translateY(-50%)' }
+    if (above >= below) {
+      return {
+        style: { ...base, bottom: viewport.h - sheet.top + TAIL_GAP, maxHeight: room, ['--tail-left' as string]: '50%' },
+        tail: pointAt ? 'bottom' : undefined,
+      }
+    }
+    return {
+      style: { ...base, top: sheet.bottom + TAIL_GAP, maxHeight: room, ['--tail-left' as string]: '50%' },
+      tail: pointAt ? 'top' : undefined,
+    }
   }
+  const phonePlacement = isPhoneLayout ? phoneCardPlacement() : null
 
-  const cardStyle: React.CSSProperties = isPhoneLayout
-    ? phoneCardStyle()
+  const cardStyle: React.CSSProperties = phonePlacement
+    ? phonePlacement.style
     : current?.anchor === 'panel'
       ? panelCardStyle('right')
       : current?.anchor === 'panel-left'
@@ -403,12 +440,8 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
             ? spotlightStyle()
             : { position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 360 }
 
-  const tailSide = isPhoneLayout
-    ? isTargetStep && targetRect
-      ? 'top'
-      : current?.anchor !== 'center' && sheetTop !== null
-        ? 'bottom'
-        : undefined
+  const tailSide = phonePlacement
+    ? phonePlacement.tail
     : (current?.anchor.startsWith('target:') || current?.anchor.startsWith('grab:')) && targetRect
       ? targetRect.top < FLIP_THRESHOLD
         ? 'top'
@@ -456,11 +489,13 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
             />
           )}
           <div className="playground-tour__card" style={cardStyle} data-tail={tailSide}>
-            <p className="playground-tour__count">
-              {step + 1} / {STEPS.length}
-            </p>
-            <h3>{current.title}</h3>
-            <p>{current.body}</p>
+            <div className="playground-tour__body">
+              <p className="playground-tour__count">
+                {step + 1} / {STEPS.length}
+              </p>
+              <h3>{current.title}</h3>
+              <p>{current.body}</p>
+            </div>
             <div className="playground-tour__actions">
               <button type="button" className="playground-tour__skip" onClick={endTour}>
                 Skip

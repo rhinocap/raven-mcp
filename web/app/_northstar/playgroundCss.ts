@@ -533,6 +533,20 @@ export const PLAYGROUND_CSS = `
           border: 1px solid var(--border-strong);
           border-radius: var(--radius-md);
           box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.5);
+          display: flex;
+          flex-direction: column;
+        }
+
+        /* On short screens the card gets a max height; only the text scrolls, so the
+           buttons stay in view and the tail outside the card is not clipped. */
+        .playground-tour__body {
+          min-height: 0;
+          overflow-y: auto;
+        }
+
+        @media (max-height: 480px) {
+          .playground-tour__card { padding: var(--space-4); }
+          .playground-tour__actions { margin-top: var(--space-2); }
         }
 
         /* The tail is a rotated square sharing the card's fill and border, with the
@@ -587,7 +601,7 @@ export const PLAYGROUND_CSS = `
           font-weight: 600;
         }
 
-        .playground-tour__card > p:not(.playground-tour__count) {
+        .playground-tour__body > p:not(.playground-tour__count) {
           margin: 0;
           color: var(--text-secondary);
           font-size: 14px;
