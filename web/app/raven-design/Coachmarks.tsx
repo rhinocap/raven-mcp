@@ -23,8 +23,9 @@ const TAIL_GAP = 14
 const PHONE_MAX = 760
 // Room kept for the card when a target step pins it to the bottom on a phone.
 const PHONE_CARD_ROOM = 330
-// Least free height beside Grab's phone sheet for a page target to be shown.
-const TARGET_MIN_ROOM = 160
+// A phone sheet taller than this share of the screen leaves no room to show a page
+// target (Grab's half snap is 0.5, its full snap nearly 1).
+const SHEET_BLOCKS_TARGET = 0.75
 // Where an off-screen page target is scrolled to on wider screens: low enough for
 // the card (about 300px tall) to sit above it.
 const DESKTOP_TARGET_TOP = 340
@@ -244,7 +245,7 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
           const freeBottom = sheetOnTop ? innerHeight - EDGE_GAP : el && el.top < innerHeight ? el.top : innerHeight - PHONE_CARD_ROOM
           const want = freeTop + Math.max((freeBottom - freeTop - r.height) / 2, 0)
           // A sheet dragged to full height leaves no room; leave the page where it is.
-          if (freeBottom - freeTop >= TARGET_MIN_ROOM) scrollBy({ top: r.top - want, behavior: 'instant' as ScrollBehavior })
+          if (!el || el.height <= innerHeight * SHEET_BLOCKS_TARGET) scrollBy({ top: r.top - want, behavior: 'instant' as ScrollBehavior })
         } else if (r.bottom > innerHeight - EDGE_GAP || r.top < 0) {
           const want = Math.min(DESKTOP_TARGET_TOP, Math.max(innerHeight - EDGE_GAP - r.height, FLIP_THRESHOLD))
           scrollBy({ top: r.top - want, behavior: 'instant' as ScrollBehavior })
@@ -394,8 +395,7 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
   // step is placed like a panel step, without a spotlight or tail. Grab has no API
   // for the tour to shrink the sheet.
   const anchorIsTarget = !!current?.anchor.startsWith('target:')
-  const targetRoom = !sheet ? Infinity : sheetOnTop ? viewport.h - sheet.bottom - EDGE_GAP : sheet.top - 88
-  const targetBlocked = isPhoneLayout && anchorIsTarget && targetRoom < TARGET_MIN_ROOM
+  const targetBlocked = isPhoneLayout && anchorIsTarget && !!sheet && sheet.bottom - sheet.top > viewport.h * SHEET_BLOCKS_TARGET
   const isTargetStep = anchorIsTarget && !targetBlocked
   const phoneCardPlacement = (): { style: React.CSSProperties; tail?: 'top' | 'bottom' } => {
     const base: React.CSSProperties = { position: 'fixed', left: EDGE_GAP, right: EDGE_GAP, width: 'auto' }
