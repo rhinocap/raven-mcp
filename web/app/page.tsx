@@ -3,6 +3,7 @@ import { TOOL_COUNT, LAYER_COUNT } from '@/lib/counts'
 import ToolsSection from "@/components/tools/ToolsSection";
 import HeroGrid from '@/components/HeroGrid'
 import BeforeAfter from '@/components/BeforeAfter'
+import MotionDemoVideo from '@/components/MotionDemoVideo'
 
 export default function Home() {
   return (
@@ -71,6 +72,28 @@ export default function Home() {
                 loop
                 playsInline
                 aria-label="Screen recording of Raven Design editing the Northstar Workspace: configuring a reusable component, reordering a layer, preparing an agent change, then selecting a heading and typing a mobile instruction."
+              />
+            </figure>
+          </div>
+        </section>
+
+        {/* RAVEN MOTION — the motion playground */}
+        <section id="motion" className="raven-design">
+          <div className="container">
+            <div className="section-header">
+              <h2 className="reveal reveal-delay-1">Pick an element. Tune how it moves.</h2>
+              <p className="subtitle reveal reveal-delay-2">Drag a slider and watch it change, then copy the motion into your code.</p>
+            </div>
+
+            <div className="pg-demo-cta reveal">
+              <a href="/motion" className="btn btn-primary">Try the playground</a>
+            </div>
+
+            <figure className="ba-featured pg-demo reveal">
+              <MotionDemoVideo
+                src="/motion-demo.mp4"
+                poster="/motion-demo-poster.jpg"
+                label="Screen recording of Raven Motion on the Northstar Workspace: finding six places that should move, opening the main button's playground, dragging Lift higher and hovering again, moving to the hero entrance and dragging Rise higher, then copying the motion for an agent."
               />
             </figure>
           </div>
