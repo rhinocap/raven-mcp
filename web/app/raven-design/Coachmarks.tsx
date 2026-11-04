@@ -8,10 +8,10 @@ const ROLE_KEY = 'raven-grab-role'
 const TOUR_KEY = 'raven-grab-tour-done'
 const TOUR_STEP_KEY = 'raven-grab-tour-step'
 
-type Step = {
+export type Step = {
   title: string
   body: string
-  // 'center' | 'target:<selector>' | 'panel' (right inspector) | 'panel-left' (left panel) | 'panel-left-foot' (left panel, card at its footer)
+  // 'center' | 'target:<selector>' | 'grab:<selector>' (inside the overlay's shadow root) | 'panel' (right inspector) | 'panel-left' (left panel) | 'panel-left-foot' (left panel, card at its footer)
   anchor: string
 }
 
@@ -75,7 +75,28 @@ function readRole(): Role {
   }
 }
 
-export default function Coachmarks({ config }: { config: Record<string, unknown> }) {
+type Props = {
+  config: Record<string, unknown>
+  // Defaults are /raven-design's tour; /motion passes its own steps and keys.
+  steps?: Step[]
+  tourKey?: string
+  stepKey?: string
+  showRoles?: boolean
+}
+
+// Finds an element inside the overlay's shadow root.
+function grabQuery(selector: string): Element | null {
+  let found: Element | null = null
+  document.querySelectorAll('*').forEach((el) => {
+    if (!found && el.shadowRoot) found = el.shadowRoot.querySelector(selector)
+  })
+  return found
+}
+
+export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, stepKey = TOUR_STEP_KEY, showRoles = true }: Props) {
+  const STEPS = steps
+  const TOUR_KEY = tourKey
+  const TOUR_STEP_KEY = stepKey
   const [role, setRole] = useState<Role | null>(null)
   const [step, setStep] = useState(-1)
   const [targetRect, setTargetRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null)
@@ -121,7 +142,8 @@ export default function Coachmarks({ config }: { config: Record<string, unknown>
     }
     const anchor = STEPS[step].anchor
     const isLeftPanel = anchor === 'panel-left' || anchor === 'panel-left-foot'
-    const isPanel = anchor === 'panel' || isLeftPanel
+    const isGrab = anchor.startsWith('grab:')
+    const isPanel = anchor === 'panel' || isLeftPanel || isGrab
     if (!anchor.startsWith('target:') && !isPanel) {
       setTargetRect(null)
       return
@@ -129,6 +151,10 @@ export default function Coachmarks({ config }: { config: Record<string, unknown>
     const resolve = (): DOMRect | null => {
       if (anchor.startsWith('target:')) {
         return document.querySelector(anchor.slice(7))?.getBoundingClientRect() ?? null
+      }
+      if (isGrab) {
+        const r = grabQuery(anchor.slice(5))?.getBoundingClientRect()
+        return r && (r.width || r.height) ? r : null
       }
       const panels: Element[] = []
       document.querySelectorAll('*').forEach((el) => {
@@ -264,12 +290,12 @@ export default function Coachmarks({ config }: { config: Record<string, unknown>
         ? panelCardStyle('left')
         : current?.anchor === 'panel-left-foot'
           ? panelCardStyle('left', 'foot')
-          : current?.anchor.startsWith('target:') && targetRect
+          : (current?.anchor.startsWith('target:') || current?.anchor.startsWith('grab:')) && targetRect
             ? spotlightStyle()
             : { position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 360 }
 
   const tailSide =
-    current?.anchor.startsWith('target:') && targetRect
+    (current?.anchor.startsWith('target:') || current?.anchor.startsWith('grab:')) && targetRect
       ? targetRect.top < FLIP_THRESHOLD
         ? 'top'
         : 'bottom'
@@ -282,6 +308,7 @@ export default function Coachmarks({ config }: { config: Record<string, unknown>
   return (
     <>
       <div className="playground-controls" data-raven-grab-ignore="">
+        {showRoles && (
         <div className="playground-role-toggle" role="group" aria-label="Role">
           {(['consumer', 'maintainer'] as const).map((r) => (
             <button
@@ -294,6 +321,7 @@ export default function Coachmarks({ config }: { config: Record<string, unknown>
             </button>
           ))}
         </div>
+        )}
         <button type="button" className="playground-replay" onClick={() => setStep(0)}>
           Replay tour
         </button>

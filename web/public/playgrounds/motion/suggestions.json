@@ -1,0 +1,189 @@
+{
+  "suggestions": [
+    {
+      "label": "Button hover: Open dashboard",
+      "kind": "cta-hover",
+      "why": "This is the page's main button, so it should answer the pointer quickly.",
+      "trigger_words": "On hover",
+      "approximations": [],
+      "parts": [
+        {
+          "selector": "a.wireframe-button.wireframe-button--primary:nth-of-type(2)",
+          "tag": "a",
+          "role": "",
+          "text": "Open dashboard",
+          "src": "",
+          "href": "",
+          "dup": 1,
+          "nth": 0
+        }
+      ],
+      "url": "/playgrounds/motion/cta-hover-1.html"
+    },
+    {
+      "label": "Hero entrance",
+      "kind": "hero-entrance",
+      "why": "This is the first thing people read on the page, so it can arrive as the page opens.",
+      "trigger_words": "When the page opens",
+      "approximations": [
+        "The line along the hero's bottom edge is not shown."
+      ],
+      "parts": [
+        {
+          "selector": "#wireframe-title",
+          "tag": "h2",
+          "role": "",
+          "text": "Keep project work in one clear view.",
+          "src": "",
+          "href": "",
+          "dup": 1,
+          "nth": 0
+        },
+        {
+          "selector": "p.wireframe-body:nth-of-type(2)",
+          "tag": "p",
+          "role": "",
+          "text": "Review active work, share updates, and c",
+          "src": "",
+          "href": "",
+          "dup": 1,
+          "nth": 0
+        },
+        {
+          "selector": "div.wireframe-actions",
+          "tag": "div",
+          "role": "",
+          "text": "View featuresContact team",
+          "src": "",
+          "href": "",
+          "dup": 1,
+          "nth": 0
+        }
+      ],
+      "url": "/playgrounds/motion/hero-entrance-2.html"
+    },
+    {
+      "label": "Navigation hover",
+      "kind": "nav-hover",
+      "why": "These are the page's main links, and a line under the one the pointer is on shows where it goes.",
+      "trigger_words": "On hover",
+      "approximations": [
+        "The line along the navigation's bottom edge is not shown.",
+        "Only the first link responds here; on your site every link would."
+      ],
+      "parts": [
+        {
+          "selector": "a.wireframe-logo:nth-of-type(1)",
+          "tag": "a",
+          "role": "",
+          "text": "Northstar",
+          "src": "",
+          "href": "",
+          "dup": 1,
+          "nth": 0
+        },
+        {
+          "selector": "div.wireframe-nav__links > a:nth-of-type(1)",
+          "tag": "a",
+          "role": "",
+          "text": "Overview",
+          "src": "",
+          "href": "",
+          "dup": 1,
+          "nth": 0
+        },
+        {
+          "selector": "div.wireframe-nav__links > a:nth-of-type(2)",
+          "tag": "a",
+          "role": "",
+          "text": "Features",
+          "src": "",
+          "href": "",
+          "dup": 1,
+          "nth": 0
+        },
+        {
+          "selector": "a:nth-of-type(3)",
+          "tag": "a",
+          "role": "",
+          "text": "Contact",
+          "src": "",
+          "href": "",
+          "dup": 1,
+          "nth": 0
+        },
+        {
+          "selector": "a.wireframe-button.wireframe-button--primary:nth-of-type(2)",
+          "tag": "a",
+          "role": "",
+          "text": "Open dashboard",
+          "src": "",
+          "href": "",
+          "dup": 1,
+          "nth": 0
+        }
+      ],
+      "url": "/playgrounds/motion/nav-hover-3.html"
+    },
+    {
+      "label": "Card hover",
+      "kind": "card-hover",
+      "why": "There are 3 cards like this one, so one lift carries across all of them and shows which card the pointer is on.",
+      "trigger_words": "On hover",
+      "approximations": [],
+      "parts": [
+        {
+          "selector": "article.wireframe-feature-card:nth-of-type(1)",
+          "tag": "article",
+          "role": "",
+          "text": "Project statusSee owners, dates, and pro",
+          "src": "",
+          "href": "",
+          "dup": 1,
+          "nth": 0
+        }
+      ],
+      "url": "/playgrounds/motion/card-hover-4.html"
+    },
+    {
+      "label": "Button hover: View features",
+      "kind": "cta-hover",
+      "why": "This button is in the first screen, so a small hover makes it feel ready to press.",
+      "trigger_words": "On hover",
+      "approximations": [],
+      "parts": [
+        {
+          "selector": "a.wireframe-button.wireframe-button--primary:nth-of-type(1)",
+          "tag": "a",
+          "role": "",
+          "text": "View features",
+          "src": "",
+          "href": "",
+          "dup": 1,
+          "nth": 0
+        }
+      ],
+      "url": "/playgrounds/motion/cta-hover-5.html"
+    },
+    {
+      "label": "Button hover: Contact team",
+      "kind": "cta-hover",
+      "why": "This button is in the first screen, so a small hover makes it feel ready to press.",
+      "trigger_words": "On hover",
+      "approximations": [],
+      "parts": [
+        {
+          "selector": "a.wireframe-button.wireframe-button--secondary:nth-of-type(2)",
+          "tag": "a",
+          "role": "",
+          "text": "Contact team",
+          "src": "",
+          "href": "",
+          "dup": 1,
+          "nth": 0
+        }
+      ],
+      "url": "/playgrounds/motion/cta-hover-6.html"
+    }
+  ]
+}

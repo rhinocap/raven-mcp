@@ -16,6 +16,7 @@ const checks = {
     siteVersion: null,
   },
   bundle: { status: "PASS", version: null },
+  motion: { status: "PASS", files: 0 },
 };
 
 function addError(check, message, extra = {}) {
@@ -308,6 +309,33 @@ if (
   }
 }
 
+// /motion's prebuilt suggestions (scripts/build-motion-playground.mjs) must match the
+// wireframe they were built from, stay unedited, and name nothing on this machine.
+{
+  const dir = "web/public/playgrounds/motion";
+  const { createHash } = await import("node:crypto");
+  const { inputsHash, LOCAL_PATTERN } = await import(path.join(root, "scripts/build-motion-playground.mjs"));
+  const source = parseJson(await read(`${dir}/source.json`, "motion"), `${dir}/source.json`, "motion");
+  if (source) {
+    if (source.inputs !== inputsHash()) {
+      addError("motion", `${dir} was built from an older wireframe; run node scripts/build-motion-playground.mjs`);
+    }
+    let names = [];
+    try { names = (await readdir(path.join(root, dir))).filter((n) => /\.(html|json)$/.test(n) && n !== "source.json"); } catch { /* reported by read */ }
+    for (const name of new Set([...names, ...Object.keys(source.files || {})])) {
+      const body = await read(`${dir}/${name}`, "motion");
+      if (body === null) continue;
+      if (!source.files?.[name]) { addError("motion", `${dir}/${name} is not in source.json`); continue; }
+      if (createHash("sha256").update(body).digest("hex") !== source.files[name]) addError("motion", `${dir}/${name} was edited after the build`);
+      if (LOCAL_PATTERN.test(body)) addError("motion", `${dir}/${name} names a local path or loopback URL: ${body.match(LOCAL_PATTERN)[0]}`);
+      checks.motion.files += 1;
+    }
+  }
+  const grab = await read("browser/raven-grab.js", "motion");
+  const served = await read("web/public/raven-grab.js", "motion");
+  if (grab !== null && served !== null && grab !== served) addError("motion", "web/public/raven-grab.js differs from browser/raven-grab.js; copy it over");
+}
+
 
 const result = {
   ok: errors.length === 0,
@@ -389,6 +417,13 @@ if (jsonOutput) {
     for (const error of errors.filter((item) => item.check === "bundle")) {
       lines.push(`  ERROR: ${error.message}`);
     }
+  }
+
+  lines.push("\nMOTION");
+  if (checks.motion.status === "PASS") {
+    lines.push(`  PASS: ${checks.motion.files} prebuilt files match their wireframe and source.json; raven-grab.js copies match`);
+  } else {
+    for (const error of errors.filter((item) => item.check === "motion")) lines.push(`  ERROR: ${error.message}`);
   }
 
   lines.push(
