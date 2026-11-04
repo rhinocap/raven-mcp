@@ -365,11 +365,13 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
 
   // Grab swallows every wheel outside its panels (a capture listener on document) so
   // the page can't move under them, which also froze the card's scrolling text. A
-  // window capture listener runs first: wheels over the tour stop there and scroll
-  // the text natively; overscroll-behavior keeps the page still at the ends.
+  // window capture listener runs first and lets a wheel through only over text that
+  // overflows, so it scrolls natively; overscroll-behavior keeps the page still at its
+  // ends. Wheels anywhere else on the card (buttons, padding) still reach Grab's blocker.
   useEffect(() => {
     const onWheel = (e: WheelEvent) => {
-      if (e.target instanceof Element && e.target.closest('.playground-tour__card')) e.stopImmediatePropagation()
+      const body = e.target instanceof Element ? e.target.closest('.playground-tour__body') : null
+      if (body && body.scrollHeight > body.clientHeight + 1) e.stopImmediatePropagation()
     }
     addEventListener('wheel', onWheel, { capture: true })
     return () => removeEventListener('wheel', onWheel, { capture: true })
