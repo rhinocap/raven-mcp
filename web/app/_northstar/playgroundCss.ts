@@ -565,6 +565,8 @@ export const PLAYGROUND_CSS = `
           transform: rotate(45deg);
         }
 
+        .playground-tour__card[data-clamped]::after { display: none; }
+
         .playground-tour__card[data-tail='bottom']::after {
           bottom: -7px;
           clip-path: polygon(100% 0, 100% 100%, 0 100%);

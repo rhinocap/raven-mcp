@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 type Role = 'consumer' | 'maintainer'
@@ -119,6 +119,7 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
   // The visible part of Grab's phone sheet; null on wider screens, before it mounts,
   // or while it is collapsed off-screen. The sheet can dock to the top or bottom.
   const [sheet, setSheet] = useState<{ top: number; bottom: number } | null>(null)
+  const cardRef = useRef<HTMLDivElement>(null)
   const [viewport, setViewport] = useState({ w: 1440, h: 900 })
   // The tour renders last in <html>, after Grab's overlay host, so on a phone a card
   // that has to sit over the sheet is drawn above it instead of underneath.
@@ -223,10 +224,21 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
         }
       }
       retry()
+      // A sheet drag fires no resize; re-read the sheet once its snap has settled.
+      let settleTimer = 0
+      const settle = () => {
+        clearTimeout(settleTimer)
+        settleTimer = window.setTimeout(readSheet, 400)
+      }
       addEventListener('resize', readSheet)
+      addEventListener('pointerup', settle, true)
+      addEventListener('pointercancel', settle, true)
       return () => {
         cancelAnimationFrame(raf)
+        clearTimeout(settleTimer)
         removeEventListener('resize', readSheet)
+        removeEventListener('pointerup', settle, true)
+        removeEventListener('pointercancel', settle, true)
       }
     }
     // Bring a page target into view before placing the card. On a phone it goes in
@@ -345,6 +357,30 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
   }
 
   const current = step >= 0 ? STEPS[step] : null
+
+  // Last check after every render: keep the whole card inside the window, whatever
+  // the placement above computed (a window resized mid-step, a very short window).
+  // The card is never taller than the window, and a card moved this way hides its
+  // tail, which no longer lines up with the target.
+  useLayoutEffect(() => {
+    const card = cardRef.current
+    if (!card) return
+    card.style.translate = ''
+    // Restore the height cap this render computed before measuring.
+    const cap = cardStyle.maxHeight
+    card.style.maxHeight = typeof cap === 'number' ? `${cap}px` : cap ?? ''
+    delete card.dataset.clamped
+    const room = innerHeight - 2 * EDGE_GAP
+    if (card.getBoundingClientRect().height > room) card.style.maxHeight = `${room}px`
+    const r = card.getBoundingClientRect()
+    let dy = 0
+    if (r.bottom > innerHeight - EDGE_GAP) dy = innerHeight - EDGE_GAP - r.bottom
+    if (r.top + dy < EDGE_GAP) dy = EDGE_GAP - r.top
+    if (Math.abs(dy) >= 1) {
+      card.style.translate = `0 ${dy}px`
+      card.dataset.clamped = ''
+    }
+  })
 
   // Spotlight coachmarks sit ABOVE their target, centred on it, with a tail pointing
   // down at what they describe — matching the panel's icon tooltips. Below-and-
@@ -528,7 +564,7 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
               }}
             />
           )}
-          <div className="playground-tour__card" style={cardStyle} data-tail={tailSide}>
+          <div ref={cardRef} className="playground-tour__card" style={cardStyle} data-tail={tailSide}>
             <div className="playground-tour__body">
               <p className="playground-tour__count">
                 {step + 1} / {STEPS.length}
