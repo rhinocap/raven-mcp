@@ -205,9 +205,12 @@ echo "→ Waiting for npm to serve v$NEW"
 # The MCP Registry validates against npm and refuses a version npm does not yet
 # serve. v3.0.0 published at 06:33:29, the registry gave up at 06:34:07, and npm
 # showed the version at 06:36:53. Wait for npm first, up to five minutes.
+# Each request is capped at 10 s and the whole wait at 300 s, so a stalled
+# connection cannot hold the release open.
 NPM_VISIBLE=0
-for _wait in $(seq 1 60); do
-  if curl -sf -o /dev/null -H "Cache-Control: no-cache" "https://registry.npmjs.org/raven-mcp/$NEW"; then
+NPM_WAIT_END=$((SECONDS + 300))
+while (( SECONDS < NPM_WAIT_END )); do
+  if curl -sf --connect-timeout 5 --max-time 10 -o /dev/null -H "Cache-Control: no-cache" "https://registry.npmjs.org/raven-mcp/$NEW"; then
     NPM_VISIBLE=1
     echo "  npm serves v$NEW"
     break
@@ -215,8 +218,15 @@ for _wait in $(seq 1 60); do
   sleep 5
 done
 if [[ $NPM_VISIBLE -ne 1 ]]; then
-  echo "✗ npm still does not serve v$NEW after five minutes. npm has published it;"
-  echo "  re-run scripts/release.sh once it appears and it resumes on the shasum check."
+  # A plain local rerun cannot resume from here: the bumped files leave the tree
+  # dirty (the guard at the top refuses), and committing them first would make
+  # the rerun bump past $NEW. Resume at the same version instead.
+  echo "✗ npm still does not serve v$NEW after five minutes. npm has published it."
+  echo "  Once https://registry.npmjs.org/raven-mcp/$NEW loads, resume at v$NEW:"
+  echo "    in Actions: gh run rerun <run-id> --failed"
+  echo "    locally:    git stash push && scripts/release.sh $BUMP"
+  echo "  Both start from the unbumped tree, compute v$NEW again and continue past"
+  echo "  the npm shasum check. (resume_version skips this script, so it cannot.)"
   exit 1
 fi
 
