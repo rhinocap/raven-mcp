@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src &#39;none&#39;; script-src &#39;sha256-mCPoR1R6XYvsHrJiZr5KYKPFxPrlfphO9v1gP6icEbk=&#39; &#39;sha256-CxLQCA9mTGo2/bbGh24CBsPTQqdANX1za4/4ZdLOnPY=&#39; http://127.0.0.1:* http://localhost:*; style-src &#39;unsafe-inline&#39; http://127.0.0.1:* http://localhost:* https://fonts.googleapis.com; img-src data: blob: http://127.0.0.1:* http://localhost:*; font-src data: http://127.0.0.1:* http://localhost:* https://fonts.gstatic.com; connect-src &#39;self&#39; http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:*; form-action &#39;none&#39;; object-src &#39;none&#39;">
+<meta http-equiv="Content-Security-Policy" content="default-src &#39;none&#39;; script-src &#39;sha256-mCPoR1R6XYvsHrJiZr5KYKPFxPrlfphO9v1gP6icEbk=&#39; &#39;sha256-nD8a1wL4oVDfwzlzmSLi8VmwyGS1/x1laahvNBJFpQE=&#39; http://127.0.0.1:* http://localhost:*; style-src &#39;unsafe-inline&#39; http://127.0.0.1:* http://localhost:* https://fonts.googleapis.com; img-src data: blob: http://127.0.0.1:* http://localhost:*; font-src data: http://127.0.0.1:* http://localhost:* https://fonts.gstatic.com; connect-src &#39;self&#39; http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:*; form-action &#39;none&#39;; object-src &#39;none&#39;">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>911 key hover-jingle</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -112,6 +112,9 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px var(
 .block label.ask { font-size: var(--t-sm); color: var(--fg-2); }
 .block textarea.note { height: 72px; font-family: inherit; font-size: var(--t-sm); color: var(--fg); }
 .block .context { color: var(--fg-3); }
+/* The answer to a send sits under the button, where the designer is looking. */
+.block .send-result { margin: 0; color: var(--fg-2); font-size: var(--t-sm); }
+.block .send-result.ok { color: var(--focus); }
 .menu-stack { display: flex; flex-direction: column; gap: 20px; }
 /* The direct exports sit behind a disclosure styled as a button, with no marker glyph. */
 .more-code { border-top: 1px solid var(--line); padding-top: 12px; }
@@ -187,6 +190,7 @@ main#preview { display: flex; flex-direction: column; min-height: 0; min-width: 
           <textarea class="note" id="send-note" placeholder="Use this on the contact page, beside the address" spellcheck="true"></textarea>
           <p class="context">Sent with your note: <span id="send-context"></span></p>
           <div class="row2"><button class="btn primary" id="send-agent">Send to your agent</button></div>
+          <p class="send-result" id="send-result" hidden></p>
         </div>
         <div class="block" id="copy-block">
           <h3 id="copy-title">Send to your agent</h3>
@@ -964,23 +968,34 @@ function mlJingle(svg, P, opts) {
     $('send-block').hidden = false;
     $('copy-title').textContent = 'Or copy it';
     $('copy-agent').className = 'btn';
+    // The status line up top is the one screen readers hear; this copy sits under the button for the eye.
+    var sentTimer = 0;
+    function told(msg, ok) {
+      say(msg);
+      var r = $('send-result');
+      r.textContent = msg; r.className = 'send-result' + (ok ? ' ok' : ''); r.hidden = false;
+    }
+    $('send-note').addEventListener('input', function () { $('send-result').hidden = true; });
     $('send-agent').addEventListener('click', function () {
       var btn = $('send-agent');
       if (btn.disabled) return;
       var typed = $('send-note').value, sent = typed.trim().slice(0, 4000);
       var body = JSON.stringify({ playground: String(sendTo.playground || ''), title: schema.title, instruction: sent, context: sendContext(), packet: agentPacket() });
+      clearTimeout(sentTimer); btn.textContent = 'Send to your agent'; $('send-result').hidden = true;
       btn.disabled = true; say('Sending…');
       // Raven answers at once, so a send that hangs is given up on and the button comes back. Raven never redirects.
       var ctl = typeof AbortController === 'function' ? new AbortController() : null;
       var timer = ctl ? setTimeout(function () { ctl.abort(); }, 8000) : 0;
       fetch(sendTo.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body, redirect: 'error', signal: ctl ? ctl.signal : undefined }).then(function (r) {
-        if (r.status === 503) { say('Your agent has notes it hasn’t read yet. Ask it to check them, then send again.'); return; }
+        if (r.status === 503) { told('Your agent has notes it hasn’t read yet. Ask it to check them, then send again.', false); return; }
         if (r.status !== 202) throw new Error(String(r.status));
         // A note typed while this one was on its way stays put.
         if ($('send-note').value === typed) $('send-note').value = '';
-        say('Sent. Your agent has it.');
+        told('Sent. Your agent has it.', true);
+        btn.textContent = 'Sent';
+        sentTimer = setTimeout(function () { btn.textContent = 'Send to your agent'; }, 2000);
       }).catch(function () {
-        say('Couldn’t reach your agent. Ask it to open this playground again, or use Copy below.');
+        told('Couldn’t reach your agent. Ask it to open this playground again, or use Copy below.', false);
       }).then(function () { clearTimeout(timer); btn.disabled = false; });
     });
   }

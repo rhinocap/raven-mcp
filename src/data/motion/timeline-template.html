@@ -121,6 +121,9 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .block label.ask { color: var(--fg-3); font-size: var(--t-sm); font-weight: 500; letter-spacing: -.01em; }
 .block textarea.note { height: 88px; font-family: inherit; font-size: var(--t-sm); color: var(--fg); }
 .block .context { color: var(--fg-3); }
+/* The answer to a send sits under the button, where the designer is looking. */
+.block .send-result { margin: 0; color: var(--fg-2); font-size: var(--t-sm); }
+.block .send-result.ok { color: var(--accent); }
 .menu-stack { display: flex; flex-direction: column; gap: 20px; }
 /* The direct exports sit behind a disclosure styled as a button, with no marker glyph. */
 .more-code { border-top: 1px solid var(--hair); padding-top: 16px; }
@@ -298,6 +301,7 @@ main#preview { position: fixed; top: var(--edge); bottom: var(--edge); left: var
         <label class="ask" for="send-note">What should your agent do with it?</label>
         <textarea class="note" id="send-note" placeholder="Use this for the hero on the home page" spellcheck="true"></textarea>
         <button class="btn primary" id="send-agent">Send to your agent</button>
+        <p class="send-result" id="send-result" hidden></p>
       </div>
     </div>
   </aside>
@@ -1382,23 +1386,34 @@ __SWIFTUI__
     $('send-about').hidden = false;
     $('copy-title').textContent = 'Copy instead of sending';
     $('copy-agent').className = 'btn';
+    // The status line up top is the one screen readers hear; this copy sits under the button for the eye.
+    var sentTimer = 0;
+    function told(msg, ok) {
+      say(msg);
+      var r = $('send-result');
+      r.textContent = msg; r.className = 'send-result' + (ok ? ' ok' : ''); r.hidden = false;
+    }
+    $('send-note').addEventListener('input', function () { $('send-result').hidden = true; });
     $('send-agent').addEventListener('click', function () {
       var btn = $('send-agent');
       if (btn.disabled) return;
       var typed = $('send-note').value, sent = typed.trim().slice(0, 4000);
       var body = JSON.stringify({ playground: String(sendTo.playground || ''), title: doc.title, instruction: sent, context: sendContext(), packet: agentPacket() });
+      clearTimeout(sentTimer); btn.textContent = 'Send to your agent'; $('send-result').hidden = true;
       btn.disabled = true; say('Sending…');
       // Raven answers at once, so a send that hangs is given up on and the button comes back. Raven never redirects.
       var ctl = typeof AbortController === 'function' ? new AbortController() : null;
       var timer = ctl ? setTimeout(function () { ctl.abort(); }, 8000) : 0;
       fetch(sendTo.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body, redirect: 'error', signal: ctl ? ctl.signal : undefined }).then(function (r) {
-        if (r.status === 503) { say('Your agent has notes it hasn’t read yet. Ask it to check them, then send again.'); return; }
+        if (r.status === 503) { told('Your agent has notes it hasn’t read yet. Ask it to check them, then send again.', false); return; }
         if (r.status !== 202) throw new Error(String(r.status));
         // A note typed while this one was on its way stays put.
         if ($('send-note').value === typed) $('send-note').value = '';
-        say('Sent. Your agent has it.');
+        told('Sent. Your agent has it.', true);
+        btn.textContent = 'Sent';
+        sentTimer = setTimeout(function () { btn.textContent = 'Send to your agent'; }, 2000);
       }).catch(function () {
-        say('Couldn’t reach your agent. Ask it to open this playground again, or use Copy for your agent.');
+        told('Couldn’t reach your agent. Ask it to open this playground again, or use Copy for your agent.', false);
       }).then(function () { clearTimeout(timer); btn.disabled = false; });
     });
   }

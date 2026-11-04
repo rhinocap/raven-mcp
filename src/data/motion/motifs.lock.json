@@ -1,6 +1,6 @@
 {
   "source": "rhinocap/motion-lab",
-  "source_commit": "bf35b6f90da235b3042e6e2a4b580f3f4f90a265",
+  "source_commit": "ded37e42030c16b4911fd440463be53afe92bf20",
   "motifs": [
     "keyfob"
   ],
@@ -22,13 +22,13 @@
   "templates": {
     "template.html": {
       "forked_from": "src/keyfob/template.html",
-      "upstream_sha256": "6650042a4ea679e14cf04e710fcdadb90a29498c44138de2747584ac3fe1dbcb",
-      "fork_sha256": "10e0dc7075ea2eaa50442b19269afcb2d0ba9bfa09ca128887916f1a4535db11"
+      "upstream_sha256": "1883d6d64056b4e5501f6ad20243d055f89e804f33d734163851d07695fab6bb",
+      "fork_sha256": "f0b5bdafa95bce361b4fdc7a99a47055936a7a0fb801bc74d8118dd15e5b9413"
     },
     "timeline-template.html": {
       "forked_from": "src/timeline/template.html",
-      "upstream_sha256": "76020a08d2315cb81aeb232cd24df46f417d8039c57ec89fb6dfe1c6ccd003a2",
-      "fork_sha256": "8d0792e2250256cf4330003a5678648b70bbe36ad8236033dbea29dc4829a3ed"
+      "upstream_sha256": "1cb044032a4525568a90951c0ac419a100e690c91336f223de0fcfc21edef301",
+      "fork_sha256": "938969f8b8ecb48376b6864247272af6a327cdc75cb7e6d6c7a0e8021ff5b173"
     }
   }
 }

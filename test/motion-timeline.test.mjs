@@ -259,6 +259,8 @@ test('opened with open_motion_playground, Send posts the note and what was on sc
       await page.waitForFunction(() => /Sent|reach/.test(document.getElementById('status').textContent));
       const after = await page.evaluate(() => ({ status: document.getElementById('status').textContent, note: document.getElementById('send-note').value, packet: window.__ml.agentPacket(), csp: window.__csp }));
       assert.deepEqual({ status: after.status, note: after.note, csp: after.csp }, { status: 'Sent. Your agent has it.', note: '', csp: [] });
+      const conf = await page.evaluate(() => { const r = document.getElementById('send-result'), b = document.getElementById('send-agent'); return { shown: r.checkVisibility({ visibilityProperty: true, opacityProperty: true }) && r.getBoundingClientRect().height > 0, text: r.textContent, ok: r.classList.contains('ok'), below: r.getBoundingClientRect().top >= b.getBoundingClientRect().bottom - 1, button: b.textContent }; });
+      assert.deepEqual(conf, { shown: true, text: 'Sent. Your agent has it.', ok: true, below: true, button: 'Sent' });
       const got = await session.getMotionSends(2000);
       assert.equal(got.sends.length, 1);
       const s = got.sends[0];
