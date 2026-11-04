@@ -49,8 +49,13 @@
   // queue: there is nothing on someone else's page to commit a change to.
   var captureOnly = !!(suppliedGrabConfig && suppliedGrabConfig.authoring === "withheld");
   // Motion tab: "full" when the bridge serves /motion for the designer's own dev
-  // server, "copy" on a third-party proxy (a line to paste into chat), else off.
-  var motionMode = suppliedGrabConfig && (suppliedGrabConfig.motion === "full" || suppliedGrabConfig.motion === "copy") ? suppliedGrabConfig.motion : "";
+  // server, "copy" on a third-party proxy (a line to paste into chat), "static" on a
+  // standalone demo page whose suggestions were built ahead of time, else off.
+  var motionMode = suppliedGrabConfig && (suppliedGrabConfig.motion === "full" || suppliedGrabConfig.motion === "copy" || (suppliedGrabConfig.motion === "static" && suppliedGrabConfig.mode === "standalone")) ? suppliedGrabConfig.motion : "";
+  // The only file static mode reads. Fixed here rather than taken from config, so a
+  // page cannot point Grab at another list.
+  var MOTION_STATIC_SUGGESTIONS = "/playgrounds/motion/suggestions.json";
+  var motionOpenTab = motionMode === "static" && suppliedGrabConfig.openTab === "motion" ? "motion" : "layers";
   // Whether the session carries a taste binding; a job reply's uses_taste updates it.
   var motionUsesTaste = !!(motionMode === "full" && suppliedGrabConfig && suppliedGrabConfig.motionTaste === true);
   var motionPageOrigin = (function () {
@@ -205,7 +210,7 @@
   var activeStyleScrub = null;
   var previewOriginals = Object.create(null);
   var activeTabA = "design";
-  var activeTabB = "layers";
+  var activeTabB = motionOpenTab;
   // What each panel was showing at the last render, so renderPanel can tell a
   // rebuild of the same list (keep the scroll position) from a switch to a
   // different one (start at the top). Indexed like `panels`: [A, B].
@@ -921,6 +926,7 @@
       :host([data-mobile-sheet="true"]) .raven-grab-panel:not([data-side="left"])[data-sheet-dragging="true"] { transition: none; }
       :host([data-mobile-sheet="true"]) .raven-grab-panel:not([data-side="left"]) .raven-grab-top { display: none; }
       :host([data-mobile-sheet="true"]) .raven-grab-mobile-tabs { display: grid; grid-template-columns: repeat(4, minmax(44px, 1fr)); }
+      :host([data-mobile-sheet="true"]) .raven-grab-mobile-tabs[data-count="5"] { grid-template-columns: repeat(5, minmax(44px, auto)); justify-content: space-between; }
       :host([data-mobile-sheet="true"]) .raven-grab-sheet-handle {
         position: relative; display: flex; align-items: center; justify-content: center; flex: 0 0 44px;
         width: 100%; height: 44px; min-height: 44px; padding: 0; touch-action: none; cursor: ns-resize;
@@ -1042,6 +1048,43 @@
     .raven-grab-motion-offscreen[hidden] { display: none; }
     .raven-grab-motion-open { display: inline-block; margin-top: 6px; color: var(--raven-grab-accent); font: 500 calc(12px * var(--raven-grab-font-scale))/1.35 var(--raven-grab-ui); text-decoration: none; }
     .raven-grab-motion-open:hover { color: var(--raven-grab-accent-hover); text-decoration: underline; }
+    button.raven-grab-motion-play { padding: 0; color: var(--raven-grab-accent); background: none; border: 0; cursor: pointer; text-align: left; }
+    button.raven-grab-motion-play:hover { color: var(--raven-grab-accent-hover); text-decoration: underline; }
+    button.raven-grab-motion-play:focus-visible { outline: 2px solid var(--raven-grab-accent); outline-offset: 2px; border-radius: 4px; }
+    .raven-grab-motion-viewer {
+      position: fixed; inset: 0; z-index: 4; display: flex; padding: 20px; pointer-events: auto;
+      background: rgba(10, 10, 18, .62);
+    }
+    .raven-grab-motion-viewer-frame {
+      display: flex; flex: 1 1 auto; flex-direction: column; min-width: 0; overflow: hidden;
+      color: var(--raven-grab-text); background: #212129;
+      border: 1px solid rgba(255, 255, 255, .12); border-radius: 20px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, .25), 0 0 32px rgba(0, 191, 255, .06),
+        0 8px 16px -4px rgba(0, 0, 0, .35), 0 24px 48px -12px rgba(0, 0, 0, .5);
+      font: calc(13px * var(--raven-grab-font-scale))/1.45 var(--raven-grab-ui);
+    }
+    .raven-grab-motion-viewer-head { display: flex; align-items: center; gap: 6px; min-height: 52px; padding: 0 12px 0 20px; border-bottom: 1px solid rgba(255, 255, 255, .08); }
+    .raven-grab-motion-viewer-title { flex: 1 1 auto; margin-right: 6px; min-width: 0; margin: 0; overflow: hidden; color: var(--raven-grab-text); font: 500 calc(14px * var(--raven-grab-font-scale))/1.3 var(--raven-grab-ui); text-overflow: ellipsis; white-space: nowrap; }
+    .raven-grab-motion-viewer-when { flex: 0 0 auto; margin-right: 10px; color: var(--raven-grab-muted); font: 400 calc(12px * var(--raven-grab-font-scale))/1.3 var(--raven-grab-ui); }
+    .raven-grab-motion-viewer-close {
+      flex: 0 0 auto; min-width: 44px; height: 32px; padding: 0 14px; color: var(--raven-grab-text); background: var(--raven-grab-raised);
+      border: 1px solid rgba(255, 255, 255, .1); border-radius: 999px; cursor: pointer; font: 500 calc(12px * var(--raven-grab-font-scale))/1 var(--raven-grab-ui);
+    }
+    .raven-grab-motion-viewer-close:hover:not(:disabled) { background: var(--raven-grab-overlay); }
+    .raven-grab-motion-viewer-close:disabled { opacity: .4; cursor: default; }
+    .raven-grab-motion-viewer-step + .raven-grab-motion-viewer-close:not(.raven-grab-motion-viewer-step) { margin-left: 8px; }
+    .raven-grab-motion-row[data-motion-seek] { cursor: pointer; }
+    /* The static demo has nothing to send, so its Motion tab gives the sheet's room to the list. */
+    .raven-grab-actions[data-motion-static] .raven-grab-global-actions-host,
+    .raven-grab-actions[data-motion-static] > .raven-grab-status { display: none; }
+    .raven-grab-motion-viewer-close:focus-visible { outline: 2px solid var(--raven-grab-accent); outline-offset: 2px; }
+    .raven-grab-motion-viewer iframe { display: block; flex: 1 1 auto; width: 100%; min-height: 0; border: 0; background: #16161c; }
+    @media (max-width: 760px) {
+      .raven-grab-motion-viewer { padding: 0; }
+      .raven-grab-motion-viewer-frame { border-radius: 0; border: 0; }
+      .raven-grab-motion-viewer-head { padding-left: 16px; }
+      .raven-grab-motion-viewer-when { display: none; }
+    }
     /* Content that runs past the bottom edge was cut mid-glyph -- a half-height
        "Styles" heading reads as a rendering bug, not as "there is more below".
        The fade is 16px, exactly the content's bottom padding, so with nothing
@@ -12428,10 +12471,17 @@
     coolTimer: null
   };
 
-  function motionTabAvailable() { return !!motionMode && !mobileTabbedSheetMode() && !simpleMode(); }
+  // Static mode also runs in the mobile sheet: its playgrounds are files, so there is
+  // no desktop-only capture behind them.
+  function motionTabAvailable() { return !!motionMode && !simpleMode() && (motionMode === "static" || !mobileTabbedSheetMode()); }
+
+  // The panel that holds the Motion tab: the left panel on desktop, the sheet on mobile.
+  function motionPanel() { return mobileTabbedSheetMode() ? panel : panelLeft; }
 
   function motionPlaygroundUrl(value) {
     var text = typeof value === "string" ? value : "";
+    // Static mode: same-origin files under /playgrounds/motion/ only.
+    if (motionMode === "static") return /^\/playgrounds\/motion\/[a-z0-9-]{1,64}\.html$/.test(text) ? text : "";
     return /^http:\/\/127\.0\.0\.1:\d{2,5}\/p\/[0-9a-f]{16}$/.test(text) ? text : "";
   }
 
@@ -12537,7 +12587,7 @@
   }
 
   function motionMarkersWanted() {
-    return armed && motionMode === "full" && activeTabB === "motion" && motionTabAvailable() && !collapsedSides.left && motion.rows.length > 0;
+    return armed && (motionMode === "full" || motionMode === "static") && activeTabB === "motion" && motionTabAvailable() && (mobileTabbedSheetMode() ? !collapsedSides.right : !collapsedSides.left) && motion.rows.length > 0;
   }
 
   function syncMotionObserver() {
@@ -12642,7 +12692,13 @@
     var head = motionEl("div", "raven-grab-motion-row-head");
     var url = row.failed ? "" : motionPlaygroundUrl(s.url);
     var label = typeof s.label === "string" && s.label ? s.label : "Motion";
-    if (url && !row.picked) {
+    if (url && motionMode === "static") {
+      var play = motionEl("button", "raven-grab-motion-name raven-grab-motion-play", label);
+      play.type = "button";
+      play.setAttribute("data-motion-play", String(index + 1));
+      play.addEventListener("click", function () { openMotionViewer(row, play); });
+      head.appendChild(play);
+    } else if (url && !row.picked) {
       var link = motionEl("a", "raven-grab-motion-name", label);
       link.href = url;
       link.target = "_blank";
@@ -12687,6 +12743,13 @@
       }
     }
     li.appendChild(body);
+    if (motionMode === "static" && !row.failed) {
+      li.setAttribute("data-motion-seek", "");
+      li.addEventListener("click", function (event) {
+        if (event.target && event.target.closest && event.target.closest("button, a, summary")) return;
+        motionSeek(row, index);
+      });
+    }
     li.addEventListener("mouseenter", function () { setMotionHot(index); });
     li.addEventListener("mouseleave", function () { if (motion.hot === index) setMotionHot(-1); });
     row.li = li;
@@ -12696,6 +12759,11 @@
   function motionCooling() { return motion.coolUntil > Date.now(); }
 
   function motionFindLabel() {
+    if (motionMode === "static") {
+      if (motion.phase === "running") return "Looking at the page…";
+      if (motion.phase === "failed") return "Try again";
+      return motion.rows.length ? "Show them again" : "Find motion";
+    }
     if (motion.phase === "running" && motion.kind === "find") return "Looking at the page…";
     if (motionCooling()) return "Wait a few minutes";
     if (motion.phase === "failed") return "Try again";
@@ -12706,7 +12774,7 @@
 
   // Fills the Motion tab. Called by renderPanel (before scroll is restored) and
   // on every job update; rebuilds only the tab's own subtree.
-  function motionStepWords() { return motion.step === "building" ? "Building previews" : "Copying the page"; }
+  function motionStepWords() { return motionMode === "static" ? "Loading suggestions" : motion.step === "building" ? "Building previews" : "Copying the page"; }
   function motionElapsedWords() {
     var secs = Math.max(0, Math.floor((Date.now() - motion.startedAt) / 1000));
     return secs ? " · " + secs + " s" : "";
@@ -12728,9 +12796,9 @@
     if (want && !motion.tick) {
       motion.tick = setInterval(function () {
         if (motion.phase !== "running") { clearInterval(motion.tick); motion.tick = null; return; }
-        var elapsed = panelLeft.querySelector("[data-motion-elapsed]");
+        var elapsed = motionPanel().querySelector("[data-motion-elapsed]");
         if (elapsed) elapsed.textContent = motionElapsedWords();
-        var hint = panelLeft.querySelector("[data-motion-hint]");
+        var hint = motionPanel().querySelector("[data-motion-hint]");
         if (hint && hint.textContent !== motionSlowWords()) hint.textContent = motionSlowWords();
       }, 1000);
     } else if (!want && motion.tick) {
@@ -12741,9 +12809,9 @@
 
   function paintMotion() {
     syncMotionTicker();
-    var root = panelLeft.querySelector("[data-motion-root]");
+    var root = motionPanel().querySelector("[data-motion-root]");
     if (!root) return;
-    var scroller = panelLeft.querySelector(".raven-grab-body");
+    var scroller = motionPanel().querySelector(".raven-grab-body");
     var keepScroll = scroller ? scroller.scrollTop : 0;
     while (root.firstChild) root.removeChild(root.firstChild);
 
@@ -12774,7 +12842,7 @@
     var running = motion.phase === "running";
     var find = motionEl("section", "raven-grab-section");
     if (!motion.rows.length && (motion.phase === "idle" || running)) {
-      find.appendChild(motionEl("p", "raven-grab-note raven-grab-motion-lede", "Find places on this page where motion could help."));
+      find.appendChild(motionEl("p", "raven-grab-note raven-grab-motion-lede", motionMode === "static" ? "Raven looks at the page and picks the spots where motion would help. Each one opens a playground you can tune." : "Find places on this page where motion could help."));
     }
     var findButton = motionEl("button", "raven-grab-send raven-grab-motion-find");
     findButton.type = "button";
@@ -12785,7 +12853,8 @@
     var findBusy = running && motion.kind === "find";
     if (findBusy) findButton.setAttribute("aria-busy", "true");
     findButton.addEventListener("click", function () { startMotionJob("find"); });
-    find.appendChild(findButton);
+    // Static suggestions do not change, so once they are listed Find has nothing new to show.
+    if (!(motionMode === "static" && motion.rows.length && !running)) find.appendChild(findButton);
     if (findBusy) find.appendChild(motionTrack());
     // The step goes in the live region; the seconds count beside it is for the eye only,
     // so a screen reader hears the step change, not a tick every second.
@@ -12807,7 +12876,7 @@
       hint.setAttribute("data-motion-hint", "");
       find.appendChild(hint);
     }
-    root.appendChild(find);
+    if (find.childNodes.length > 1 || find.firstChild !== progress || progress.childNodes.length) root.appendChild(find);
 
     var picked = motionSingleSelection();
     if (picked) {
@@ -12815,6 +12884,20 @@
         motion.triggerFor = picked;
         motion.trigger = "";
       }
+      var pick = motionEl("section", "raven-grab-section raven-grab-motion-pick");
+      if (motionMode === "static") {
+        var staticPick = motionEl("button", "raven-grab-queue-add raven-grab-motion-pick-button", "Add motion to this element");
+        staticPick.type = "button";
+        staticPick.setAttribute("data-motion-pick", "");
+        if (running) staticPick.disabled = true;
+        staticPick.addEventListener("click", function () { motionStaticPick(staticPick); });
+        pick.appendChild(staticPick);
+        if (motion.pickMessage) pick.appendChild(motionEl("p", "raven-grab-motion-message", motion.pickMessage));
+        root.appendChild(pick);
+        picked = null;
+      }
+    }
+    if (picked) {
       var pick = motionEl("section", "raven-grab-section raven-grab-motion-pick");
       var pickButton = motionEl("button", "raven-grab-queue-add raven-grab-motion-pick-button", running && motion.kind === "pick" ? "Building a preview…" : motionCooling() ? "Wait a few minutes" : "Add motion to this element");
       pickButton.type = "button";
@@ -12846,7 +12929,7 @@
     var stateCopy = "";
     if (motion.phase === "none") stateCopy = "Nothing here needs motion yet." + (motion.message ? " " + motion.message : "");
     else if (motion.phase === "allfailed") stateCopy = "Raven found places for motion but couldn't build any previews.";
-    else if (motion.phase === "failed") stateCopy = "Raven couldn't copy this page." + (motion.message ? " " + motion.message : "");
+    else if (motion.phase === "failed") stateCopy = motionMode === "static" ? "The suggestions didn't load. Check your connection and try again." : "Raven couldn't copy this page." + (motion.message ? " " + motion.message : "");
     else if (motion.phase === "stale") stateCopy = motion.message || "The page changed while Raven was looking, so those results were dropped.";
     if (stateCopy) {
       var state = motionEl("p", "raven-grab-motion-message", stateCopy);
@@ -12883,7 +12966,11 @@
       listSection.appendChild(list);
       root.appendChild(listSection);
     }
-    if (!motionUsesTaste) {
+    if (motionMode === "static" && motion.rows.length) {
+      var staticFooter = motionEl("p", "raven-grab-note raven-grab-motion-footer", "On your own site, Raven makes these from your page and your taste.");
+      staticFooter.setAttribute("data-motion-footer", "");
+      root.appendChild(staticFooter);
+    } else if (!motionUsesTaste && motionMode !== "static") {
       var footer = motionEl("p", "raven-grab-note raven-grab-motion-footer", "Suggestions use this page only");
       footer.setAttribute("data-motion-footer", "");
       root.appendChild(footer);
@@ -13030,7 +13117,184 @@
     motionSettle();
   }
 
+  // The playground opens over the page in a sandboxed frame: scripts run, but the frame
+  // has an opaque origin, so it cannot reach this page, its storage or Grab. Its Copy
+  // buttons hand their text up (raven-motion-copy) and Grab writes the clipboard.
+  var motionViewer = null;
+
+  // Brings a suggestion's spot into view on the page and lights its marker. On the
+  // mobile sheet the spot goes near the top, above the sheet.
+  function motionSeek(row, index) {
+    var els = row.els || motionResolveRow(row);
+    var rect = els ? motionUnion(els) : null;
+    setMotionHot(index);
+    if (!rect) return;
+    var reduce = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var offset = mobileTabbedSheetMode() ? 88 : Math.max(88, (innerHeight - rect.height) / 2);
+    window.scrollTo({ top: Math.max(0, (window.scrollY || 0) + rect.top - offset), behavior: reduce ? "auto" : "smooth" });
+  }
+
+  function openMotionViewer(row, trigger) {
+    var url = row && row.s ? motionPlaygroundUrl(row.s.url) : "";
+    if (!url || motionMode !== "static") return;
+    closeMotionViewer(false);
+    var label = typeof row.s.label === "string" && row.s.label ? row.s.label : "Motion";
+    var wrap = motionEl("div", "raven-grab-motion-viewer");
+    wrap.setAttribute("data-motion-viewer", "");
+    wrap.setAttribute("role", "dialog");
+    wrap.setAttribute("aria-modal", "true");
+    wrap.setAttribute("aria-label", label + " playground");
+    var frameBox = motionEl("div", "raven-grab-motion-viewer-frame");
+    var head = motionEl("div", "raven-grab-motion-viewer-head");
+    // The playground names itself in its own panel, so the bar says where it sits in the list.
+    var playable = motion.rows.filter(function (r) { return !r.failed && motionPlaygroundUrl(r.s && r.s.url); });
+    var at = playable.indexOf(row);
+    var title = motionEl("h2", "raven-grab-motion-viewer-title", at >= 0 ? "Suggestion " + (at + 1) + " of " + playable.length : label);
+    title.setAttribute("data-motion-viewer-title", "");
+    head.appendChild(title);
+    if (typeof row.s.trigger_words === "string" && row.s.trigger_words) head.appendChild(motionEl("span", "raven-grab-motion-viewer-when", row.s.trigger_words));
+    var step = function (delta) {
+      var next = playable[at + delta];
+      if (!next) return;
+      setMotionHot(motion.rows.indexOf(next));
+      openMotionViewer(next, trigger);
+    };
+    if (playable.length > 1 && at >= 0) {
+      var prev = motionEl("button", "raven-grab-motion-viewer-close raven-grab-motion-viewer-step", "Previous");
+      prev.type = "button";
+      prev.setAttribute("data-motion-viewer-prev", "");
+      prev.disabled = at === 0;
+      prev.addEventListener("click", function () { step(-1); });
+      var nextButton = motionEl("button", "raven-grab-motion-viewer-close raven-grab-motion-viewer-step", "Next");
+      nextButton.type = "button";
+      nextButton.setAttribute("data-motion-viewer-next", "");
+      nextButton.disabled = at === playable.length - 1;
+      nextButton.addEventListener("click", function () { step(1); });
+      head.appendChild(prev);
+      head.appendChild(nextButton);
+    }
+    var close = motionEl("button", "raven-grab-motion-viewer-close", "Close");
+    close.type = "button";
+    close.setAttribute("data-motion-viewer-close", "");
+    close.addEventListener("click", function () { closeMotionViewer(true); });
+    head.appendChild(close);
+    var frame = document.createElement("iframe");
+    frame.setAttribute("sandbox", "allow-scripts");
+    frame.setAttribute("title", label + " playground");
+    frame.setAttribute("referrerpolicy", "no-referrer");
+    frame.src = url;
+    frameBox.appendChild(head);
+    frameBox.appendChild(frame);
+    wrap.appendChild(frameBox);
+    // A click on the dimmed edge closes it, the same as Close.
+    wrap.addEventListener("click", function (event) { if (event.target === wrap) closeMotionViewer(true); });
+    wrap.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeMotionViewer(true); }
+    });
+    shadow.appendChild(wrap);
+    motionViewer = { wrap: wrap, frame: frame, trigger: trigger || null };
+    try { close.focus({ preventScroll: true }); } catch (error) { close.focus(); }
+  }
+
+  function closeMotionViewer(restoreFocus) {
+    if (!motionViewer) return;
+    var v = motionViewer;
+    motionViewer = null;
+    if (v.wrap.parentNode) v.wrap.parentNode.removeChild(v.wrap);
+    if (restoreFocus && v.trigger && v.trigger.isConnected) {
+      try { v.trigger.focus({ preventScroll: true }); } catch (error) { v.trigger.focus(); }
+    }
+  }
+
+  if (motionMode === "static") {
+    window.addEventListener("message", function (event) {
+      if (!motionViewer || event.source !== motionViewer.frame.contentWindow) return;
+      var m = event.data;
+      if (!m || m.type !== "raven-motion-copy" || typeof m.id !== "string" || typeof m.text !== "string" || m.text.length > 200000) return;
+      var source = event.source;
+      var answer = function (ok) { try { source.postMessage({ type: "raven-motion-copied", id: m.id, ok: ok }, "*"); } catch (error) {} };
+      writeClipboardText(m.text).then(function () { answer(true); }, function () { answer(false); });
+    });
+    // Escape from inside the frame never reaches this page, so the frame's own
+    // focus is left alone; Escape anywhere on the page closes the viewer.
+    window.addEventListener("keydown", function (event) {
+      if (motionViewer && event.key === "Escape") closeMotionViewer(true);
+    });
+  }
+
+  // Static mode: the suggestions were built ahead of time from this page, so Find
+  // reads them from one same-origin file and nothing else.
+  function motionStaticReply(body) {
+    if (!body || typeof body !== "object" || !Array.isArray(body.suggestions)) return null;
+    var out = [];
+    for (var i = 0; i < body.suggestions.length && out.length < 12; i++) {
+      var s = body.suggestions[i];
+      if (!s || typeof s !== "object" || !motionPlaygroundUrl(s.url) || !Array.isArray(s.parts) || !s.parts.length) continue;
+      out.push({
+        label: typeof s.label === "string" ? s.label.slice(0, 80) : "",
+        kind: typeof s.kind === "string" ? s.kind.slice(0, 40) : "",
+        why: typeof s.why === "string" ? s.why.slice(0, 280) : "",
+        trigger_words: typeof s.trigger_words === "string" ? s.trigger_words.slice(0, 60) : "",
+        approximations: Array.isArray(s.approximations) ? s.approximations.filter(function (a) { return typeof a === "string"; }).slice(0, 6).map(function (a) { return a.slice(0, 200); }) : [],
+        parts: s.parts.slice(0, 12),
+        url: s.url
+      });
+    }
+    return { suggestions: out, failed: [], message: "" };
+  }
+
+  function startStaticMotionFind() {
+    motion.prevPhase = motion.phase;
+    motion.phase = "running";
+    motion.kind = "find";
+    motion.joinedPick = false;
+    motion.joinedElsewhere = false;
+    motion.startedAt = Date.now();
+    motion.navAt = motionNavCount;
+    motion.message = "";
+    motion.pickMessage = "";
+    motion.rows = [];
+    paintMotion();
+    fetch(MOTION_STATIC_SUGGESTIONS, { cache: "no-cache", credentials: "same-origin" })
+      .then(function (response) { if (!response.ok) throw new Error("status"); return response.json(); })
+      .then(function (body) {
+        var reply = motionStaticReply(body);
+        if (!reply) { motionFail(""); return; }
+        motionFinish(reply);
+      })
+      .catch(function () { motionFail(""); });
+  }
+
+  // Add motion in static mode: the selected element's prebuilt playground, when it
+  // is one of the numbered spots (or inside one).
+  function motionStaticPick(trigger) {
+    var el = motionSingleSelection();
+    if (!el) return;
+    var match = null;
+    for (var i = 0; i < motion.rows.length && !match; i++) {
+      var row = motion.rows[i];
+      var els = row.els || motionResolveRow(row);
+      if (!els) continue;
+      for (var j = 0; j < els.length; j++) {
+        if (els[j] === el || els[j].contains(el)) { match = row; break; }
+      }
+    }
+    if (!match && !motion.rows.length) {
+      motion.pickMessage = "Press Find motion first, then pick one of the numbered spots.";
+      paintMotion();
+      return;
+    }
+    if (!match) {
+      motion.pickMessage = "This demo has playgrounds for the numbered spots. On your own site, Raven builds one for any element you pick.";
+      paintMotion();
+      return;
+    }
+    motion.pickMessage = "";
+    openMotionViewer(match, trigger);
+  }
+
   function startMotionJob(kind) {
+    if (motionMode === "static") { if (kind === "find" && motion.phase !== "running") startStaticMotionFind(); return; }
     if (motionMode !== "full" || motion.phase === "running" || motionCooling()) return;
     var body = { path: location.pathname + location.search };
     if (kind === "pick") {
@@ -13279,15 +13543,16 @@
       '<section class="raven-grab-section"><h2 class="raven-grab-section-title">Layers</h2>' + (layerTree ? '<p class="raven-grab-note">Drag a row to reorder or reparent it.</p><ul class="raven-grab-layer-list" role="tree">' + layerRowsMarkup(layerTree) + '</ul>' : '<p class="raven-grab-empty">No layer tree available.</p>') + '</section>';
     // Mobile borrows the structure tab state so the same selection survives a
     // breakpoint crossing; desktop never exposes the two additional values.
+    var motionMarkup = '<div class="raven-grab-motion" data-motion-root></div>';
     var mobileBodyMarkup = activeTabB === "assets" ? assetsMarkup
       : activeTabB === "styles" ? designMarkup
       : activeTabB === "instructions" ? instructionsMarkup
+      : activeTabB === "motion" ? motionMarkup
       : layersMarkup;
     // Simple mode is prod's tool: what you grabbed, what you want changed, Send.
     // Scope and the style editor are the two-panel build's additions, so they go.
     var bodyMarkupA = simpleMode() ? elementMarkup : (mobileTabbedSheetMode() ? mobileBodyMarkup : designMarkup);
-    var motionMarkup = '<div class="raven-grab-motion" data-motion-root></div>';
-    var bodyMarkupB = activeTabB === "assets" ? assetsMarkup : activeTabB === "motion" ? motionMarkup : layersMarkup;
+    var bodyMarkupB = activeTabB === "assets" ? assetsMarkup : activeTabB === "motion" && !mobileTabbedSheetMode() ? motionMarkup : layersMarkup;
     // Pinned under Send (actions chrome) — never buried at the end of the scrollable layers list.
     var settingsProjectMarkup = projectName ? '<span class="raven-grab-settings-project">' + escapeHtml(projectName) + '</span>' : '';
     var settingsLabel = projectName ? 'Open Raven settings for ' + projectName : 'Open Raven settings';
@@ -13311,11 +13576,12 @@
       : "";
 
     var mobileTabsMarkup = mobileTabbedSheetMode() ? `
-      <div class="raven-grab-tabs raven-grab-mobile-tabs" role="tablist" aria-label="Raven Design actions">
+      <div class="raven-grab-tabs raven-grab-mobile-tabs" role="tablist" aria-label="Raven Design actions" data-count="${motionTabAvailable() ? "5" : "4"}">
         <button class="raven-grab-tab" type="button" role="tab" data-tab="layers" aria-selected="${activeTabB === "layers" ? "true" : "false"}">Layers</button>
         <button class="raven-grab-tab" type="button" role="tab" data-tab="assets" aria-selected="${activeTabB === "assets" ? "true" : "false"}">Assets</button>
         <button class="raven-grab-tab" type="button" role="tab" data-tab="styles" aria-selected="${activeTabB === "styles" ? "true" : "false"}">Styles</button>
         <button class="raven-grab-tab" type="button" role="tab" data-tab="instructions" aria-selected="${activeTabB === "instructions" ? "true" : "false"}">Instructions</button>
+        ${motionTabAvailable() ? '<button class="raven-grab-tab" type="button" role="tab" data-tab="motion" aria-selected="' + (activeTabB === "motion" ? "true" : "false") + '">Motion</button>' : ""}
       </div>` : "";
     // Every render rebuilds the panel from a string, which throws away the
     // scrolled .raven-grab-body and builds a fresh one at the top. Renders are
@@ -13372,7 +13638,7 @@
       </div>
       ${mobileTabsMarkup}
       <div class="raven-grab-body"><div class="raven-grab-content">${bodyMarkupA}</div></div>
-      <div class="raven-grab-actions"${mobileTabbedSheetMode() ? " data-mobile-bottom-bar" : ""}>${changesMarkup}${actionMarkupA}<p class="raven-grab-status" data-status aria-live="polite"></p></div>`;
+      <div class="raven-grab-actions"${mobileTabbedSheetMode() ? " data-mobile-bottom-bar" : ""}${mobileTabbedSheetMode() && motionMode === "static" && activeTabB === "motion" ? " data-motion-static" : ""}>${changesMarkup}${actionMarkupA}<p class="raven-grab-status" data-status aria-live="polite"></p></div>`;
     panelLeft.innerHTML = `
       <div class="raven-grab-top">
         <div class="raven-grab-header">
@@ -13573,9 +13839,10 @@
     if (dispatchState === "applying" && activeDispatch) ensureLayerOperationPoll();
     else stopLayerOperationPoll();
     activeTabA = "design";
-    activeTabB = "layers";
+    activeTabB = motionOpenTab;
     activeGlobalActionSurface = "design";
     closeSettingsModal();
+    closeMotionViewer(false);
     expandedSections = { styles: true };
     instructionDraft = "";
     clearAttachmentDraft();
