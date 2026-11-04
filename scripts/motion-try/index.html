@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Field Studio</title>
+<style>
+  @font-face { font-family: "Sample Sans"; src: url("fonts/untitled-sans-regular.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: block; }
+  body { margin: 0; font-family: "Sample Sans", sans-serif; background: #f4f2ee; color: #1d1d1f; }
+  header#site-header { display: flex; justify-content: space-between; align-items: center; padding: 18px 48px; background: #ffffff; }
+  .brand { font-size: 18px; }
+  nav#main-nav { display: flex; gap: 28px; }
+  nav#main-nav a { color: #1d1d1f; text-decoration: none; font-size: 15px; }
+  section#hero { padding: 104px 48px 96px; box-sizing: border-box; }
+  h1#hero-title { font-size: 72px; line-height: 1.05; font-weight: 400; letter-spacing: -1.5px; margin: 0 0 24px; max-width: 900px; }
+  .lede { font-size: 20px; line-height: 1.5; max-width: 560px; margin: 0 0 36px; color: #4a4a4f; }
+  .actions { display: flex; gap: 16px; align-items: center; }
+  a#cta-primary { display: inline-block; background: #1d1d1f; color: #ffffff; padding: 14px 24px; border-radius: 999px; text-decoration: none; font-size: 16px; }
+  a#cta-secondary { display: inline-block; color: #1d1d1f; padding: 13px 23px; border: 1px solid #1d1d1f; border-radius: 999px; text-decoration: none; font-size: 16px; }
+  section#work { padding: 56px 48px; background: #ebe7df; }
+  section#work h2 { margin-bottom: 28px; }
+  .cards { display: flex; gap: 24px; }
+  .card { flex: 1; background: #ffffff; border-radius: 12px; padding: 16px; box-sizing: border-box; }
+  .card img { display: block; width: 100%; height: auto; border-radius: 6px; }
+  .card h3 { font-size: 20px; font-weight: 400; margin: 14px 0 4px; }
+  .card p { margin: 0; color: #6a6a70; font-size: 15px; }
+  section#about, section#process { padding: 96px 48px; }
+  section#process { background: #ffffff; }
+  h2 { font-size: 36px; font-weight: 400; margin: 0 0 16px; }
+  section#about p { font-size: 18px; line-height: 1.6; max-width: 620px; margin: 0 0 12px; color: #4a4a4f; }
+  .step { padding: 14px 0; border-top: 1px solid #d0ccc4; font-size: 18px; }
+  section#gallery { padding: 48px; }
+  img#wide-image { display: block; width: 100%; height: auto; border-radius: 12px; }
+  footer { padding: 48px; color: #6a6a70; }
+</style>
+</head>
+<body>
+  <header id="site-header">
+    <span class="brand">Field Studio</span>
+    <nav id="main-nav">
+      <a href="#work">Work</a>
+      <a href="#about">About</a>
+      <a href="#process">Process</a>
+      <a href="#contact">Contact</a>
+    </nav>
+  </header>
+  <section id="hero">
+    <h1 id="hero-title">Calm websites for busy studios</h1>
+    <p class="lede">We design and build sites that load fast and read clearly, then hand you the code.</p>
+    <div class="actions">
+      <a id="cta-primary" href="#contact">Book a call</a>
+      <a id="cta-secondary" href="#work">See the work</a>
+    </div>
+  </section>
+  <section id="work">
+    <h2 id="work-title">Recent work</h2>
+    <div class="cards">
+      <article class="card" id="card-1"><img src="images/harbour.svg" alt="Harbour Cafe site" width="536" height="360"><h3>Harbour Cafe</h3><p>Menu and bookings</p></article>
+      <article class="card" id="card-2"><img src="images/north.svg" alt="North Press site" width="536" height="360"><h3>North Press</h3><p>A small publisher's shop</p></article>
+      <article class="card" id="card-3"><img src="images/loom.svg" alt="Loom Studio site" width="536" height="360"><h3>Loom Studio</h3><p>Portfolio and journal</p></article>
+    </div>
+  </section>
+  <section id="about">
+    <h2 id="about-title">How we work</h2>
+    <p>We start with the words, then the layout.</p>
+    <p>Every page is tested on a slow phone.</p>
+    <p>You get the code and the design files.</p>
+  </section>
+  <section id="process">
+    <h2 id="process-title">Four steps</h2>
+    <div class="step">Listen</div>
+    <div class="step">Sketch</div>
+    <div class="step">Build</div>
+    <div class="step">Launch</div>
+  </section>
+  <section id="gallery">
+    <img id="wide-image" src="images/studio.svg" alt="The studio" width="1280" height="560">
+  </section>
+  <footer id="contact">hello@field.example</footer>
+</body>
+</html>

@@ -1,0 +1,73 @@
+{
+  "page": {
+    "file": "page.jpg",
+    "width": 1440
+  },
+  "suggestions": [
+    {
+      "kind": "cta-hover",
+      "label": "Button hover",
+      "why": "This is the page's main button, so it should answer the pointer quickly.",
+      "when": "On hover",
+      "box": {
+        "x": 48,
+        "y": 431.19,
+        "w": 128.03,
+        "h": 46
+      },
+      "file": "1-cta-hover.html"
+    },
+    {
+      "kind": "hero-entrance",
+      "label": "Hero entrance",
+      "why": "This is the first thing people read on the page, so it can arrive as the page opens.",
+      "when": "When the page opens",
+      "box": {
+        "x": 0,
+        "y": 56,
+        "w": 1440,
+        "h": 517.19
+      },
+      "file": "2-hero-entrance.html"
+    },
+    {
+      "kind": "card-hover",
+      "label": "Card hover",
+      "why": "There are 3 cards like this one, so one lift carries across all of them and shows which card the pointer is on.",
+      "when": "On hover",
+      "box": {
+        "x": 48,
+        "y": 698.19,
+        "w": 432,
+        "h": 358.66
+      },
+      "file": "3-card-hover.html"
+    },
+    {
+      "kind": "nav-hover",
+      "label": "Navigation hover",
+      "why": "These are the page's main links, and a line under the one the pointer is on shows where it goes.",
+      "when": "On hover",
+      "box": {
+        "x": 1116.48,
+        "y": 19.5,
+        "w": 275.52,
+        "h": 17
+      },
+      "file": "4-nav-hover.html"
+    },
+    {
+      "kind": "image-reveal",
+      "label": "Image reveal",
+      "why": "This is a large image below the first screen, so it can open as it scrolls into view.",
+      "when": "When it scrolls into view",
+      "box": {
+        "x": 48,
+        "y": 1977.23,
+        "w": 1344,
+        "h": 588
+      },
+      "file": "5-image-reveal.html"
+    }
+  ]
+}

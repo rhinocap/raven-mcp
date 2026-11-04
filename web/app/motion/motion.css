@@ -60,3 +60,87 @@
   border: 1px solid var(--border-strong, rgba(255, 255, 255, 0.1));
   border-radius: var(--radius-md, 12px);
 }
+
+/* Try it: the sample page with numbered spots beside a copy of the Grab Motion
+   panel (Grab tokens, cyan accent), and the chosen playground below. */
+.try { margin-top: var(--space-16, 64px); }
+.try-lede { max-width: var(--content-max-width, 760px); color: var(--text-secondary, #a1a1aa); }
+
+.try-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) min(360px, 34%);
+  gap: var(--space-6, 24px);
+  margin-top: var(--space-8, 32px);
+}
+
+.try-page {
+  height: var(--try-page-height, 560px);
+  overflow-y: auto;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  border-radius: var(--radius-lg, 16px);
+  background: var(--bg-surface, #212129);
+}
+/* Padding keeps the spot badges, which sit outside each spot, inside the scroll box. */
+.try-page { padding: 14px; box-sizing: border-box; }
+.try-shot { position: relative; container-type: inline-size; }
+.try-shot img { display: block; width: 100%; height: auto; }
+
+.try-spot {
+  position: absolute;
+  padding: 0;
+  border: 2px dashed rgba(0, 191, 255, .7);
+  border-radius: 3px;
+  background: transparent;
+  box-shadow: 0 0 0 1px rgba(10, 10, 18, .5) inset;
+  cursor: pointer;
+}
+.try-spot:hover, .try-spot[data-hot="true"] { border-style: solid; border-color: #00BFFF; background: rgba(0, 191, 255, .08); }
+.try-spot:focus-visible { outline: 2px solid #00BFFF; outline-offset: 2px; }
+.try-badge {
+  position: absolute; top: -11px; left: -11px;
+  display: flex; align-items: center; justify-content: center; width: 20px; height: 20px;
+  color: #fff; background: #1a1a22; border: 1px solid #00BFFF; border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .45);
+  font: 600 10px/1 var(--font-sans, sans-serif);
+}
+.try-spot:hover .try-badge, .try-spot[data-hot="true"] .try-badge { color: #0a1018; background: #00BFFF; }
+
+.try-panel {
+  height: var(--try-page-height, 560px);
+  overflow-y: auto;
+  padding: var(--space-5, 20px) var(--space-4, 16px);
+  box-sizing: border-box;
+  color: #F0F0F2;
+  background: #212129;
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 20px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .25), 0 8px 16px -4px rgba(0, 0, 0, .35), 0 24px 48px -12px rgba(0, 0, 0, .5);
+}
+.try-panel-title { margin: 0 0 var(--space-3, 12px) 10px; color: #00BFFF; font-size: 15px; font-weight: 500; }
+.try-list { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.try-row {
+  display: flex; gap: 10px; width: 100%; padding: 10px; text-align: left;
+  color: inherit; background: transparent; border: 1px solid transparent; border-radius: 10px;
+  font: inherit; cursor: pointer;
+}
+.try-row:hover { background: rgba(255, 255, 255, .04); }
+.try-row[data-hot="true"] { background: rgba(0, 191, 255, .06); border-color: rgba(0, 191, 255, .25); }
+.try-row:focus-visible { outline: 2px solid #00BFFF; outline-offset: 1px; }
+.try-chip {
+  flex: 0 0 auto; display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; margin-top: 1px;
+  color: #F0F0F2; background: #1a1a22; border: 1px solid rgba(0, 191, 255, .6); border-radius: 50%;
+  font: 600 10px/1 var(--font-sans, sans-serif);
+}
+.try-row-body { display: flex; flex-direction: column; min-width: 0; }
+.try-name { color: #00BFFF; font-size: 14px; font-weight: 500; line-height: 1.35; }
+.try-when { margin-top: 2px; color: #9498A0; font-size: 12px; line-height: 1.45; }
+.try-why { margin-top: 4px; color: #F0F0F2; font-size: 13px; line-height: 1.5; }
+
+.try-frame { scroll-margin-top: calc(var(--nav-height, 64px) + 16px); }
+.try-frame .motion-frame { margin-top: var(--space-6, 24px); }
+
+@media (max-width: 800px) {
+  .try-grid { grid-template-columns: minmax(0, 1fr); }
+  .try-page { height: var(--try-page-height-narrow, 380px); }
+  .try-panel { height: auto; }
+}

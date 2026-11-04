@@ -1459,8 +1459,26 @@ __SWIFTUI__
     });
   }
   $('code-more').addEventListener('toggle', function () { if ($('code-more').open) refreshExports(); });
+  // A sandboxed frame has an opaque origin and no clipboard, so a framed playground hands the text to the
+  // parent page and waits for its answer. The text is the designer's own settings, so '*' leaks nothing.
+  var framed = window.parent !== window;
+  var copySeq = 0;
+  function copyViaParent(text, done, fail) {
+    var id = 'c' + (++copySeq) + '-' + Date.now();
+    var timer = setTimeout(function () { window.removeEventListener('message', onMsg); fail(); }, 1500);
+    function onMsg(e) {
+      if (e.source !== window.parent) return;
+      var m = e.data;
+      if (!m || m.type !== 'raven-motion-copied' || m.id !== id) return;
+      clearTimeout(timer); window.removeEventListener('message', onMsg);
+      if (m.ok === true) done(); else fail();
+    }
+    window.addEventListener('message', onMsg);
+    window.parent.postMessage({ type: 'raven-motion-copy', id: id, text: text }, '*');
+  }
   function copy(text, ta, okMsg) {
     var fallback = function () { ta.focus(); ta.select(); say('Your browser blocked copying. The text is selected: press ' + (/Mac/.test(navigator.platform) ? '⌘C' : 'Ctrl+C') + '.'); };
+    if (framed) { copyViaParent(text, function () { say(okMsg); }, fallback); return; }
     try { navigator.clipboard.writeText(text).then(function () { say(okMsg); }, fallback); } catch (e) { fallback(); }
   }
 
