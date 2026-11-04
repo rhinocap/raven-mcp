@@ -394,6 +394,98 @@ test('repeated images and repeated "Learn more" links: a new twin removes the ma
   });
 });
 
+test('swapping two identical twins takes the marker away rather than moving it to the other one', { skip }, async () => {
+  await withGrab({ path: '/picked.html' }, async ({ page, jobs }) => {
+    await openMotionTab(page);
+    await clearOfPanels(page);
+    const sel = '#twins img:nth-of-type(2)';
+    await page.evaluate((s) => document.querySelector(s).scrollIntoView({ block: 'center' }), sel);
+    await selectElement(page, sel);
+    await page.waitForFunction(() => document.querySelector('[data-raven-grab-overlay]').shadowRoot.querySelector('[data-motion-pick]:not([disabled])'));
+    const count = jobs.length;
+    await clickAt(page, (root, c) => (0, eval)('(' + c + ')')(root.querySelector('[data-motion-pick]')), centre.toString());
+    for (let t = 0; jobs.length === count && t < 600; t++) await new Promise((r) => setTimeout(r, 100));
+    await settleFrames(page);
+    await settleFrames(page);
+    const job = lastJob(jobs);
+    const before = await markerReport(page, job.suggestions);
+    assert.ok(before[0].marker && before[0].off <= 4, 'marker before: ' + JSON.stringify(before[0]));
+    // The chosen twin moves first: the selector, fingerprint, dup and nth now all describe the other twin.
+    await page.evaluate(() => { const [a, b] = document.querySelectorAll('#twins img'); a.parentNode.insertBefore(b, a); });
+    await settleFrames(page);
+    await settleFrames(page);
+    assert.equal(await inShadow(page, (root) => Boolean(root.querySelector('[data-motion-marker="1"]'))), false, 'the marker moved to the other twin');
+  });
+});
+
+test('an edit made while another tab is open is caught when Motion opens again', { skip }, async () => {
+  await withGrab({}, async ({ page, jobs }) => {
+    await openMotionTab(page);
+    await findMotion(page);
+    const i = lastJob(jobs).suggestions.findIndex((s) => s.parts.some((p) => /hero-title/.test(p.selector)));
+    assert.ok(i >= 0, 'no suggestion on the hero heading');
+    const n = i + 1;
+    assert.equal(await inShadow(page, (root, k) => Boolean(root.querySelector('[data-motion-marker="' + k + '"]')), n), true);
+    await clickAt(page, (root, c) => (0, eval)('(' + c + ')')(root.querySelector('[data-tab="layers"]')), centre.toString());
+    await settleFrames(page);
+    await page.evaluate(() => { document.getElementById('hero-title').textContent = 'A different heading now'; });
+    await settleFrames(page);
+    await openMotionTab(page);
+    await settleFrames(page);
+    await settleFrames(page);
+    assert.equal(await inShadow(page, (root, k) => Boolean(root.querySelector('[data-motion-marker="' + k + '"]')), n), false, 'the marker stayed on the edited heading');
+  });
+});
+
+// ---------- limits and footer ----------
+
+test('after ten jobs in ten minutes both buttons read "Wait a few minutes" and are disabled', { skip }, async () => {
+  await withGrab({ motion: { suggest: fakeResult({ suggestions: [fakeSuggestion()] }) } }, async ({ page, jobs }) => {
+    const limited = [];
+    page.on('response', async (r) => {
+      if (/\/motion\/suggest/.test(r.url()) && r.status() === 429) { try { limited.push(await r.json()); } catch { /* closed */ } }
+    });
+    await openMotionTab(page);
+    for (let k = 0; k < 10; k++) {
+      const count = jobs.length;
+      await page.waitForFunction(() => document.querySelector('[data-raven-grab-overlay]').shadowRoot.querySelector('[data-motion-find]:not([disabled])'));
+      await clickAt(page, (root, c) => (0, eval)('(' + c + ')')(root.querySelector('[data-motion-find]')), centre.toString());
+      for (let t = 0; jobs.length === count && t < 200; t++) await new Promise((r) => setTimeout(r, 50));
+      assert.ok(jobs.length > count, 'job ' + (k + 1) + ' did not finish');
+    }
+    await page.waitForFunction(() => document.querySelector('[data-raven-grab-overlay]').shadowRoot.querySelector('[data-motion-find]:not([disabled])'));
+    await clickAt(page, (root, c) => (0, eval)('(' + c + ')')(root.querySelector('[data-motion-find]')), centre.toString());
+    await page.waitForFunction(() => document.querySelector('[data-raven-grab-overlay]').shadowRoot.querySelector('[data-motion-find]')?.textContent === 'Wait a few minutes', null, { timeout: 5000 });
+    assert.equal(limited.length, 1);
+    assert.ok(limited[0].retry_after_ms > 0 && limited[0].retry_after_ms <= 600000, JSON.stringify(limited[0]));
+    await clearOfPanels(page);
+    await selectElement(page, '#cta-primary');
+    await page.waitForFunction(() => document.querySelector('[data-raven-grab-overlay]').shadowRoot.querySelector('[data-motion-pick]'));
+    const got = await inShadow(page, (root) => ({
+      find: root.querySelector('[data-motion-find]').textContent, findOff: root.querySelector('[data-motion-find]').disabled,
+      pick: root.querySelector('[data-motion-pick]').textContent, pickOff: root.querySelector('[data-motion-pick]').disabled,
+      state: root.querySelector('[data-motion-state]')?.getAttribute('data-motion-state') || '', rows: root.querySelectorAll('[data-motion-row]').length,
+    }));
+    assert.deepEqual(got, { find: 'Wait a few minutes', findOff: true, pick: 'Wait a few minutes', pickOff: true, state: '', rows: 1 });
+  });
+});
+
+test('without a taste binding the footer reads "Suggestions use this page only"; with one it is not shown', { skip }, async () => {
+  await withGrab({}, async ({ page }) => {
+    await openMotionTab(page);
+    assert.equal(await inShadow(page, (root) => root.querySelector('[data-motion-footer]')?.textContent || ''), 'Suggestions use this page only');
+  });
+  const store = new FsTasteStore();
+  await taste.createTasteProfile(store, { name: 'foot-p', rules: [] });
+  await taste.bindTasteSurface(store, 'foot-p', { project: 'foot-site', surface: 'studio site', voice_note: 'Plain.', design_notes: {} });
+  await withGrab({ motion: { store, profile: 'foot-p', project: 'foot-site', suggest: fakeResult({ suggestions: [fakeSuggestion()] }) } }, async ({ page }) => {
+    await openMotionTab(page);
+    assert.equal(await inShadow(page, (root) => Boolean(root.querySelector('[data-motion-footer]'))), false, 'footer before a job');
+    await findMotion(page);
+    assert.equal(await inShadow(page, (root) => Boolean(root.querySelector('[data-motion-footer]'))), false, 'footer after a job');
+  });
+});
+
 // ---------- stale results ----------
 
 test('navigating while a job runs drops the result, including from A to B and back to A', { skip }, async () => {

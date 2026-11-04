@@ -1645,7 +1645,7 @@ async function proxyGrabRequest(proxyTarget: string, key: string, method: string
       var html = responseBody.toString("utf8");
       var proxyBridgeOrigin = currentSession ? 'http://127.0.0.1:' + currentSession.port : '';
       var proxyProjectName = currentSession ? currentSession.projectName : '';
-      var proxyConfig: Record<string, string> = {
+      var proxyConfig: Record<string, string | boolean> = {
         bridgeOrigin: proxyBridgeOrigin,
         projectName: proxyProjectName,
         ravenVersion: RAVEN_VERSION
@@ -1671,6 +1671,8 @@ async function proxyGrabRequest(proxyTarget: string, key: string, method: string
         proxyConfig.pageOrigin = proxyTargetUrl.origin;
       } else if (currentSession && currentSession.motion) {
         proxyConfig.motion = "full";
+        const mo = currentSession.motion.options;
+        if (mo.profile && mo.project) proxyConfig.motionTaste = true;
       }
       if (role === "maintainer") proxyConfig.role = "maintainer";
       var proxyConfigJson = JSON.stringify(proxyConfig).replace(/</g, "\\u003c");

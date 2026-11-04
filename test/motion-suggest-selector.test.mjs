@@ -25,6 +25,7 @@ const { suggestMotion } = await import('../dist/motion-suggest/index.js');
 const { FsTasteStore } = await import('../dist/taste-store.js');
 const taste = await import('../dist/taste.js');
 const session = await import('../dist/motion-session.js');
+const { createMotionPlayground } = await import('../dist/motion-playground/index.js');
 const { checkTimeline } = await import(path.join(TIMELINE, 'scripts/validate-timeline.mjs'));
 
 let chromium = null;
@@ -91,7 +92,7 @@ test('a selector gives one suggestion for that element, with preview_url and no 
     const r = await pick(store, '/', '#hero-title', { max: 5 });
     assert.equal(r.suggestions.length, 1);
     const s = r.suggestions[0];
-    assert.equal(s.kind, 'hero-entrance', 'the hero heading uses the hero recipe');
+    assert.equal(s.kind, 'element-entrance', 'a hero heading alone gets the element recipe, not the whole hero');
     assert.equal(r.preview_url, s.url);
     assert.match(r.preview_url, /^http:\/\/127\.0\.0\.1:\d+\/p\/[0-9a-f]+$/);
     assert.match(s.playground_id, /^[0-9a-f]{16}$/);
@@ -104,13 +105,14 @@ test('a selector gives one suggestion for that element, with preview_url and no 
     assert.notEqual(json.preview_url, json.url);
     assert.deepEqual(r.failed, []);
     valid(s);
-    // Parts are page elements: the heading, then what follows it in the hero.
+    // Parts are page elements in the chosen subtree: the heading only, not the lede and actions beside it.
     assert.equal(s.parts[0].selector, '#hero-title');
     assert.equal(s.parts[0].tag, 'h1');
     assert.equal(s.parts[0].text, 'Calm websites for busy studios');
     assert.equal(s.parts[0].dup, 1);
     assert.equal(s.parts[0].nth, 0);
-    assert.ok(s.parts.length >= 2, 'the lede and actions are parts too');
+    assert.equal(s.parts.length, 1, 'only the heading moves');
+    assert.doesNotMatch(s.fragment, /We design and build|Book a call|See pricing/, 'nothing outside the heading is in the fragment');
   });
 });
 
@@ -215,7 +217,7 @@ test('a forced failure at each stage is listed with its stage, and all failing i
       assert.equal(r.suggestions.length, 0, stage);
       assert.equal(r.failed.length, 1, stage);
       assert.equal(r.failed[0].stage, stage);
-      assert.equal(r.failed[0].label, 'Hero entrance');
+      assert.equal(r.failed[0].label, 'Entrance');
       assert.match(r.message, /couldn't build any previews/, stage);
     }
     const site = await serveSite();
@@ -263,6 +265,24 @@ test('aborting writes and registers nothing, before, during and after the captur
 
     assert.equal(await count(), before, 'nothing registered');
     assert.equal(files(), 0, 'no playground written');
+    // The stopped font download is not finished in the background and saved to the font cache.
+    await new Promise((r) => setTimeout(r, 300));
+    const fonts = path.join(home, 'fonts');
+    assert.deepEqual(existsSync(fonts) ? readdirSync(fonts) : [], [], 'no font cached after the abort');
+  });
+});
+
+test('a fired signal stops the playground write and the registration', { skip: noBrowser }, async () => {
+  await withHome(async ({ home, store }) => {
+    const r = await pick(store, '/', '#cta-primary');
+    const s = r.suggestions[0];
+    const dir = path.join(home, 'playgrounds');
+    const before = readdirSync(dir).length;
+    const stopped = new AbortController();
+    stopped.abort();
+    await assert.rejects(() => createMotionPlayground({ store, timeline: s.timeline, fragment: s.fragment, signal: stopped.signal }), { name: 'AbortError' });
+    assert.equal(readdirSync(dir).length, before, 'no playground written');
+    await assert.rejects(() => session.registerPlayground(s.html_path, { signal: stopped.signal }), { name: 'AbortError' });
   });
 });
 

@@ -1159,13 +1159,10 @@ export async function collectMotionCandidatesInPage(arg: {
         if (head) roles.set(head, "heading");
         raws.push({ kind: "card-hover", root: target, rootName: "card", roles: roles, only: null, count: g.length });
       }
-      // An existing kind is used when its own element is the one chosen and its trigger is the one asked for.
-      const matches = raws.filter(function (r) {
-        if (r.root === target) return true;
-        if (r.kind === "hero-entrance" && heroText === target) return true;
-        if (r.kind === "section-reveal" && r.only && r.only[0] === target) return true;
-        return false;
-      });
+      // An existing kind is used only when its own root is the element chosen (so every part is in
+      // that element's subtree) and its trigger is the one asked for. A hero heading alone gets the
+      // element recipe: the hero recipe would pull in the lede and actions beside it.
+      const matches = raws.filter(function (r) { return r.root === target; });
       const want = arg.trigger;
       const match = matches.find(function (r) { return !want || KIND_TRIGGER[r.kind] === want; });
       if (match) {

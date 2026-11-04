@@ -144,14 +144,16 @@ function fontKeys(styles: Record<string, FragmentStyle>): Set<string> {
   return s;
 }
 
-async function resolveFonts(plan: FontPlan, pageUrl: string, classifyHost: HostClassifier | undefined, warnings: string[]): Promise<Map<string, string>> {
+async function resolveFonts(plan: FontPlan, pageUrl: string, classifyHost: HostClassifier | undefined, warnings: string[], signal?: AbortSignal): Promise<Map<string, string>> {
   const paths = new Map<string, string>();
   const origin = new URL(pageUrl).origin;
   const cacheDir = join(tasteHome(), "fonts");
   const failed = new Set<string>();
   for (const [key, ref] of plan.keys) {
     if (!ref.src) continue;
-    const r = await fetchFont(ref.src, origin, { cacheDir, classifyHost });
+    if (signal && signal.aborted) break;
+    const r = await fetchFont(ref.src, origin, { cacheDir, classifyHost, ...(signal ? { signal } : {}) });
+    if (signal && signal.aborted) break;
     if ("path" in r) paths.set(key, r.path);
     else if (!failed.has(ref.family)) {
       failed.add(ref.family);
@@ -275,7 +277,7 @@ export async function suggestMotion(input: SuggestMotionInput): Promise<SuggestM
     }
   });
   checkAbort();
-  const fontPaths = await resolveFonts(fontPlan, args.url, input.classifyHost, warnings);
+  const fontPaths = await resolveFonts(fontPlan, args.url, input.classifyHost, warnings, signal);
 
   const suggestions: MotionSuggestion[] = [];
   const mapItems: MapItem[] = [];
@@ -294,7 +296,7 @@ export async function suggestMotion(input: SuggestMotionInput): Promise<SuggestM
     checkAbort();
     try {
       if (input.faultAt === "playground") throw new Error("forced failure (test)");
-      playground = await createMotionPlayground({ store: input.store, timeline: doc, fragment: recipe.fragment, ...(profileName ? { profile: profileName, project: args.project } : {}) });
+      playground = await createMotionPlayground({ store: input.store, timeline: doc, fragment: recipe.fragment, ...(signal ? { signal } : {}), ...(profileName ? { profile: profileName, project: args.project } : {}) });
     } catch (e) {
       fail(c, "playground", e);
       continue;
@@ -305,7 +307,7 @@ export async function suggestMotion(input: SuggestMotionInput): Promise<SuggestM
     checkAbort();
     try {
       if (input.faultAt === "register") throw new Error("forced failure (test)");
-      served = await registerPlayground(playground.html_path, input.owner ? { owner: input.owner } : undefined);
+      served = await registerPlayground(playground.html_path, { ...(input.owner ? { owner: input.owner } : {}), ...(signal ? { signal } : {}) });
       registered.push(served.id);
     } catch (e) {
       fail(c, "register", e);

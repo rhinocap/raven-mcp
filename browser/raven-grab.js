@@ -51,6 +51,8 @@
   // Motion tab: "full" when the bridge serves /motion for the designer's own dev
   // server, "copy" on a third-party proxy (a line to paste into chat), else off.
   var motionMode = suppliedGrabConfig && (suppliedGrabConfig.motion === "full" || suppliedGrabConfig.motion === "copy") ? suppliedGrabConfig.motion : "";
+  // Whether the session carries a taste binding; a job reply's uses_taste updates it.
+  var motionUsesTaste = !!(motionMode === "full" && suppliedGrabConfig && suppliedGrabConfig.motionTaste === true);
   var motionPageOrigin = (function () {
     var value = motionMode === "copy" && suppliedGrabConfig && typeof suppliedGrabConfig.pageOrigin === "string" ? suppliedGrabConfig.pageOrigin : "";
     try { return value && /^https?:$/.test(new URL(value).protocol) ? new URL(value).origin : ""; } catch (error) { return ""; }
@@ -993,6 +995,7 @@
     .raven-grab-tab:hover { color: var(--raven-grab-accent); }
     .raven-grab-tabs[data-count="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .raven-grab-note.raven-grab-motion-lede { margin: 0 0 12px; font-size: calc(12px * var(--raven-grab-font-scale)); }
+    .raven-grab-note.raven-grab-motion-footer { margin: 16px 0 0; font-size: calc(12px * var(--raven-grab-font-scale)); }
     .raven-grab-motion-progress { min-height: 1.45em; margin-top: 8px; text-align: center; }
     .raven-grab-motion-pick { display: flex; flex-direction: column; gap: 8px; }
     .raven-grab-motion-pick-button { width: 100%; }
@@ -12397,7 +12400,9 @@
     hot: -1,
     markerFrame: 0,
     verifyDirty: true,
-    observer: null
+    observer: null,
+    coolUntil: 0,
+    coolTimer: null
   };
 
   function motionTabAvailable() { return !!motionMode && !mobileTabbedSheetMode() && !simpleMode(); }
@@ -12478,8 +12483,12 @@
     for (var i = 0; i < parts.length; i++) {
       var el = motionResolvePart(parts[i]);
       if (!el) return null;
+      // Bound to the node first found. If that node is still on the page but another one now
+      // answers (two identical elements swapped), the part is lost rather than moved.
+      if (row.bound && row.bound[i] && row.bound[i] !== el && row.bound[i].isConnected) return null;
       els.push(el);
     }
+    row.bound = els.slice();
     return els;
   }
 
@@ -12510,6 +12519,8 @@
   function syncMotionObserver() {
     var want = motionMarkersWanted();
     if (want && !motion.observer && typeof MutationObserver === "function") {
+      // Nothing was watched while the observer was off, so the elements are checked again.
+      motion.verifyDirty = true;
       motion.observer = new MutationObserver(function () {
         motion.verifyDirty = true;
         scheduleMotionMarkers();
@@ -12658,8 +12669,11 @@
     return li;
   }
 
+  function motionCooling() { return motion.coolUntil > Date.now(); }
+
   function motionFindLabel() {
     if (motion.phase === "running" && motion.kind === "find") return "Looking at the page…";
+    if (motionCooling()) return "Wait a few minutes";
     if (motion.phase === "failed") return "Try again";
     if (motion.phase === "stale") return "Find motion again";
     if (motion.rows.some(function (r) { return !r.picked; }) || motion.phase === "none" || motion.phase === "allfailed") return "Again";
@@ -12709,7 +12723,7 @@
     findButton.setAttribute("data-motion-find", "");
     findButton.setAttribute("data-send-state", "default");
     findButton.appendChild(motionEl("span", "raven-grab-send-label", motionFindLabel()));
-    if (running) findButton.disabled = true;
+    if (running || motionCooling()) findButton.disabled = true;
     findButton.addEventListener("click", function () { startMotionJob("find"); });
     find.appendChild(findButton);
     var progress = motionEl("p", "raven-grab-note raven-grab-motion-progress", running ? (motion.step === "building" ? "Building previews" : "Copying the page") : "");
@@ -12725,10 +12739,10 @@
         motion.trigger = "";
       }
       var pick = motionEl("section", "raven-grab-section raven-grab-motion-pick");
-      var pickButton = motionEl("button", "raven-grab-queue-add raven-grab-motion-pick-button", running && motion.kind === "pick" ? "Building a preview…" : "Add motion to this element");
+      var pickButton = motionEl("button", "raven-grab-queue-add raven-grab-motion-pick-button", running && motion.kind === "pick" ? "Building a preview…" : motionCooling() ? "Wait a few minutes" : "Add motion to this element");
       pickButton.type = "button";
       pickButton.setAttribute("data-motion-pick", "");
-      if (running) pickButton.disabled = true;
+      if (running || motionCooling()) pickButton.disabled = true;
       pickButton.addEventListener("click", function () { startMotionJob("pick"); });
       var field = motionEl("label", "raven-grab-field raven-grab-motion-when-field");
       field.appendChild(motionEl("span", "", "When it moves"));
@@ -12767,6 +12781,11 @@
       motion.rows.forEach(function (row, index) { list.appendChild(motionRowNode(row, index)); });
       listSection.appendChild(list);
       root.appendChild(listSection);
+    }
+    if (!motionUsesTaste) {
+      var footer = motionEl("p", "raven-grab-note raven-grab-motion-footer", "Suggestions use this page only");
+      footer.setAttribute("data-motion-footer", "");
+      root.appendChild(footer);
     }
     if (scroller) scroller.scrollTop = keepScroll;
   }
@@ -12850,6 +12869,7 @@
           if (motion.jobId !== id) return;
           if (reply.status !== 200) { motionFail("The Grab session changed."); return; }
           var job = reply.body;
+          if (typeof job.uses_taste === "boolean") motionUsesTaste = job.uses_taste;
           if (job.state === "running") {
             if (job.step === "building" && motion.step !== "building") {
               motion.step = "building";
@@ -12869,8 +12889,25 @@
     }, MOTION_POLL_MS);
   }
 
+  // After the tenth job in ten minutes: both buttons read "Wait a few minutes" and stay
+  // disabled until the bridge would take a job again.
+  function motionCoolDown(retryMs) {
+    var wait = typeof retryMs === "number" && isFinite(retryMs) ? Math.min(Math.max(retryMs, 1000), 10 * 60 * 1000) : 10 * 60 * 1000;
+    motion.jobId = "";
+    motion.phase = motion.prevPhase || (motion.rows.length ? "done" : "idle");
+    motion.message = motion.prevMessage || "";
+    motion.coolUntil = Date.now() + wait;
+    if (motion.coolTimer) clearTimeout(motion.coolTimer);
+    motion.coolTimer = setTimeout(function () {
+      motion.coolTimer = null;
+      motion.coolUntil = 0;
+      if (activeTabB === "motion") paintMotion();
+    }, wait);
+    motionSettle();
+  }
+
   function startMotionJob(kind) {
-    if (motionMode !== "full" || motion.phase === "running") return;
+    if (motionMode !== "full" || motion.phase === "running" || motionCooling()) return;
     var body = { path: location.pathname + location.search };
     if (kind === "pick") {
       var el = motionSingleSelection();
@@ -12881,6 +12918,8 @@
       motion.pickEl = el;
       motion.pickMessage = "";
     }
+    motion.prevPhase = motion.phase;
+    motion.prevMessage = motion.message;
     motion.phase = "running";
     motion.kind = kind;
     motion.step = "copying";
@@ -12898,7 +12937,7 @@
           pollMotionJob(id);
           return;
         }
-        if (reply.status === 429) { motionFail("Raven has looked a lot in the last few minutes. Wait a few minutes."); return; }
+        if (reply.status === 429) { motionCoolDown(reply.body.retry_after_ms); return; }
         motionFail(typeof reply.body.error === "string" ? reply.body.error : "");
       })
       .catch(function () { motionFail("Raven's bridge stopped answering."); });

@@ -340,7 +340,8 @@ function pinnedRequest(
   url: URL,
   address: string,
   timeoutMs: number,
-  headers: Record<string, string>
+  headers: Record<string, string>,
+  signal?: AbortSignal
 ): Promise<IncomingMessage> {
   return new Promise(function (resolve, reject) {
     const family = isIP(address) === 6 ? 6 : 4;
@@ -357,7 +358,8 @@ function pinnedRequest(
         method: "GET",
         headers: Object.assign({ "user-agent": "raven-mcp motion font fetch" }, headers),
         lookup: pinnedLookup as any,
-        timeout: timeoutMs
+        timeout: timeoutMs,
+        ...(signal ? { signal: signal } : {})
       },
       resolve
     );
@@ -380,6 +382,8 @@ export type FontFetchOptions = {
   maxBytes?: number;
   /** Default 15 s per hop. */
   timeoutMs?: number;
+  /** Stops the download; nothing is written to the cache once it fires. */
+  signal?: AbortSignal;
 };
 
 export type FontFetchResult = { path: string } | { error: string };
@@ -416,6 +420,9 @@ export async function fetchFont(url: string, pageOrigin: string, opts: FontFetch
   }
   const origin = page.origin;
   const key = createHash("sha256").update(url).digest("hex");
+  const signal = opts.signal;
+  const stopped = (): boolean => Boolean(signal && signal.aborted);
+  if (stopped()) return { error: "The font download was stopped." };
 
   const cached = await readCached(opts.cacheDir, key, maxBytes);
   if (cached !== null) return { path: cached };
@@ -448,8 +455,9 @@ export async function fetchFont(url: string, pageOrigin: string, opts: FontFetch
 
     let res: IncomingMessage;
     try {
-      res = await pinnedRequest(current, info.addresses[0], timeoutMs, { accept: "font/woff2,font/woff,font/ttf,font/otf,*/*;q=0.1" });
+      res = await pinnedRequest(current, info.addresses[0], timeoutMs, { accept: "font/woff2,font/woff,font/ttf,font/otf,*/*;q=0.1" }, signal);
     } catch (error) {
+      if (stopped()) return { error: "The font download was stopped." };
       return { error: "The font could not be downloaded: " + (error instanceof Error ? error.message : String(error)) + "." };
     }
     const status = res.statusCode || 0;
@@ -482,6 +490,7 @@ export async function fetchFont(url: string, pageOrigin: string, opts: FontFetch
     }
     const ext = sniffFont(body);
     if (ext === null) return { error: "The file is not a font." };
+    if (stopped()) return { error: "The font download was stopped." };
     try {
       await mkdir(opts.cacheDir, { recursive: true });
       const finalPath = join(opts.cacheDir, key + "." + ext);

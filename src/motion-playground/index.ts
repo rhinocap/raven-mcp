@@ -56,6 +56,8 @@ export type MotionPlaygroundInput = {
   project?: string;
   seed?: number;
   output_path?: string;
+  /** In-process callers only: once it fires, nothing is written. */
+  signal?: AbortSignal;
 };
 
 export type MotionPlaygroundResult = {
@@ -334,6 +336,12 @@ function readCtxArgs(input: MotionPlaygroundInput): { profile: string; project: 
   return { profile, project };
 }
 
+function abortError(): Error {
+  const e = new Error("The playground was stopped before it was written.");
+  e.name = "AbortError";
+  return e;
+}
+
 export async function createMotionPlayground(input: MotionPlaygroundInput): Promise<MotionPlaygroundResult> {
   const hasMotif = input.motif !== undefined, hasTimeline = input.timeline !== undefined;
   if (hasMotif === hasTimeline) throw new Error("Pass exactly one of motif (a built-in motif) or timeline (a Motion Lab timeline document).");
@@ -439,6 +447,7 @@ async function buildMotif(input: MotionPlaygroundInput): Promise<Built> {
 
 function writePlayground(input: MotionPlaygroundInput, built: Built, source: { motif?: MotionMotif; timeline_id?: string }): MotionPlaygroundResult {
   const { html, idPrefix, warnings, tasteApplied } = built;
+  if (input.signal instanceof AbortSignal && input.signal.aborted) throw abortError();
 
   let htmlPath: string;
   let playgroundId: string;

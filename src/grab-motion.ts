@@ -136,7 +136,10 @@ export async function startMotionJob(state: GrabMotionState, body: unknown, sugg
   const req = readRequest(state, body);
   if ("status" in req) return req;
   if (state.running) return { status: 409, body: { error: "A motion job is already running.", job: state.running.id } };
-  if (state.starts.length >= MOTION_RATE_MAX) return { status: 429, body: { error: "Wait a few minutes." } };
+  if (state.starts.length >= MOTION_RATE_MAX) {
+    const retry = Math.max(0, state.starts[0] + MOTION_RATE_WINDOW_MS - now);
+    return { status: 429, body: { error: "Wait a few minutes.", retry_after_ms: retry } };
+  }
 
   state.starts.push(now);
   const job: MotionJob = { id: randomBytes(8).toString("hex"), state: "running", step: "copying", startedAt: now, inputs: req.inputs, controller: new AbortController() };

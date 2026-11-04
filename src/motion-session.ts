@@ -319,7 +319,7 @@ function resolveWaiters(): void {
 }
 
 /** Registers a playground file. `owner` names who made it (a Grab session id), so that owner can unregister it. */
-export async function registerPlayground(htmlPath: string, opts?: { owner?: string }): Promise<{ id: string; url: string; html_path: string }> {
+export async function registerPlayground(htmlPath: string, opts?: { owner?: string; signal?: AbortSignal }): Promise<{ id: string; url: string; html_path: string }> {
   if (typeof htmlPath !== "string" || htmlPath.trim() === "") throw new Error("html_path is required");
   var full = resolve(htmlPath);
   if (!/\.html$/i.test(full)) throw new Error("html_path must end in .html: " + full);
@@ -333,6 +333,11 @@ export async function registerPlayground(htmlPath: string, opts?: { owner?: stri
   if (!stats.isFile()) throw new Error("html_path is not a regular file: " + full);
   await readHtmlFile(full);
   var s = await startSession();
+  if (opts && opts.signal instanceof AbortSignal && opts.signal.aborted) {
+    var stopped = new Error("The playground was stopped before it was registered.");
+    stopped.name = "AbortError";
+    throw stopped;
+  }
   var id = randomBytes(8).toString("hex");
   var url = "http://127.0.0.1:" + s.port + "/p/" + id;
   registry.set(id, { id: id, htmlPath: full, url: url, ...(opts && typeof opts.owner === "string" ? { owner: opts.owner } : {}) });
