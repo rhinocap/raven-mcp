@@ -815,6 +815,8 @@ __RUNTIME__
   // A sandboxed frame has an opaque origin and no clipboard, so a framed playground hands the text to the
   // parent page and waits for its answer. The text is the designer's own settings, so '*' leaks nothing.
   var framed = window.parent !== window;
+  // Keys pressed in a framed playground never reach the page around it, so Escape is handed over to close the viewer.
+  if (framed) document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !e.defaultPrevented) window.parent.postMessage({ type: 'raven-motion-close' }, '*'); });
   var copySeq = 0;
   function copyViaParent(text, done, fail) {
     var id = 'c' + (++copySeq) + '-' + Date.now();

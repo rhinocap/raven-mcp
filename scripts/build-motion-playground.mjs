@@ -6,10 +6,10 @@
 // 1. Builds the web app (next build) unless --no-build, and serves it on loopback.
 // 2. Serves the Northstar wireframe on its own page (no scripts, no Grab), wrapped in
 //    the same main > section > div as /motion, and runs suggest_motion on it (desktop).
-// 3. Writes web/public/playgrounds/motion/suggestions.json and one <id>.html per
-//    suggestion. Local paths and loopback URLs are removed; the script fails if any remain.
+// 3. Builds suggestions.json and one <id>.html per suggestion in memory. Local paths
+//    and loopback URLs are removed; the script fails if any remain.
 // 4. Checks every suggestion's parts resolve on the real /motion page.
-// 5. Writes source.json with hashes of the wireframe inputs and the outputs, which
+// 5. Only then replaces web/public/playgrounds/motion/, adding source.json with hashes of the wireframe inputs and the outputs, which
 //    scripts/check-site-drift.mjs compares.
 import { spawn, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -27,6 +27,8 @@ export const MOTION_INPUTS = [
   "web/app/_northstar/playgroundCss.ts",
   "web/app/raven-design/FeatureCard.tsx",
   "src/data/motion/motifs.lock.json",
+  "src/data/motion/template.html",
+  "src/data/motion/timeline-template.html",
 ];
 const MAX = 6;
 
@@ -121,15 +123,16 @@ async function main() {
     if (!result.suggestions.length) fail(`suggest_motion found nothing: ${result.message || ""}`);
     if (result.failed.length) fail(`${result.failed.length} suggestion(s) failed to build`);
 
-    mkdirSync(outDir, { recursive: true });
-    for (const name of readdirSync(outDir)) if (/\.(html|json)$/.test(name)) unlinkSync(path.join(outDir, name));
+    // Everything is built and checked in memory first; the current bundle is only
+    // replaced once every check has passed, so a failed run leaves it untouched.
+    const outputs = new Map();
     const files = {};
     const suggestions = result.suggestions.map((s) => {
       if (!/^[a-z0-9-]{1,64}$/.test(s.id)) fail(`unexpected suggestion id ${s.id}`);
       const name = `${s.id}.html`;
       const html = portablePlayground(readFileSync(s.html_path, "utf8"));
       if (LOCAL_PATTERN.test(html)) fail(`${name} still names a local path or loopback URL: ${html.match(LOCAL_PATTERN)[0]}`);
-      writeFileSync(path.join(outDir, name), html);
+      outputs.set(name, html);
       files[name] = sha(html);
       return {
         label: s.label, kind: s.kind, why: s.why, trigger_words: s.trigger_words, approximations: s.approximations,
@@ -139,7 +142,7 @@ async function main() {
     });
     const json = JSON.stringify({ suggestions }, null, 2) + "\n";
     if (LOCAL_PATTERN.test(json)) fail(`suggestions.json still names a local path or loopback URL: ${json.match(LOCAL_PATTERN)[0]}`);
-    writeFileSync(path.join(outDir, "suggestions.json"), json);
+    outputs.set("suggestions.json", json);
     files["suggestions.json"] = sha(json);
 
     // Every part must resolve on the real /motion page, the way Grab resolves it.
@@ -174,7 +177,10 @@ async function main() {
     }
 
     const source = { inputs: inputsHash(), files };
-    writeFileSync(path.join(outDir, "source.json"), JSON.stringify(source, null, 2) + "\n");
+    outputs.set("source.json", JSON.stringify(source, null, 2) + "\n");
+    mkdirSync(outDir, { recursive: true });
+    for (const name of readdirSync(outDir)) if (/\.(html|json)$/.test(name) && !outputs.has(name)) unlinkSync(path.join(outDir, name));
+    for (const [name, body] of outputs) writeFileSync(path.join(outDir, name), body);
     console.log(`build-motion-playground: ${suggestions.length} suggestions`);
     suggestions.forEach((s, i) => console.log(`  ${i + 1}. ${s.label} (${s.url})`));
   } finally {

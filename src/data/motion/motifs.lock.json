@@ -23,12 +23,12 @@
     "template.html": {
       "forked_from": "src/keyfob/template.html",
       "upstream_sha256": "1883d6d64056b4e5501f6ad20243d055f89e804f33d734163851d07695fab6bb",
-      "fork_sha256": "f0b5bdafa95bce361b4fdc7a99a47055936a7a0fb801bc74d8118dd15e5b9413"
+      "fork_sha256": "2a669007f768210b219a304cdd445bf6ab36de25acb5b0286f821cfad87a12cd"
     },
     "timeline-template.html": {
       "forked_from": "src/timeline/template.html",
       "upstream_sha256": "1cb044032a4525568a90951c0ac419a100e690c91336f223de0fcfc21edef301",
-      "fork_sha256": "fbd32b329ac440aa33b43e36b7753612957aa65c170e50ecc96b1747aae2fae4"
+      "fork_sha256": "b7f76d904cd24a0942d5ecf319acfafa47d80a620d4fdd2dfe3a70d95c004b91"
     }
   }
 }

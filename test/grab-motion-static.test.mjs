@@ -57,6 +57,7 @@ document.getElementById('copy').addEventListener('click', function () {
   window.addEventListener('message', function (e) { if (e.data && e.data.type === 'raven-motion-copied') document.getElementById('said').textContent = e.data.ok ? 'copied' : 'failed'; });
   window.parent.postMessage({ type: 'raven-motion-copy', id: 'c1', text: 'motion for ${name}' }, '*');
 });
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') window.parent.postMessage({ type: 'raven-motion-close' }, '*'); });
 </script></body></html>`;
 
 async function serve(config, suggestions) {
@@ -155,6 +156,24 @@ test('a playground opens in a sandboxed same-origin frame; Copy reaches the clip
     assert.equal(await grabText(page, '[data-motion-viewer-title]'), 'Suggestion 2 of 2');
     await page.keyboard.press('Escape');
     assert.equal(await inGrab(page, '[data-motion-viewer]'), 0);
+  });
+});
+
+test('the viewer is modal: the page and panels go inert, and Escape inside the playground closes it', { skip }, async () => {
+  await withPage({}, async (page) => {
+    await find(page);
+    assert.ok(await clickGrab(page, '[data-motion-play="1"]'));
+    const inert = () => page.evaluate(() => {
+      const root = [...document.querySelectorAll('*')].find((el) => el.shadowRoot && el.shadowRoot.querySelector('.raven-grab-panel')).shadowRoot;
+      return { stage: document.querySelector('.stage').inert, panel: root.querySelector('.raven-grab-panel').inert, viewer: root.querySelector('[data-motion-viewer]')?.inert ?? null };
+    });
+    assert.deepEqual(await inert(), { stage: true, panel: true, viewer: false });
+    const inner = page.frames().find((f) => f.url().endsWith('/cta-hover-1.html'));
+    await inner.waitForSelector('#copy');
+    await inner.focus('#copy');
+    await inner.press('#copy', 'Escape');
+    await page.waitForFunction(() => ![...document.querySelectorAll('*')].some((el) => el.shadowRoot && el.shadowRoot.querySelector('[data-motion-viewer]')));
+    assert.deepEqual(await inert(), { stage: false, panel: false, viewer: null });
   });
 });
 

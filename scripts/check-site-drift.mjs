@@ -318,7 +318,7 @@ if (
   const source = parseJson(await read(`${dir}/source.json`, "motion"), `${dir}/source.json`, "motion");
   if (source) {
     if (source.inputs !== inputsHash()) {
-      addError("motion", `${dir} was built from an older wireframe; run node scripts/build-motion-playground.mjs`);
+      addError("motion", `${dir} was built from an older wireframe or playground template; run node scripts/build-motion-playground.mjs`);
     }
     let names = [];
     try { names = (await readdir(path.join(root, dir))).filter((n) => /\.(html|json)$/.test(n) && n !== "source.json"); } catch { /* reported by read */ }

@@ -13197,7 +13197,20 @@
       if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeMotionViewer(true); }
     });
     shadow.appendChild(wrap);
-    motionViewer = { wrap: wrap, frame: frame, trigger: trigger || null };
+    // A modal: everything behind it (Grab's panels and markers, and the page itself)
+    // leaves the tab order and ignores the pointer until the viewer closes.
+    var benched = [];
+    var bench = function (list) {
+      for (var i = 0; i < list.length; i++) {
+        var el = list[i];
+        if (el === wrap || el === host || el.inert || el.localName === "style" || el.localName === "script") continue;
+        el.inert = true;
+        benched.push(el);
+      }
+    };
+    bench(shadow.children);
+    if (document.body) bench(document.body.children);
+    motionViewer = { wrap: wrap, frame: frame, trigger: trigger || null, benched: benched };
     try { close.focus({ preventScroll: true }); } catch (error) { close.focus(); }
   }
 
@@ -13206,6 +13219,7 @@
     var v = motionViewer;
     motionViewer = null;
     if (v.wrap.parentNode) v.wrap.parentNode.removeChild(v.wrap);
+    for (var i = 0; i < v.benched.length; i++) v.benched[i].inert = false;
     if (restoreFocus && v.trigger && v.trigger.isConnected) {
       try { v.trigger.focus({ preventScroll: true }); } catch (error) { v.trigger.focus(); }
     }
@@ -13215,13 +13229,14 @@
     window.addEventListener("message", function (event) {
       if (!motionViewer || event.source !== motionViewer.frame.contentWindow) return;
       var m = event.data;
+      // Keys pressed inside the frame stay there, so the playground hands Escape over.
+      if (m && m.type === "raven-motion-close") { closeMotionViewer(true); return; }
       if (!m || m.type !== "raven-motion-copy" || typeof m.id !== "string" || typeof m.text !== "string" || m.text.length > 200000) return;
       var source = event.source;
       var answer = function (ok) { try { source.postMessage({ type: "raven-motion-copied", id: m.id, ok: ok }, "*"); } catch (error) {} };
       writeClipboardText(m.text).then(function () { answer(true); }, function () { answer(false); });
     });
-    // Escape from inside the frame never reaches this page, so the frame's own
-    // focus is left alone; Escape anywhere on the page closes the viewer.
+    // Escape on the page closes the viewer; Escape inside the frame arrives as raven-motion-close.
     window.addEventListener("keydown", function (event) {
       if (motionViewer && event.key === "Escape") closeMotionViewer(true);
     });
