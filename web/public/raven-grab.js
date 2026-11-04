@@ -866,7 +866,7 @@
       color: #fff; background: var(--raven-grab-bg); border: 1px solid var(--raven-grab-accent); border-radius: 50%; cursor: pointer;
       pointer-events: auto; font: 600 calc(10px * var(--raven-grab-font-scale))/1 var(--raven-grab-ui); box-shadow: 0 2px 8px rgba(0, 0, 0, .45);
     }
-    .raven-grab-motion-badge[data-hot="true"] { color: #0a1018; background: var(--raven-grab-accent); }
+    .raven-grab-motion-badge:hover, .raven-grab-motion-badge[data-hot="true"] { color: #0a1018; background: var(--raven-grab-accent); }
     .raven-grab-motion-badge:focus-visible { outline: 2px solid var(--raven-grab-accent); outline-offset: 2px; }
     .raven-grab-panel {
       position: fixed; top: 20px; right: 20px; bottom: 20px; display: none; z-index: 2; width: min(360px, calc(100vw - 40px));
@@ -992,7 +992,7 @@
     .raven-grab-tab[aria-selected="true"] { color: var(--raven-grab-accent); border-bottom-color: rgba(0, 191, 255, .3); font-weight: 500; }
     .raven-grab-tab:hover { color: var(--raven-grab-accent); }
     .raven-grab-tabs[data-count="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    .raven-grab-motion-lede { margin-bottom: 12px; font-size: calc(12px * var(--raven-grab-font-scale)); }
+    .raven-grab-note.raven-grab-motion-lede { margin: 0 0 12px; font-size: calc(12px * var(--raven-grab-font-scale)); }
     .raven-grab-motion-progress { min-height: 1.45em; margin-top: 8px; text-align: center; }
     .raven-grab-motion-pick { display: flex; flex-direction: column; gap: 8px; }
     .raven-grab-motion-pick-button { width: 100%; }
