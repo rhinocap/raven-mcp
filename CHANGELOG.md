@@ -6,6 +6,8 @@ This file is the curated source. Notes for the next release are written under `[
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-11-04
+
 ### Added
 - **Motion.** Four tools for tuning web motion by hand and getting it into code.
   - `create_motion_playground` builds a single HTML file with an animation on a stage and controls labelled in designer terms: lift, timing, feel, word gap. Copy for your agent hands over the tuned motion as a build request; Copy for Raven records it as a taste decision.
