@@ -41,4 +41,3 @@ Key facts:
 - [Law firm demo](https://ravenmcp.ai/demos/law-firm.html): Professional-services site built with Raven.
 - [Real estate demo](https://ravenmcp.ai/demos/real-estate.html): Property listing site built with Raven.
 - [Wedding demo](https://ravenmcp.ai/demos/wedding.html): Event site built with Raven.
-- [Motion playground](https://ravenmcp.ai/motion): A motion playground built by create_motion_playground, with live controls and copyable exports.

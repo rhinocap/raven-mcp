@@ -15,7 +15,6 @@ This file is the curated source. Notes for the next release are written under `[
   - `get_motion_sends` returns what the designer sent.
   - `suggest_motion` looks at a page, finds where motion would help (button and card hovers, the hero entrance, navigation, image reveals), and builds a playground for each from the page's own content and fonts. It accepts a selector and trigger for a single element.
 - **Motion tab in Raven Grab.** On a local dev server, Find motion lists the suggestions for the page you are on, with numbered markers on the page and a loading state while it works. Add motion builds a playground for the selected element. A third-party page shows a line to copy into your agent's chat instead.
-- **ravenmcp.ai/motion** has a sample page with five suggestions and their playgrounds, live in the browser.
 
 ## [2.6.0] - 2026-09-23
 

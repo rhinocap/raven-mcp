@@ -201,6 +201,25 @@ else
   fi
 fi
 
+echo "→ Waiting for npm to serve v$NEW"
+# The MCP Registry validates against npm and refuses a version npm does not yet
+# serve. v3.0.0 published at 06:33:29, the registry gave up at 06:34:07, and npm
+# showed the version at 06:36:53. Wait for npm first, up to five minutes.
+NPM_VISIBLE=0
+for _wait in $(seq 1 60); do
+  if curl -sf -o /dev/null -H "Cache-Control: no-cache" "https://registry.npmjs.org/raven-mcp/$NEW"; then
+    NPM_VISIBLE=1
+    echo "  npm serves v$NEW"
+    break
+  fi
+  sleep 5
+done
+if [[ $NPM_VISIBLE -ne 1 ]]; then
+  echo "✗ npm still does not serve v$NEW after five minutes. npm has published it;"
+  echo "  re-run scripts/release.sh once it appears and it resumes on the shasum check."
+  exit 1
+fi
+
 echo "→ Publishing to MCP Registry"
 # The registry JWT expires in MINUTES. Minting it right here — rather than in a
 # preflight the operator ran earlier — is the whole point: v2.2.9 and v2.3.0

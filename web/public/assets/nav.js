@@ -3,7 +3,6 @@
 
   var PAGE_LINKS = [
     { label: 'Design Playground', href: '/raven-design' },
-    { label: 'Motion', href: '/motion' },
     { label: 'Docs', href: '/docs' },
     { label: 'Changelog', href: '/changelog' }
   ];
@@ -12,7 +11,6 @@
 
   function isActive(href) {
     if (href === '/raven-design') return path === '/raven-design';
-    if (href === '/motion') return path === '/motion';
     if (href === '/docs') return path === '/docs';
     if (href === '/changelog') return path === '/changelog';
     return false;

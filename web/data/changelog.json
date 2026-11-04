@@ -33,8 +33,7 @@
       "title": "Motion",
       "changes": [
         "Motion. Four tools for tuning web motion by hand and getting it into code.",
-        "Motion tab in Raven Grab. On a local dev server, Find motion lists the suggestions for the page you are on, with numbered markers on the page and a loading state while it works. Add motion builds a playground for the selected element. A third-party page shows a line to copy into your agent's chat instead.",
-        "ravenmcp.ai/motion has a sample page with five suggestions and their playgrounds, live in the browser."
+        "Motion tab in Raven Grab. On a local dev server, Find motion lists the suggestions for the page you are on, with numbered markers on the page and a loading state while it works. Add motion builds a playground for the selected element. A third-party page shows a line to copy into your agent's chat instead."
       ]
     },
     {
