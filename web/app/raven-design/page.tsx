@@ -15,6 +15,10 @@ export const metadata: Metadata = {
   },
 }
 
+// The Motion tab reads the prebuilt suggestions for this wireframe (see /motion), so it
+// needs no local bridge. Layers stays the tab that opens first.
+const designGrabConfig = { ...ravenGrabConfig, motion: 'static' }
+
 export default function PlaygroundPage() {
   return (
     <main id="main" className="playground-page">
@@ -33,7 +37,7 @@ export default function PlaygroundPage() {
             <p>Select a FeatureCard under Features to see Scope (“All 3 like this”) and tokenized Styles.</p>
           </div>
 
-          <Coachmarks config={ravenGrabConfig} />
+          <Coachmarks config={designGrabConfig} />
 
           <NorthstarWireframe />
         </div>

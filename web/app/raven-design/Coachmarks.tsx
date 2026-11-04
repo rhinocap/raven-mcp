@@ -40,7 +40,12 @@ const STEPS: Step[] = [
   },
   {
     title: 'Layers and Assets',
-    body: 'The Raven Design panel has two tabs. Layers is the element tree — drag a row to reorder or reparent it. Assets captures a whole component into DESIGN.md: an engineer sends a component request; the design system side adds the component and updates DESIGN.md.',
+    body: 'The Raven Design panel has three tabs. Layers is the element tree — drag a row to reorder or reparent it. Assets captures a whole component into DESIGN.md: an engineer sends a component request; the design system side adds the component and updates DESIGN.md.',
+    anchor: 'panel-left',
+  },
+  {
+    title: 'Motion',
+    body: 'The Motion tab tunes how things move. Press Find motion and Raven numbers the spots on the page that should move. Open one, drag a slider until it feels right, then copy the motion for your agent.',
     anchor: 'panel-left',
   },
   {
