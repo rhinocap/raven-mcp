@@ -8,6 +8,8 @@ import { fileURLToPath } from "url";
 import { tmpdir } from "os";
 import { z } from "zod";
 import { flattenDesignTokens, parseDesignMd, readDesignMd, updateDesignMd, type DesignMdNode } from "./designmd.js";
+import { newGrabMotionState, readMotionJob, startMotionJob, stopGrabMotion, type GrabMotionOptions, type GrabMotionState } from "./grab-motion.js";
+import { suggestMotion } from "./motion-suggest/index.js";
 import { handleAttachmentRequest, MAX_ATTACHMENT_BODY_BYTES, MAX_SESSION_ATTACHMENTS, pruneGrabInbox, type GrabAttachmentRecord } from "./grab-inbox.js";
 
 var __dirname = dirname(fileURLToPath(import.meta.url));
@@ -355,7 +357,11 @@ interface BridgeSession {
   nextSequence: number;
   batchCommits: Record<string, GrabBatchCommit>;
   attachments: Map<string, GrabAttachmentRecord>;
+  /** Motion jobs: present only when the session proxies the designer's own loopback server. */
+  motion?: GrabMotionState;
 }
+
+export type GrabSessionOptions = { motion?: GrabMotionOptions };
 
 var currentSession: BridgeSession | null = null;
 var originalFetch: typeof fetch | null = null;
@@ -386,7 +392,7 @@ function grabConfigTag(role: GrabRole, projectName: string, bridgeOrigin: string
   return '<script>window.ravenGrabConfig=' + serialized + ';</script>';
 }
 
-export async function startGrabSession(path?: string, port?: number, proxyTarget?: string, role: GrabRole = "consumer"): Promise<GrabBridgeStartResult> {
+export async function startGrabSession(path?: string, port?: number, proxyTarget?: string, role: GrabRole = "consumer", options?: GrabSessionOptions): Promise<GrabBridgeStartResult> {
   await stopGrabSession();
   try {
     pruneGrabInbox();
@@ -467,7 +473,10 @@ export async function startGrabSession(path?: string, port?: number, proxyTarget
       currentBatchId: null,
       nextSequence: 1,
       batchCommits: Object.create(null),
-      attachments: new Map()
+      attachments: new Map(),
+      ...(normalizedTarget && !proxyCaptureOnly(normalizedTarget) && options && options.motion
+        ? { motion: newGrabMotionState(options.motion, normalizedTarget) }
+        : {})
     };
   } catch (err) {
     if (server.listening) {
@@ -558,6 +567,7 @@ export async function stopGrabSession(): Promise<{ stopped: boolean }> {
 
   var session = currentSession;
   currentSession = null;
+  stopGrabMotion(session.motion);
   resetProxyCookieJar();
   session.waiters.splice(0).forEach(function (resolveItems) {
     resolveItems({ count: 0, elements: [] });
@@ -1175,7 +1185,8 @@ async function handleGrabRequest(designMdPath: string, key: string, req: Incomin
   }
   var pathname = new URL(requestUrl, "http://127.0.0.1").pathname;
   var bridgeRoute = pathname === "/raven-grab.js" || pathname === "/tokens" || pathname === "/grab" || pathname === "/attachment" || pathname === "/batch" || pathname === "/batch-commit" || pathname === "/agent/wait"
-    || pathname === "/template" || pathname === "/template-validation" || pathname === "/components" || pathname === "/layers" || pathname === "/layers-intent" || pathname === "/layers-operation";
+    || pathname === "/template" || pathname === "/template-validation" || pathname === "/components" || pathname === "/layers" || pathname === "/layers-intent" || pathname === "/layers-operation"
+    || isMotionRoute(pathname);
   var withheldRoute = false;
   if (proxyTarget && bridgeRoute) {
     // A proxied page runs same-origin with the overlay, so every route the key
@@ -1219,6 +1230,10 @@ async function handleGrabRequest(designMdPath: string, key: string, req: Incomin
     res.statusCode = 404;
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     res.end("Not available while proxying a third-party site");
+    return;
+  }
+  if (isMotionRoute(pathname)) {
+    await handleMotionRequest(key, method, requestUrl, req, res);
     return;
   }
   if (method === "POST" && pathname === "/attachment") {
@@ -1283,6 +1298,48 @@ async function handleGrabRequest(designMdPath: string, key: string, req: Incomin
   } else {
     res.end(result.body);
   }
+}
+
+function isMotionRoute(pathname: string): boolean {
+  return pathname === "/motion/suggest" || /^\/motion\/job\/[^/]*$/.test(pathname);
+}
+
+// Motion jobs (grab-motion.ts). Reached only as a bridge route: keyed on a loopback proxy, withheld
+// above on a third-party one. Without a proxied page there is nothing to capture, so they answer 404.
+async function handleMotionRequest(key: string, method: string, requestUrl: string, req: IncomingMessage, res: ServerResponse): Promise<void> {
+  var send = function (status: number, value: unknown) {
+    setCorsHeaders(res);
+    res.statusCode = status;
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("Cache-Control", "no-store");
+    res.end(JSON.stringify(value));
+  };
+  if (method === "OPTIONS") { setCorsHeaders(res); res.statusCode = 204; res.end(); return; }
+  var parsed = new URL(requestUrl, "http://127.0.0.1");
+  if (parsed.searchParams.get("key") !== key) { send(403, { error: "Forbidden" }); return; }
+  // Pinned: a job belongs to the session it started in.
+  var session = currentSession;
+  var motion = session ? session.motion : undefined;
+  if (!session || !motion) { send(404, { error: "Motion needs a Grab session on your own dev server." }); return; }
+  if (parsed.pathname === "/motion/suggest") {
+    if (method !== "POST") { send(405, { error: "Use POST." }); return; }
+    var body: unknown;
+    try {
+      body = await readJsonBody(req);
+    } catch (_err) {
+      send(400, { error: "Send a JSON object." });
+      return;
+    }
+    if (currentSession !== session) { send(404, { error: "The Grab session changed." }); return; }
+    var started = await startMotionJob(motion, body, suggestMotion);
+    send(started.status, started.body);
+    return;
+  }
+  if (method !== "GET") { send(405, { error: "Use GET." }); return; }
+  var id = parsed.pathname.slice("/motion/job/".length);
+  if (!/^[0-9a-f]{16}$/.test(id)) { send(404, { error: "No such motion job." }); return; }
+  var job = readMotionJob(motion, id);
+  send(job.status, job.body);
 }
 
 function setCorsHeaders(res: ServerResponse): void {
@@ -1609,6 +1666,11 @@ async function proxyGrabRequest(proxyTarget: string, key: string, method: string
       // because sameProxyHost pins any mid-session https upgrade to one host.
       if (proxyCaptureOnly(currentSession ? currentSession.proxyTarget : proxyTarget)) {
         proxyConfig.authoring = "withheld";
+        // The Motion tab offers the chat line instead of running jobs, naming the real site.
+        proxyConfig.motion = "copy";
+        proxyConfig.pageOrigin = proxyTargetUrl.origin;
+      } else if (currentSession && currentSession.motion) {
+        proxyConfig.motion = "full";
       }
       if (role === "maintainer") proxyConfig.role = "maintainer";
       var proxyConfigJson = JSON.stringify(proxyConfig).replace(/</g, "\\u003c");

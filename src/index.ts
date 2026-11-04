@@ -3640,16 +3640,25 @@ server.tool(
 
 server.tool(
   "start_grab_session",
-  "Start a capability-keyed Raven grab bridge on loopback. Proxy mode is the preferred zero-paste path: it serves a running local app with the overlay injected into HTML; the manual script tag remains available when needed.",
+  "Start a capability-keyed Raven grab bridge on loopback. Proxy mode is the preferred zero-paste path: it serves a running local app with the overlay injected into HTML; the manual script tag remains available when needed. When proxying the designer's own local dev server, Grab's Motion tab finds motion for the page and builds playgrounds itself; pass profile and project when the project has a taste binding so those suggestions follow the designer's notes and earlier motion decisions.",
   {
     path: z.string().optional().describe("Path to DESIGN.md to expose over /tokens. Optional when proxy_target is set — a minimal temp DESIGN.md is created automatically. Required (and must exist) when proxy_target is omitted."),
     port: z.number().int().positive().optional().describe("Optional port; defaults to an ephemeral loopback port"),
     proxy_target: z.string().optional().describe("URL of a running local dev server; the bridge will serve that app with the grab overlay auto-injected into every HTML page — user opens the bridge URL, zero setup"),
-    role: z.enum(["consumer", "maintainer"]).optional().default("consumer").describe("Overlay role; consumer preserves the component-request flow, maintainer enables direct design-system component creation")
+    role: z.enum(["consumer", "maintainer"]).optional().default("consumer").describe("Overlay role; consumer preserves the component-request flow, maintainer enables direct design-system component creation"),
+    profile: z.string().optional().describe("Taste profile for the Motion tab's suggestions. Pass with project, or omit both."),
+    project: z.string().optional().describe("Bound project for the Motion tab's suggestions. Pass with profile, or omit both.")
   },
-  async ({ path, port, proxy_target, role }) => {
+  async ({ path, port, proxy_target, role, profile, project }) => {
     try {
-      var session = await startGrabSession(path, port, proxy_target, role);
+      var motionProfile = typeof profile === "string" ? profile.trim() : "";
+      var motionProject = typeof project === "string" ? project.trim() : "";
+      if ((motionProfile === "") !== (motionProject === "")) throw new Error("profile and project go together: pass both or neither");
+      if (motionProject && !/^[a-z0-9][a-z0-9-_.]{0,63}$/i.test(motionProject)) throw new Error("project must match /^[a-z0-9][a-z0-9-_.]{0,63}$/i");
+      if (motionProfile) await getTasteProfile(tasteStore, motionProfile);
+      var session = await startGrabSession(path, port, proxy_target, role, {
+        motion: { store: tasteStore, ...(motionProfile ? { profile: motionProfile, project: motionProject } : {}) }
+      });
       var payload: Record<string, unknown> = { ...session };
       var protocol = "Tell the user in ONE line that sends and component requests from the overlay arrive in this agent session and are held until Apply commits the batch; for teams, briefly mention GitHub routing with COMPONENT_REQUEST_GITHUB_REPO and optional COMPONENT_REQUEST_GITHUB_TOKEN.";
       if (session.watch_command) {

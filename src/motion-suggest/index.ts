@@ -41,6 +41,8 @@ export type SuggestMotionInput = {
   signal?: AbortSignal;
   /** Who the playgrounds belong to (a Grab session id), passed to registration. */
   owner?: string;
+  /** Called when the capture is done and the previews start building. */
+  onStep?: (step: "building") => void;
   /** Tests only: treat named hosts as public. */
   classifyHost?: HostClassifier;
   /** Tests only: fail every suggestion at this stage. */
@@ -252,6 +254,7 @@ export async function suggestMotion(input: SuggestMotionInput): Promise<SuggestM
   const insp = result.inspection;
   warnings.push(...insp.passWarnings);
   checkAbort();
+  if (input.onStep) input.onStep("building");
 
   // Build each suggestion.
   const fontPlan = newFontPlan();
