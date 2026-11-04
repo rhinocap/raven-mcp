@@ -48,6 +48,35 @@
   // the authoring routes. A send is then complete once the selection reaches the
   // queue: there is nothing on someone else's page to commit a change to.
   var captureOnly = !!(suppliedGrabConfig && suppliedGrabConfig.authoring === "withheld");
+  // Motion tab: "full" when the bridge serves /motion for the designer's own dev
+  // server, "copy" on a third-party proxy (a line to paste into chat), else off.
+  var motionMode = suppliedGrabConfig && (suppliedGrabConfig.motion === "full" || suppliedGrabConfig.motion === "copy") ? suppliedGrabConfig.motion : "";
+  var motionPageOrigin = (function () {
+    var value = motionMode === "copy" && suppliedGrabConfig && typeof suppliedGrabConfig.pageOrigin === "string" ? suppliedGrabConfig.pageOrigin : "";
+    try { return value && /^https?:$/.test(new URL(value).protocol) ? new URL(value).origin : ""; } catch (error) { return ""; }
+  })();
+  // Counts every history change, so a job's results can be dropped when the page
+  // moved while Raven was looking, A to B and back to A included.
+  var motionNavCount = 0;
+  var motionNavListeners = [];
+  if (motionMode === "full") {
+    ["pushState", "replaceState"].forEach(function (name) {
+      var original = history[name];
+      if (typeof original !== "function") return;
+      history[name] = function () {
+        var result = original.apply(this, arguments);
+        motionNavCount += 1;
+        motionNavListeners.forEach(function (fn) { fn(); });
+        return result;
+      };
+    });
+    ["popstate", "hashchange"].forEach(function (type) {
+      window.addEventListener(type, function () {
+        motionNavCount += 1;
+        motionNavListeners.forEach(function (fn) { fn(); });
+      });
+    });
+  }
   var ravenVersion = suppliedGrabConfig && suppliedGrabConfig.ravenVersion ? String(suppliedGrabConfig.ravenVersion) : "";
   // Config wins, then the page's own title, then the host. All three resolve locally --
   // the grab bridge runs on the user's machine, so none of this needs the network.
@@ -827,6 +856,18 @@
       color: #fff; background: var(--raven-grab-bg); border: 1px solid var(--raven-grab-accent); border-radius: 50%;
       pointer-events: none; font: 600 calc(10px * var(--raven-grab-font-scale))/1 var(--raven-grab-ui); box-shadow: 0 2px 8px rgba(0, 0, 0, .45);
     }
+    .raven-grab-motion-marker {
+      position: fixed; display: block; pointer-events: none; z-index: 1; border: 2px dashed rgba(0, 191, 255, .7);
+      background: transparent; border-radius: 3px; box-shadow: 0 0 0 1px rgba(10, 10, 18, .5) inset;
+    }
+    .raven-grab-motion-marker[data-hot="true"] { border-style: solid; border-color: var(--raven-grab-accent); background: rgba(0, 191, 255, .08); }
+    .raven-grab-motion-badge {
+      position: fixed; display: flex; align-items: center; justify-content: center; z-index: 1; width: 20px; height: 20px; padding: 0;
+      color: #fff; background: var(--raven-grab-bg); border: 1px solid var(--raven-grab-accent); border-radius: 50%; cursor: pointer;
+      pointer-events: auto; font: 600 calc(10px * var(--raven-grab-font-scale))/1 var(--raven-grab-ui); box-shadow: 0 2px 8px rgba(0, 0, 0, .45);
+    }
+    .raven-grab-motion-badge[data-hot="true"] { color: #0a1018; background: var(--raven-grab-accent); }
+    .raven-grab-motion-badge:focus-visible { outline: 2px solid var(--raven-grab-accent); outline-offset: 2px; }
     .raven-grab-panel {
       position: fixed; top: 20px; right: 20px; bottom: 20px; display: none; z-index: 2; width: min(360px, calc(100vw - 40px));
       overflow: hidden; pointer-events: auto; flex-direction: column;
@@ -950,6 +991,38 @@
     .raven-grab-tab { min-height: 44px; padding: 12px 6px; color: var(--raven-grab-text); background: transparent; border: 0; border-bottom: 1px solid transparent; cursor: pointer; font: 400 calc(11px * var(--raven-grab-font-scale))/1 var(--raven-grab-mono); }
     .raven-grab-tab[aria-selected="true"] { color: var(--raven-grab-accent); border-bottom-color: rgba(0, 191, 255, .3); font-weight: 500; }
     .raven-grab-tab:hover { color: var(--raven-grab-accent); }
+    .raven-grab-tabs[data-count="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .raven-grab-motion-lede { margin-bottom: 12px; font-size: calc(12px * var(--raven-grab-font-scale)); }
+    .raven-grab-motion-progress { min-height: 1.45em; margin-top: 8px; text-align: center; }
+    .raven-grab-motion-pick { display: flex; flex-direction: column; gap: 8px; }
+    .raven-grab-motion-pick-button { width: 100%; }
+    .raven-grab-motion-pick-button:disabled { opacity: .45; cursor: default; }
+    .raven-grab-motion-when-field { display: flex; flex-direction: column; gap: 4px; color: var(--raven-grab-muted); font: 400 calc(11px * var(--raven-grab-font-scale))/1.4 var(--raven-grab-ui); }
+    .raven-grab-motion-message { margin: 16px 0 0; color: var(--raven-grab-text); font: 400 calc(12px * var(--raven-grab-font-scale))/1.5 var(--raven-grab-ui); }
+    .raven-grab-motion-pick .raven-grab-motion-message { margin-top: 0; color: var(--raven-grab-muted); }
+    .raven-grab-motion-chat { margin: 12px 0; padding: 10px 12px; color: var(--raven-grab-text); background: var(--raven-grab-raised); border: 1px solid rgba(255, 255, 255, .1); border-radius: 8px; font: 400 calc(12px * var(--raven-grab-font-scale))/1.5 var(--raven-grab-ui); overflow-wrap: anywhere; }
+    .raven-grab-motion-list { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }
+    .raven-grab-motion-row { display: flex; gap: 10px; padding: 10px; border: 1px solid transparent; border-radius: 10px; }
+    .raven-grab-motion-row[data-hot="true"] { background: rgba(0, 191, 255, .06); border-color: rgba(0, 191, 255, .25); }
+    .raven-grab-motion-chip { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; margin-top: 1px; color: var(--raven-grab-text); background: var(--raven-grab-bg); border: 1px solid rgba(0, 191, 255, .6); border-radius: 50%; font: 600 calc(10px * var(--raven-grab-font-scale))/1 var(--raven-grab-ui); }
+    .raven-grab-motion-row[data-failed="true"] .raven-grab-motion-chip { border-color: rgba(255, 255, 255, .2); color: var(--raven-grab-muted); }
+    .raven-grab-motion-row-body { flex: 1 1 auto; min-width: 0; }
+    .raven-grab-motion-row-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 8px; }
+    .raven-grab-motion-name { color: var(--raven-grab-text); font: 500 calc(13px * var(--raven-grab-font-scale))/1.35 var(--raven-grab-ui); text-decoration: none; }
+    a.raven-grab-motion-name { color: var(--raven-grab-accent); }
+    a.raven-grab-motion-name:hover { color: var(--raven-grab-accent-hover); text-decoration: underline; }
+    .raven-grab-motion-tag { color: var(--raven-grab-accent); font: 500 calc(11px * var(--raven-grab-font-scale))/1.35 var(--raven-grab-ui); }
+    .raven-grab-motion-when { margin: 2px 0 0; color: var(--raven-grab-muted); font: 400 calc(11px * var(--raven-grab-font-scale))/1.45 var(--raven-grab-ui); }
+    .raven-grab-motion-why { margin: 4px 0 0; color: var(--raven-grab-text); font: 400 calc(12px * var(--raven-grab-font-scale))/1.5 var(--raven-grab-ui); }
+    .raven-grab-motion-row[data-failed="true"] .raven-grab-motion-why { color: var(--raven-grab-muted); }
+    .raven-grab-motion-approx { margin: 6px 0 0; padding-left: 16px; color: var(--raven-grab-muted); font: 400 calc(11px * var(--raven-grab-font-scale))/1.45 var(--raven-grab-ui); }
+    .raven-grab-motion-more { margin-top: 4px; color: var(--raven-grab-muted); font: 400 calc(11px * var(--raven-grab-font-scale))/1.45 var(--raven-grab-ui); }
+    .raven-grab-motion-more summary { cursor: pointer; }
+    .raven-grab-motion-more summary:hover { color: var(--raven-grab-accent); }
+    .raven-grab-motion-offscreen { margin: 4px 0 0; color: var(--raven-grab-pending); font: 400 calc(11px * var(--raven-grab-font-scale))/1.45 var(--raven-grab-ui); }
+    .raven-grab-motion-offscreen[hidden] { display: none; }
+    .raven-grab-motion-open { display: inline-block; margin-top: 6px; color: var(--raven-grab-accent); font: 500 calc(12px * var(--raven-grab-font-scale))/1.35 var(--raven-grab-ui); text-decoration: none; }
+    .raven-grab-motion-open:hover { color: var(--raven-grab-accent-hover); text-decoration: underline; }
     /* Content that runs past the bottom edge was cut mid-glyph -- a half-height
        "Styles" heading reads as a rendering bug, not as "there is more below".
        The fade is 16px, exactly the content's bottom padding, so with nothing
@@ -12295,8 +12368,545 @@
     }
   }
 
+  // ── Motion tab (Motion in Grab, spec v0.3) ───────────────────────────────
+  // Full mode runs suggest_motion through the bridge's /motion routes, which the
+  // bridge serves only for the designer's own loopback dev server. Copy mode is a
+  // third-party proxy: one line to paste into chat. Every string from a job reply
+  // is set with textContent; links are accepted only as Raven's own loopback
+  // playground URLs. Markers are drawn only where every part's selector resolves
+  // to an element with the captured fingerprint, at the same position among its
+  // look-alikes (dup/nth); there is no fallback to captured coordinates.
+  var MOTION_POLL_MS = 600;
+  var MOTION_TRIGGER_WORDS = { entrance: "When the page opens", hover: "On hover", scroll: "When it scrolls into view" };
+  var motion = {
+    phase: "idle", // idle | running | done | none | allfailed | failed | stale
+    kind: "",
+    step: "",
+    jobId: "",
+    navAt: 0,
+    path: "",
+    pickEl: null,
+    pickTrigger: "",
+    rows: [],
+    message: "",
+    pickMessage: "",
+    trigger: "",
+    triggerFor: null,
+    pollTimer: null,
+    markers: [],
+    hot: -1,
+    markerFrame: 0,
+    verifyDirty: true,
+    observer: null
+  };
+
+  function motionTabAvailable() { return !!motionMode && !mobileTabbedSheetMode() && !simpleMode(); }
+
+  function motionPlaygroundUrl(value) {
+    var text = typeof value === "string" ? value : "";
+    return /^http:\/\/127\.0\.0\.1:\d{2,5}\/p\/[0-9a-f]{16}$/.test(text) ? text : "";
+  }
+
+  function motionChatLine() {
+    var origin = motionPageOrigin;
+    var where = origin ? origin + location.pathname + location.search : location.href;
+    return "Ask your agent: suggest motion for " + where;
+  }
+
+  function motionSingleSelection() {
+    if (!liveSelectionAvailable()) return null;
+    if (multiSelections.length > 1) return null;
+    if (host.contains(selectedElement)) return null;
+    return selectedElement;
+  }
+
+  function motionDefaultTrigger(el) {
+    var tag = el.localName ? el.localName.toLowerCase() : "";
+    if (/^(img|picture|video|section|article|figure)$/.test(tag)) return "scroll";
+    var type = tag === "input" ? String(el.getAttribute("type") || "").toLowerCase() : "";
+    if (tag === "a" || tag === "button" || el.getAttribute("role") === "button" || type === "submit" || type === "button") return "hover";
+    var rect = el.getBoundingClientRect();
+    return rect.top + (window.scrollY || 0) < window.innerHeight ? "entrance" : "scroll";
+  }
+
+  function motionFingerprintText(el) {
+    var t = el.localName === "img" ? (el.getAttribute("alt") || "") : (el.textContent || "");
+    return t.replace(/\s+/g, " ").trim().slice(0, 40);
+  }
+
+  function motionFingerprint(el) {
+    var tag = el.localName.toLowerCase();
+    var strip = function (v) { return String(v || "").split("#")[0].split("?")[0]; };
+    return {
+      tag: tag,
+      role: (el.getAttribute("role") || "").slice(0, 40),
+      text: motionFingerprintText(el),
+      src: tag === "img" ? (strip(el.getAttribute("src")).split("/").pop() || "").slice(0, 80) : "",
+      href: tag === "a" ? strip(el.getAttribute("href")).slice(0, 120) : ""
+    };
+  }
+
+  function motionSameFingerprint(a, b) {
+    return a.tag === b.tag && a.role === b.role && a.text === b.text && a.src === b.src && a.href === b.href;
+  }
+
+  // The live element for one part, or null when any check fails.
+  function motionResolvePart(part) {
+    if (!part || typeof part.selector !== "string" || !part.selector || typeof part.tag !== "string") return null;
+    var el = null;
+    try { el = document.querySelector(part.selector); } catch (error) { return null; }
+    if (!el || el === host || host.contains(el)) return null;
+    var want = { tag: part.tag, role: String(part.role || ""), text: String(part.text || ""), src: String(part.src || ""), href: String(part.href || "") };
+    if (!motionSameFingerprint(motionFingerprint(el), want)) return null;
+    var all = document.getElementsByTagName(part.tag);
+    var count = 0;
+    var index = -1;
+    for (var i = 0; i < all.length; i++) {
+      if (all[i] === host || host.contains(all[i])) continue;
+      if (!motionSameFingerprint(motionFingerprint(all[i]), want)) continue;
+      if (all[i] === el) index = count;
+      count += 1;
+    }
+    if (count !== part.dup || index !== part.nth) return null;
+    return el;
+  }
+
+  function motionResolveRow(row) {
+    var parts = row.s && Array.isArray(row.s.parts) ? row.s.parts : [];
+    if (!parts.length) return null;
+    var els = [];
+    for (var i = 0; i < parts.length; i++) {
+      var el = motionResolvePart(parts[i]);
+      if (!el) return null;
+      els.push(el);
+    }
+    return els;
+  }
+
+  function motionUnion(els) {
+    var left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity;
+    for (var i = 0; i < els.length; i++) {
+      var r = els[i].getBoundingClientRect();
+      if (!r.width && !r.height) return null;
+      left = Math.min(left, r.left); top = Math.min(top, r.top);
+      right = Math.max(right, r.right); bottom = Math.max(bottom, r.bottom);
+    }
+    return { left: left, top: top, width: right - left, height: bottom - top };
+  }
+
+  function clearMotionMarkers() {
+    for (var i = 0; i < motion.markers.length; i++) {
+      var m = motion.markers[i];
+      if (m.box.parentNode) m.box.parentNode.removeChild(m.box);
+      if (m.badge.parentNode) m.badge.parentNode.removeChild(m.badge);
+    }
+    motion.markers = [];
+  }
+
+  function motionMarkersWanted() {
+    return armed && motionMode === "full" && activeTabB === "motion" && motionTabAvailable() && !collapsedSides.left && motion.rows.length > 0;
+  }
+
+  function syncMotionObserver() {
+    var want = motionMarkersWanted();
+    if (want && !motion.observer && typeof MutationObserver === "function") {
+      motion.observer = new MutationObserver(function () {
+        motion.verifyDirty = true;
+        scheduleMotionMarkers();
+      });
+      motion.observer.observe(document.documentElement, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ["id", "class", "role", "alt", "src", "href", "hidden", "style"] });
+    } else if (!want && motion.observer) {
+      motion.observer.disconnect();
+      motion.observer = null;
+    }
+  }
+
+  function scheduleMotionMarkers() {
+    if (motion.markerFrame) return;
+    motion.markerFrame = requestAnimationFrame(function () {
+      motion.markerFrame = 0;
+      paintMotionMarkers();
+    });
+  }
+
+  function paintMotionMarkers() {
+    syncMotionObserver();
+    clearMotionMarkers();
+    if (!motionMarkersWanted()) return;
+    var verify = motion.verifyDirty;
+    motion.verifyDirty = false;
+    for (var i = 0; i < motion.rows.length; i++) {
+      var row = motion.rows[i];
+      if (row.failed) continue;
+      if (verify || !row.els) row.els = motionResolveRow(row);
+      var rect = row.els ? motionUnion(row.els) : null;
+      var onScreen = !!rect;
+      if (row.offscreenNote) row.offscreenNote.hidden = onScreen;
+      if (!rect) continue;
+      var box = document.createElement("div");
+      box.className = "raven-grab-motion-marker";
+      box.setAttribute("data-motion-marker", String(i + 1));
+      if (motion.hot === i) box.setAttribute("data-hot", "true");
+      box.style.left = rect.left + "px";
+      box.style.top = rect.top + "px";
+      box.style.width = rect.width + "px";
+      box.style.height = rect.height + "px";
+      var badge = document.createElement("button");
+      badge.type = "button";
+      badge.className = "raven-grab-motion-badge";
+      badge.setAttribute("data-motion-badge", String(i + 1));
+      badge.setAttribute("aria-label", "Show suggestion " + (i + 1) + " in the list");
+      badge.textContent = String(i + 1);
+      badge.style.left = Math.max(2, Math.min(rect.left - 10, innerWidth - 22)) + "px";
+      badge.style.top = Math.max(2, Math.min(rect.top - 10, innerHeight - 22)) + "px";
+      if (motion.hot === i) badge.setAttribute("data-hot", "true");
+      (function (index) {
+        badge.addEventListener("click", function (event) {
+          event.preventDefault();
+          event.stopPropagation();
+          var target = motion.rows[index] && motion.rows[index].li;
+          if (target && typeof target.scrollIntoView === "function") target.scrollIntoView({ block: "nearest" });
+          setMotionHot(index);
+        });
+      })(i);
+      shadow.appendChild(box);
+      shadow.appendChild(badge);
+      motion.markers.push({ index: i, box: box, badge: badge });
+    }
+  }
+
+  function setMotionHot(index) {
+    motion.hot = index;
+    for (var i = 0; i < motion.markers.length; i++) {
+      var m = motion.markers[i];
+      var on = m.index === index;
+      if (on) { m.box.setAttribute("data-hot", "true"); m.badge.setAttribute("data-hot", "true"); }
+      else { m.box.removeAttribute("data-hot"); m.badge.removeAttribute("data-hot"); }
+    }
+    for (var r = 0; r < motion.rows.length; r++) {
+      var li = motion.rows[r].li;
+      if (!li) continue;
+      if (r === index) li.setAttribute("data-hot", "true"); else li.removeAttribute("data-hot");
+    }
+  }
+
+  function motionEl(tag, className, text) {
+    var el = document.createElement(tag);
+    if (className) el.className = className;
+    if (text !== undefined) el.textContent = text;
+    return el;
+  }
+
+  function motionRowNode(row, index) {
+    var s = row.s || {};
+    var li = motionEl("li", "raven-grab-motion-row");
+    li.setAttribute("data-motion-row", String(index + 1));
+    if (row.failed) li.setAttribute("data-failed", "true");
+    li.appendChild(motionEl("span", "raven-grab-motion-chip", String(index + 1)));
+    var body = motionEl("div", "raven-grab-motion-row-body");
+    var head = motionEl("div", "raven-grab-motion-row-head");
+    var url = row.failed ? "" : motionPlaygroundUrl(s.url);
+    var label = typeof s.label === "string" && s.label ? s.label : "Motion";
+    if (url && !row.picked) {
+      var link = motionEl("a", "raven-grab-motion-name", label);
+      link.href = url;
+      link.target = "_blank";
+      link.rel = "noopener";
+      head.appendChild(link);
+    } else {
+      head.appendChild(motionEl("span", "raven-grab-motion-name", label));
+    }
+    if (row.picked) head.appendChild(motionEl("span", "raven-grab-motion-tag", "You picked this"));
+    body.appendChild(head);
+    if (row.failed) {
+      body.appendChild(motionEl("p", "raven-grab-motion-why", "Couldn't build this preview"));
+    } else {
+      if (typeof s.trigger_words === "string" && s.trigger_words) body.appendChild(motionEl("p", "raven-grab-motion-when", s.trigger_words));
+      if (typeof s.why === "string" && s.why) body.appendChild(motionEl("p", "raven-grab-motion-why", s.why));
+      var approx = Array.isArray(s.approximations) ? s.approximations.filter(function (a) { return typeof a === "string" && a; }) : [];
+      if (approx.length) {
+        var ul = motionEl("ul", "raven-grab-motion-approx");
+        approx.slice(0, 3).forEach(function (a) { ul.appendChild(motionEl("li", "", a)); });
+        body.appendChild(ul);
+        if (approx.length > 3) {
+          var more = motionEl("details", "raven-grab-motion-more");
+          more.appendChild(motionEl("summary", "", (approx.length - 3) + " more difference" + (approx.length - 3 === 1 ? "" : "s")));
+          var rest = motionEl("ul", "raven-grab-motion-approx");
+          approx.slice(3).forEach(function (a) { rest.appendChild(motionEl("li", "", a)); });
+          more.appendChild(rest);
+          body.appendChild(more);
+        }
+      }
+      var off = motionEl("p", "raven-grab-motion-offscreen", "Not on screen right now");
+      off.setAttribute("data-motion-offscreen", "");
+      off.hidden = !!row.els;
+      row.offscreenNote = off;
+      body.appendChild(off);
+      if (row.picked && url) {
+        var open = motionEl("a", "raven-grab-motion-open", "Open preview");
+        open.href = url;
+        open.target = "_blank";
+        open.rel = "noopener";
+        open.setAttribute("data-motion-open", "");
+        body.appendChild(open);
+      }
+    }
+    li.appendChild(body);
+    li.addEventListener("mouseenter", function () { setMotionHot(index); });
+    li.addEventListener("mouseleave", function () { if (motion.hot === index) setMotionHot(-1); });
+    row.li = li;
+    return li;
+  }
+
+  function motionFindLabel() {
+    if (motion.phase === "running" && motion.kind === "find") return "Looking at the page…";
+    if (motion.phase === "failed") return "Try again";
+    if (motion.phase === "stale") return "Find motion again";
+    if (motion.rows.some(function (r) { return !r.picked; }) || motion.phase === "none" || motion.phase === "allfailed") return "Again";
+    return "Find motion";
+  }
+
+  // Fills the Motion tab. Called by renderPanel (before scroll is restored) and
+  // on every job update; rebuilds only the tab's own subtree.
+  function paintMotion() {
+    var root = panelLeft.querySelector("[data-motion-root]");
+    if (!root) return;
+    var scroller = panelLeft.querySelector(".raven-grab-body");
+    var keepScroll = scroller ? scroller.scrollTop : 0;
+    while (root.firstChild) root.removeChild(root.firstChild);
+
+    if (motionMode === "copy") {
+      var copySection = motionEl("section", "raven-grab-section");
+      copySection.appendChild(motionEl("h2", "raven-grab-section-title", "Motion"));
+      copySection.appendChild(motionEl("p", "raven-grab-note", "Raven can only build motion previews on your own dev server. For this site, paste this into chat:"));
+      var line = motionEl("p", "raven-grab-motion-chat", motionChatLine());
+      line.setAttribute("data-motion-chat", "");
+      copySection.appendChild(line);
+      var copyButton = motionEl("button", "raven-grab-queue-add raven-grab-motion-copy", "Copy");
+      copyButton.type = "button";
+      copyButton.setAttribute("data-motion-copy", "");
+      copyButton.addEventListener("click", function () {
+        writeClipboardText(motionChatLine()).then(function () {
+          copyButton.textContent = "Copied";
+          setTimeout(function () { copyButton.textContent = "Copy"; }, 1200);
+        }, function () {
+          copyButton.textContent = "Couldn't copy";
+        });
+      });
+      copySection.appendChild(copyButton);
+      root.appendChild(copySection);
+      if (scroller) scroller.scrollTop = keepScroll;
+      return;
+    }
+
+    var running = motion.phase === "running";
+    var find = motionEl("section", "raven-grab-section");
+    if (!motion.rows.length && (motion.phase === "idle" || running)) {
+      find.appendChild(motionEl("p", "raven-grab-note raven-grab-motion-lede", "Find places on this page where motion could help."));
+    }
+    var findButton = motionEl("button", "raven-grab-send raven-grab-motion-find");
+    findButton.type = "button";
+    findButton.setAttribute("data-motion-find", "");
+    findButton.setAttribute("data-send-state", "default");
+    findButton.appendChild(motionEl("span", "raven-grab-send-label", motionFindLabel()));
+    if (running) findButton.disabled = true;
+    findButton.addEventListener("click", function () { startMotionJob("find"); });
+    find.appendChild(findButton);
+    var progress = motionEl("p", "raven-grab-note raven-grab-motion-progress", running ? (motion.step === "building" ? "Building previews" : "Copying the page") : "");
+    progress.setAttribute("role", "status");
+    progress.setAttribute("data-motion-progress", "");
+    find.appendChild(progress);
+    root.appendChild(find);
+
+    var picked = motionSingleSelection();
+    if (picked) {
+      if (motion.triggerFor !== picked) {
+        motion.triggerFor = picked;
+        motion.trigger = "";
+      }
+      var pick = motionEl("section", "raven-grab-section raven-grab-motion-pick");
+      var pickButton = motionEl("button", "raven-grab-queue-add raven-grab-motion-pick-button", running && motion.kind === "pick" ? "Building a preview…" : "Add motion to this element");
+      pickButton.type = "button";
+      pickButton.setAttribute("data-motion-pick", "");
+      if (running) pickButton.disabled = true;
+      pickButton.addEventListener("click", function () { startMotionJob("pick"); });
+      var field = motionEl("label", "raven-grab-field raven-grab-motion-when-field");
+      field.appendChild(motionEl("span", "", "When it moves"));
+      var select = motionEl("select", "raven-grab-select");
+      select.setAttribute("data-motion-trigger", "");
+      var chosen = motion.trigger || motionDefaultTrigger(picked);
+      ["entrance", "hover", "scroll"].forEach(function (value) {
+        var option = motionEl("option", "", MOTION_TRIGGER_WORDS[value]);
+        option.value = value;
+        if (value === chosen) option.selected = true;
+        select.appendChild(option);
+      });
+      select.addEventListener("change", function () { motion.trigger = select.value; });
+      field.appendChild(select);
+      pick.appendChild(pickButton);
+      pick.appendChild(field);
+      if (motion.pickMessage) pick.appendChild(motionEl("p", "raven-grab-motion-message", motion.pickMessage));
+      root.appendChild(pick);
+    }
+
+    var stateCopy = "";
+    if (motion.phase === "none") stateCopy = "Nothing here needs motion yet." + (motion.message ? " " + motion.message : "");
+    else if (motion.phase === "allfailed") stateCopy = "Raven found places for motion but couldn't build any previews.";
+    else if (motion.phase === "failed") stateCopy = "Raven couldn't copy this page." + (motion.message ? " " + motion.message : "");
+    else if (motion.phase === "stale") stateCopy = motion.message || "The page changed while Raven was looking, so those results were dropped.";
+    if (stateCopy) {
+      var state = motionEl("p", "raven-grab-motion-message", stateCopy);
+      state.setAttribute("data-motion-state", motion.phase);
+      root.appendChild(state);
+    }
+
+    if (motion.rows.length) {
+      var listSection = motionEl("section", "raven-grab-section");
+      var list = motionEl("ol", "raven-grab-motion-list");
+      list.setAttribute("data-motion-list", "");
+      motion.rows.forEach(function (row, index) { list.appendChild(motionRowNode(row, index)); });
+      listSection.appendChild(list);
+      root.appendChild(listSection);
+    }
+    if (scroller) scroller.scrollTop = keepScroll;
+  }
+
+  function motionRowsFrom(reply, picked) {
+    var rows = [];
+    (Array.isArray(reply.suggestions) ? reply.suggestions : []).forEach(function (s) {
+      if (s && typeof s === "object") rows.push({ s: s, picked: picked, failed: false, els: null });
+    });
+    (Array.isArray(reply.failed) ? reply.failed : []).forEach(function (f) {
+      if (f && typeof f === "object") rows.push({ s: { label: f.label, kind: f.kind, parts: [] }, picked: picked, failed: true, els: null });
+    });
+    return rows;
+  }
+
+  function motionSettle() {
+    if (motion.pollTimer) { clearTimeout(motion.pollTimer); motion.pollTimer = null; }
+    motion.verifyDirty = true;
+    paintMotion();
+    paintMotionMarkers();
+  }
+
+  function motionFinish(reply) {
+    var kind = motion.kind;
+    motion.jobId = "";
+    // Stale: the page navigated (A to B and back counts), or the pick changed.
+    if (motion.navAt !== motionNavCount) {
+      motion.phase = "stale";
+      motion.message = "The page changed while Raven was looking, so those results were dropped.";
+      motion.rows = motion.rows.filter(function (r) { return r.picked; });
+      motionSettle();
+      return;
+    }
+    if (kind === "pick" && motionSingleSelection() !== motion.pickEl) {
+      motion.phase = motion.rows.length ? "done" : "idle";
+      motion.pickMessage = "You picked a different element while Raven was looking. Press Add motion again.";
+      motionSettle();
+      return;
+    }
+    var rows = motionRowsFrom(reply, kind === "pick");
+    if (kind === "pick") {
+      motion.phase = motion.rows.length ? "done" : "idle";
+      if (rows.length) {
+        motion.rows = rows.concat(motion.rows);
+        motion.pickMessage = "";
+      } else {
+        motion.pickMessage = typeof reply.message === "string" && reply.message ? reply.message : "Nothing here needs motion yet.";
+      }
+      motionSettle();
+      return;
+    }
+    var keptPicks = motion.rows.filter(function (r) { return r.picked; });
+    var built = rows.filter(function (r) { return !r.failed; });
+    motion.rows = keptPicks.concat(rows);
+    motion.message = typeof reply.message === "string" ? reply.message : "";
+    if (!rows.length) motion.phase = "none";
+    else if (!built.length) motion.phase = "allfailed";
+    else motion.phase = "done";
+    motionSettle();
+  }
+
+  function motionFail(message) {
+    motion.jobId = "";
+    if (motion.kind === "pick") {
+      motion.phase = motion.rows.length ? "done" : "idle";
+      motion.pickMessage = "Raven couldn't copy this page." + (message ? " " + message : "");
+    } else {
+      motion.phase = "failed";
+      motion.message = message || "";
+    }
+    motionSettle();
+  }
+
+  function pollMotionJob(id) {
+    motion.pollTimer = setTimeout(function () {
+      motion.pollTimer = null;
+      if (motion.jobId !== id) return;
+      fetch(bridgeUrl("/motion/job/" + id), { cache: "no-store" })
+        .then(function (response) { return response.json().then(function (body) { return { status: response.status, body: body || {} }; }); })
+        .then(function (reply) {
+          if (motion.jobId !== id) return;
+          if (reply.status !== 200) { motionFail("The Grab session changed."); return; }
+          var job = reply.body;
+          if (job.state === "running") {
+            if (job.step === "building" && motion.step !== "building") {
+              motion.step = "building";
+              var line = panelLeft.querySelector("[data-motion-progress]");
+              if (line) line.textContent = "Building previews";
+            }
+            pollMotionJob(id);
+            return;
+          }
+          if (job.state === "done") { motionFinish(job); return; }
+          motionFail(typeof job.message === "string" ? job.message : "");
+        })
+        .catch(function () {
+          if (motion.jobId !== id) return;
+          motionFail("Raven's bridge stopped answering.");
+        });
+    }, MOTION_POLL_MS);
+  }
+
+  function startMotionJob(kind) {
+    if (motionMode !== "full" || motion.phase === "running") return;
+    var body = { path: location.pathname + location.search };
+    if (kind === "pick") {
+      var el = motionSingleSelection();
+      if (!el) return;
+      body.selector = stableSelector(el);
+      if (!body.selector) return;
+      if (motion.trigger) body.trigger = motion.trigger;
+      motion.pickEl = el;
+      motion.pickMessage = "";
+    }
+    motion.phase = "running";
+    motion.kind = kind;
+    motion.step = "copying";
+    motion.navAt = motionNavCount;
+    motion.path = body.path;
+    motion.message = "";
+    paintMotion();
+    fetch(bridgeUrl("/motion/suggest"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), cache: "no-store" })
+      .then(function (response) { return response.json().then(function (reply) { return { status: response.status, body: reply || {} }; }); })
+      .then(function (reply) {
+        var id = reply.body && typeof reply.body.job === "string" && /^[0-9a-f]{16}$/.test(reply.body.job) ? reply.body.job : "";
+        if ((reply.status === 202 || reply.status === 409) && id) {
+          // 409: a job from this session is already running; follow it.
+          motion.jobId = id;
+          pollMotionJob(id);
+          return;
+        }
+        if (reply.status === 429) { motionFail("Raven has looked a lot in the last few minutes. Wait a few minutes."); return; }
+        motionFail(typeof reply.body.error === "string" ? reply.body.error : "");
+      })
+      .catch(function () { motionFail("Raven's bridge stopped answering."); });
+  }
+
   function renderPanel() {
     if (!armed) return;
+    if (activeTabB === "motion" && !motionTabAvailable()) activeTabB = "layers";
     // Defer background rerenders while the user is typing in a style editor;
     // gesture paths flush the editor first, and the next poll renders after it closes.
     if (activeStyleEditorFlush || activeStyleScrub) return;
@@ -12508,7 +13118,8 @@
     // Simple mode is prod's tool: what you grabbed, what you want changed, Send.
     // Scope and the style editor are the two-panel build's additions, so they go.
     var bodyMarkupA = simpleMode() ? elementMarkup : (mobileTabbedSheetMode() ? mobileBodyMarkup : designMarkup);
-    var bodyMarkupB = activeTabB === "assets" ? assetsMarkup : layersMarkup;
+    var motionMarkup = '<div class="raven-grab-motion" data-motion-root></div>';
+    var bodyMarkupB = activeTabB === "assets" ? assetsMarkup : activeTabB === "motion" ? motionMarkup : layersMarkup;
     // Pinned under Send (actions chrome) — never buried at the end of the scrollable layers list.
     var settingsProjectMarkup = projectName ? '<span class="raven-grab-settings-project">' + escapeHtml(projectName) + '</span>' : '';
     var settingsLabel = projectName ? 'Open Raven settings for ' + projectName : 'Open Raven settings';
@@ -12600,13 +13211,16 @@
           <div class="raven-grab-title"><strong>Raven Design</strong></div>
           ${panelPresetsMarkup()}
         </div>
-        <div class="raven-grab-tabs" role="tablist" aria-label="Raven Design actions">
+        <div class="raven-grab-tabs" role="tablist" aria-label="Raven Design actions" data-count="${motionTabAvailable() ? "3" : "2"}">
           <button class="raven-grab-tab" type="button" role="tab" data-tab="layers" aria-selected="${activeTabB === "layers" ? "true" : "false"}">Layers</button>
           <button class="raven-grab-tab" type="button" role="tab" data-tab="assets" aria-selected="${activeTabB === "assets" ? "true" : "false"}">Assets</button>
+          ${motionTabAvailable() ? '<button class="raven-grab-tab" type="button" role="tab" data-tab="motion" aria-selected="' + (activeTabB === "motion" ? "true" : "false") + '">Motion</button>' : ""}
         </div>
       </div>
       <div class="raven-grab-body"><div class="raven-grab-content">${bodyMarkupB}</div></div>
       <div class="raven-grab-actions">${changesMarkup}${requestHintMarkup}${actionMarkupB}<p class="raven-grab-status" data-status-b aria-live="polite"></p></div>`;
+    // Filled before the scroll restore below, so a scrolled Motion list keeps its place.
+    if (activeTabB === "motion") paintMotion();
     for (var pi = 0; pi < panels.length; pi++) {
       var isCollapsed = collapsedSides[sideOf(panels[pi])];
       panels[pi].setAttribute("aria-hidden", isCollapsed ? "true" : "false");
@@ -12647,6 +13261,7 @@
     // (pinned by the survives-a-panel-re-render test), and the render-once
     // settings modal field is found through dictationQuery's fallthrough.
     if (dictation && !dictation.stopping && !dictationQuery("[" + dictation.targetAttr + "]")) stopDictation();
+    paintMotionMarkers();
   }
 
   function applyPanelFontSize() {
@@ -12687,7 +13302,8 @@
   }
 
   function switchTab(tab) {
-    if (tab !== "design" && tab !== "assets" && tab !== "layers" && tab !== "styles" && tab !== "instructions") return;
+    if (tab !== "design" && tab !== "assets" && tab !== "layers" && tab !== "styles" && tab !== "instructions" && tab !== "motion") return;
+    if (tab === "motion" && !motionTabAvailable()) return;
     if ((tab === "styles" || tab === "instructions") && !mobileTabbedSheetMode()) return;
     capturePanelDrafts();
     activeGlobalActionSurface = tab;
@@ -12775,6 +13391,8 @@
     selectionAnchor = null;
     selectionOrigin = "";
     clearSelectionOverlays();
+    clearMotionMarkers();
+    syncMotionObserver();
     hoveredElement = null;
     setLayerRowHover(null);
     currentSelection = null;
@@ -15212,12 +15830,26 @@
     clampPanelToViewport();
     if (selectedElement && !bothCollapsed()) setHighlight(selectedElement);
     paintSelectionOverlays();
+    if (motion.markers.length || motionMarkersWanted()) scheduleMotionMarkers();
   });
   window.addEventListener("scroll", function () {
     hidePanelPresetTooltip();
     if (selectedElement && !bothCollapsed()) setHighlight(selectedElement);
     paintSelectionOverlays();
+    if (motion.markers.length || motionMarkersWanted()) scheduleMotionMarkers();
   }, true);
+  // Results describe one page: moving to another drops them, and a running job's
+  // reply is dropped when it lands (motionFinish compares the navigation count).
+  motionNavListeners.push(function () {
+    if (motion.phase === "running" || !motion.rows.length) { motion.verifyDirty = true; scheduleMotionMarkers(); return; }
+    if (location.pathname + location.search === motion.path) { motion.verifyDirty = true; scheduleMotionMarkers(); return; }
+    motion.rows = [];
+    motion.phase = "stale";
+    motion.message = "This is a different page from the one Raven looked at.";
+    clearMotionMarkers();
+    if (activeTabB === "motion") paintMotion();
+    syncMotionObserver();
+  });
   window.addEventListener("blur", hidePanelPresetTooltip);
   // Synchronous final flush: pagehide fires on real navigation/tab close where
   // the debounced persist may not have run yet, so un-sent changes survive.
