@@ -191,7 +191,7 @@ test('nodes carry typed style keys only, a resolved fontSrc, and no HTML or othe
   const { result, port } = await fixture();
   const allowed = new Set(['width', 'height', 'padding', 'gap', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing',
     'color', 'background', 'borderRadius', 'borderColor', 'borderWidth', 'display', 'flexDirection', 'alignItems',
-    'justifyContent', 'textAlign', 'fontFamily', 'fontSrc']);
+    'justifyContent', 'textAlign', 'fontFamily', 'fontSrc', 'whiteSpace']);
   const fontUrl = `http://127.0.0.1:${port}/fonts/untitled-sans-regular.woff2`;
   for (const c of result.inspection.pass.candidates) {
     assert.ok(c.nodeCount <= 40);
@@ -202,6 +202,7 @@ test('nodes carry typed style keys only, a resolved fontSrc, and no HTML or othe
       }
       if (n.styles.fontWeight !== undefined) assert.ok(n.styles.fontWeight % 100 === 0);
       if (n.styles.display !== undefined) assert.ok(['block', 'flex', 'inline-block'].includes(n.styles.display));
+      if (n.styles.whiteSpace !== undefined) assert.equal(n.styles.whiteSpace, 'nowrap');
       if (n.styles.fontSrc !== undefined) assert.equal(n.styles.fontSrc, fontUrl);
       assert.match(n.tag, /^[a-z][a-z0-9-]*$/);
     });

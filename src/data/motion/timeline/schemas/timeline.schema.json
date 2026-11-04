@@ -801,6 +801,12 @@
             "hidden",
             "visible"
           ]
+        },
+        "whiteSpace": {
+          "enum": [
+            "nowrap"
+          ],
+          "description": "Keeps text on one line, for an element whose text fits on one line on the page."
         }
       }
     }

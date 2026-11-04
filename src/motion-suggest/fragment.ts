@@ -35,6 +35,7 @@ export type FragmentStyle = {
   justifyContent?: "start" | "center" | "end" | "between";
   textAlign?: "left" | "center" | "right";
   overflow?: "hidden" | "visible";
+  whiteSpace?: "nowrap";
 };
 
 export type FTag = "div" | "span" | "p" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "img";
@@ -187,6 +188,7 @@ export function mapStyles(ctx: FragmentContext, st: MotionNodeStyles): FragmentS
     if (j) out.justifyContent = j;
   }
   if (st.textAlign) out.textAlign = st.textAlign === "justify" ? "left" : st.textAlign;
+  if (st.whiteSpace === "nowrap") out.whiteSpace = "nowrap";
   return out;
 }
 

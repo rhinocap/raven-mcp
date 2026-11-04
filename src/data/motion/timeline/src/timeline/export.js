@@ -92,6 +92,7 @@
     else if (st.borderColor) d.push(['border', `1px solid ${st.borderColor.toLowerCase()}`])
     if (st.borderRadius !== undefined) d.push(['border-radius', px(st.borderRadius)])
     if (st.overflow) d.push(['overflow', st.overflow])
+    if (st.whiteSpace) d.push(['white-space', st.whiteSpace])
     if (node.tag === 'img') d.push(['display', st.display || 'block'])
     return d
   }

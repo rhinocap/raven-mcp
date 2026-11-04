@@ -81,6 +81,8 @@ export type MotionNodeStyles = {
   alignItems?: "flex-start" | "center" | "flex-end" | "stretch" | "baseline";
   justifyContent?: "flex-start" | "center" | "flex-end" | "space-between" | "space-around" | "space-evenly";
   textAlign?: "left" | "center" | "right" | "justify";
+  /** Set when the element's own text sits on one line on the page, so a wider stand-in font can't wrap it. */
+  whiteSpace?: "nowrap";
   /** The first family name of the computed font-family. */
   fontFamily?: string;
   /** The resolved http(s) @font-face src for that family and weight, when one was found. */
@@ -708,6 +710,22 @@ export async function collectMotionCandidatesInPage(arg: {
     return "box";
   }
 
+  // True when the element holds only text (no child elements) and that text sits on one line.
+  function singleLine(el: Element): boolean {
+    if (el.childElementCount > 0) return false;
+    if (!(el.textContent || "").trim()) return false;
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const tops: number[] = [];
+    const rects = range.getClientRects();
+    for (let i = 0; i < rects.length; i++) {
+      const r = rects[i];
+      if (!r.width || !r.height) continue;
+      if (!tops.some(function (t) { return Math.abs(t - r.top) < r.height / 2; })) tops.push(r.top);
+    }
+    return tops.length === 1;
+  }
+
   function mapStyles(el: Element, box: { w: number; h: number }, name: string, approx: Set<string>): any {
     const cs = getComputedStyle(el);
     const out: any = {};
@@ -771,15 +789,21 @@ export async function collectMotionCandidatesInPage(arg: {
       };
     });
     const drawn = sides.filter(function (s) { return s.style !== "none" && s.style !== "hidden" && s.width > 0; });
-    if (drawn.length > 0) {
+    if (drawn.length === 4) {
       const c = parseColor(drawn[0].color);
       if (c && c.alpha > 0) {
         out.borderWidth = drawn[0].width;
         out.borderColor = blend(c, ownBg);
       }
-      const same = drawn.length === 4 && drawn.every(function (s) { return s.width === drawn[0].width && s.color === drawn[0].color; });
+      const same = drawn.every(function (s) { return s.width === drawn[0].width && s.color === drawn[0].color; });
       if (!same) approx.add("The " + name + "'s border is shown the same on every side.");
       if (drawn.some(function (s) { return s.style !== "solid"; })) approx.add("The " + name + "'s border is shown as a solid line.");
+    } else if (drawn.length > 0) {
+      // A line on one to three sides is a divider. Drawn on all four it would read as a box
+      // that isn't on the page, so it is left out and named instead.
+      approx.add(drawn.length === 1
+        ? "The line along the " + name + "'s " + ["top", "right", "bottom", "left"][sides.indexOf(drawn[0])] + " edge is not shown."
+        : "The lines along some of the " + name + "'s edges are not shown.");
     }
 
     if (isFlex) {
@@ -789,10 +813,19 @@ export async function collectMotionCandidatesInPage(arg: {
       if (cs.flexWrap === "wrap" || cs.flexWrap === "wrap-reverse") out.flexWrap = "wrap";
       if (cs.flexWrap === "wrap-reverse") approx.add("The " + name + "'s reversed wrapping is shown in page order.");
     } else if (isGrid) {
+      // Every child keeps its measured size, so a grid is a row that wraps after each track's
+      // worth of children, or a column for one track. That matches the page when the gaps
+      // between rows and columns are the same; when they differ, the column gap is used.
       out.display = "flex";
       const cols = cs.gridTemplateColumns === "none" ? 1 : cs.gridTemplateColumns.split(/\s+/).filter(Boolean).length;
       out.flexDirection = cols > 1 ? "row" : "column";
-      approx.add("The " + name + "'s grid is shown as a " + (cols > 1 ? "row" : "column") + ".");
+      const items = Array.prototype.filter.call(el.children, function (c: Element) { return getComputedStyle(c).display !== "none"; }).length;
+      if (cols > 1 && items > cols) {
+        out.flexWrap = "wrap";
+        const rg = cs.rowGap !== "normal" ? px(cs.rowGap) : 0;
+        const cg = cs.columnGap !== "normal" ? px(cs.columnGap) : 0;
+        if (Math.abs(rg - cg) > 0.5) approx.add("The " + name + "'s rows are spaced the same as its columns.");
+      }
     } else if (display === "inline-block" || display === "inline" || display === "inline-flow-root") {
       out.display = "inline-block";
     } else {
@@ -815,6 +848,8 @@ export async function collectMotionCandidatesInPage(arg: {
     out.textAlign = ta === "center" || ta === "-webkit-center" ? "center"
       : ta === "right" || ta === "end" || ta === "-webkit-right" ? "right"
       : ta === "justify" ? "justify" : "left";
+
+    if (singleLine(el)) out.whiteSpace = "nowrap";
 
     const fam = (cs.fontFamily.split(",")[0] || "").trim().replace(/^["']|["']$/g, "").trim();
     if (fam && fam.length <= 80) {

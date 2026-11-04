@@ -326,6 +326,14 @@ export async function suggestMotion(input: SuggestMotionInput): Promise<SuggestM
     });
     mapItems.push({ number, label: c.label, why: why.why, triggerWords: recipe.triggerWords, approximations: recipe.approximations, box: c.box, file: basename(playground.html_path), served: "/p/" + served.id });
   }
+  // Two suggestions of one kind would read the same in a list ("Button hover", "Button hover"), so
+  // each takes its playground's title, which names the element ("Button hover: Open dashboard").
+  const kindCount = new Map<string, number>();
+  for (const s of suggestions) kindCount.set(s.kind, (kindCount.get(s.kind) || 0) + 1);
+  suggestions.forEach((s, i) => {
+    const title = typeof (s.timeline as { title?: unknown }).title === "string" ? (s.timeline as { title: string }).title : "";
+    if ((kindCount.get(s.kind) || 0) > 1 && title && title !== s.label) { s.label = title; mapItems[i].label = title; }
+  });
   checkAbort();
 
   // The map, beside the playgrounds.
