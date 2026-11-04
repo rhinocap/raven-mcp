@@ -31,21 +31,25 @@ Andrew, 2026-11-03: "It shouldn't be the home page. It should be a page off of t
    - It writes a portable `suggestions.json` and one playground per suggestion (`/playgrounds/motion/<n>.html`). Local paths and loopback URLs are removed, and the script fails if any remain.
    - The drift check fails if the wireframe changed and the suggestions were not rebuilt.
 4. **What Grab sends.** The same as `/raven-design` today: the component-request email and the feedback form (`raven-grab.js:2672`). Nothing else.
-5. **Nav.** Add "Motion Playground" next to "Design Playground", only after Andrew approves the page.
+5. **Home page section `#motion`, directly after `#raven-design`.** Same markup and classes as the Design Playground section, so it reads as a sibling:
+   - a section header with an h2 and a subtitle (draft copy for Andrew's review: "Pick an element. Tune how it moves." / "Drag a slider and watch it change, then copy the motion into your code.");
+   - a "Try the playground" button linking to `/motion`;
+   - a muted, looping screen recording of the Motion Playground (`/motion-demo.mp4` plus a poster image), recorded from the approved page, with an aria-label describing it, the same way the Design Playground section does.
+6. **Nav.** Add "Motion Playground" next to "Design Playground", only after Andrew approves the page and the section.
 
 ## Not changing
 
-The home page, `/raven-design`, docs, changelog and every other page. The only shared-code change is extracting the Northstar wireframe into a component, and `/raven-design` must render pixel-identical afterwards. No home page section unless Andrew asks for one.
+Everything on the home page outside the new `#motion` section, plus `/raven-design`, docs, changelog and every other page. The only shared-code change is extracting the Northstar wireframe into a component, and `/raven-design` must render pixel-identical afterwards.
 
 ## Acceptance
 
 All browser checks run in Playwright Chromium, against `next build && next start` on loopback.
 
-1. `/` and `/raven-design` are pixel-identical to production at 1440 and 390 wide; I compare full-size captures, before and after.
+1. `/raven-design` is pixel-identical to production at 1440 and 390 wide. `/` is identical to production except for the inserted `#motion` section: every other section matches its production capture, and the section matches `#raven-design` in spacing, type and button style. I compare full-size captures.
 2. `/motion` at 1440, 1024 and 390 shows the intro, the wireframe and Grab with the Motion tab open.
 3. "Find motion" lists the prebuilt suggestions, with markers on the right elements at 1440 and 390. Each playground opens, its controls change the motion, and Copy puts text on the clipboard; I read the clipboard back.
 4. With `prefers-reduced-motion: reduce`, nothing on `/motion` moves until a suggestion is played.
-5. `/` requests no `/playgrounds/motion/` file; I check the network log.
+5. `/` requests no `/playgrounds/motion/` file; I check the network log. The `#motion` section's button opens `/motion`, and its video plays muted and loops, but stays paused with reduced motion on.
 6. Copy is warm and plain: no engine terms outside advanced, no arrow icons, Untitled Sans, and the cyan accent.
 7. design-judge PASS, `RAVEN_NO_USAGE_LOG=1 npm test` with 0 fail on its summary line, `node scripts/check-site-drift.mjs` with RESULT PASS, and a Sol pass with no P1 or P2 open.
 
@@ -53,6 +57,7 @@ All browser checks run in Playwright Chromium, against `next build && next start
 
 1. Run `suggest_motion` on the wireframe and show Andrew the suggestions list (labels, reasons, markers) before building anything. This is a cheap direction check, because the suggestions decide whether the page is any good.
 2. Build `static` mode and `/motion`. Show a Grab bridge preview link and full-size captures at desktop and mobile widths. **Stop for his review.**
+3. After he approves the page: record the demo video, add the home `#motion` section, and show it as a preview and a full-size capture. **Stop for his review.**
 4. Only after he approves both: one release question, asked on its own. No push or deploy without his explicit go.
 5. After a `vercel rollback`, the domain stays pinned: the next deploy needs `vercel promote`, and live checks must confirm which deployment the domain serves.
 
