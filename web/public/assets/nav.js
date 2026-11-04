@@ -144,17 +144,26 @@
     }\
     @container raven-nav (max-width: 400px) {\
       .nav-inner { padding: 0 var(--space-3, 12px); }\
+    }\
+    /* Get Started stays while it fits beside the brand and the menu button. */\
+    @container raven-nav (max-width: 300px) {\
       .nav-actions .btn-primary { display: none; }\
     }\
     @container raven-nav (max-width: 200px) {\
       .nav-brand { display: none; }\
       .nav-inner { justify-content: center; }\
     }\
-    @media (min-width: 769px) {\
+    /* From 761px the menu matches the nav, so on the playground pages it stays in the gap between Grab panels. */\
+    @media (min-width: 761px) {\
       .nav-mobile-menu {\
         left: 50%; right: auto; transform: translateX(-50%);\
-        width: max(240px, min(100% - 32px, var(--max-width, 1140px)));\
+        width: min(100% - 24px, var(--max-width, 1140px));\
+        container: nav-menu / inline-size;\
+        padding: clamp(6px, calc((min(100vw - 24px, var(--max-width, 1140px)) - 117px) / 4 + 6px), 16px);\
       }\
+    }\
+    @container nav-menu (max-width: 300px) {\
+      .nav-mobile-menu a { padding: 10px 8px; font-size: 14px; overflow-wrap: anywhere; }\
     }\
     @media (max-width: 768px) {\
       nav { width: calc(100% - 24px); top: 8px; }\
@@ -173,6 +182,11 @@
       font-weight: var(--home-type-utility-weight) !important;\
       text-transform: none !important;\
       letter-spacing: normal !important;\
+    }\
+  ' : '') + ((path === '/raven-design' || path === '/motion') ? '\
+    /* On the playground pages Grab keeps a 44px tab at the left edge on phones; the brand clears it. */\
+    @media (max-width: 768px) {\
+      .nav-brand { margin-left: 32px; }\
     }\
   ' : '');
 
