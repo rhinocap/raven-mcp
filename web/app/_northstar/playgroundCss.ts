@@ -500,6 +500,15 @@ export const PLAYGROUND_CSS = `
           color: var(--accent-blue);
         }
 
+        /* The tour is portalled to the end of <html>, outside <body>, so it takes the
+           body's type itself rather than the browser's default serif. */
+        .playground-tour {
+          font-family: var(--font-body);
+          font-size: clamp(17px, 1.6vw, 21px);
+          line-height: var(--leading-copy);
+          color: var(--text-secondary);
+        }
+
         .playground-tour__backdrop {
           position: fixed;
           inset: 0;
@@ -517,7 +526,7 @@ export const PLAYGROUND_CSS = `
         }
 
         .playground-tour__card {
-          z-index: 2147483642;
+          z-index: 2147483647; /* equal to Grab's host; the tour portal comes after it in <html> */
           padding: var(--space-6);
           color: var(--text-primary);
           background: var(--bg-surface);

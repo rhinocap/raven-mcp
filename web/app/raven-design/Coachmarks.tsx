@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 type Role = 'consumer' | 'maintainer'
 
@@ -18,6 +19,13 @@ export type Step = {
 const TIP_WIDTH = 320
 // Distance from the card to the element it points at — the tail lives in this gap.
 const TAIL_GAP = 14
+// Grab switches to its bottom sheet at this width (raven-grab.js, max-width: 760px).
+const PHONE_MAX = 760
+// Room kept for the card when a target step pins it to the bottom on a phone.
+const PHONE_CARD_ROOM = 330
+// Where an off-screen page target is scrolled to on wider screens: low enough for
+// the card (about 300px tall) to sit above it.
+const DESKTOP_TARGET_TOP = 340
 const EDGE_GAP = 16
 // Below this much headroom the card would clip the top of the viewport, so it flips.
 const FLIP_THRESHOLD = 220
@@ -105,6 +113,32 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
   const [role, setRole] = useState<Role | null>(null)
   const [step, setStep] = useState(-1)
   const [targetRect, setTargetRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null)
+  // Top edge of Grab's phone sheet; null on wider screens or before it mounts.
+  const [sheetTop, setSheetTop] = useState<number | null>(null)
+  const [viewport, setViewport] = useState({ w: 1440, h: 900 })
+  // The tour renders last in <html>, after Grab's overlay host, so on a phone a card
+  // that has to sit over the sheet is drawn above it instead of underneath.
+  const [portal, setPortal] = useState<HTMLElement | null>(null)
+
+  useEffect(() => {
+    const el = document.createElement('div')
+    el.setAttribute('data-raven-grab-ignore', '')
+    document.documentElement.appendChild(el)
+    const keepLast = () => {
+      if (document.documentElement.lastElementChild !== el) document.documentElement.appendChild(el)
+    }
+    const observer = new MutationObserver(keepLast)
+    observer.observe(document.documentElement, { childList: true })
+    setPortal(el)
+    const size = () => setViewport({ w: innerWidth, h: innerHeight })
+    size()
+    addEventListener('resize', size)
+    return () => {
+      observer.disconnect()
+      removeEventListener('resize', size)
+      el.remove()
+    }
+  }, [])
 
   // Boot: set config (with role) BEFORE loading the overlay script.
   useEffect(() => {
@@ -143,37 +177,87 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
   useEffect(() => {
     if (step < 0) {
       setTargetRect(null)
+      setSheetTop(null)
       return
     }
     const anchor = STEPS[step].anchor
     const isLeftPanel = anchor === 'panel-left' || anchor === 'panel-left-foot'
     const isGrab = anchor.startsWith('grab:')
     const isPanel = anchor === 'panel' || isLeftPanel || isGrab
+    const isPhone = () => innerWidth <= PHONE_MAX
+    // Grab's panels, visible ones only: on a phone the second panel is display:none.
+    const visiblePanels = (): Element[] => {
+      const panels: Element[] = []
+      document.querySelectorAll('*').forEach((el) => {
+        if (el.shadowRoot) {
+          el.shadowRoot.querySelectorAll('.raven-grab-panel').forEach((p) => {
+            if (p.getBoundingClientRect().width > 0) panels.push(p)
+          })
+        }
+      })
+      return panels.sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left)
+    }
+    const readSheet = () => {
+      const sheet = isPhone() ? visiblePanels()[0] : undefined
+      setSheetTop(sheet ? sheet.getBoundingClientRect().top : null)
+    }
+    readSheet()
     if (!anchor.startsWith('target:') && !isPanel) {
       setTargetRect(null)
-      return
+      let raf = 0
+      let tries = 0
+      const retry = () => {
+        if (isPhone() && tries < 120) {
+          tries += 1
+          raf = requestAnimationFrame(() => {
+            readSheet()
+            retry()
+          })
+        }
+      }
+      retry()
+      addEventListener('resize', readSheet)
+      return () => {
+        cancelAnimationFrame(raf)
+        removeEventListener('resize', readSheet)
+      }
+    }
+    // Bring a page target into view before placing the card. On a phone it goes in
+    // the space between the nav and the card pinned at the bottom; wider, it goes low
+    // enough that the card fits above it, as long as it isn't already there.
+    if (anchor.startsWith('target:')) {
+      const el = document.querySelector(anchor.slice(7))
+      if (el) {
+        const r = el.getBoundingClientRect()
+        if (isPhone()) {
+          const freeTop = 88
+          const freeBottom = innerHeight - PHONE_CARD_ROOM
+          const want = freeTop + Math.max((freeBottom - freeTop - r.height) / 2, 0)
+          scrollBy({ top: r.top - want, behavior: 'instant' as ScrollBehavior })
+        } else if (r.bottom > innerHeight - EDGE_GAP || r.top < 0) {
+          const want = Math.min(DESKTOP_TARGET_TOP, Math.max(innerHeight - EDGE_GAP - r.height, FLIP_THRESHOLD))
+          scrollBy({ top: r.top - want, behavior: 'instant' as ScrollBehavior })
+        }
+      }
     }
     const resolve = (): DOMRect | null => {
       if (anchor.startsWith('target:')) {
         return document.querySelector(anchor.slice(7))?.getBoundingClientRect() ?? null
       }
+      // On a phone both panels are one sheet, and anything inside it is in the sheet.
+      if (isPhone()) return visiblePanels()[0]?.getBoundingClientRect() ?? null
       if (isGrab) {
         const r = grabQuery(anchor.slice(5))?.getBoundingClientRect()
         return r && (r.width || r.height) ? r : null
       }
-      const panels: Element[] = []
-      document.querySelectorAll('*').forEach((el) => {
-        if (el.shadowRoot) {
-          el.shadowRoot.querySelectorAll('.raven-grab-panel').forEach((p) => panels.push(p))
-        }
-      })
-      panels.sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left)
+      const panels = visiblePanels()
       const el = isLeftPanel ? panels[0] : panels[panels.length - 1]
       return el?.getBoundingClientRect() ?? null
     }
     const apply = () => {
       const r = resolve()
       setTargetRect(r ? { top: r.top, left: r.left, width: r.width, height: r.height } : null)
+      readSheet()
     }
     apply()
     // The grab panels mount asynchronously after the overlay script loads, so a
@@ -288,8 +372,28 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
     return { position: 'fixed', top, left, width: TIP_WIDTH, transform: 'translateY(-50%)' }
   }
 
-  const cardStyle: React.CSSProperties =
-    current?.anchor === 'panel'
+  // Phone (Grab's sheet layout): the card spans the width with a 16px inset and no
+  // horizontal transform. Page targets get the card pinned to the bottom, over the
+  // sheet, with the target scrolled into view above it; every other step sits just
+  // above the sheet's top edge.
+  const isPhoneLayout = viewport.w <= PHONE_MAX
+  const isTargetStep = !!current?.anchor.startsWith('target:')
+  const phoneCardStyle = (): React.CSSProperties => {
+    const base: React.CSSProperties = { position: 'fixed', left: EDGE_GAP, right: EDGE_GAP, width: 'auto' }
+    if (isTargetStep) {
+      const tailLeft = targetRect ? targetRect.left + targetRect.width / 2 - EDGE_GAP : 0
+      return { ...base, bottom: EDGE_GAP, ['--tail-left' as string]: `${tailLeft}px` }
+    }
+    if (sheetTop !== null && current?.anchor !== 'center') {
+      return { ...base, bottom: viewport.h - sheetTop + TAIL_GAP, ['--tail-left' as string]: '50%' }
+    }
+    if (sheetTop !== null) return { ...base, bottom: viewport.h - sheetTop + TAIL_GAP }
+    return { ...base, top: '50%', transform: 'translateY(-50%)' }
+  }
+
+  const cardStyle: React.CSSProperties = isPhoneLayout
+    ? phoneCardStyle()
+    : current?.anchor === 'panel'
       ? panelCardStyle('right')
       : current?.anchor === 'panel-left'
         ? panelCardStyle('left')
@@ -299,8 +403,13 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
             ? spotlightStyle()
             : { position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 360 }
 
-  const tailSide =
-    (current?.anchor.startsWith('target:') || current?.anchor.startsWith('grab:')) && targetRect
+  const tailSide = isPhoneLayout
+    ? isTargetStep && targetRect
+      ? 'top'
+      : current?.anchor !== 'center' && sheetTop !== null
+        ? 'bottom'
+        : undefined
+    : (current?.anchor.startsWith('target:') || current?.anchor.startsWith('grab:')) && targetRect
       ? targetRect.top < FLIP_THRESHOLD
         ? 'top'
         : 'bottom'
@@ -332,7 +441,7 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
         </button>
       </div>
 
-      {current && (
+      {current && portal && createPortal(
         <div className="playground-tour" role="dialog" aria-label={current.title} aria-modal="false" data-raven-grab-ignore="">
           <div className="playground-tour__backdrop" />
           {targetRect && (
@@ -374,7 +483,8 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
               </span>
             </div>
           </div>
-        </div>
+        </div>,
+        portal,
       )}
     </>
   )

@@ -17,6 +17,8 @@ export default function MotionDemoVideo({ src, poster, label }: { src: string; p
         video.pause()
         video.currentTime = 0
       } else {
+        // HomeScripts drops loop under reduced motion; put it back when playback resumes.
+        video.loop = true
         video.muted = true
         video.play().catch(() => {})
       }
