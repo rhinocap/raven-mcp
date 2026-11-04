@@ -8,7 +8,7 @@ import { fileURLToPath } from "url";
 import { tmpdir } from "os";
 import { z } from "zod";
 import { flattenDesignTokens, parseDesignMd, readDesignMd, updateDesignMd, type DesignMdNode } from "./designmd.js";
-import { newGrabMotionState, readMotionJob, startMotionJob, stopGrabMotion, type GrabMotionOptions, type GrabMotionState } from "./grab-motion.js";
+import { newGrabMotionState, readMotionJob, refreshMotionTaste, startMotionJob, stopGrabMotion, type GrabMotionOptions, type GrabMotionState } from "./grab-motion.js";
 import { suggestMotion } from "./motion-suggest/index.js";
 import { handleAttachmentRequest, MAX_ATTACHMENT_BODY_BYTES, MAX_SESSION_ATTACHMENTS, pruneGrabInbox, type GrabAttachmentRecord } from "./grab-inbox.js";
 
@@ -445,6 +445,11 @@ export async function startGrabSession(path?: string, port?: number, proxyTarget
     proxyGrabUpgrade(normalizedTarget, req, socket, head);
   });
 
+  var motionState = normalizedTarget && !proxyCaptureOnly(normalizedTarget) && options && options.motion
+    ? newGrabMotionState(options.motion, normalizedTarget)
+    : undefined;
+  if (motionState) await refreshMotionTaste(motionState);
+
   var actualPort = 0;
   try {
     await new Promise<void>(function (resolveListen, rejectListen) {
@@ -474,9 +479,7 @@ export async function startGrabSession(path?: string, port?: number, proxyTarget
       nextSequence: 1,
       batchCommits: Object.create(null),
       attachments: new Map(),
-      ...(normalizedTarget && !proxyCaptureOnly(normalizedTarget) && options && options.motion
-        ? { motion: newGrabMotionState(options.motion, normalizedTarget) }
-        : {})
+      ...(motionState ? { motion: motionState } : {})
     };
   } catch (err) {
     if (server.listening) {
@@ -1671,8 +1674,7 @@ async function proxyGrabRequest(proxyTarget: string, key: string, method: string
         proxyConfig.pageOrigin = proxyTargetUrl.origin;
       } else if (currentSession && currentSession.motion) {
         proxyConfig.motion = "full";
-        const mo = currentSession.motion.options;
-        if (mo.profile && mo.project) proxyConfig.motionTaste = true;
+        if (currentSession.motion.usesTaste) proxyConfig.motionTaste = true;
       }
       if (role === "maintainer") proxyConfig.role = "maintainer";
       var proxyConfigJson = JSON.stringify(proxyConfig).replace(/</g, "\\u003c");

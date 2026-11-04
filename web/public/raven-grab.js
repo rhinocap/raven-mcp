@@ -12483,9 +12483,10 @@
     for (var i = 0; i < parts.length; i++) {
       var el = motionResolvePart(parts[i]);
       if (!el) return null;
-      // Bound to the node first found. If that node is still on the page but another one now
-      // answers (two identical elements swapped), the part is lost rather than moved.
-      if (row.bound && row.bound[i] && row.bound[i] !== el && row.bound[i].isConnected) return null;
+      // Bound to the node first found. Another node answering is accepted only when the first
+      // one is gone and the part had no twin (a re-render). If the first is still on the page
+      // (twins swapped), or it had twins (one removed, another added), the part is lost.
+      if (row.bound && row.bound[i] && row.bound[i] !== el && (row.bound[i].isConnected || parts[i].dup !== 1)) return null;
       els.push(el);
     }
     row.bound = els.slice();

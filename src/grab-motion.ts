@@ -15,6 +15,7 @@ import { randomBytes } from "node:crypto";
 import { unregisterPlayground } from "./motion-session.js";
 import type { SuggestMotionInput, SuggestMotionResult } from "./motion-suggest/index.js";
 import type { TasteStore } from "./taste-store.js";
+import { getTasteProfile, listTasteDecisions, resolveSurfaceBinding } from "./taste.js";
 
 export const MOTION_JOB_DEADLINE_MS = 60_000;
 export const MOTION_RATE_WINDOW_MS = 10 * 60_000;
@@ -60,10 +61,29 @@ export type GrabMotionState = {
   jobs: Map<string, MotionJob>;
   starts: number[];
   owned: string[];
+  /** Whether the session's profile and project resolve to a binding or motion decisions. */
+  usesTaste: boolean;
 };
 
 export function newGrabMotionState(options: GrabMotionOptions, proxyTarget: string): GrabMotionState {
-  return { sessionId: randomBytes(8).toString("hex"), options, proxyTarget, running: null, work: null, jobs: new Map(), starts: [], owned: [] };
+  return { sessionId: randomBytes(8).toString("hex"), options, proxyTarget, running: null, work: null, jobs: new Map(), starts: [], owned: [], usesTaste: false };
+}
+
+/** Looks the session's taste up the way suggestMotion does: names alone are not a binding. */
+export async function refreshMotionTaste(state: GrabMotionState): Promise<boolean> {
+  const { store, profile, project } = state.options;
+  let uses = false;
+  if (profile && project) {
+    try {
+      const p = await getTasteProfile(store, profile);
+      if (await resolveSurfaceBinding(store, p.name, { project })) uses = true;
+      else uses = (await listTasteDecisions(store, p.name, { project, dimension: "motion" })).length > 0;
+    } catch {
+      uses = false;
+    }
+  }
+  state.usesTaste = uses;
+  return uses;
 }
 
 /** Stops the session's job: aborts its work. Called when the Grab session stops. */
@@ -184,6 +204,7 @@ export async function startMotionJob(state: GrabMotionState, body: unknown, sugg
         while (state.owned.length > MOTION_MAX_PLAYGROUNDS) unregisterPlayground(state.owned.shift() as string);
       }
       job.result = result;
+      state.usesTaste = result.uses_taste === true;
       job.state = "done";
     } catch (e) {
       if (job.state === "running") {
@@ -207,7 +228,7 @@ export function readMotionJob(state: GrabMotionState, id: string): MotionReply {
   const job = state.jobs.get(id);
   if (!job) return { status: 404, body: { error: "No such motion job." } };
   // A job the deadline or a stop ended reports so, even while its work is still winding down.
-  const body: Record<string, unknown> = { state: job.state, step: job.step, inputs: job.inputs, uses_taste: Boolean(state.options.profile && state.options.project) };
+  const body: Record<string, unknown> = { state: job.state, step: job.step, inputs: job.inputs, uses_taste: job.result ? job.result.uses_taste === true : state.usesTaste };
   if (job.message) body.message = job.message;
   if (job.state === "done" && job.result) {
     const r = job.result;

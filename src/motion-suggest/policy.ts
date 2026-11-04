@@ -495,7 +495,12 @@ export async function fetchFont(url: string, pageOrigin: string, opts: FontFetch
       await mkdir(opts.cacheDir, { recursive: true });
       const finalPath = join(opts.cacheDir, key + "." + ext);
       const tmpPath = join(opts.cacheDir, "." + key + "." + randomBytes(6).toString("hex") + ".tmp");
+      if (stopped()) return { error: "The font download was stopped." };
       await writeFile(tmpPath, body, { flag: "wx", mode: 0o600 });
+      if (stopped()) {
+        await unlink(tmpPath).catch(function () {});
+        return { error: "The font download was stopped." };
+      }
       try {
         await rename(tmpPath, finalPath);
       } catch (error) {

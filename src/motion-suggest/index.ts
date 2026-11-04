@@ -83,6 +83,8 @@ export type SuggestMotionResult = {
   preview_url?: string;
   message?: string;
   customer_used: string | null;
+  /** Whether a taste binding or recorded motion decisions shaped these suggestions. */
+  uses_taste: boolean;
   notes_used: string[];
   warnings: string[];
   next: string[];
@@ -197,11 +199,12 @@ export async function suggestMotion(input: SuggestMotionInput): Promise<SuggestM
   let profileName = "";
   let rejectedKinds: MotionKind[] = [];
   let tuned: Partial<Record<MotionKind, Record<string, unknown>>> = {};
+  let bound = false;
   if (args.profile) {
     const profile = await getTasteProfile(input.store, args.profile);
     profileName = profile.name;
     const binding = await resolveSurfaceBinding(input.store, profile.name, { project: args.project });
-    if (binding) notes = binding.design_notes || {};
+    if (binding) { notes = binding.design_notes || {}; bound = true; }
     else warnings.push(`There is no taste binding for project “${args.project}”, so these suggestions use the page alone.`);
     const decisions = await listTasteDecisions(input.store, profile.name, { project: args.project, dimension: "motion" });
     const state = readMotionDecisions(decisions);
@@ -211,6 +214,7 @@ export async function suggestMotion(input: SuggestMotionInput): Promise<SuggestM
   } else {
     warnings.push("No profile and project were given, so these suggestions use the page alone. Pass both to tune them to the designer's notes.");
   }
+  const usesTaste = bound || rejectedKinds.length > 0 || Object.keys(tuned).length > 0;
   const customer = typeof notes.customer === "string" && notes.customer.trim() ? notes.customer.trim() : "";
   if (!customer) warnings.push("There is no customer note yet, so the reasons speak only about the page. Run the kickoff's customer question (get_taste_interview) to add one.");
   const motionNote = typeof notes.motion === "string" ? notes.motion : undefined;
@@ -332,7 +336,7 @@ export async function suggestMotion(input: SuggestMotionInput): Promise<SuggestM
   if (args.selector !== undefined) {
     const out: SuggestMotionResult = {
       tool: "suggest_motion", url: args.url, suggestions, failed,
-      customer_used: customer || null, notes_used: [...notesUsed], warnings: Array.from(new Set(warnings)), next: NEXT_SELECTOR,
+      customer_used: customer || null, uses_taste: usesTaste, notes_used: [...notesUsed], warnings: Array.from(new Set(warnings)), next: NEXT_SELECTOR,
     };
     if (suggestions[0] && suggestions[0].url) out.preview_url = suggestions[0].url;
     if (message && !suggestions.length) out.message = message;
@@ -354,7 +358,7 @@ export async function suggestMotion(input: SuggestMotionInput): Promise<SuggestM
     suggestions,
     failed,
     map_path: mapPath,
-    customer_used: customer || null,
+    customer_used: customer || null, uses_taste: usesTaste,
     notes_used: [...notesUsed],
     warnings: Array.from(new Set(warnings)),
     next: NEXT,

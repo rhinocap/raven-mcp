@@ -415,6 +415,17 @@ test('swapping two identical twins takes the marker away rather than moving it t
     await settleFrames(page);
     await settleFrames(page);
     assert.equal(await inShadow(page, (root) => Boolean(root.querySelector('[data-motion-marker="1"]'))), false, 'the marker moved to the other twin');
+    // Swapped back, the chosen twin answers again.
+    await page.evaluate(() => { const [a, b] = document.querySelectorAll('#twins img'); a.parentNode.insertBefore(b, a); });
+    await settleFrames(page);
+    await settleFrames(page);
+    assert.equal(await inShadow(page, (root) => Boolean(root.querySelector('[data-motion-marker="1"]'))), true, 'the marker did not come back');
+    // The chosen twin removed and a new one added after it: the new one answers to the same
+    // selector, fingerprint, dup and nth, but it is not the element that was picked.
+    await page.evaluate(() => { const imgs = document.querySelectorAll('#twins img'); const c = imgs[1].cloneNode(); imgs[1].remove(); imgs[0].parentNode.appendChild(c); });
+    await settleFrames(page);
+    await settleFrames(page);
+    assert.equal(await inShadow(page, (root) => Boolean(root.querySelector('[data-motion-marker="1"]'))), false, 'the marker moved to a new twin');
   });
 });
 
@@ -478,7 +489,14 @@ test('without a taste binding the footer reads "Suggestions use this page only";
   const store = new FsTasteStore();
   await taste.createTasteProfile(store, { name: 'foot-p', rules: [] });
   await taste.bindTasteSurface(store, 'foot-p', { project: 'foot-site', surface: 'studio site', voice_note: 'Plain.', design_notes: {} });
-  await withGrab({ motion: { store, profile: 'foot-p', project: 'foot-site', suggest: fakeResult({ suggestions: [fakeSuggestion()] }) } }, async ({ page }) => {
+  // A profile with no binding for this project is still the page alone.
+  await withGrab({ motion: { store, profile: 'foot-p', project: 'not-bound-site' } }, async ({ page }) => {
+    await openMotionTab(page);
+    assert.equal(await inShadow(page, (root) => root.querySelector('[data-motion-footer]')?.textContent || ''), 'Suggestions use this page only', 'unbound project before a job');
+    await findMotion(page);
+    assert.equal(await inShadow(page, (root) => root.querySelector('[data-motion-footer]')?.textContent || ''), 'Suggestions use this page only', 'unbound project after a job');
+  });
+  await withGrab({ motion: { store, profile: 'foot-p', project: 'foot-site', suggest: fakeResult({ suggestions: [fakeSuggestion()], uses_taste: true }) } }, async ({ page }) => {
     await openMotionTab(page);
     assert.equal(await inShadow(page, (root) => Boolean(root.querySelector('[data-motion-footer]'))), false, 'footer before a job');
     await findMotion(page);
