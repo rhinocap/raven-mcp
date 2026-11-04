@@ -47,7 +47,7 @@ export default function MotionPlaygroundPage() {
       <section className="playground-stage" aria-labelledby="wireframe-title">
         <div className="container">
           <div className="playground-stage-heading">
-            <p>Press Find motion in the Raven Design panel, then open a numbered suggestion.</p>
+            <p>Press Find motion, then open a numbered suggestion.</p>
           </div>
 
           <Coachmarks

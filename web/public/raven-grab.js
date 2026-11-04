@@ -874,6 +874,8 @@
       pointer-events: auto; font: 600 calc(10px * var(--raven-grab-font-scale))/1 var(--raven-grab-ui); box-shadow: 0 2px 8px rgba(0, 0, 0, .45);
     }
     .raven-grab-motion-badge:hover, .raven-grab-motion-badge[data-hot="true"] { color: #0a1018; background: var(--raven-grab-accent); }
+    /* A 20px dot drawn, a 44px target to tap. */
+    .raven-grab-motion-badge::before { content: ""; position: absolute; inset: -12px; border-radius: 50%; }
     .raven-grab-motion-badge:focus-visible { outline: 2px solid var(--raven-grab-accent); outline-offset: 2px; }
     .raven-grab-panel {
       position: fixed; top: 20px; right: 20px; bottom: 20px; display: none; z-index: 2; width: min(360px, calc(100vw - 40px));
@@ -926,7 +928,7 @@
       :host([data-mobile-sheet="true"]) .raven-grab-panel:not([data-side="left"])[data-sheet-dragging="true"] { transition: none; }
       :host([data-mobile-sheet="true"]) .raven-grab-panel:not([data-side="left"]) .raven-grab-top { display: none; }
       :host([data-mobile-sheet="true"]) .raven-grab-mobile-tabs { display: grid; grid-template-columns: repeat(4, minmax(44px, 1fr)); }
-      :host([data-mobile-sheet="true"]) .raven-grab-mobile-tabs[data-count="5"] { grid-template-columns: repeat(5, minmax(44px, auto)); justify-content: space-between; }
+      :host([data-mobile-sheet="true"]) .raven-grab-mobile-tabs[data-count="5"] { grid-template-columns: repeat(5, minmax(44px, auto)); justify-content: space-between; padding-inline: 12px; }
       :host([data-mobile-sheet="true"]) .raven-grab-sheet-handle {
         position: relative; display: flex; align-items: center; justify-content: center; flex: 0 0 44px;
         width: 100%; height: 44px; min-height: 44px; padding: 0; touch-action: none; cursor: ns-resize;
@@ -1048,7 +1050,8 @@
     .raven-grab-motion-offscreen[hidden] { display: none; }
     .raven-grab-motion-open { display: inline-block; margin-top: 6px; color: var(--raven-grab-accent); font: 500 calc(12px * var(--raven-grab-font-scale))/1.35 var(--raven-grab-ui); text-decoration: none; }
     .raven-grab-motion-open:hover { color: var(--raven-grab-accent-hover); text-decoration: underline; }
-    button.raven-grab-motion-play { padding: 0; color: var(--raven-grab-accent); background: none; border: 0; cursor: pointer; text-align: left; }
+    button.raven-grab-motion-play { position: relative; padding: 0; color: var(--raven-grab-accent); background: none; border: 0; cursor: pointer; text-align: left; }
+    button.raven-grab-motion-play::before { content: ""; position: absolute; inset: -13px -6px; }
     button.raven-grab-motion-play:hover { color: var(--raven-grab-accent-hover); text-decoration: underline; }
     button.raven-grab-motion-play:focus-visible { outline: 2px solid var(--raven-grab-accent); outline-offset: 2px; border-radius: 4px; }
     .raven-grab-motion-viewer {
@@ -1084,6 +1087,8 @@
       .raven-grab-motion-viewer-frame { border-radius: 0; border: 0; }
       .raven-grab-motion-viewer-head { padding-left: 16px; }
       .raven-grab-motion-viewer-when { display: none; }
+      .raven-grab-motion-viewer-head { min-height: 60px; }
+      .raven-grab-motion-viewer-close { height: 44px; }
     }
     /* Content that runs past the bottom edge was cut mid-glyph -- a half-height
        "Styles" heading reads as a rendering bug, not as "there is more below".
