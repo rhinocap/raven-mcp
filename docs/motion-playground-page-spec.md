@@ -53,8 +53,8 @@ All browser checks run in Playwright Chromium, against `next build && next start
 
 1. Run `suggest_motion` on the wireframe and show Andrew the suggestions list (labels, reasons, markers) before building anything. This is a cheap direction check, because the suggestions decide whether the page is any good.
 2. Build `static` mode and `/motion`. Show a Grab bridge preview link and full-size captures at desktop and mobile widths. **Stop for his review.**
-3. Only after he approves: one release question, asked on its own. No push or deploy without his explicit go.
-4. After a `vercel rollback`, the domain stays pinned: the next deploy needs `vercel promote`, and live checks must confirm which deployment the domain serves.
+4. Only after he approves both: one release question, asked on its own. No push or deploy without his explicit go.
+5. After a `vercel rollback`, the domain stays pinned: the next deploy needs `vercel promote`, and live checks must confirm which deployment the domain serves.
 
 ## Risks
 
@@ -63,4 +63,4 @@ All browser checks run in Playwright Chromium, against `next build && next start
 
 ## Goal
 
-> /goal Add a Motion Playground page at ravenmcp.ai/motion, built the same way as /raven-design: same intro pattern, the same Northstar wireframe (shared component, /raven-design unchanged), and Grab with its Motion tab in a new prebuilt `static` mode, desktop and mobile, fed by `suggest_motion` run on the wireframe at build time and converted to same-origin files. The home page and every other page stay unchanged. Follow `docs/motion-playground-page-spec.md` in raven-mcp: show Andrew the suggestions list first, then stop for his review of the built page. Add the nav link only after he approves. Ask the release question only after that, and never push or deploy without his explicit go. Done means acceptance items 1–7 are verified as written, with design-judge PASS and Sol showing no P1 or P2.
+> /goal Add a Motion Playground page at ravenmcp.ai/motion, built the same way as /raven-design: same intro pattern, the same Northstar wireframe (shared component, /raven-design unchanged), and Grab with its Motion tab in a new prebuilt `static` mode, desktop and mobile, fed by `suggest_motion` run on the wireframe at build time and converted to same-origin files. Add a home page section for it directly after the Design Playground section, built the same way (header, "Try the playground" button, muted looping demo video); the rest of the home page and every other page stay unchanged. Follow `docs/motion-playground-page-spec.md` in raven-mcp: show Andrew the suggestions list first, then stop for his review of the built page, then of the home section. Add the nav link only after he approves both. Ask the release question only after that, and never push or deploy without his explicit go. Done means acceptance items 1–7 are verified as written, with design-judge PASS and Sol showing no P1 or P2.
