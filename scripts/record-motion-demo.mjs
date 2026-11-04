@@ -179,26 +179,29 @@ async function main() {
     await moveTo(target.x + 120, target.y + 150, 450)
     await hold(500)
 
-    // 5. Drag Lift to its top and play again.
-    const lift = viewer.locator('#in-lift')
-    const track = await lift.boundingBox()
-    const min = Number(await lift.getAttribute('min')), max = Number(await lift.getAttribute('max'))
-    const val = Number(await lift.inputValue())
-    const thumbX = track.x + 9 + ((val - min) / (max - min)) * (track.width - 18)
-    const ty = track.y + track.height / 2
-    await moveTo(thumbX, ty, 750)
-    await hold(150)
-    mark('drag')
-    await press(true); await page.mouse.down()
-    const endX = track.x + track.width - 4
-    const dragSteps = 50
-    for (let i = 1; i <= dragSteps; i++) {
-      const nx = thumbX + (endX - thumbX) * ease(i / dragSteps)
-      await Promise.all([page.mouse.move(nx, ty), place(nx, ty)])
-      await page.waitForTimeout(20)
+    // Drags a playground slider from its current value to `to`.
+    async function dragSlider(input, to, name) {
+      const track = await input.boundingBox()
+      const min = Number(await input.getAttribute('min')), max = Number(await input.getAttribute('max'))
+      const at = (v) => track.x + 9 + ((v - min) / (max - min)) * (track.width - 18)
+      const fromX = at(Number(await input.inputValue())), endX = at(to)
+      const ty = track.y + track.height / 2
+      await moveTo(fromX, ty, 750)
+      await hold(150)
+      mark(name)
+      await press(true); await page.mouse.down()
+      const dragSteps = 50
+      for (let i = 1; i <= dragSteps; i++) {
+        const nx = fromX + (endX - fromX) * ease(i / dragSteps)
+        await Promise.all([page.mouse.move(nx, ty), place(nx, ty)])
+        await page.waitForTimeout(20)
+      }
+      cx = endX; cy = ty
+      await page.mouse.up(); await press(false)
     }
-    cx = endX; cy = ty
-    await page.mouse.up(); await press(false)
+
+    // 5. Drag Lift to its top and play again.
+    await dragSlider(viewer.locator('#in-lift'), 8, 'drag')
     await hold(500)
     await moveTo(target.x + 60, target.y + 120, 650)
     mark('replay')
@@ -206,6 +209,20 @@ async function main() {
     await hold(1300)
     await moveTo(target.x + 120, target.y + 150, 450)
     await hold(400)
+
+    // 5b. Next: Hero entrance. It plays on a loop; drag Rise to its top so the
+    // headline travels further.
+    const next = await centre(page.locator('[data-motion-viewer-next]'))
+    await moveTo(next.x, next.y, 800)
+    await hold(150)
+    mark('hero')
+    await click()
+    await viewer.locator('#in-rise').waitFor({ state: 'visible' })
+    await moveTo(next.x - 300, next.y + 330, 600)
+    await hold(2300)
+    await dragSlider(viewer.locator('#in-rise'), 80, 'rise')
+    await moveTo(cx + 40, cy + 90, 500)
+    await hold(2800)
 
     // 6. Copy for your agent, showing the copied state.
     const copy = await centre(viewer.locator('#copy-agent'))
