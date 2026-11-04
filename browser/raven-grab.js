@@ -997,6 +997,22 @@
     .raven-grab-note.raven-grab-motion-lede { margin: 0 0 12px; font-size: calc(12px * var(--raven-grab-font-scale)); }
     .raven-grab-note.raven-grab-motion-footer { margin: 16px 0 0; font-size: calc(12px * var(--raven-grab-font-scale)); }
     .raven-grab-motion-progress { min-height: 1.45em; margin-top: 8px; text-align: center; }
+    /* While a job runs the button keeps its fill (busy, not unavailable), a thin track moves under
+       it, and placeholder rows hold the place the results will land. */
+    .raven-grab-send.raven-grab-motion-find[aria-busy="true"]:disabled { opacity: 1; cursor: progress; box-shadow: 0 4px 20px rgba(0, 191, 255, .4); }
+    .raven-grab-motion-pick-button[aria-busy="true"]:disabled { opacity: 1; cursor: progress; color: var(--raven-grab-accent); border-color: rgba(0, 191, 255, .4); }
+    .raven-grab-motion-track { position: relative; height: 2px; margin: 10px 0 0; overflow: hidden; background: rgba(0, 191, 255, .15); border-radius: 1px; }
+    .raven-grab-motion-track span { position: absolute; top: 0; bottom: 0; left: 0; width: 30%; background: var(--raven-grab-accent); border-radius: 1px; animation: raven-grab-motion-slide 1.2s cubic-bezier(.45, 0, .55, 1) infinite; }
+    @keyframes raven-grab-motion-slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+    .raven-grab-motion-hint { margin: 4px 0 0; text-align: center; }
+    .raven-grab-motion-skeleton .raven-grab-motion-row { animation: raven-grab-motion-pulse 1.4s ease-in-out infinite; }
+    .raven-grab-motion-skeleton .raven-grab-motion-row:nth-child(2) { animation-delay: .15s; }
+    .raven-grab-motion-skeleton .raven-grab-motion-row:nth-child(3) { animation-delay: .3s; }
+    .raven-grab-motion-skeleton .raven-grab-motion-chip { border-color: rgba(255, 255, 255, .14); }
+    .raven-grab-motion-bar { display: block; height: 10px; margin: 4px 0 8px; background: rgba(255, 255, 255, .08); border-radius: 5px; }
+    .raven-grab-motion-bar[data-w="title"] { width: 45%; height: 12px; margin-top: 4px; background: rgba(0, 191, 255, .18); }
+    .raven-grab-motion-bar[data-w="short"] { width: 70%; margin-bottom: 0; }
+    @keyframes raven-grab-motion-pulse { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
     .raven-grab-motion-pick { display: flex; flex-direction: column; gap: 8px; }
     .raven-grab-motion-pick-button { width: 100%; }
     .raven-grab-motion-pick-button:disabled { opacity: .45; cursor: default; }
@@ -1691,6 +1707,8 @@
       .raven-grab-sheet-handle::before { transition: none !important; }
       .raven-grab-check path, .raven-grab-pen-dot, .raven-grab-sent-message, .raven-grab-border-trace rect { animation: none !important; }
       .raven-grab-voice[aria-pressed="true"] { animation: none !important; }
+      .raven-grab-motion-track span, .raven-grab-motion-skeleton .raven-grab-motion-row { animation: none !important; }
+      .raven-grab-motion-track span { width: 100%; opacity: .5; }
       .raven-grab-border-trace { display: none !important; }
       .raven-grab-send[data-send-state="sent"] { animation: none !important; border-color: #00BFFF !important; }
       .raven-grab-check path { stroke-dashoffset: 0 !important; }
@@ -12396,6 +12414,11 @@
     trigger: "",
     triggerFor: null,
     pollTimer: null,
+    startedAt: 0,
+    tick: null,
+    joined: false,
+    joinedPick: false,
+    joinedElsewhere: false,
     markers: [],
     hot: -1,
     markerFrame: 0,
@@ -12683,7 +12706,41 @@
 
   // Fills the Motion tab. Called by renderPanel (before scroll is restored) and
   // on every job update; rebuilds only the tab's own subtree.
+  function motionStepWords() { return motion.step === "building" ? "Building previews" : "Copying the page"; }
+  function motionElapsedWords() {
+    var secs = Math.max(0, Math.floor((Date.now() - motion.startedAt) / 1000));
+    return secs ? " · " + secs + " s" : "";
+  }
+  function motionSlowWords() {
+    return Date.now() - motion.startedAt >= 15000 ? "Big pages can take up to a minute." : "";
+  }
+  function motionTrack() {
+    var track = motionEl("div", "raven-grab-motion-track");
+    track.setAttribute("aria-hidden", "true");
+    track.setAttribute("data-motion-track", "");
+    track.appendChild(motionEl("span", "", ""));
+    return track;
+  }
+  // Once a second while a job runs: the seconds count and the slow-page hint, in place.
+  // It stops itself when the job ends, whichever path ended it.
+  function syncMotionTicker() {
+    var want = motion.phase === "running";
+    if (want && !motion.tick) {
+      motion.tick = setInterval(function () {
+        if (motion.phase !== "running") { clearInterval(motion.tick); motion.tick = null; return; }
+        var elapsed = panelLeft.querySelector("[data-motion-elapsed]");
+        if (elapsed) elapsed.textContent = motionElapsedWords();
+        var hint = panelLeft.querySelector("[data-motion-hint]");
+        if (hint && hint.textContent !== motionSlowWords()) hint.textContent = motionSlowWords();
+      }, 1000);
+    } else if (!want && motion.tick) {
+      clearInterval(motion.tick);
+      motion.tick = null;
+    }
+  }
+
   function paintMotion() {
+    syncMotionTicker();
     var root = panelLeft.querySelector("[data-motion-root]");
     if (!root) return;
     var scroller = panelLeft.querySelector(".raven-grab-body");
@@ -12725,12 +12782,31 @@
     findButton.setAttribute("data-send-state", "default");
     findButton.appendChild(motionEl("span", "raven-grab-send-label", motionFindLabel()));
     if (running || motionCooling()) findButton.disabled = true;
+    var findBusy = running && motion.kind === "find";
+    if (findBusy) findButton.setAttribute("aria-busy", "true");
     findButton.addEventListener("click", function () { startMotionJob("find"); });
     find.appendChild(findButton);
-    var progress = motionEl("p", "raven-grab-note raven-grab-motion-progress", running ? (motion.step === "building" ? "Building previews" : "Copying the page") : "");
+    if (findBusy) find.appendChild(motionTrack());
+    // The step goes in the live region; the seconds count beside it is for the eye only,
+    // so a screen reader hears the step change, not a tick every second.
+    var progress = motionEl("p", "raven-grab-note raven-grab-motion-progress", "");
     progress.setAttribute("role", "status");
     progress.setAttribute("data-motion-progress", "");
+    if (findBusy || (running && motion.joinedPick)) {
+      var stepText = motionEl("span", "", findBusy ? motionStepWords() : "Building a preview");
+      stepText.setAttribute("data-motion-step", "");
+      var secs = motionEl("span", "", motionElapsedWords());
+      secs.setAttribute("aria-hidden", "true");
+      secs.setAttribute("data-motion-elapsed", "");
+      progress.appendChild(stepText);
+      progress.appendChild(secs);
+    }
     find.appendChild(progress);
+    if (findBusy) {
+      var hint = motionEl("p", "raven-grab-note raven-grab-motion-hint", motionSlowWords());
+      hint.setAttribute("data-motion-hint", "");
+      find.appendChild(hint);
+    }
     root.appendChild(find);
 
     var picked = motionSingleSelection();
@@ -12744,6 +12820,8 @@
       pickButton.type = "button";
       pickButton.setAttribute("data-motion-pick", "");
       if (running || motionCooling()) pickButton.disabled = true;
+      var pickBusy = running && motion.kind === "pick";
+      if (pickBusy) pickButton.setAttribute("aria-busy", "true");
       pickButton.addEventListener("click", function () { startMotionJob("pick"); });
       var field = motionEl("label", "raven-grab-field raven-grab-motion-when-field");
       field.appendChild(motionEl("span", "", "When it moves"));
@@ -12759,6 +12837,7 @@
       select.addEventListener("change", function () { motion.trigger = select.value; });
       field.appendChild(select);
       pick.appendChild(pickButton);
+      if (pickBusy) pick.appendChild(motionTrack());
       pick.appendChild(field);
       if (motion.pickMessage) pick.appendChild(motionEl("p", "raven-grab-motion-message", motion.pickMessage));
       root.appendChild(pick);
@@ -12773,6 +12852,27 @@
       var state = motionEl("p", "raven-grab-motion-message", stateCopy);
       state.setAttribute("data-motion-state", motion.phase);
       root.appendChild(state);
+    }
+
+    if (findBusy) {
+      var skeletonSection = motionEl("section", "raven-grab-section");
+      var skeleton = motionEl("ol", "raven-grab-motion-list raven-grab-motion-skeleton");
+      skeleton.setAttribute("aria-hidden", "true");
+      skeleton.setAttribute("data-motion-skeleton", "");
+      for (var ghostIndex = 0; ghostIndex < 3; ghostIndex++) {
+        var ghost = motionEl("li", "raven-grab-motion-row");
+        ghost.appendChild(motionEl("span", "raven-grab-motion-chip", ""));
+        var ghostBody = motionEl("div", "raven-grab-motion-row-body");
+        ["title", "", "short"].forEach(function (w) {
+          var bar = motionEl("span", "raven-grab-motion-bar", "");
+          if (w) bar.setAttribute("data-w", w);
+          ghostBody.appendChild(bar);
+        });
+        ghost.appendChild(ghostBody);
+        skeleton.appendChild(ghost);
+      }
+      skeletonSection.appendChild(skeleton);
+      root.appendChild(skeletonSection);
     }
 
     if (motion.rows.length) {
@@ -12820,7 +12920,13 @@
       motionSettle();
       return;
     }
-    if (kind === "pick" && motionSingleSelection() !== motion.pickEl) {
+    if (motion.joinedElsewhere) {
+      motion.phase = "stale";
+      motion.message = "Raven was busy with another page. Press Find motion again to look at this one.";
+      motionSettle();
+      return;
+    }
+    if (kind === "pick" && !motion.joinedPick && motionSingleSelection() !== motion.pickEl) {
       motion.phase = motion.rows.length ? "done" : "idle";
       motion.pickMessage = "You picked a different element while Raven was looking. Press Add motion again.";
       motionSettle();
@@ -12871,11 +12977,12 @@
           if (reply.status !== 200) { motionFail("The Grab session changed."); return; }
           var job = reply.body;
           if (typeof job.uses_taste === "boolean") motionUsesTaste = job.uses_taste;
+          if (motion.joined) motionJoin(job);
           if (job.state === "running") {
             if (job.step === "building" && motion.step !== "building") {
               motion.step = "building";
-              var line = panelLeft.querySelector("[data-motion-progress]");
-              if (line) line.textContent = "Building previews";
+              var line = panelLeft.querySelector("[data-motion-step]");
+              if (line && motion.kind === "find") line.textContent = "Building previews";
             }
             pollMotionJob(id);
             return;
@@ -12888,6 +12995,22 @@
           motionFail("Raven's bridge stopped answering.");
         });
     }, MOTION_POLL_MS);
+  }
+
+  // A joined job may be another tab's Add motion: show its state, not Find's.
+  function motionJoin(job) {
+    motion.joined = false;
+    var selector = job.inputs && typeof job.inputs.selector === "string" ? job.inputs.selector : "";
+    var kind = selector ? "pick" : "find";
+    // Its element was picked elsewhere, so its result is kept whatever this tab selects.
+    motion.joinedPick = kind === "pick";
+    var ms = job.running_ms;
+    if (typeof ms === "number" && isFinite(ms) && ms >= 0) motion.startedAt = Date.now() - Math.min(ms, 10 * 60 * 1000);
+    // A job started on another page cannot place results on this one.
+    motion.joinedElsewhere = !!(job.inputs && typeof job.inputs.path === "string" && job.inputs.path !== motion.path);
+    motion.kind = kind;
+    if (job.step === "building") motion.step = "building";
+    if (activeTabB === "motion") paintMotion();
   }
 
   // After the tenth job in ten minutes: both buttons read "Wait a few minutes" and stay
@@ -12923,7 +13046,10 @@
     motion.prevMessage = motion.message;
     motion.phase = "running";
     motion.kind = kind;
+    motion.joinedPick = false;
+    motion.joinedElsewhere = false;
     motion.step = "copying";
+    motion.startedAt = Date.now();
     motion.navAt = motionNavCount;
     motion.path = body.path;
     motion.message = "";
@@ -12933,8 +13059,10 @@
       .then(function (reply) {
         var id = reply.body && typeof reply.body.job === "string" && /^[0-9a-f]{16}$/.test(reply.body.job) ? reply.body.job : "";
         if ((reply.status === 202 || reply.status === 409) && id) {
-          // 409: a job from this session is already running; follow it.
+          // 409: a job from this session is already running; follow it, and take its
+          // kind and start time from the first poll.
           motion.jobId = id;
+          motion.joined = reply.status === 409;
           pollMotionJob(id);
           return;
         }

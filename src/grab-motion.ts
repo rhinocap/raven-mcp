@@ -230,6 +230,8 @@ export function readMotionJob(state: GrabMotionState, id: string): MotionReply {
   // A job the deadline or a stop ended reports so, even while its work is still winding down.
   const body: Record<string, unknown> = { state: job.state, step: job.step, inputs: job.inputs, uses_taste: job.result ? job.result.uses_taste === true : state.usesTaste };
   if (job.message) body.message = job.message;
+  // A tab that joins a running job (409) times it from the real start.
+  if (job.state === "running") body.running_ms = Math.max(0, Date.now() - job.startedAt);
   if (job.state === "done" && job.result) {
     const r = job.result;
     body.suggestions = r.suggestions.map((s) => ({
