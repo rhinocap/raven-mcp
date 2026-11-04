@@ -409,22 +409,29 @@ export const PLAYGROUND_CSS = `
           margin-bottom: var(--space-4);
         }
 
-        @media (min-width: 900px) {
-          /* Two symmetric grab panels (~380px each side) frame the page now, so the
-             hero and wireframe both center on the viewport — which is the center of
-             the gap between the panels. (Was an asymmetric right-only 400px gutter
-             from the single-panel era, which shoved the hero 200px left of the
-             wireframe.) Narrow the site nav so its right content clears the right panel. */
+        /* Two Grab panels frame the page from 761px up. The site nav sits in the gap
+           between them, 12px clear of each: the panels reach 310px in from each edge
+           up to 1024px, 332px up to 1280px, and 380px above that. When the gap is too
+           narrow for the links, the nav moves them into its menu (assets/nav.js). */
+        @media (min-width: 761px) {
           raven-nav {
-            --max-width: calc(100vw - 440px);
+            --max-width: calc(100vw - 644px);
+          }
+        }
+
+        @media (min-width: 1025px) {
+          raven-nav {
+            --max-width: calc(100vw - 688px);
+          }
+        }
+
+        @media (min-width: 1281px) {
+          raven-nav {
+            --max-width: min(1140px, calc(100vw - 784px));
           }
         }
 
         @media (min-width: 1440px) {
-          /* Make room for the controls pill: narrow the site nav on this page only. */
-          raven-nav {
-            --max-width: min(1140px, calc(100vw - 704px));
-          }
 
           /* Center the role toggle at the bottom of the page, matching the grab
              panels' 20px margin from the bottom of the viewport. The pill wraps

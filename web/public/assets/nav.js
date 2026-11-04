@@ -69,10 +69,6 @@
       position: relative;\
     }\
     .nav-brand { display: flex; align-items: center; gap: var(--space-3, 12px); text-decoration: none; min-height: 44px; }\
-    .nav-brand img {\
-      width: 30px; height: 30px; object-fit: contain;\
-      filter: drop-shadow(0 0 16px rgba(0,191,255,0.5)) drop-shadow(0 0 8px rgba(0,191,255,0.3)) drop-shadow(0 0 40px rgba(0,191,255,0.15));\
-    }\
     .nav-brand span { display: inline-flex; align-items: center; min-height: 44px; font-size: 16px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.02em; }\
     .nav-links { display: none; }\
     .nav-actions { display: flex; align-items: center; gap: var(--space-3, 12px); }\
@@ -140,6 +136,26 @@
     }\
     .nav-mobile-menu a:hover { background: rgba(255,255,255,0.05); color: var(--text-primary); }\
     .nav-mobile-menu a.active { color: var(--text-accent); }\
+    nav { container: raven-nav / inline-size; }\
+    /* When the nav is narrowed (between the playground panels), the links move into the menu. */\
+    @container raven-nav (max-width: 620px) {\
+      .nav-page-links { display: none; }\
+      .nav-hamburger { display: flex; }\
+    }\
+    @container raven-nav (max-width: 400px) {\
+      .nav-inner { padding: 0 var(--space-3, 12px); }\
+      .nav-actions .btn-primary { display: none; }\
+    }\
+    @container raven-nav (max-width: 200px) {\
+      .nav-brand { display: none; }\
+      .nav-inner { justify-content: center; }\
+    }\
+    @media (min-width: 769px) {\
+      .nav-mobile-menu {\
+        left: 50%; right: auto; transform: translateX(-50%);\
+        width: max(240px, min(100% - 32px, var(--max-width, 1140px)));\
+      }\
+    }\
     @media (max-width: 768px) {\
       nav { width: calc(100% - 24px); top: 8px; }\
       .nav-inner { padding: 0 var(--space-3, 12px); }\
@@ -160,11 +176,13 @@
     }\
   ' : '');
 
+  // On the playground pages Grab picks whatever is clicked; the site nav keeps its own clicks there.
+  var GRAB_IGNORE = (path === '/raven-design' || path === '/motion') ? ' data-raven-grab-ignore=""' : '';
+
   var HTML = '\
-    <nav>\
+    <nav' + GRAB_IGNORE + '>\
       <div class="nav-inner">\
         <a href="/" class="nav-brand">\
-          <img src="/assets/raven-logo.png" alt="RavenMCP">\
           <span>RavenMCP</span>\
         </a>\
         <div class="nav-actions">\
@@ -174,7 +192,7 @@
         </div>\
       </div>\
     </nav>\
-    <div class="nav-mobile-menu">' + allMobileLinks() + '\
+    <div class="nav-mobile-menu"' + GRAB_IGNORE + '>' + allMobileLinks() + '\
       <a href="https://github.com/rhinocap/raven-mcp">GitHub</a>\
     </div>\
   ';
