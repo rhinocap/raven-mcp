@@ -28,6 +28,26 @@ export const PLAYGROUND_CSS = `
           color: var(--text-secondary);
         }
 
+        /* Grab's side panels open over the page on wider screens, so the intro keeps
+           to the space between them: each panel's outer edge sits 332px from the
+           window edge up to 1280px wide and 380px above that, plus 24px of air. The
+           headline scales with that space and wraps into balanced lines. */
+        @media (min-width: 1025px) {
+          .playground-intro .container {
+            --intro-inset: 356px;
+            max-width: calc(100vw - 2 * var(--intro-inset));
+          }
+
+          .playground-intro h1 {
+            font-size: clamp(40px, calc((100vw - 2 * var(--intro-inset)) / 9), 72px);
+            text-wrap: balance;
+          }
+        }
+
+        @media (min-width: 1281px) {
+          .playground-intro .container { --intro-inset: 404px; }
+        }
+
         .playground-stage {
           padding: var(--space-10) 0 var(--space-20);
         }
