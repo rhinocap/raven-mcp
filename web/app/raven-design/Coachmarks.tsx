@@ -81,7 +81,8 @@ const STEPS: Step[] = [
   {
     title: 'Settings and feedback',
     body: 'The footer at the bottom of the Raven Design panel shows the project Raven is running in — here that is Northstar Workspace, on your machine it is yours. Click it, or press Cmd+K with a panel focused, for text size, the shortcut list, and a box that tells us what is wrong or missing.',
-    anchor: 'panel-left-foot',
+    anchor: 'panel-left',
+    focus: '[data-settings-open]',
   },
   {
     title: 'Send to your agent',
