@@ -53,7 +53,7 @@ const STEPS: Step[] = [
     title: 'Styles',
     body: 'In the inspector panel, Styles opens by default — Layout, Size, Spacing, Typography, Fill and more. Tokenized properties show as name · value; open one to swap tokens or edit the raw value. Hover, focus, active, and disabled states stack underneath.',
     anchor: 'panel',
-    focus: '.raven-grab-section-toggle',
+    focus: '[data-section-toggle="styles"]',
   },
   {
     title: 'Layers and Assets',
@@ -289,7 +289,11 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
       }
       const panels = visiblePanels()
       const el = isLeftPanel ? panels[0] : panels[panels.length - 1]
-      return el?.getBoundingClientRect() ?? null
+      // A panel closed from its header slides off the side but keeps its width; with
+      // nothing to point at, the card takes its fixed spot without a tail.
+      if (!el || el.getAttribute('data-collapsed') === 'true') return null
+      const r = el.getBoundingClientRect()
+      return r.right <= 0 || r.left >= innerWidth ? null : r
     }
     const focus = STEPS[step].focus
     const resolveFocus = (): { top: number; left: number; width: number; height: number } | null => {
@@ -297,14 +301,34 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
       const panels = visiblePanels()
       const panel = isLeftPanel ? panels[0] : panels[panels.length - 1]
       if (!panel) return null
-      const rects = [...panel.querySelectorAll(focus)].map((el) => el.getBoundingClientRect()).filter((r) => r.width && r.height)
+      // A collapsed panel slides off the side but keeps its width; skip it.
+      const pr = panel.getBoundingClientRect()
+      if (pr.right <= 0 || pr.left >= innerWidth || panel.getAttribute('data-collapsed') === 'true' || panel.closest('[inert]')) return null
+      // Only the part of the control showing in its scroll area counts, so a control
+      // scrolled under the panel header or out of view is not pointed at.
+      const visible = (el: Element): DOMRect | null => {
+        const r = el.getBoundingClientRect()
+        if (!r.width || !r.height) return null
+        let top = Math.max(r.top, pr.top)
+        let bottom = Math.min(r.bottom, pr.bottom)
+        for (let a = el.parentElement; a && a !== panel; a = a.parentElement) {
+          const o = getComputedStyle(a).overflowY
+          if (o === 'auto' || o === 'scroll' || o === 'hidden') {
+            const ar = a.getBoundingClientRect()
+            top = Math.max(top, ar.top)
+            bottom = Math.min(bottom, ar.bottom)
+          }
+        }
+        return bottom - top >= Math.min(r.height, 12) ? new DOMRect(r.left, top, r.width, bottom - top) : null
+      }
+      const rects = [...panel.querySelectorAll(focus)].map(visible).filter((r): r is DOMRect => !!r)
       if (!rects.length) return null
       const top = Math.min(...rects.map((r) => r.top))
       const left = Math.min(...rects.map((r) => r.left))
       const bottom = Math.max(...rects.map((r) => r.bottom))
       const right = Math.max(...rects.map((r) => r.right))
       // Only while it is on screen; otherwise the card falls back to the whole panel.
-      if (bottom < 0 || top > innerHeight) return null
+      if (bottom < 0 || top > innerHeight || right <= 0 || left >= innerWidth) return null
       return { top, left, width: right - left, height: bottom - top }
     }
     const apply = () => {
@@ -346,6 +370,13 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
       apply()
     }
     addEventListener('scroll', onScroll, true)
+    // Scrolling inside Grab's panels happens in its shadow root, and scroll events do
+    // not cross that boundary, so listen there too.
+    const roots: ShadowRoot[] = []
+    document.querySelectorAll('*').forEach((el) => {
+      if (el.shadowRoot && el.shadowRoot.querySelector('.raven-grab-panel')) roots.push(el.shadowRoot)
+    })
+    roots.forEach((r) => r.addEventListener('scroll', apply, true))
     addEventListener('resize', apply)
     addEventListener('pointerup', settle, true)
     addEventListener('pointercancel', settle, true)
@@ -353,6 +384,7 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
       cancelAnimationFrame(raf)
       cancelAnimationFrame(settleRaf)
       removeEventListener('scroll', onScroll, true)
+      roots.forEach((r) => r.removeEventListener('scroll', apply, true))
       removeEventListener('resize', apply)
       removeEventListener('pointerup', settle, true)
       removeEventListener('pointercancel', settle, true)
