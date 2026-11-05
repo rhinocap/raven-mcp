@@ -331,7 +331,21 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
       if (bottom < 0 || top > innerHeight || right <= 0 || left >= innerWidth) return null
       return { top, left, width: right - left, height: bottom - top }
     }
+    // Scrolling inside Grab's panels happens in its shadow root, and scroll events do
+    // not cross that boundary, so listen there too. Grab can mount after this step
+    // starts (a reload into a saved step), so each measure picks up new roots.
+    const roots = new Set<ShadowRoot>()
+    const watchRoots = () => {
+      document.querySelectorAll('*').forEach((el) => {
+        const root = el.shadowRoot
+        if (root && !roots.has(root) && root.querySelector('.raven-grab-panel')) {
+          roots.add(root)
+          root.addEventListener('scroll', apply, true)
+        }
+      })
+    }
     const apply = () => {
+      watchRoots()
       const r = resolve()
       setTargetRect(r ? { top: r.top, left: r.left, width: r.width, height: r.height } : null)
       setFocusRect(resolveFocus())
@@ -370,13 +384,6 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
       apply()
     }
     addEventListener('scroll', onScroll, true)
-    // Scrolling inside Grab's panels happens in its shadow root, and scroll events do
-    // not cross that boundary, so listen there too.
-    const roots: ShadowRoot[] = []
-    document.querySelectorAll('*').forEach((el) => {
-      if (el.shadowRoot && el.shadowRoot.querySelector('.raven-grab-panel')) roots.push(el.shadowRoot)
-    })
-    roots.forEach((r) => r.addEventListener('scroll', apply, true))
     addEventListener('resize', apply)
     addEventListener('pointerup', settle, true)
     addEventListener('pointercancel', settle, true)
