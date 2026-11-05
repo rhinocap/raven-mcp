@@ -14,6 +14,9 @@ export type Step = {
   body: string
   // 'center' | 'target:<selector>' | 'grab:<selector>' (inside the overlay's shadow root) | 'panel' (right inspector) | 'panel-left' (left panel) | 'panel-left-foot' (left panel, card at its footer)
   anchor: string
+  // Panel steps: a selector inside the anchored Grab panel. The card's tail points at
+  // it and the spotlight rings it; several matches are joined into one rect.
+  focus?: string
 }
 
 const TIP_WIDTH = 320
@@ -32,6 +35,8 @@ const DESKTOP_TARGET_TOP = 340
 const EDGE_GAP = 16
 // Below this much headroom the card would clip the top of the viewport, so it flips.
 const FLIP_THRESHOLD = 220
+// A panel card with a focus control: its tail sits this far below the card's top.
+const FOCUS_TAIL_TOP = 40
 
 const STEPS: Step[] = [
   {
@@ -48,21 +53,25 @@ const STEPS: Step[] = [
     title: 'Styles',
     body: 'In the inspector panel, Styles opens by default — Layout, Size, Spacing, Typography, Fill and more. Tokenized properties show as name · value; open one to swap tokens or edit the raw value. Hover, focus, active, and disabled states stack underneath.',
     anchor: 'panel',
+    focus: '.raven-grab-section-toggle',
   },
   {
     title: 'Layers and Assets',
     body: 'The Raven Design panel has three tabs. Layers is the element tree — drag a row to reorder or reparent it. Assets captures a whole component into DESIGN.md: an engineer sends a component request; the design system side adds the component and updates DESIGN.md.',
     anchor: 'panel-left',
+    focus: '.raven-grab-tab[data-tab="layers"], .raven-grab-tab[data-tab="assets"]',
   },
   {
     title: 'Motion',
     body: 'The Motion tab tunes how things move. Press Find motion and Raven numbers the spots on the page that should move. Open one, drag a slider until it feels right, then copy the motion for your agent.',
     anchor: 'panel-left',
+    focus: '.raven-grab-tab[data-tab="motion"]',
   },
   {
     title: 'Arrange the panels',
     body: 'The tiles in each panel header set the layout — open both, show just one, or close both (Cmd+. toggles while grab is armed). A closed panel leaves a tab on the screen edge; click it to reopen. Drag a panel by its header, or an edge tab, to move it out of your way.',
     anchor: 'panel',
+    focus: '.raven-grab-panel-presets',
   },
   {
     title: 'Switch roles here',
@@ -78,6 +87,7 @@ const STEPS: Step[] = [
     title: 'Send to your agent',
     body: 'At the bottom of the inspector, type an instruction and press Enter to send (Cmd+Enter for a new line). The payload carries the selector, token intents, and style edits.',
     anchor: 'panel',
+    focus: '.raven-grab-textarea, .raven-grab-send',
   },
 ]
 
@@ -116,6 +126,8 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
   const [role, setRole] = useState<Role | null>(null)
   const [step, setStep] = useState(-1)
   const [targetRect, setTargetRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null)
+  // The step's focus control inside the panel (desktop panel steps only).
+  const [focusRect, setFocusRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null)
   // The visible part of Grab's phone sheet; null on wider screens, before it mounts,
   // or while it is collapsed off-screen. The sheet can dock to the top or bottom.
   const [sheet, setSheet] = useState<{ top: number; bottom: number } | null>(null)
@@ -180,6 +192,7 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
   // to the panel's real position keeps the card attached at any viewport width
   // instead of a fixed offset that floated or overlapped the panel.
   useEffect(() => {
+    setFocusRect(null)
     if (step < 0) {
       setTargetRect(null)
       setSheet(null)
@@ -278,9 +291,26 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
       const el = isLeftPanel ? panels[0] : panels[panels.length - 1]
       return el?.getBoundingClientRect() ?? null
     }
+    const focus = STEPS[step].focus
+    const resolveFocus = (): { top: number; left: number; width: number; height: number } | null => {
+      if (!focus || isGrab || isPhone()) return null
+      const panels = visiblePanels()
+      const panel = isLeftPanel ? panels[0] : panels[panels.length - 1]
+      if (!panel) return null
+      const rects = [...panel.querySelectorAll(focus)].map((el) => el.getBoundingClientRect()).filter((r) => r.width && r.height)
+      if (!rects.length) return null
+      const top = Math.min(...rects.map((r) => r.top))
+      const left = Math.min(...rects.map((r) => r.left))
+      const bottom = Math.max(...rects.map((r) => r.bottom))
+      const right = Math.max(...rects.map((r) => r.right))
+      // Only while it is on screen; otherwise the card falls back to the whole panel.
+      if (bottom < 0 || top > innerHeight) return null
+      return { top, left, width: right - left, height: bottom - top }
+    }
     const apply = () => {
       const r = resolve()
       setTargetRect(r ? { top: r.top, left: r.left, width: r.width, height: r.height } : null)
+      setFocusRect(resolveFocus())
       readSheet()
     }
     apply()
@@ -362,6 +392,8 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
   }
 
   const current = step >= 0 ? STEPS[step] : null
+  // Only side-anchored panel steps use the focus control (not the foot step).
+  const panelFocus = viewport.w > PHONE_MAX && (current?.anchor === 'panel' || current?.anchor === 'panel-left') ? focusRect : null
 
   // Grab swallows every wheel outside its panels (a capture listener on document) so
   // the page can't move under them, which also froze the card's scrolling text. A
@@ -386,6 +418,8 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
     if (!card) return
     card.style.translate = ''
     delete card.dataset.clamped
+    // React only writes a style property when it changes, so restore the base tail.
+    if (panelFocus) card.style.setProperty('--tail-top', `${FOCUS_TAIL_TOP}px`)
     // One final cap: the smaller of this render's computed cap and the window, set
     // before measuring so the text's scroll position is never reset.
     const room = innerHeight - 2 * EDGE_GAP
@@ -398,7 +432,15 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
     if (r.top + dy < EDGE_GAP) dy = EDGE_GAP - r.top
     if (Math.abs(dy) >= 1) {
       card.style.translate = `0 ${dy}px`
-      card.dataset.clamped = ''
+      // A card beside a panel keeps its tail on the focus control when that point is
+      // still along the card's edge; otherwise the tail is hidden as before.
+      const tail = card.dataset.tail
+      const tailY = panelFocus ? panelFocus.top + panelFocus.height / 2 - (r.top + dy) : NaN
+      if ((tail === 'left' || tail === 'right') && tailY >= 20 && tailY <= r.height - 20) {
+        card.style.setProperty('--tail-top', `${tailY}px`)
+      } else {
+        card.dataset.clamped = ''
+      }
     }
   })
 
@@ -464,6 +506,12 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
     if (vAlign === 'foot') {
       const bottom = Math.max(vh - (targetRect.top + targetRect.height) + EDGE_GAP, EDGE_GAP)
       return { position: 'fixed', bottom, left, width: TIP_WIDTH, maxHeight: vh - bottom - EDGE_GAP }
+    }
+    if (panelFocus) {
+      // The tail sits FOCUS_TAIL_TOP below the card's top, level with the control's
+      // centre; the layout effect moves the card (and the tail) if it would overflow.
+      const top = panelFocus.top + panelFocus.height / 2 - FOCUS_TAIL_TOP
+      return { position: 'fixed', top, left, width: TIP_WIDTH, ['--tail-top' as string]: `${FOCUS_TAIL_TOP}px` }
     }
     const top = Math.min(Math.max(targetRect.top + targetRect.height / 2, 150), vh - 150)
     return { position: 'fixed', top, left, width: TIP_WIDTH, transform: 'translateY(-50%)' }
@@ -573,17 +621,23 @@ export default function Coachmarks({ config, steps = STEPS, tourKey = TOUR_KEY, 
       {current && portal && createPortal(
         <div className="playground-tour" role="dialog" aria-label={current.title} aria-modal="false" data-raven-grab-ignore="">
           <div className="playground-tour__backdrop" />
-          {targetRect && !targetBlocked && (
-            <div
-              className="playground-tour__spotlight"
-              style={{
-                top: targetRect.top - 6,
-                left: targetRect.left - 6,
-                width: targetRect.width + 12,
-                height: targetRect.height + 12,
-              }}
-            />
-          )}
+          {targetRect && !targetBlocked && (() => {
+            const ring = panelFocus ?? targetRect
+            return (
+              <div
+                className="playground-tour__spotlight"
+                style={{
+                  // A ring on a panel control has to sit above Grab's panels to show;
+                  // the card still comes after it in the portal, so it stays on top.
+                  ...(panelFocus ? { zIndex: 2147483647 } : {}),
+                  top: ring.top - 6,
+                  left: ring.left - 6,
+                  width: ring.width + 12,
+                  height: ring.height + 12,
+                }}
+              />
+            )
+          })()}
           <div ref={cardRef} className="playground-tour__card" style={cardStyle} data-tail={tailSide}>
             <div className="playground-tour__body">
               <p className="playground-tour__count">

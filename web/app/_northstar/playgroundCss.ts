@@ -584,7 +584,7 @@ export const PLAYGROUND_CSS = `
         .playground-tour__card[data-tail='right']::after {
           left: auto;
           right: -7px;
-          top: 50%;
+          top: var(--tail-top, 50%);
           margin-left: 0;
           margin-top: -6px;
           clip-path: polygon(0 0, 100% 0, 100% 100%);
@@ -592,7 +592,7 @@ export const PLAYGROUND_CSS = `
 
         .playground-tour__card[data-tail='left']::after {
           left: -7px;
-          top: 50%;
+          top: var(--tail-top, 50%);
           margin-left: 0;
           margin-top: -6px;
           clip-path: polygon(0 0, 0 100%, 100% 100%);
