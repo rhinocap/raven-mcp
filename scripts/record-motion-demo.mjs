@@ -217,6 +217,8 @@ async function main() {
     await hold(150)
     mark('hero')
     await click()
+    // The next playground loads hidden over the open one and swaps in once it has loaded.
+    await page.locator('.raven-grab-motion-viewer-pending').waitFor({ state: 'detached' })
     await viewer.locator('#in-rise').waitFor({ state: 'visible' })
     await moveTo(next.x - 300, next.y + 330, 600)
     await hold(2300)

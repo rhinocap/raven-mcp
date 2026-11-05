@@ -1058,6 +1058,7 @@
       position: fixed; inset: 0; z-index: 4; display: flex; padding: 20px; pointer-events: auto;
       background: rgba(10, 10, 18, .62);
     }
+    .raven-grab-motion-viewer-pending { opacity: 0; pointer-events: none; }
     .raven-grab-motion-viewer-frame {
       display: flex; flex: 1 1 auto; flex-direction: column; min-width: 0; overflow: hidden;
       color: var(--raven-grab-text); background: #212129;
@@ -13143,10 +13144,14 @@
     window.scrollTo({ top: Math.max(0, (window.scrollY || 0) + rect.top - offset), behavior: reduce ? "auto" : "smooth" });
   }
 
-  function openMotionViewer(row, trigger) {
+  // Previous and Next pass swap: the open playground stays on screen until the next
+  // one has loaded, so the viewer never shows an empty panel in between.
+  function openMotionViewer(row, trigger, swap) {
     var url = row && row.s ? motionPlaygroundUrl(row.s.url) : "";
     if (!url || motionMode !== "static") return;
-    closeMotionViewer(false);
+    var from = swap && motionViewer ? motionViewer : null;
+    if (from) dropMotionViewerPending(from);
+    else closeMotionViewer(false);
     var label = typeof row.s.label === "string" && row.s.label ? row.s.label : "Motion";
     var wrap = motionEl("div", "raven-grab-motion-viewer");
     wrap.setAttribute("data-motion-viewer", "");
@@ -13163,10 +13168,12 @@
     head.appendChild(title);
     if (typeof row.s.trigger_words === "string" && row.s.trigger_words) head.appendChild(motionEl("span", "raven-grab-motion-viewer-when", row.s.trigger_words));
     var step = function (delta) {
-      var next = playable[at + delta];
+      // A click while the next one is still loading steps on from that one.
+      var base = motionViewer && motionViewer.pending ? motionViewer.pending.at : at;
+      var next = playable[base + delta];
       if (!next) return;
       setMotionHot(motion.rows.indexOf(next));
-      openMotionViewer(next, trigger);
+      openMotionViewer(next, trigger, true);
     };
     if (playable.length > 1 && at >= 0) {
       var prev = motionEl("button", "raven-grab-motion-viewer-close raven-grab-motion-viewer-step", "Previous");
@@ -13200,7 +13207,43 @@
     wrap.addEventListener("keydown", function (event) {
       if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeMotionViewer(true); }
     });
+    if (from) {
+      // Loads invisibly over the open one; at the swap the old viewer goes in the same frame.
+      wrap.classList.add("raven-grab-motion-viewer-pending");
+      shadow.appendChild(wrap);
+      var pending = { wrap: wrap, at: at, timer: 0 };
+      from.pending = pending;
+      var swapIn = function () {
+        if (motionViewer !== from || from.pending !== pending) return;
+        from.pending = null;
+        closeMotionViewer(false);
+        wrap.classList.remove("raven-grab-motion-viewer-pending");
+        showMotionViewer(wrap, frame, trigger, close);
+      };
+      var ready = function () {
+        if (from.pending !== pending || pending.ready) return;
+        pending.ready = true;
+        clearTimeout(pending.timer);
+        // Two frames for the playground to paint before it is shown.
+        requestAnimationFrame(function () { requestAnimationFrame(swapIn); });
+      };
+      frame.addEventListener("load", ready);
+      pending.timer = setTimeout(ready, 2000);
+      return;
+    }
     shadow.appendChild(wrap);
+    showMotionViewer(wrap, frame, trigger, close);
+  }
+
+  function dropMotionViewerPending(v) {
+    var p = v.pending;
+    if (!p) return;
+    v.pending = null;
+    clearTimeout(p.timer);
+    if (p.wrap.parentNode) p.wrap.parentNode.removeChild(p.wrap);
+  }
+
+  function showMotionViewer(wrap, frame, trigger, close) {
     // A modal: everything behind it (Grab's panels and markers, and the page itself)
     // leaves the tab order and ignores the pointer until the viewer closes.
     var benched = [];
@@ -13222,6 +13265,7 @@
     if (!motionViewer) return;
     var v = motionViewer;
     motionViewer = null;
+    dropMotionViewerPending(v);
     if (v.wrap.parentNode) v.wrap.parentNode.removeChild(v.wrap);
     for (var i = 0; i < v.benched.length; i++) v.benched[i].inert = false;
     if (motion.paintAfterViewer) { motion.paintAfterViewer = false; paintMotionMarkers(); }

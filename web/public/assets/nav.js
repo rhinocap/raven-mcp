@@ -2,7 +2,7 @@
   var CENTER_LINKS = [];
 
   var PAGE_LINKS = [
-    { label: 'Design Playground', href: '/raven-design' },
+    { label: 'Design Playground', short: 'Playground', href: '/raven-design' },
     { label: 'Docs', href: '/docs' },
     { label: 'Changelog', href: '/changelog' }
   ];
@@ -26,7 +26,8 @@
         href = href.substring(1);
       }
       if (isMobile) {
-        html += '<a href="' + href + '"' + active + '>' + link.label + '</a>';
+        var label = link.short ? '<span class="nav-label-long">' + link.label + '</span><span class="nav-label-short">' + link.short + '</span>' : link.label;
+        html += '<a href="' + href + '"' + active + '>' + label + '</a>';
       } else {
         html += '<li><a href="' + href + '"' + active + '>' + link.label + '</a></li>';
       }
@@ -164,6 +165,12 @@
     }\
     @container nav-menu (max-width: 300px) {\
       .nav-mobile-menu a { padding: 10px 8px; font-size: 14px; overflow-wrap: anywhere; }\
+    }\
+    /* A long label that would wrap in a menu this narrow uses its short form. */\
+    .nav-label-short { display: none; }\
+    @container nav-menu (max-width: 150px) {\
+      .nav-label-long { display: none; }\
+      .nav-label-short { display: inline; }\
     }\
     @media (max-width: 768px) {\
       nav { width: calc(100% - 24px); top: 8px; }\
