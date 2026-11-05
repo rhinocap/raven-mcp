@@ -13213,7 +13213,7 @@
       wrap.classList.add("raven-grab-motion-viewer-pending");
       wrap.inert = true;
       shadow.appendChild(wrap);
-      var pending = { wrap: wrap, at: at, timer: 0 };
+      var pending = { wrap: wrap, at: at };
       from.pending = pending;
       var swapIn = function () {
         if (motionViewer !== from || from.pending !== pending) return;
@@ -13226,12 +13226,12 @@
       var ready = function () {
         if (from.pending !== pending || pending.ready) return;
         pending.ready = true;
-        clearTimeout(pending.timer);
         // Two frames for the playground to paint before it is shown.
         requestAnimationFrame(function () { requestAnimationFrame(swapIn); });
       };
+      // No timeout: a frame fires load even for an error page, and until then the
+      // open playground stays usable.
       frame.addEventListener("load", ready);
-      pending.timer = setTimeout(ready, 2000);
       return;
     }
     shadow.appendChild(wrap);
@@ -13242,7 +13242,6 @@
     var p = v.pending;
     if (!p) return;
     v.pending = null;
-    clearTimeout(p.timer);
     if (p.wrap.parentNode) p.wrap.parentNode.removeChild(p.wrap);
   }
 
