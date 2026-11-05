@@ -154,8 +154,10 @@ test('a playground opens in a sandboxed same-origin frame; Copy reaches the clip
     assert.ok(await clickGrab(page, '[data-motion-viewer-next]'));
     // The open playground stays until the next has loaded, then the two swap.
     assert.equal(await inGrab(page, '.raven-grab-motion-viewer-pending'), 1);
+    assert.equal(await inGrab(page, '.raven-grab-motion-viewer-pending[inert]'), 1);
     await page.waitForFunction(() => ![...document.querySelectorAll('*')].some((el) => el.shadowRoot && el.shadowRoot.querySelector('.raven-grab-motion-viewer-pending')));
     assert.equal(await inGrab(page, '[data-motion-viewer]'), 1);
+    assert.equal(await inGrab(page, '[data-motion-viewer][inert]'), 0);
     assert.equal((await frameSrc(page)).src, '/playgrounds/motion/card-hover-2.html');
     assert.equal(await grabText(page, '[data-motion-viewer-title]'), 'Suggestion 2 of 2');
     await page.keyboard.press('Escape');

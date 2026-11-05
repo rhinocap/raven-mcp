@@ -13209,7 +13209,9 @@
     });
     if (from) {
       // Loads invisibly over the open one; at the swap the old viewer goes in the same frame.
+      // Out of reach of the keyboard and screen readers until it is shown.
       wrap.classList.add("raven-grab-motion-viewer-pending");
+      wrap.inert = true;
       shadow.appendChild(wrap);
       var pending = { wrap: wrap, at: at, timer: 0 };
       from.pending = pending;
@@ -13218,6 +13220,7 @@
         from.pending = null;
         closeMotionViewer(false);
         wrap.classList.remove("raven-grab-motion-viewer-pending");
+        wrap.inert = false;
         showMotionViewer(wrap, frame, trigger, close);
       };
       var ready = function () {
