@@ -111,9 +111,9 @@
 //          the mouse travels to the press point, and which the drop path
 //          repaints from drag.element directly — neither reads the selection,
 //          so the label is the same with the promotion deleted. The
-//          selection-derived observable is the panel Element chip
-//          [data-element-selector] (rendered only when a selection exists,
-//          title = its selector); readState now reads that. Assume a new test
+//          selection-derived observable is the Styles section's
+//          [data-selected-selector] (rendered only when a selection exists,
+//          value = its selector); readState now reads that. Assume a new test
 //          does not work until a mutant proves it red.
 //   D18 - never inject the grabbing-cursor style
 //       -> exactly "an active drag shows a page-wide grabbing cursor" red
@@ -291,12 +291,12 @@ const readState = `(() => {
   const indicator = root.querySelector('.raven-grab-drop-indicator');
   const label = root.querySelector('.raven-grab-label');
   const draftButtons = Array.from(root.querySelectorAll('[data-remove-change^="draft-"]'));
-  // The panel's Element chip is the SELECTION-derived observable. The canvas
+  // The Styles section's selector readout is the SELECTION-derived observable. The canvas
   // label is not: hover paints it before the press (the mouse travels over the
   // element on its way in) and the drop path repaints it from drag.element
   // directly, so a label assertion passes with the promotion deleted —
   // measured: the promotion-deleted mutant survived exactly that assertion.
-  const chip = root.querySelector('[data-element-selector]');
+  const chip = root.querySelector('[data-selected-selector]');
   return {
     listOrder: Array.from(document.querySelectorAll('#list > div')).map((el) => el.id),
     otherOrder: Array.from(document.querySelectorAll('#other > div')).map((el) => el.id),
@@ -304,7 +304,7 @@ const readState = `(() => {
     rowOrder: Array.from(document.querySelectorAll('#row > div')).map((el) => el.id),
     indicatorVisible: indicator ? indicator.style.display === 'block' : null,
     labelText: label ? label.textContent : '',
-    elementChip: chip ? chip.getAttribute('title') : null,
+    elementChip: chip ? chip.getAttribute('data-selected-selector') : null,
     draftCount: draftButtons.length,
     panelText: root.textContent
   };

@@ -176,7 +176,7 @@ let grabbed = null;
 
     const selected = await page.evaluate(() => {
       const root = document.querySelector('[data-raven-grab-overlay]').shadowRoot;
-      return root.querySelector('[data-element-selector]')?.getAttribute('title') || null;
+      return root.querySelector('[data-selected-selector]')?.getAttribute('data-selected-selector') || null;
     });
     check('a real click selects the hero headline', selected === 'h1.hero-title', String(selected));
 

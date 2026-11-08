@@ -4341,7 +4341,7 @@ test('overlay switches between Layers and Assets tabs; design panel has no reque
   assert.match(internals.getPanelLeftHtml(), /Reason for new component|Select a component on the page/);
 });
 
-test('overlay element chip exposes the full selector and copies it through the clipboard', async () => {
+test('the full panel has no Element chip but carries the full selector; the chip copy handler still copies (simple mode)', async () => {
   const writes = [];
   const selector = 'main[data-view="billing"] > section:nth-child(12) .action-row button[data-action="save-and-continue"]';
   const { internals, document } = await loadOverlayInternals({
@@ -4352,8 +4352,9 @@ test('overlay element chip exposes the full selector and copies it through the c
 
   assert.match(
     internals.getPanelHtml(),
-    /title="main\[data-view=&quot;billing&quot;\] &gt; section:nth-child\(12\) \.action-row button\[data-action=&quot;save-and-continue&quot;\]"/
+    /data-selected-selector="main\[data-view=&quot;billing&quot;\] &gt; section:nth-child\(12\) \.action-row button\[data-action=&quot;save-and-continue&quot;\]"/
   );
+  assert.doesNotMatch(internals.getPanelHtml(), /raven-grab-element-chip|>Element</);
 
   const chip = document.createElement('span');
   chip.closest = (query) => query === '[data-element-selector]' ? chip : null;

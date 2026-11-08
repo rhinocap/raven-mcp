@@ -129,7 +129,7 @@ async function selectAt(page, x, y) {
     // returns null for a perfectly good selection, which is how the first
     // version of the two mobile tests "failed". The primary layer row is the
     // readout that exists in both layouts.
-    const chip = root.querySelector('[data-element-selector]')?.getAttribute('title');
+    const chip = root.querySelector('[data-selected-selector]')?.getAttribute('data-selected-selector');
     if (chip) return chip;
     return root.querySelector('.raven-grab-layer-row[data-primary="true"]')?.getAttribute('data-layer-id') || null;
   });

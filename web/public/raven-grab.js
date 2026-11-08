@@ -1543,19 +1543,19 @@
     .raven-grab-layer-row:hover { background: rgba(255,255,255,.04); }
     .raven-grab-layer-row[data-layer-hovered="true"] { background: rgba(255,255,255,.07); box-shadow: inset 2px 0 0 var(--raven-grab-accent); }
     .raven-grab-search { margin: 0 0 8px; }
-    .raven-grab-boxmodel { margin: 0 0 12px; color: var(--raven-grab-text); font: 400 calc(10px * var(--raven-grab-font-scale))/1 var(--raven-grab-ui); -webkit-user-select: none; user-select: none; }
-    .raven-grab-box-ring { position: relative; display: grid; grid-template-columns: calc(28px * var(--raven-grab-font-scale)) minmax(0, 1fr) calc(28px * var(--raven-grab-font-scale)); grid-template-rows: calc(14px * var(--raven-grab-font-scale)) auto calc(14px * var(--raven-grab-font-scale)); grid-template-areas: ". top ." "left inner right" ". bottom ."; align-items: center; justify-items: center; border-radius: 6px; }
+    .raven-grab-boxmodel { margin: 0 0 12px; color: var(--raven-grab-text); font: 400 calc(12px * var(--raven-grab-font-scale))/1 var(--raven-grab-ui); -webkit-user-select: none; user-select: none; container-type: inline-size; }
+    .raven-grab-box-ring { position: relative; display: grid; grid-template-columns: calc(30px * var(--raven-grab-font-scale)) minmax(0, 1fr) calc(30px * var(--raven-grab-font-scale)); grid-template-rows: calc(20px * var(--raven-grab-font-scale)) auto calc(20px * var(--raven-grab-font-scale)); grid-template-areas: ". top ." "left inner right" ". bottom ."; align-items: center; justify-items: center; border-radius: 6px; }
     .raven-grab-box-ring[data-ring="margin"] { border: 1px dashed rgba(255, 255, 255, .16); }
     .raven-grab-box-ring[data-ring="border"] { border: 1px solid rgba(255, 255, 255, .26); background: rgba(255, 255, 255, .025); }
     .raven-grab-box-ring[data-ring="padding"] { border: 1px dashed rgba(255, 255, 255, .16); background: rgba(255, 255, 255, .03); border-radius: 4px; }
-    .raven-grab-box-label { position: absolute; top: calc(3px * var(--raven-grab-font-scale)); left: 6px; color: var(--raven-grab-muted); font-size: calc(9px * var(--raven-grab-font-scale)); line-height: 1; pointer-events: none; }
+    .raven-grab-box-label { position: absolute; top: calc(3px * var(--raven-grab-font-scale)); left: 6px; color: var(--raven-grab-muted); font-size: calc(10px * var(--raven-grab-font-scale)); line-height: 1; pointer-events: none; }
     .raven-grab-box-side[data-side="top"] { grid-area: top; }
     .raven-grab-box-side[data-side="right"] { grid-area: right; }
     .raven-grab-box-side[data-side="bottom"] { grid-area: bottom; }
     .raven-grab-box-side[data-side="left"] { grid-area: left; }
     .raven-grab-box-inner { grid-area: inner; width: 100%; min-width: 0; }
-    .raven-grab-box-content { display: flex; align-items: center; justify-content: center; gap: 2px; height: calc(20px * var(--raven-grab-font-scale)); border: 1px solid rgba(0, 191, 255, .32); border-radius: 3px; background: rgba(0, 191, 255, .06); color: var(--raven-grab-muted); }
-    .raven-grab-box-num { display: inline-block; min-width: calc(14px * var(--raven-grab-font-scale)); padding: 1px 3px; border-radius: 3px; color: var(--raven-grab-text); font-variant-numeric: tabular-nums; text-align: center; cursor: ew-resize; outline: none; }
+    .raven-grab-box-content { display: flex; align-items: center; justify-content: center; gap: 4px; height: calc(28px * var(--raven-grab-font-scale)); border: 1px solid rgba(0, 191, 255, .32); border-radius: 3px; background: rgba(0, 191, 255, .06); color: var(--raven-grab-muted); }
+    .raven-grab-box-num { display: inline-block; min-width: calc(24px * var(--raven-grab-font-scale)); box-sizing: border-box; padding: 4px 4px; border-radius: 3px; color: var(--raven-grab-text); font-variant-numeric: tabular-nums; text-align: center; cursor: ew-resize; outline: none; }
     .raven-grab-box-num:hover { background: rgba(0, 191, 255, .14); }
     .raven-grab-box-num:focus-visible { box-shadow: 0 0 0 1px var(--raven-grab-accent); }
     .raven-grab-box-num[data-edited="true"] { color: var(--raven-grab-accent); font-weight: 500; }
@@ -1564,8 +1564,15 @@
     .raven-grab-box-num[data-editing="true"] { position: relative; color: transparent; background: transparent; }
     .raven-grab-box-num[data-editing="true"] .raven-grab-box-input { position: absolute; z-index: 1; top: 0; left: 50%; height: 100%; min-width: 100%; transform: translateX(-50%); }
     .raven-grab-box-input::placeholder { color: var(--raven-grab-tertiary); }
-    .raven-grab-box-input { width: calc(38px * var(--raven-grab-font-scale)); box-sizing: border-box; margin: 0; padding: 0 2px; border: 1px solid var(--raven-grab-accent); border-radius: 3px; background: var(--raven-grab-bg); color: var(--raven-grab-text); font: inherit; text-align: center; outline: none; }
+    .raven-grab-box-input { width: calc(40px * var(--raven-grab-font-scale)); box-sizing: border-box; margin: 0; padding: 0 2px; border: 1px solid var(--raven-grab-accent); border-radius: 3px; background: var(--raven-grab-bg); color: var(--raven-grab-text); font: inherit; text-align: center; outline: none; }
     /* Mobile sheet: every number is a 44px tap target; the content box stacks W over H to fit. */
+    /* A narrow right panel (about 270px at a 1024 window) has no room for "68.2 × 22.39" on one line at 12px, so width and height stack, as on the phone. */
+    @container (max-width: 300px) {
+      .raven-grab-box-content { flex-direction: column; height: auto; gap: 0; padding: 2px 0; }
+      .raven-grab-box-content > [aria-hidden="true"] { display: none; }
+      .raven-grab-box-content > [data-box-prop="width"]::before { content: "W\\00a0"; color: var(--raven-grab-muted); }
+      .raven-grab-box-content > [data-box-prop="height"]::before { content: "H\\00a0"; color: var(--raven-grab-muted); }
+    }
     :host([data-mobile-sheet="true"]) .raven-grab-box-ring { grid-template-columns: 44px minmax(0, 1fr) 44px; grid-template-rows: 44px auto 44px; }
     :host([data-mobile-sheet="true"]) .raven-grab-box-num { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; min-width: 44px; min-height: 44px; }
     :host([data-mobile-sheet="true"]) .raven-grab-box-content { flex-direction: column; height: auto; gap: 0; }
@@ -14439,10 +14446,15 @@
         <h2 class="raven-grab-section-title">Element</h2>
         <span class="raven-grab-element-placeholder">Click an element to inspect</span>
       </section>`;
+    // The full panel has no Element section: the selection already shows on the
+    // page and in Layers (Andrew, 2026-11-08). Simple mode still renders
+    // elementMarkup as its whole body. data-selected-selector is a readout for
+    // tests and tools; nothing displays it.
+    var noSelectionHint = hasSelection ? "" : '<section class="raven-grab-section"><span class="raven-grab-element-placeholder">Click an element to inspect</span></section>';
     var designMarkup = `
-      ${elementMarkup}
+      ${noSelectionHint}
       ${scopeMarkup}
-      <section class="raven-grab-section">
+      <section class="raven-grab-section"${hasSelection ? ` data-selected-selector="${escapeHtml(currentSelection.selector)}"` : ""}>
         <button class="raven-grab-section-toggle" type="button" data-section-toggle="styles" aria-expanded="${expandedSections.styles ? "true" : "false"}" aria-controls="raven-grab-styles"><span>Styles</span><span class="raven-grab-caret" aria-hidden="true">▾</span></button>
         ${hasSelection ? panelSearchFieldMarkup("styles", "Find a style") : ""}
         <div class="raven-grab-collapsible" id="raven-grab-styles" data-section-body="styles" data-open="${expandedSections.styles ? "true" : "false"}" aria-hidden="${expandedSections.styles ? "false" : "true"}"><div class="raven-grab-collapsible-inner">${tokensEmptyMarkup}${styleSearchEmptyMarkup}<ul class="raven-grab-styles">${stylesMarkup}</ul>${stateStylesMarkup}${styleVersionsMarkup()}</div></div>

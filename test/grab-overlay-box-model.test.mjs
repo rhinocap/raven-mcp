@@ -110,7 +110,8 @@ test('shows the selection: margin, border, padding, content box, in the right fo
         right: model.getBoundingClientRect().left > window.innerWidth / 2
       };
     });
-    assert.ok(layout.height <= 120, `box model is ${layout.height}px tall`);
+    // Enlarged on 2026-11-08 (12px numbers, bigger fields); the Styles list gives up the height.
+    assert.ok(layout.height <= 160, `box model is ${layout.height}px tall`);
     assert.ok(layout.above, 'the box model sits above Instructions');
     assert.ok(layout.right, 'the box model is in the right panel');
   });
@@ -369,7 +370,7 @@ test('mobile sheet: the box model is in the Instructions tab', async (t) => {
     await page.mouse.move(at.x - 2, at.y - 2);
     await page.mouse.move(at.x, at.y);
     await page.mouse.click(at.x, at.y);
-    await page.waitForFunction(() => Boolean(document.querySelector('[data-raven-grab-overlay]')?.shadowRoot?.querySelector('.raven-grab-layer-row[data-primary="true"], [data-element-selector]')), null, { timeout: 5000 });
+    await page.waitForFunction(() => Boolean(document.querySelector('[data-raven-grab-overlay]')?.shadowRoot?.querySelector('.raven-grab-layer-row[data-primary="true"], [data-selected-selector]')), null, { timeout: 5000 });
     const tabs = await shadowEval(page, (root) => {
       const out = {};
       for (const tab of ['styles', 'layers', 'instructions']) {
@@ -392,6 +393,7 @@ test('simple mode has no box model', async (t) => {
     await page.mouse.move(at.x - 2, at.y - 2);
     await page.mouse.move(at.x, at.y);
     await page.mouse.click(at.x, at.y);
+    // Simple mode keeps the Element chip; it is the selection readout there.
     await page.waitForFunction(() => Boolean(document.querySelector('[data-raven-grab-overlay]')?.shadowRoot?.querySelector('[data-element-selector]')), null, { timeout: 5000 });
     assert.equal(await shadowEval(page, (root) => root.querySelectorAll('[data-box-model]').length), 0);
   }, { beforeLoad: (page) => page.addInitScript(() => localStorage.setItem('raven-grab-mode', 'simple')) });
@@ -662,7 +664,7 @@ test('mobile sheet: the box model sits above Instructions and the field is still
     await page.mouse.move(at.x - 2, at.y - 2);
     await page.mouse.move(at.x, at.y);
     await page.mouse.click(at.x, at.y);
-    await page.waitForFunction(() => Boolean(document.querySelector('[data-raven-grab-overlay]')?.shadowRoot?.querySelector('.raven-grab-layer-row[data-primary="true"], [data-element-selector]')), null, { timeout: 5000 });
+    await page.waitForFunction(() => Boolean(document.querySelector('[data-raven-grab-overlay]')?.shadowRoot?.querySelector('.raven-grab-layer-row[data-primary="true"], [data-selected-selector]')), null, { timeout: 5000 });
     const tab = await shadowEval(page, (root) => { const r = root.querySelector('.raven-grab-mobile-tabs [data-tab="instructions"]').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
     await page.mouse.click(tab.x, tab.y);
     const order = await shadowEval(page, (root) => {

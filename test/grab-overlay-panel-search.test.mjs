@@ -226,7 +226,7 @@ test('Layers search: arrows move between matches inside the field, Enter selects
     await page.keyboard.press('Enter');
     await page.waitForFunction(() => {
       const root = document.querySelector('[data-raven-grab-overlay]').shadowRoot;
-      return /card-a/.test(root.querySelector('[data-element-selector]')?.getAttribute('title') || '');
+      return /card-a/.test(root.querySelector('[data-selected-selector]')?.getAttribute('data-selected-selector') || '');
     }, null, { timeout: 5000 });
     rows = await layerRows(page);
     assert.equal(rows.find((row) => row.primary).label, 'div · Card A', 'Enter selected the focused match');
@@ -286,7 +286,7 @@ async function clickSelect(page, selector) {
   await page.mouse.move(at.x, at.y);
   await page.mouse.click(at.x, at.y);
   // The chip (simple mode) or the selected layer row (mobile Layers tab).
-  await page.waitForFunction(() => Boolean(document.querySelector('[data-raven-grab-overlay]')?.shadowRoot?.querySelector('[data-element-selector], .raven-grab-layer-row[data-primary="true"]')), null, { timeout: 5000 });
+  await page.waitForFunction(() => Boolean(document.querySelector('[data-raven-grab-overlay]')?.shadowRoot?.querySelector('[data-selected-selector], [data-element-selector], .raven-grab-layer-row[data-primary="true"]')), null, { timeout: 5000 });
 }
 
 test('mobile sheet: search in the Styles tab and the Layers tab', async (t) => {
