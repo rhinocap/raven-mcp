@@ -169,6 +169,54 @@
     if (STYLE_PROPERTIES.indexOf(property) === -1) STYLE_PROPERTIES.push(property);
   });
   var INTERACTIVE_STATES = ["hover", "focus", "active", "disabled"];
+  var STYLE_CATEGORY_OF = Object.create(null);
+  STYLE_CATEGORIES.forEach(function (category) {
+    category.properties.forEach(function (property) {
+      if (!STYLE_CATEGORY_OF[property]) STYLE_CATEGORY_OF[property] = category.id;
+    });
+  });
+  // Plain-word aliases a designer types. "@id" names a whole category.
+  var STYLE_SEARCH_ALIASES = {
+    radius: ["border-radius"],
+    colour: ["color", "background-color"],
+    color: ["color", "background-color"],
+    bg: ["background-color"],
+    space: ["margin", "padding", "gap"],
+    spacing: ["margin", "padding", "gap"],
+    font: ["@typography"],
+    type: ["@typography"],
+    border: ["__raven-stroke__"],
+    stroke: ["__raven-stroke__"],
+    size: ["width", "height", "font-size"]
+  };
+  function panelSearchQuery(role) {
+    return String(panelSearch[role] || "").replace(/\s+/g, " ").trim().toLowerCase();
+  }
+  function styleSearchMatches(property, query) {
+    if (query === undefined) query = panelSearchQuery("styles");
+    if (!query) return true;
+    var name = property === "__raven-stroke__" ? "stroke" : String(property);
+    if (name.indexOf(query) !== -1) return true;
+    if (query.length < 2) return false;
+    var category = "@" + (STYLE_CATEGORY_OF[property] || "");
+    for (var alias in STYLE_SEARCH_ALIASES) {
+      if (alias.indexOf(query) !== 0) continue;
+      var targets = STYLE_SEARCH_ALIASES[alias];
+      if (targets.indexOf(property) !== -1 || targets.indexOf(category) !== -1) return true;
+    }
+    return false;
+  }
+  function styleVersionSearchMatches(version, query) {
+    if (!query) return true;
+    if (String(version.name || "").toLowerCase().indexOf(query) !== -1) return true;
+    return Object.keys(version.edits || {}).some(function (property) { return styleSearchMatches(property, query); });
+  }
+  function panelSearchFieldMarkup(role, placeholder) {
+    return '<div class="raven-grab-search"><input class="raven-grab-input raven-grab-search-input" type="search" data-panel-search="' + role + '" placeholder="' + escapeHtml(placeholder) + '" aria-label="' + escapeHtml(placeholder) + '" autocomplete="off" spellcheck="false" value="' + escapeHtml(panelSearch[role] || "") + '"></div>';
+  }
+  function panelSearchEmptyMarkup(kind, query) {
+    return '<p class="raven-grab-empty" data-panel-search-empty="' + kind + '" role="status">No ' + kind + ' match “' + escapeHtml(query) + '”</p>';
+  }
 
   var bridgeTokens = [];
   var bridgeTokensReady = false;
@@ -289,6 +337,10 @@
   var templateDrafts = [];
   var templateName = "";
   var templateFilter = "";
+  // Panel search (spec "Grab panels" v0.2 §1). Module state, so a query outlives every
+  // renderPanel() rebuild and a selection change; dismiss() clears it.
+  var panelSearch = { styles: "", layers: "" };
+  var layerSearchFocus = -1;
   var templateExpandedId = "";
   var templateLoaded = false;
   var templateLoading = false;
@@ -1474,6 +1526,12 @@
     .raven-grab-layer-row { display: flex; align-items: center; gap: 5px; min-height: 30px; padding: 4px 6px; padding-left: calc(6px + var(--layer-depth) * 12px); overflow: hidden; border-bottom: 1px solid rgba(255,255,255,.04); cursor: grab; }
     .raven-grab-layer-row:hover { background: rgba(255,255,255,.04); }
     .raven-grab-layer-row[data-layer-hovered="true"] { background: rgba(255,255,255,.07); box-shadow: inset 2px 0 0 var(--raven-grab-accent); }
+    .raven-grab-search { margin: 0 0 8px; }
+    .raven-grab-input.raven-grab-search-input { width: 100%; box-sizing: border-box; font: 400 calc(13px * var(--raven-grab-font-scale))/1.4 var(--raven-grab-ui); -webkit-appearance: none; appearance: none; }
+    .raven-grab-search-input::placeholder { color: var(--raven-grab-muted); }
+    .raven-grab-search-input::-webkit-search-cancel-button, .raven-grab-search-input::-webkit-search-decoration { -webkit-appearance: none; appearance: none; }
+    .raven-grab-layer-row[data-search-context="true"] .raven-grab-layer-label, .raven-grab-layer-row[data-search-context="true"] .raven-grab-layer-index { color: var(--raven-grab-muted); }
+    .raven-grab-layer-row[data-search-focus="true"] { background: rgba(0, 191, 255, .1); box-shadow: inset 2px 0 0 var(--raven-grab-accent); }
     .raven-grab-layer-row[data-dragging="true"] { display: none; }
     .raven-grab-layer-row[data-layer-pending="true"] .raven-grab-layer-index { color: var(--raven-grab-pending); background: rgba(217,161,59,.16); border-radius: 5px; }
     .raven-grab-layer-row[data-layer-pending="true"] {
@@ -5946,7 +6004,8 @@
     var duplicate = draft.trim() ? findStyleVersionByName(selector, draft) : null;
     var restoreBlocker = styleVersionRestoreBlocker();
     var noteText = styleVersionNoteText(saved.length, blocker, restoreBlocker);
-    var rows = saved.map(function (version) {
+    var versionQuery = panelSearchQuery("styles");
+    var rows = saved.filter(function (version) { return styleVersionSearchMatches(version, versionQuery); }).map(function (version) {
       var count = Object.keys(version.edits).length;
       return '<li class="raven-grab-version-row">'
         + '<button type="button" class="raven-grab-version-restore" data-restore-version="' + version.id + '"'
@@ -9683,6 +9742,23 @@
   }
 
   function shortenedLayerText(element) {
+    var text = layerOwnText(element);
+    if (text.length > 40) text = text.slice(0, 37) + "…";
+    return text;
+  }
+
+  // Tag, id, class names and the first 80 characters of own text, lowercased. Built
+  // once per tree build so a keystroke filters strings, never the page DOM.
+  function layerSearchIndex(element) {
+    var parts = [String(element.localName || element.tagName || "").toLowerCase()];
+    if (element.id) parts.push(String(element.id));
+    var classes = typeof element.getAttribute === "function" ? element.getAttribute("class") : "";
+    if (classes) parts.push(String(classes));
+    parts.push(layerOwnText(element).slice(0, 80));
+    return parts.join(" ").replace(/\s+/g, " ").trim().toLowerCase();
+  }
+
+  function layerOwnText(element) {
     // Prefer own text nodes only — descendant script/JSON-LD textContent pollutes labels.
     var text = "";
     var nodes = element.childNodes;
@@ -9700,7 +9776,6 @@
       text = String(element.getAttribute("aria-label") || element.getAttribute("alt") || element.getAttribute("title") || "").trim();
     }
     if (text.indexOf('"@context"') !== -1 || /^\{\s*"@/.test(text)) text = "";
-    if (text.length > 40) text = text.slice(0, 37) + "…";
     return text;
   }
 
@@ -9752,7 +9827,7 @@
       var text = shortenedLayerText(element);
       var componentLabel = componentNameFor(element, null);
       var labelBase = componentLabel || element.localName.toLowerCase();
-      var node = { id: id, parentId: parentId, depth: depth, label: labelBase + (text ? " · " + text : ""), badges: badges, children: [] };
+      var node = { id: id, parentId: parentId, depth: depth, label: labelBase + (text ? " · " + text : ""), badges: badges, children: [], search: layerSearchIndex(element) };
       if (!shadowRoot && element.tagName !== "IFRAME") {
         for (var i = 0; i < element.children.length; i += 1) {
           var child = visit(element.children[i], id, depth + 1);
@@ -10404,8 +10479,36 @@
     return "";
   }
 
+  // Matches in tree order plus the ids of their ancestors; null when no query.
+  function layerSearchResult() {
+    var query = panelSearchQuery("layers");
+    if (!query || !layerTree) return null;
+    var matches = [];
+    var context = Object.create(null);
+    function walk(node) {
+      if (!node || node.truncated) return false;
+      var hit = (String(node.label).toLowerCase() + " " + (node.search || "")).indexOf(query) !== -1;
+      if (hit) matches.push(node);
+      var below = false;
+      node.children.forEach(function (child) { if (walk(child)) below = true; });
+      if (below) context[node.id] = true;
+      return hit || below;
+    }
+    walk(layerTree);
+    return { query: query, matches: matches, context: context };
+  }
+  var layerSearchForRender = null;
+
   function layerRowsMarkup(node, siblingIndex, membership) {
     if (!node) return "";
+    var search = layerSearchForRender;
+    var searchMatch = false;
+    var searchContext = false;
+    if (search) {
+      searchMatch = search.matches.indexOf(node) !== -1;
+      searchContext = !!search.context[node.id];
+      if (!searchMatch && !searchContext) return "";
+    }
     if (!membership) membership = selectionMembershipForRender || visualBadgeElements();
     var element = layerElements.get(node.id);
     var displayIndex = typeof siblingIndex === "number" ? siblingIndex + 1 : 1;
@@ -10417,7 +10520,7 @@
     var isPrimary = !!element && element === selectedElement;
     var movedVisualOrder = visualLayerOrderForMovedElement(element);
     var isPending = layerElementIsPendingMove(element);
-    var isCollapsed = layerIsCollapsed(node);
+    var isCollapsed = layerIsCollapsed(node) && !searchContext;
     var hasChildren = node.children.length > 0;
     var isHovered = !!element && element === hoveredLayerElement;
     // The tree is one tab stop, normally the selected row. Collapsing an ancestor can
@@ -10427,7 +10530,7 @@
     var toggleMarkup = hasChildren
       ? '<button class="raven-grab-layer-toggle" type="button" data-layer-toggle="' + node.id + '" data-expanded="' + (isCollapsed ? "false" : "true") + '" aria-label="' + (isCollapsed ? "Expand " : "Collapse ") + escapeHtml(node.label) + '" aria-expanded="' + (isCollapsed ? "false" : "true") + '">›</button>'
       : '<span class="raven-grab-layer-toggle-spacer" aria-hidden="true"></span>';
-    var markup = '<li class="raven-grab-layer-row" role="treeitem" tabindex="' + rowTabIndex + '" aria-level="' + (node.depth + 1) + '" data-layer-id="' + node.id + '" data-layer-parent="' + (node.parentId == null ? "" : node.parentId) + '"' + (hasChildren ? ' aria-expanded="' + (isCollapsed ? "false" : "true") + '"' : "") + (isSelected ? ' data-selected="true"' : "") + (isPrimary ? ' data-primary="true"' : "") + (isPending ? ' data-layer-pending="true"' : "") + (isHovered ? ' data-layer-hovered="true"' : "") + ' style="--layer-depth:' + node.depth + '">' + toggleMarkup + '<span class="raven-grab-layer-index">' + displayIndex + '</span><span class="raven-grab-layer-label">' + escapeHtml(node.label) + "</span>" + badges.map(function (badge) { return '<span class="raven-grab-badge">' + escapeHtml(badge) + "</span>"; }).join("") + (isPending ? '<span class="raven-grab-layer-pending-badge">Move pending</span>' : "") + "</li>";
+    var markup = '<li class="raven-grab-layer-row" role="treeitem" tabindex="' + rowTabIndex + '" aria-level="' + (node.depth + 1) + '" data-layer-id="' + node.id + '" data-layer-parent="' + (node.parentId == null ? "" : node.parentId) + '"' + (hasChildren ? ' aria-expanded="' + (isCollapsed ? "false" : "true") + '"' : "") + (isSelected ? ' data-selected="true"' : "") + (isPrimary ? ' data-primary="true"' : "") + (isPending ? ' data-layer-pending="true"' : "") + (isHovered ? ' data-layer-hovered="true"' : "") + (search && searchContext && !searchMatch ? ' data-search-context="true"' : "") + (search && searchMatch ? ' data-search-match="true"' + (search.matches[layerSearchFocus] === node ? ' data-search-focus="true"' : "") : "") + ' style="--layer-depth:' + node.depth + '">' + toggleMarkup + '<span class="raven-grab-layer-index">' + displayIndex + '</span><span class="raven-grab-layer-label">' + escapeHtml(node.label) + "</span>" + badges.map(function (badge) { return '<span class="raven-grab-badge">' + escapeHtml(badge) + "</span>"; }).join("") + (isPending ? '<span class="raven-grab-layer-pending-badge">Move pending</span>' : "") + "</li>";
     if (pendingFixedMove && layerPreview && layerPreview.movedElement === element) {
       markup += '<li class="raven-grab-template-detail" style="--layer-depth:' + node.depth + '"><p class="raven-grab-layer-notice raven-grab-layer-info">You are moving a fixed layer, the design system team will be notified.</p><label class="raven-grab-field"><span>Add note…' + voiceButtonMarkup("data-fixed-move-note", "note") + '</span><textarea class="raven-grab-textarea" data-fixed-move-note maxlength="2000" spellcheck="true" placeholder="Add note…">' + escapeHtml(fixedMoveNote) + '</textarea></label></li>';
     }
@@ -12465,8 +12568,11 @@
       if (!stateData || !stateData.declarations || !stateData.declarations.length) return;
       // Title case to match Size/Spacing (not cyan HOVER mono label).
       var stateTitle = state.charAt(0).toUpperCase() + state.slice(1);
+      var stateQuery = panelSearchQuery("styles");
+      var declarations = stateData.declarations.filter(function (declaration) { return styleSearchMatches(declaration.property, stateQuery); });
+      if (!declarations.length) return;
       markup += '<div class="raven-grab-state-group" data-style-state="' + state + '"><h3 class="raven-grab-state-label">' + escapeHtml(stateTitle) + '</h3><ul class="raven-grab-styles">';
-      stateData.declarations.forEach(function (declaration) {
+      declarations.forEach(function (declaration) {
         var property = declaration.property;
         var rawValue = declaration.value;
         var matched = matchedTokenEntryForProperty(property, state);
@@ -13574,10 +13680,12 @@
       return '<li data-style-property="' + escapeHtml(property) + '"' + tokenAttr + ' data-edited="' + (edit || tokenEdited ? "true" : "false") + '">' + label + '<code data-style-value data-style-raw="' + escapeHtml(value) + '" data-mixed="' + (isMixed ? "true" : "false") + '" tabindex="0" role="button" aria-label="Edit ' + escapeHtml(property) + '">' + displayInner + "</code></li>";
     }
     var stylesMarkup = "";
+    var styleQuery = panelSearchQuery("styles");
     STYLE_CATEGORIES.forEach(function (category) {
       if (!hasSelection) return;
       var rows = [];
       category.properties.forEach(function (property) {
+        if (!styleSearchMatches(property, styleQuery)) return;
         var row = styleRowMarkup(property);
         if (row) rows.push(row);
       });
@@ -13586,6 +13694,12 @@
       stylesMarkup += rows.join("");
     });
     var stateStylesMarkup = stateStyleGroupsMarkup(stateStyles);
+    var styleVersionMatches = styleQuery && hasSelection
+      ? styleVersionsForSelector(currentSelection.selector).filter(function (version) { return styleVersionSearchMatches(version, styleQuery); }).length
+      : 0;
+    var styleSearchEmptyMarkup = styleQuery && hasSelection && !stylesMarkup && !stateStylesMarkup && !styleVersionMatches
+      ? panelSearchEmptyMarkup("styles", panelSearch.styles.replace(/\s+/g, " ").trim())
+      : "";
     var tokensEmptyMarkup = hasSelection && bridgeTokensReady && bridgeTokens.length === 0
       ? '<p class="raven-grab-tokens-empty" role="status">No design tokens found for this project</p>'
       : "";
@@ -13624,7 +13738,8 @@
       ${scopeMarkup}
       <section class="raven-grab-section">
         <button class="raven-grab-section-toggle" type="button" data-section-toggle="styles" aria-expanded="${expandedSections.styles ? "true" : "false"}" aria-controls="raven-grab-styles"><span>Styles</span><span class="raven-grab-caret" aria-hidden="true">▾</span></button>
-        <div class="raven-grab-collapsible" id="raven-grab-styles" data-section-body="styles" data-open="${expandedSections.styles ? "true" : "false"}" aria-hidden="${expandedSections.styles ? "false" : "true"}"><div class="raven-grab-collapsible-inner">${tokensEmptyMarkup}<ul class="raven-grab-styles">${stylesMarkup}</ul>${stateStylesMarkup}${styleVersionsMarkup()}</div></div>
+        ${hasSelection ? panelSearchFieldMarkup("styles", "Find a style") : ""}
+        <div class="raven-grab-collapsible" id="raven-grab-styles" data-section-body="styles" data-open="${expandedSections.styles ? "true" : "false"}" aria-hidden="${expandedSections.styles ? "false" : "true"}"><div class="raven-grab-collapsible-inner">${tokensEmptyMarkup}${styleSearchEmptyMarkup}<ul class="raven-grab-styles">${stylesMarkup}</ul>${stateStylesMarkup}${styleVersionsMarkup()}</div></div>
       </section>`;
     // Computed once here rather than inline in the template: the same
     // instructionsMarkup renders in BOTH the desktop footer and the mobile
@@ -13724,8 +13839,18 @@
     var reorderSectionMarkup = layerPreview || layerNotice
       ? '<section class="raven-grab-section"><h2 class="raven-grab-section-title">Reorder preview</h2>' + previewMarkup + (layerNotice ? '<p class="raven-grab-layer-notice' + (pendingFixedMove && !layerPreview ? ' raven-grab-layer-warning' : '') + '">' + escapeHtml(layerNotice) + '</p>' : '') + '</section>'
       : '';
+    layerSearchForRender = layerSearchResult();
+    if (layerSearchForRender && layerSearchFocus >= layerSearchForRender.matches.length) layerSearchFocus = layerSearchForRender.matches.length - 1;
+    var layerRowsHtml = layerTree ? layerRowsMarkup(layerTree) : "";
+    var layerSearchEmpty = layerSearchForRender && !layerSearchForRender.matches.length;
     var layersMarkup = reorderSectionMarkup +
-      '<section class="raven-grab-section"><h2 class="raven-grab-section-title">Layers</h2>' + (layerTree ? '<p class="raven-grab-note">Drag a row to reorder or reparent it.</p><ul class="raven-grab-layer-list" role="tree">' + layerRowsMarkup(layerTree) + '</ul>' : '<p class="raven-grab-empty">No layer tree available.</p>') + '</section>';
+      '<section class="raven-grab-section"><h2 class="raven-grab-section-title">Layers</h2>' + (layerTree
+        ? (simpleMode() ? "" : panelSearchFieldMarkup("layers", "Find a layer")) +
+          '<p class="raven-grab-note">' + (layerSearchForRender ? "Clear the search to drag layers." : "Drag a row to reorder or reparent it.") + '</p>' +
+          (layerSearchEmpty ? panelSearchEmptyMarkup("layers", panelSearch.layers.replace(/\s+/g, " ").trim()) : "") +
+          '<ul class="raven-grab-layer-list" role="tree"' + (layerSearchForRender ? ' data-searching="true"' : "") + '>' + layerRowsHtml + '</ul>'
+        : '<p class="raven-grab-empty">No layer tree available.</p>') + '</section>';
+    layerSearchForRender = null;
     // Mobile borrows the structure tab state so the same selection survives a
     // breakpoint crossing; desktop never exposes the two additional values.
     var motionMarkup = '<div class="raven-grab-motion" data-motion-root></div>';
@@ -13813,6 +13938,16 @@
       priorScroll.push(priorBody ? priorBody.scrollTop || 0 : 0);
     }
     lastRenderIdentity = renderIdentity;
+    // A search field keeps focus and caret across the rebuild (it has 80+ callers).
+    var searchFocus = null;
+    var focusedField = shadow.activeElement;
+    if (focusedField && typeof focusedField.getAttribute === "function" && focusedField.getAttribute("data-panel-search")) {
+      searchFocus = {
+        role: focusedField.getAttribute("data-panel-search"),
+        panelIndex: panels.indexOf(focusedField.closest(".raven-grab-panel")),
+        start: focusedField.selectionStart, end: focusedField.selectionEnd
+      };
+    }
     panel.innerHTML = `
       <button class="raven-grab-sheet-handle" type="button" data-sheet-drag-handle aria-label="Resize Raven sheet"></button>
       <div class="raven-grab-top">
@@ -13852,6 +13987,14 @@
       if (!priorScroll[ri]) continue;
       var freshBody = panels[ri].querySelector(".raven-grab-body");
       if (freshBody) freshBody.scrollTop = priorScroll[ri];
+    }
+    if (searchFocus) {
+      var searchHome = panels[searchFocus.panelIndex] || panel;
+      var freshField = searchHome.querySelector('[data-panel-search="' + searchFocus.role + '"]');
+      if (freshField) {
+        freshField.focus({ preventScroll: true });
+        try { freshField.setSelectionRange(searchFocus.start, searchFocus.end); } catch (err) { /* type=search */ }
+      }
     }
     syncMobileSheetEdgeTabs();
     syncPanelPresets();
@@ -13986,6 +14129,8 @@
 
   function dismiss() {
     hidePanelPresetTooltip();
+    panelSearch = { styles: "", layers: "" };
+    layerSearchFocus = -1;
     if (layerDrag) endLayerDrag();
     // Disarming ends any live dictation with the rest of the session state:
     // the panel contents are cleared below, and a recognizer left running
@@ -14846,6 +14991,43 @@
     if (typeof row.scrollIntoView === "function") row.scrollIntoView({ block: "nearest" });
   }
 
+  // Escape clears a non-empty query; in Layers, arrows move between matches and Enter
+  // selects the focused (or first) match. Each handled key is consumed.
+  function handlePanelSearchKey(event) {
+    var field = event.target;
+    var role = field && typeof field.getAttribute === "function" ? field.getAttribute("data-panel-search") : null;
+    if (role !== "styles" && role !== "layers") return false;
+    if (event.isComposing) return false;
+    var consume = function () { event.preventDefault(); event.stopPropagation(); };
+    if (event.key === "Escape") {
+      if (!field.value) return false;
+      consume();
+      panelSearch[role] = "";
+      if (role === "layers") layerSearchFocus = -1;
+      renderPanel();
+      return true;
+    }
+    if (role !== "layers") return false;
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp" && event.key !== "Enter") return false;
+    var result = layerSearchResult();
+    if (!result) return false;
+    consume();
+    if (!result.matches.length) return true;
+    if (event.key === "Enter") {
+      var node = result.matches[layerSearchFocus >= 0 ? layerSearchFocus : 0];
+      var element = node && layerElements.get(node.id);
+      if (element && element.isConnected !== false) applySelection([element], element, element, "panel");
+      return true;
+    }
+    var step = event.key === "ArrowDown" ? 1 : -1;
+    var next = layerSearchFocus < 0 ? (step > 0 ? 0 : result.matches.length - 1) : layerSearchFocus + step;
+    layerSearchFocus = Math.max(0, Math.min(result.matches.length - 1, next));
+    renderPanel();
+    var focused = panelLeft.querySelector('[data-search-focus="true"]') || panel.querySelector('[data-search-focus="true"]');
+    if (focused && typeof focused.scrollIntoView === "function") focused.scrollIntoView({ block: "nearest" });
+    return true;
+  }
+
   function selectLayerNodeFromKeyboard(node) {
     if (!node) return false;
     var element = layerElements.get(node.id);
@@ -14904,7 +15086,15 @@
     event.preventDefault();
     detachTokenBinding(row.getAttribute("data-style-property"), row.getAttribute("data-style-state"));
   });
+  onPanels("compositionend", function (event) {
+    var role = event.target && typeof event.target.getAttribute === "function" ? event.target.getAttribute("data-panel-search") : null;
+    if (role !== "styles" && role !== "layers") return;
+    panelSearch[role] = event.target.value;
+    if (role === "styles" && panelSearchQuery("styles")) expandedSections.styles = true;
+    renderPanel();
+  });
   onPanels("keydown", function (event) {
+    if (handlePanelSearchKey(event)) return;
     if (handleLayerTreeKey(event)) return;
     var elementChip = event.target.closest("[data-element-selector]");
     if (elementChip && (event.key === "Enter" || event.key === " ")) {
@@ -14969,6 +15159,14 @@
       if (noteSlot) noteSlot.note = event.target.value;
     }
     if (event.target.getAttribute("data-fixed-move-note") !== null) fixedMoveNote = event.target.value;
+    var searchRole = event.target.getAttribute("data-panel-search");
+    if (searchRole === "styles" || searchRole === "layers") {
+      panelSearch[searchRole] = event.target.value;
+      if (searchRole === "styles" && panelSearchQuery("styles")) expandedSections.styles = true;
+      if (searchRole === "layers") layerSearchFocus = -1;
+      // A rebuild mid-composition would drop the IME candidate; compositionend renders.
+      if (!event.isComposing) renderPanel();
+    }
     if (event.target.getAttribute("data-template-filter") !== null) {
       templateFilter = event.target.value;
       renderPanel();
@@ -15444,7 +15642,7 @@
       if (!row) return;
     }
     var layerId = row.getAttribute("data-layer-id");
-    var dragAllowed = layerId !== null && !!row.getAttribute("data-layer-parent");
+    var dragAllowed = layerId !== null && !!row.getAttribute("data-layer-parent") && !panelSearchQuery("layers");
     var dragParentNode = dragAllowed ? findLayerNode(layerTree, Number(row.getAttribute("data-layer-parent"))) : null;
     var dragParentElement = dragParentNode ? layerElements.get(dragParentNode.id) : null;
     var dragBlocked = dragAllowed && dragParentElement && pendingLayerOrderForParent(stableSelector(dragParentElement));
