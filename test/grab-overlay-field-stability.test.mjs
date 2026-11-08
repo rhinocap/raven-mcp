@@ -234,3 +234,115 @@ test('the changes tray keeps its place: a first change, and a change while other
     assert.match(headers[0], /1 active · 1 next/);
   });
 });
+
+test('Styles: a token-linked value closes on a click on blank space, Escape steps out of its token menu, and a growing form stays in view', async (t) => {
+  const html = (await readFile(FIXTURE_PATH, 'utf8')).replace('</style>', ':root { --color-text-primary: #ffffff; } button.cta { color: var(--color-text-primary); }\n</style>');
+  await run(t, async (page) => {
+    await selectElement(page, 'button.cta');
+    const open = async () => {
+      const point = await rowValuePoint(page, 'color');
+      await page.mouse.click(point.x, point.y);
+      await page.waitForTimeout(80);
+    };
+    const center = (sel) => shadowEval(page, (root, s) => { const n = Array.from(root.querySelectorAll(s)).find((x) => x.getClientRects().length); const r = n.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, sel);
+    // A click on a heading (not focusable) closes it.
+    await open();
+    assert.equal((await rowState(page, 'color')).editor, true);
+    const heading = await shadowEval(page, (root) => { const n = root.querySelector('[data-box-model]'); const r = n.getBoundingClientRect(); return { x: r.left + 4, y: r.top + 4 }; });
+    await page.mouse.click(heading.x, heading.y);
+    await page.waitForTimeout(80);
+    let state = await rowState(page, 'color');
+    assert.deepEqual([state.editor, state.ghost], [false, false], 'a click on blank space closes it');
+    // A press on blank space inside the editor, while typing in the token search, keeps it open
+    // with focus in the editor; the next press outside still closes it.
+    await open();
+    const trigger0 = await center('li[data-style-property="color"] .raven-grab-token-picker-trigger');
+    await page.mouse.click(trigger0.x, trigger0.y);
+    await page.waitForTimeout(80);
+    const search = await center('li[data-style-property="color"] [data-token-picker-search]');
+    await page.mouse.click(search.x, search.y);
+    // The editor's own padding takes no focus, so focus drops to nothing.
+    const pad = await shadowEval(page, (root) => { const e = root.querySelector('li[data-style-property="color"] .raven-grab-style-editor'); const r = e.getBoundingClientRect(); const x = r.left + 3; const y = r.top + 3; return { x, y, own: root.elementFromPoint(x, y) === e }; });
+    assert.equal(pad.own, true, 'the press point is on the editor itself');
+    await page.mouse.click(pad.x, pad.y);
+    await page.waitForTimeout(80);
+    assert.equal((await rowState(page, 'color')).editor, true, 'a press inside the editor keeps it open');
+    assert.equal(await shadowEval(page, (root) => !!(root.activeElement && root.querySelector('li[data-style-property="color"] .raven-grab-style-editor').contains(root.activeElement))), true, 'focus stays in the editor');
+    await page.mouse.click(heading.x, heading.y);
+    await page.waitForTimeout(80);
+    state = await rowState(page, 'color');
+    assert.deepEqual([state.editor, state.ghost], [false, false], 'after a press inside, a press outside still closes it');
+    // Escape in the token menu closes the menu and keeps keyboard focus on the trigger; a second Escape closes the editor.
+    await open();
+    const trigger = await center('li[data-style-property="color"] .raven-grab-token-picker-trigger');
+    await page.mouse.click(trigger.x, trigger.y);
+    await page.waitForTimeout(80);
+    assert.equal(await shadowEval(page, (root) => root.querySelector('li[data-style-property="color"] .raven-grab-token-picker-menu').getAttribute('data-open')), 'true');
+    await page.keyboard.press('Escape');
+    assert.equal(await shadowEval(page, (root) => root.activeElement && root.activeElement.classList.contains('raven-grab-token-picker-trigger')), true, 'focus returns to the token trigger');
+    assert.equal((await rowState(page, 'color')).editor, true, 'only the menu closed');
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(60);
+    assert.equal((await rowState(page, 'color')).editor, false, 'the second Escape closes the editor');
+    // Choosing New token reveals more fields; the popover stays inside the visible list.
+    await open();
+    const trigger2 = await center('li[data-style-property="color"] .raven-grab-token-picker-trigger');
+    await page.mouse.click(trigger2.x, trigger2.y);
+    await page.waitForTimeout(80);
+    const option = await center('li[data-style-property="color"] [data-token-picker-value="__new__"]');
+    await page.mouse.click(option.x, option.y);
+    await page.waitForTimeout(150);
+    const fit = await shadowEval(page, (root) => {
+      const li = root.querySelector('li[data-style-property="color"]');
+      const editor = li.querySelector('.raven-grab-style-editor');
+      let node = li.parentNode; let top = 0; let bottom = innerHeight;
+      while (node && node.nodeType === 1) { const cs = getComputedStyle(node); if (cs.overflowY !== 'visible') { const b = node.getBoundingClientRect(); top = Math.max(top, b.top); bottom = Math.min(bottom, b.bottom); } node = node.parentNode; }
+      const e = editor.getBoundingClientRect();
+      return { newOpen: editor.querySelector('[data-new-token]')?.getAttribute('data-open'), inside: e.top >= top - 0.5 && e.bottom <= bottom + 0.5 };
+    });
+    assert.equal(fit.newOpen, 'true', 'the New token form opened');
+    assert.equal(fit.inside, true, 'the grown popover stays inside the list');
+  }, { html });
+});
+
+test('mobile sheet: a token-linked value stays open when a touch scrolls, and a tap elsewhere closes it', async (t) => {
+  const html = (await readFile(FIXTURE_PATH, 'utf8')).replace('</style>', ':root { --color-text-primary: #ffffff; } button.cta { color: var(--color-text-primary); }\n</style>');
+  await run(t, async (page) => {
+    await page.addStyleTag({ content: '.site { left: 10px !important; width: 360px !important; }' });
+    const at = await page.evaluate(() => { const r = document.querySelector('button.cta').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+    await page.mouse.move(at.x - 2, at.y - 2);
+    await page.mouse.click(at.x, at.y);
+    await page.waitForTimeout(400);
+    const tabPoint = await shadowEval(page, (root) => { const r = root.querySelector('.raven-grab-mobile-tabs [data-tab="styles"]').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+    await page.mouse.click(tabPoint.x, tabPoint.y);
+    await page.waitForTimeout(300);
+    const point = await rowValuePoint(page, 'color');
+    await page.mouse.click(point.x, point.y);
+    await page.waitForTimeout(80);
+    let state = await rowState(page, 'color');
+    assert.deepEqual([state.editor, state.linked], [true, 'true'], 'the fixture opens a token-linked editor');
+    // The row's own value (the ghost under the popover) is part of the field.
+    // Touch on the list, outside the popover. On a phone the popover covers most of the
+    // list, so the gestures are dispatched on the list element itself.
+    const touch = (steps) => shadowEval(page, (root, seq) => {
+      const li = root.querySelector('li[data-style-property="color"]');
+      let list = li.parentNode;
+      while (list && list.nodeType === 1 && !/(auto|scroll)/.test(getComputedStyle(list).overflowY)) list = list.parentNode;
+      const b = list.getBoundingClientRect();
+      const x = b.left + 8; const y = b.top + 8;
+      for (const [type, dy] of seq) list.dispatchEvent(new PointerEvent(type, { pointerId: 7, pointerType: 'touch', isPrimary: true, clientX: x, clientY: y + dy, bubbles: true, composed: true }));
+    }, steps);
+    await touch([['pointerdown', 0], ['pointermove', -12], ['pointermove', -30], ['pointerup', -30]]);
+    await page.waitForTimeout(60);
+    assert.equal((await rowState(page, 'color')).editor, true, 'a touch that scrolls keeps it open');
+    await touch([['pointerdown', 0], ['pointercancel', 0]]);
+    await page.waitForTimeout(60);
+    assert.equal((await rowState(page, 'color')).editor, true, 'a touch the browser takes for scrolling keeps it open');
+    const inlineBefore = await page.evaluate(() => document.querySelector('button.cta').getAttribute('style'));
+    await touch([['pointerdown', 0], ['pointermove', 3], ['pointerup', 3]]);
+    await page.waitForTimeout(80);
+    state = await rowState(page, 'color');
+    assert.deepEqual([state.editor, state.ghost], [false, false], 'a tap elsewhere closes it');
+    assert.equal(await page.evaluate(() => document.querySelector('button.cta').getAttribute('style')), inlineBefore, 'closing wrote nothing');
+  }, { html, viewport: { width: 390, height: 844 } });
+});

@@ -6829,6 +6829,8 @@
   var STYLE_POPOVER_CONTROLS = ["size", "stroke", "color", "box-shadow", "overflow", "text-decoration", "easing", "radius"];
   // A token-linked editor has no raw field in focus (its token trigger has focus),
   // so Escape and focus leaving the editor close it here, without writing a style.
+  var linkedDismiss = null;
+  var linkedDismissWired = false;
   function wireLinkedEditorDismiss(editor, close) {
     editor.addEventListener("keydown", function (event) {
       if (event.key !== "Escape" || event.defaultPrevented) return;
@@ -6839,16 +6841,78 @@
       if (menu) {
         menu.setAttribute("data-open", "false");
         var trigger = editor.querySelector(".raven-grab-token-picker-trigger");
-        if (trigger) trigger.setAttribute("aria-expanded", "false");
+        if (trigger) {
+          trigger.setAttribute("aria-expanded", "false");
+          if (typeof trigger.focus === "function") trigger.focus();
+        }
         return;
       }
       close();
     });
+    linkedDismiss = { editor: editor, close: close };
+    if (!linkedDismissWired && typeof window !== "undefined" && typeof window.addEventListener === "function") {
+      linkedDismissWired = true;
+      // One listener for whichever linked editor is open: a press outside it closes
+      // it, whether or not the press lands on something that takes focus.
+      var linkedOpen = function () {
+        var open = linkedDismiss;
+        if (!open) return null;
+        if (open.editor.isConnected === false) { linkedDismiss = null; return null; }
+        return open.editor.getAttribute("data-token-linked") === "true" ? open : null;
+      };
+      var dismissLinked = function (open) {
+        if (linkedDismiss !== open) return;
+        linkedDismiss = null;
+        open.close();
+      };
+      // A touch that turns into a scroll keeps the editor open, so a touch closes it
+      // only when it lifts without moving.
+      var touchPress = null;
+      window.addEventListener("pointerdown", function (event) {
+        var open = linkedOpen();
+        if (!open) return;
+        var path = typeof event.composedPath === "function" ? event.composedPath() : [];
+        // The open row (its label, its value) counts as part of the field.
+        var row = open.editor.parentNode;
+        if (path.indexOf(open.editor) !== -1 || (row && path.indexOf(row) !== -1)) return;
+        if (event.pointerType === "touch") {
+          touchPress = { id: event.pointerId, x: event.clientX, y: event.clientY, open: open };
+          return;
+        }
+        dismissLinked(open);
+      }, true);
+      window.addEventListener("pointermove", function (event) {
+        if (!touchPress || event.pointerId !== touchPress.id) return;
+        if (Math.abs(event.clientX - touchPress.x) > 10 || Math.abs(event.clientY - touchPress.y) > 10) touchPress = null;
+      }, true);
+      window.addEventListener("pointercancel", function (event) {
+        if (touchPress && event.pointerId === touchPress.id) touchPress = null;
+      }, true);
+      window.addEventListener("pointerup", function (event) {
+        if (!touchPress || event.pointerId !== touchPress.id) return;
+        var press = touchPress;
+        touchPress = null;
+        if (linkedOpen() === press.open) dismissLinked(press.open);
+      }, true);
+    }
     editor.addEventListener("focusout", function (event) {
       if (editor.getAttribute("data-token-linked") !== "true") return;
       var next = event.relatedTarget;
-      if (!next || (typeof editor.contains === "function" && editor.contains(next))) return;
-      close();
+      if (next && typeof editor.contains === "function" && editor.contains(next)) return;
+      if (next) { close(); return; }
+      // Focus went nowhere: a picked menu option was hidden, or a press landed on
+      // blank space inside the editor (a press outside closes it above). Keep the
+      // keyboard in the editor.
+      setTimeout(function () {
+        if (editor.isConnected === false) return;
+        if (editor.getAttribute("data-token-linked") !== "true") return;
+        if (typeof document.hasFocus === "function" && !document.hasFocus()) return;
+        var root = editor.getRootNode ? editor.getRootNode() : null;
+        var active = root && root.activeElement;
+        if (active && editor.contains(active)) return;
+        var trigger = editor.querySelector(".raven-grab-token-picker-trigger");
+        if (trigger && typeof trigger.focus === "function") trigger.focus();
+      }, 0);
     });
   }
   function mountStyleEditor(valueCell, editor) {
@@ -6869,12 +6933,28 @@
     row.setAttribute("data-popover-open", "true");
     row.appendChild(editor);
     placeStylePopover(row, editor);
+    // Content can grow while open (a "New token…" form); place it again so it
+    // stays inside the list.
+    if (typeof ResizeObserver === "function") {
+      // Seeded after the first placement, so opening never moves it a second time.
+      var lastHeight = editor.scrollHeight;
+      var observer = new ResizeObserver(function () {
+        if (!editor.isConnected) { observer.disconnect(); return; }
+        var height = editor.scrollHeight;
+        if (height === lastHeight) return;
+        lastHeight = height;
+        placeStylePopover(row, editor);
+      });
+      observer.observe(editor);
+      editor.__ravenPopoverObserver = observer;
+    }
   }
 
   // Closing puts the value cell back where the row's copy of it sat.
   function unmountStyleEditor(row, cell, editor) {
     var ghost = editor.getAttribute("data-popover") === "true" ? row.querySelector(':scope > code[data-style-ghost="true"]') : null;
     if (!ghost) { row.replaceChild(cell, editor); return; }
+    if (editor.__ravenPopoverObserver) editor.__ravenPopoverObserver.disconnect();
     row.replaceChild(cell, ghost);
     row.removeChild(editor);
     row.removeAttribute("data-popover-open");

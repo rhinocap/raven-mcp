@@ -274,6 +274,9 @@ function editorState(page, property) {
     const presets = Array.from(editor.querySelectorAll('.raven-grab-easing-preset')).map((b) => b.textContent.trim());
     let handleBox = null;
     if (handles[0]) {
+      // A popover clamped to the list scrolls inside itself; bring the handle into
+      // view so a press at its centre reaches it.
+      if (typeof handles[0].scrollIntoView === 'function') handles[0].scrollIntoView({ block: 'nearest' });
       const r = handles[0].getBoundingClientRect();
       handleBox = { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height };
     }
@@ -645,6 +648,12 @@ test('a token-linked row renders the curve but refuses to author it', async () =
     // their own pointerdown. Drag one across the surface and nothing may move:
     // not the input, not the element. A preview here would write inline CSS
     // that commit() then declines to record.
+    // The press must reach the handle itself, or the guard below is never tested.
+    const pressHitsHandle = await page.evaluate(({ x, y }) => {
+      const hit = document.querySelector('[data-raven-grab-overlay]').shadowRoot.elementFromPoint(x, y);
+      return !!(hit && hit.closest && hit.closest('.raven-grab-easing-handle'));
+    }, before.handleBox);
+    assert.ok(pressHitsHandle, 'the press point is not on the curve handle');
     await page.mouse.move(before.handleBox.x, before.handleBox.y);
     await page.mouse.down();
     await page.mouse.move(before.handleBox.x + 60, before.handleBox.y - 40, { steps: 8 });
