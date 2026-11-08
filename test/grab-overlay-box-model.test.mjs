@@ -394,3 +394,139 @@ test('box model markup is only its own elements, with values as text', async (t)
     assert.deepEqual(tags, []);
   });
 });
+
+// --- Regressions from the independent review of b593efe ---------------------
+
+const inlineStyle = (page) => page.evaluate(() => document.querySelector('button.cta').getAttribute('style') || '');
+
+async function scrubThenEscape(page, property) {
+  const point = await cellPoint(page, property);
+  await page.mouse.move(point.x, point.y);
+  await page.mouse.down();
+  await page.mouse.move(point.x + 6, point.y);
+  await page.mouse.move(point.x + 12, point.y);
+  await page.keyboard.press('Escape');
+  await page.mouse.up();
+}
+
+test('shorthand, a side, the shorthand back to the original, then a cancelled side scrub: page stays clean', async (t) => {
+  await run(t, async (page) => {
+    await selectElement(page, 'button.cta');
+    await editStyle(page, 'padding', '18px');
+    await typeInBox(page, 'padding-right', '24');
+    await editStyle(page, 'padding', '14px');
+    assert.equal((await readTray(page)).length, 0, 'nothing pending');
+    assert.equal(await inlineStyle(page), '');
+    await scrubThenEscape(page, 'padding-right');
+    assert.equal((await computed(page, 'button.cta', ['padding-right']))['padding-right'], '14px');
+    assert.equal(await inlineStyle(page), '', 'no stale side value written back');
+  });
+});
+
+test('after a shorthand replaces a side, a cancelled scrub on that side keeps the shorthand on the page', async (t) => {
+  await run(t, async (page) => {
+    await selectElement(page, 'button.cta');
+    await typeInBox(page, 'padding-right', '24');
+    await editStyle(page, 'padding', '20px');
+    await scrubThenEscape(page, 'padding-right');
+    assert.deepEqual(await computed(page, 'button.cta', ['padding-top', 'padding-right']), { 'padding-top': '20px', 'padding-right': '20px' });
+    const rows = (await readTray(page))[0].rows;
+    assert.deepEqual(rows.map((row) => [row.line1, row.line2]), [['Style – padding', '14px → 20px – button.cta']]);
+  });
+});
+
+test('an inline-styled element: a side then the shorthand back to the original restores the inline style', async (t) => {
+  const html = (await readFile(FIXTURE_PATH, 'utf8')).replace('class="cta"', 'class="cta" style="padding: 14px"');
+  await run(t, async (page) => {
+    await selectElement(page, 'button.cta');
+    await typeInBox(page, 'padding-right', '24');
+    await editStyle(page, 'padding', '14px');
+    assert.equal((await readTray(page)).length, 0, 'nothing pending');
+    assert.equal((await computed(page, 'button.cta', ['padding-right']))['padding-right'], '14px');
+    assert.equal(await inlineStyle(page), 'padding: 14px;');
+  }, { html });
+});
+
+test('clicking a fractional number and pressing Enter without typing is not an edit', async (t) => {
+  const html = (await readFile(FIXTURE_PATH, 'utf8')).replace('</style>', 'button.cta { width: 100.3333px; padding-left: 13.3333px; }\n</style>');
+  await run(t, async (page) => {
+    await selectElement(page, 'button.cta');
+    for (const property of ['width', 'padding-left']) {
+      const point = await cellPoint(page, property);
+      await page.mouse.click(point.x, point.y);
+      await page.keyboard.press('Enter');
+    }
+    assert.equal((await readTray(page)).length, 0, 'nothing pending');
+  }, { html });
+});
+
+test('with a field open, clicking the next number commits the first and opens the second', async (t) => {
+  await run(t, async (page) => {
+    await selectElement(page, 'button.cta');
+    let point = await cellPoint(page, 'padding-top');
+    await page.mouse.click(point.x, point.y);
+    await page.keyboard.press('ControlOrMeta+A');
+    await page.keyboard.type('20');
+    point = await cellPoint(page, 'padding-right');
+    await page.mouse.click(point.x, point.y);
+    assert.equal((await boxInputOpen(page))?.property, 'padding-right', 'the second click opens its field');
+    assert.equal((await computed(page, 'button.cta', ['padding-top']))['padding-top'], '20px');
+  });
+});
+
+test('with a field open, a drag on the next number scrubs it', async (t) => {
+  await run(t, async (page) => {
+    await selectElement(page, 'button.cta');
+    let point = await cellPoint(page, 'padding-top');
+    await page.mouse.click(point.x, point.y);
+    await page.keyboard.press('ControlOrMeta+A');
+    await page.keyboard.type('20');
+    point = await cellPoint(page, 'padding-right');
+    await page.mouse.move(point.x, point.y);
+    await page.mouse.down();
+    for (let i = 1; i <= 8; i += 1) await page.mouse.move(point.x + i, point.y);
+    await page.mouse.up();
+    const after = await computed(page, 'button.cta', ['padding-top', 'padding-right']);
+    assert.equal(after['padding-top'], '20px');
+    assert.notEqual(after['padding-right'], '14px', 'the scrub moved padding-right');
+  });
+});
+
+test('a pending Outside stroke makes the border numbers read-only', async (t) => {
+  await run(t, async (page) => {
+    await selectElement(page, 'button.cta');
+    await page.evaluate(() => {
+      const api = window.__ravenGrabPanels;
+      api.commitStrokeEdit(
+        { position: 'outside', width: '2px', style: 'solid', color: 'rgb(255, 0, 0)' },
+        { position: 'inside', width: '1px', style: 'solid', color: 'rgb(0, 0, 0)' }
+      );
+      api.renderPanel();
+    });
+    const box = await readBox(page);
+    for (const side of ['top', 'right', 'bottom', 'left']) {
+      assert.equal(box[`border-${side}-width`].readonly, true, side);
+      assert.equal(box[`border-${side}-width`].title, 'Edit this stroke in Stroke');
+    }
+    assert.equal((await computed(page, 'button.cta', ['outline-width']))['outline-width'], '2px', 'the outline stays');
+  }, { expose: ['commitStrokeEdit', 'renderPanel'] });
+});
+
+test('multi-select under border-box with different padding: the content size reads Mixed and is read-only', async (t) => {
+  const html = (await readFile(FIXTURE_PATH, 'utf8')).replace('</style>',
+    '#card-a, #card-b { box-sizing: border-box; width: 200px; flex: none; }\n#card-b { padding: 20px; }\n</style>');
+  await run(t, async (page) => {
+    await selectElement(page, '#card-a');
+    const at = await page.evaluate(() => { const r = document.querySelector('#card-b').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+    await page.keyboard.down('Shift');
+    await page.mouse.move(at.x, at.y);
+    await page.mouse.click(at.x, at.y);
+    await page.keyboard.up('Shift');
+    await page.waitForTimeout(150);
+    const box = await readBox(page);
+    assert.equal(box['padding-left'].text, 'Mixed', 'the selection really is mixed');
+    assert.equal(box.width.text, 'Mixed');
+    assert.equal(box.width.readonly, true);
+    assert.equal(box.width.title, 'Padding or border differs across the selection');
+  }, { html });
+});

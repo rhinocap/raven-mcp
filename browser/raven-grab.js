@@ -5555,8 +5555,24 @@
         return sideEdit ? sideEdit.oldValue : (capturedOriginalComputed(property + "-" + side, selectedElement) || computedStyleValueForElement(selectedElement, property + "-" + side));
       }));
     }
-    // The side records go; their saved originals stay so cancel restores the page.
-    replacedSides.forEach(function (side) { delete styleEdits[property + "-" + side]; });
+    if (replacedSides.length) {
+      // Put the page back to before the sides were edited, so the shorthand's
+      // saved original is clean and no side keeps a stale original that a later
+      // cancel would write back. A preview of a shorthand that has no edit yet
+      // was captured over the side edits, so undo it first; then the sides,
+      // newest first.
+      if (!styleEdits[property] && styleEditOriginalInline[property]) {
+        restoreStyleEdit(property);
+        delete styleEditOriginalInline[property];
+      }
+      Object.keys(styleEdits).filter(function (key) {
+        return replacedSides.some(function (side) { return key === property + "-" + side; });
+      }).reverse().forEach(function (key) {
+        restoreStyleEdit(key);
+        delete styleEditOriginalInline[key];
+        delete styleEdits[key];
+      });
+    }
     captureStyleOriginals(property, targets);
     if (newValue === originalValue && resolved !== MIXED_STYLE_VALUE && currentValue !== MIXED_STYLE_VALUE) {
       clearStyleEdit(property);
@@ -9361,6 +9377,7 @@
     var matched = matchedTokenEntryForProperty(property) || (shorthand ? matchedTokenEntryForProperty(shorthand) : null);
     if (matched && !styleEdits[property] && !(shorthand && styleEdits[shorthand])) return "Linked to a token. Detach it in Styles first.";
     var border = /^border-(top|right|bottom|left)-width$/.exec(property);
+    if (border && styleEdits["outline-style"] && styleEdits["outline-style"].groupId === "stroke") return "Edit this stroke in Stroke";
     if (border) {
       var style = boxComputed("border-" + border[1] + "-style");
       if (!style || style === "none") return "Add a stroke first";
@@ -9373,16 +9390,22 @@
   function boxCell(property) {
     var raw = boxComputed(property);
     var offset = 0;
+    var offsetMixed = false;
     if ((property === "width" || property === "height") && raw !== MIXED_STYLE_VALUE) {
       var sides = property === "width" ? ["left", "right"] : ["top", "bottom"];
-      if (boxComputed("box-sizing") === "border-box") {
+      var sizing = boxComputed("box-sizing");
+      offsetMixed = sizing === MIXED_STYLE_VALUE;
+      if (sizing === "border-box") {
         for (var i = 0; i < sides.length; i += 1) {
-          var pad = boxPx(boxComputed("padding-" + sides[i]));
-          var border = boxPx(boxComputed("border-" + sides[i] + "-width"));
-          offset += (pad || 0) + (border || 0);
+          var padRaw = boxComputed("padding-" + sides[i]);
+          var borderRaw = boxComputed("border-" + sides[i] + "-width");
+          if (padRaw === MIXED_STYLE_VALUE || borderRaw === MIXED_STYLE_VALUE) offsetMixed = true;
+          offset += (boxPx(padRaw) || 0) + (boxPx(borderRaw) || 0);
         }
       }
     }
+    // The content size differs per layer when what box-sizing adds back differs.
+    if (offsetMixed) raw = MIXED_STYLE_VALUE;
     var number = raw === MIXED_STYLE_VALUE ? null : boxPx(raw);
     var shown = number === null ? null : number - offset;
     var edit = styleEdits[property];
@@ -9393,7 +9416,7 @@
       offset: offset,
       number: shown,
       text: raw === MIXED_STYLE_VALUE ? "Mixed" : shown === null ? (raw || "auto") : boxNumberText(shown),
-      readOnly: boxReadOnlyReason(property),
+      readOnly: offsetMixed ? "Padding or border differs across the selection" : boxReadOnlyReason(property),
       edited: !!edit || (shorthand ? !!styleEdits[shorthand] : false)
     };
   }
@@ -9521,6 +9544,14 @@
     if (focused) boxFocusCell(focused);
   }
 
+  function boxVisibleCell(property) {
+    var cells = panelQueryAll('[data-box-prop="' + property + '"]');
+    for (var i = 0; i < cells.length; i += 1) {
+      if (cells[i].getClientRects && cells[i].getClientRects().length) return cells[i];
+    }
+    return null;
+  }
+
   function boxFocusCell(property) {
     var cells = panelQueryAll('[data-box-prop="' + property + '"]');
     for (var i = 0; i < cells.length; i += 1) {
@@ -9542,8 +9573,12 @@
 
   function openBoxField(cell) {
     if (!cell || cell.getAttribute("data-readonly") === "true" || !selectedElement) return false;
-    if (activeStyleEditorFlush) activeStyleEditorFlush();
     var property = cell.getAttribute("data-box-prop");
+    if (activeStyleEditorFlush) {
+      activeStyleEditorFlush();
+      cell = boxVisibleCell(property);
+      if (!cell || cell.getAttribute("data-readonly") === "true") return false;
+    }
     var openRaw = cell.getAttribute("data-box-raw");
     var target = selectedElement;
     var hadEdit = !!styleEdits[property];
@@ -9558,6 +9593,8 @@
     input.spellcheck = false;
     var shown = boxShownNumber(cell);
     input.value = shown === null ? (openRaw === MIXED_STYLE_VALUE ? "" : (openRaw || "auto")) : boxNumberText(shown);
+    // The field shows a rounded number; leaving it as shown is not an edit.
+    var openText = input.value;
     cell.textContent = "";
     cell.setAttribute("data-editing", "true");
     cell.appendChild(input);
@@ -9579,7 +9616,7 @@
       if (finished) return;
       close();
       if (target !== selectedElement || input.isConnected === false) return;
-      var value = boxValueFromEntry(cell, input.value);
+      var value = input.value.trim() === openText.trim() ? null : boxValueFromEntry(cell, input.value);
       if (!value) {
         if (previewed) boxRollback(property, hadEdit, hadEdit ? styleEdits[property].newValue : openRaw);
         renderPanel();
@@ -9626,8 +9663,13 @@
     if (event.button !== 0) return false;
     if (cell.getAttribute("data-editing") === "true") return false;
     if (cell.getAttribute("data-readonly") === "true") return false;
-    if (activeStyleEditorFlush) activeStyleEditorFlush();
     var property = cell.getAttribute("data-box-prop");
+    if (activeStyleEditorFlush) {
+      // Committing the open field re-renders the panel; continue on the new cell.
+      activeStyleEditorFlush();
+      cell = boxVisibleCell(property);
+      if (!cell || cell.getAttribute("data-readonly") === "true") return false;
+    }
     var openRaw = cell.getAttribute("data-box-raw");
     var start = boxShownNumber(cell);
     var target = selectedElement;
