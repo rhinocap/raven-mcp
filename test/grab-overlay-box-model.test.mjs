@@ -74,6 +74,16 @@ async function typeInBox(page, property, value) {
   await page.keyboard.press('Enter');
 }
 
+// Shift-click another element to add it to the selection.
+async function addToSelection(page, selector) {
+  const at = await page.evaluate((sel) => { const r = document.querySelector(sel).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, selector);
+  await page.keyboard.down('Shift');
+  await page.mouse.move(at.x, at.y);
+  await page.mouse.click(at.x, at.y);
+  await page.keyboard.up('Shift');
+  await page.waitForTimeout(150);
+}
+
 async function focusCell(page, property) {
   await shadowEval(page, (root, prop) => {
     Array.from(root.querySelectorAll(`[data-box-prop="${prop}"]`)).find((node) => node.getClientRects().length).focus();
@@ -517,17 +527,12 @@ test('multi-select under border-box with different padding: the content size rea
     '#card-a, #card-b { box-sizing: border-box; width: 200px; flex: none; }\n#card-b { padding: 20px; }\n</style>');
   await run(t, async (page) => {
     await selectElement(page, '#card-a');
-    const at = await page.evaluate(() => { const r = document.querySelector('#card-b').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
-    await page.keyboard.down('Shift');
-    await page.mouse.move(at.x, at.y);
-    await page.mouse.click(at.x, at.y);
-    await page.keyboard.up('Shift');
-    await page.waitForTimeout(150);
+    await addToSelection(page, '#card-b');
     const box = await readBox(page);
     assert.equal(box['padding-left'].text, 'Mixed', 'the selection really is mixed');
     assert.equal(box.width.text, 'Mixed');
     assert.equal(box.width.readonly, true);
-    assert.equal(box.width.title, 'Padding or border differs across the selection');
+    assert.equal(box.width.title, 'Padding or border differs across the selection. Make those match first.');
   }, { html });
 });
 
@@ -542,24 +547,78 @@ test('shorthand, then a side over it, then Send: the page keeps no leftover inli
   });
 });
 
-test('multi-select: a side that differs reads Mixed and is read-only', async (t) => {
+test('multi-select: typing into a Mixed side makes every selected element match', async (t) => {
+  const html = (await readFile(FIXTURE_PATH, 'utf8')).replace('</style>', '#card-b { padding-left: 20px; }\n</style>');
+  await run(t, async (page, { grabBodies }) => {
+    await selectElement(page, '#card-a');
+    await addToSelection(page, '#card-b');
+    const before = await readBox(page);
+    assert.equal(before['padding-left'].text, 'Mixed');
+    assert.equal(before['padding-left'].readonly, false, 'a Mixed number can be typed into');
+    const point = await cellPoint(page, 'padding-left');
+    await page.mouse.click(point.x, point.y);
+    const open = await boxInputOpen(page);
+    assert.equal(open.property, 'padding-left');
+    assert.equal(open.value, '', 'the field starts empty');
+    assert.equal(await shadowEval(page, (root) => root.querySelector('[data-box-input]').placeholder), 'Mixed');
+    await page.keyboard.type('24');
+    await page.keyboard.press('Enter');
+    assert.equal((await computed(page, '#card-a', ['padding-left']))['padding-left'], '24px');
+    assert.equal((await computed(page, '#card-b', ['padding-left']))['padding-left'], '24px');
+    const after = await readBox(page);
+    assert.equal(after['padding-left'].text, '24', 'they match, so the box shows the value');
+    assert.equal(after['padding-left'].edited, true);
+    await sendBatch(page);
+    const edits = JSON.stringify(grabBodies.at(-1));
+    assert.match(edits, /"property":"padding-left"[^}]*"newValue":"24px"/);
+  }, { html });
+});
+
+test('multi-select: an empty Enter on a Mixed number changes nothing', async (t) => {
   const html = (await readFile(FIXTURE_PATH, 'utf8')).replace('</style>', '#card-b { padding-left: 20px; }\n</style>');
   await run(t, async (page) => {
     await selectElement(page, '#card-a');
-    const at = await page.evaluate(() => { const r = document.querySelector('#card-b').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
-    await page.keyboard.down('Shift');
-    await page.mouse.move(at.x, at.y);
-    await page.mouse.click(at.x, at.y);
-    await page.keyboard.up('Shift');
-    await page.waitForTimeout(150);
-    const box = await readBox(page);
-    assert.equal(box['padding-left'].text, 'Mixed');
-    assert.equal(box['padding-left'].readonly, true);
-    assert.equal(box['padding-left'].title, 'Values differ across the selection');
-    assert.equal(box['padding-right'].readonly, false, 'a shared value stays editable');
+    await addToSelection(page, '#card-b');
+    const card = await computed(page, '#card-a', ['padding-left']);
     const point = await cellPoint(page, 'padding-left');
     await page.mouse.click(point.x, point.y);
-    assert.equal(await boxInputOpen(page), null, 'no field opens on a Mixed number');
+    await page.keyboard.press('Enter');
+    assert.deepEqual(await computed(page, '#card-a', ['padding-left']), card);
+    assert.equal((await computed(page, '#card-b', ['padding-left']))['padding-left'], '20px');
+    assert.equal((await readTray(page)).length, 0, 'no pending change');
+  }, { html });
+});
+
+test('multi-select: a Mixed content width with matching padding takes one typed value', async (t) => {
+  const html = (await readFile(FIXTURE_PATH, 'utf8')).replace('</style>',
+    '#card-a, #card-b { box-sizing: border-box; flex: none; }\n#card-a { width: 180px; }\n#card-b { width: 220px; }\n</style>');
+  await run(t, async (page) => {
+    await selectElement(page, '#card-a');
+    await addToSelection(page, '#card-b');
+    assert.equal((await readBox(page)).width.text, 'Mixed');
+    await typeInBox(page, 'width', '150');
+    const a = await page.evaluate(() => { const s = getComputedStyle(document.querySelector('#card-a')); return parseFloat(s.width) - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight) - parseFloat(s.borderLeftWidth) - parseFloat(s.borderRightWidth); });
+    const b = await page.evaluate(() => { const s = getComputedStyle(document.querySelector('#card-b')); return parseFloat(s.width) - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight) - parseFloat(s.borderLeftWidth) - parseFloat(s.borderRightWidth); });
+    assert.equal(a, 150);
+    assert.equal(b, 150);
+    assert.equal((await readBox(page)).width.text, '150');
+  }, { html });
+});
+
+test('multi-select: sides that differ but add up the same keep one content width you can type into', async (t) => {
+  const html = (await readFile(FIXTURE_PATH, 'utf8')).replace('</style>',
+    '#card-a, #card-b { box-sizing: border-box; width: 200px; flex: none; }\n#card-a { padding-left: 10px; padding-right: 20px; }\n#card-b { padding-left: 20px; padding-right: 10px; }\n</style>');
+  await run(t, async (page) => {
+    await selectElement(page, '#card-a');
+    await addToSelection(page, '#card-b');
+    const content = (sel) => page.evaluate((s) => { const c = getComputedStyle(document.querySelector(s)); return parseFloat(c.width) - parseFloat(c.paddingLeft) - parseFloat(c.paddingRight) - parseFloat(c.borderLeftWidth) - parseFloat(c.borderRightWidth); }, sel);
+    const box = await readBox(page);
+    assert.equal(box['padding-left'].text, 'Mixed', 'the sides really differ');
+    assert.equal(box.width.text, String(await content('#card-a')), 'both content widths are equal, so the box shows the number');
+    assert.equal(box.width.readonly, false);
+    await typeInBox(page, 'width', '150');
+    assert.equal(await content('#card-a'), 150);
+    assert.equal(await content('#card-b'), 150);
   }, { html });
 });
 

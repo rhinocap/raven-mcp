@@ -1365,6 +1365,10 @@
     }
     .raven-grab-style-input:focus { box-shadow: 0 0 0 3px rgba(0, 191, 255, .15); }
     .raven-grab-style-editor { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; width: 100%; }
+    /* A one-line field opens inside its row: 32px tall, but it takes only the
+       value's 18px of layout, so the row and every row below stay where they are. */
+    .raven-grab-style-editor:is([data-control="number"], [data-control="enum"], [data-control="text"]):not(:has(> .raven-grab-token-inline)) { flex-wrap: nowrap; height: 32px; margin: -7px 0; }
+    .raven-grab-style-editor:is([data-control="number"], [data-control="enum"], [data-control="text"]):not(:has(> .raven-grab-token-inline)) > * { height: 32px; min-height: 0; box-sizing: border-box; }
     .raven-grab-style-editor[data-token-linked="true"] > :not(.raven-grab-token-inline) { opacity: .45; }
     .raven-grab-token-inline { display: grid; gap: 8px; width: 100%; flex: 1 0 100%; margin-bottom: 2px; }
     .raven-grab-token-inline .raven-grab-field { margin-top: 0; }
@@ -1416,6 +1420,13 @@
     .raven-grab-style-editor[data-control="size"] { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; align-items: start; gap: 8px; padding-top: 4px; }
     .raven-grab-style-editor[data-control="size"] { grid-template-columns: minmax(0, 1fr) auto; }
     .raven-grab-style-editor[data-control="easing"] { grid-column: 1 / -1; padding-top: 4px; }
+    .raven-grab-styles li[data-popover-open="true"] { position: relative; z-index: 4; }
+    .raven-grab-styles code[data-style-ghost="true"] { pointer-events: none; }
+    .raven-grab-style-editor[data-popover="true"][data-control="color"] > .raven-grab-style-input { flex: 1 1 0; width: auto; }
+    .raven-grab-style-editor[data-popover="true"] {
+      position: absolute; z-index: 5; top: calc(100% + 4px); left: 0; right: 0; width: auto; margin: 0; padding: 10px; overflow-y: auto; overscroll-behavior: contain;
+      background: var(--raven-grab-raised); border: 1px solid rgba(255, 255, 255, .12); border-radius: 10px; box-shadow: 0 12px 32px rgba(0, 0, 0, .45);
+    }
     .raven-grab-easing { display: grid; gap: 8px; width: 100%; min-width: 0; }
     .raven-grab-easing-canvas { width: 100%; aspect-ratio: 240 / 96; background: rgba(255, 255, 255, .03); border: 1px solid rgba(255, 255, 255, .1); border-radius: 8px; touch-action: none; }
     .raven-grab-easing-track { stroke: rgba(255, 255, 255, .16); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
@@ -1550,7 +1561,9 @@
     .raven-grab-box-num[data-edited="true"] { color: var(--raven-grab-accent); font-weight: 500; }
     .raven-grab-box-num[data-readonly="true"] { color: var(--raven-grab-tertiary); cursor: default; }
     .raven-grab-box-num[data-readonly="true"]:hover { background: transparent; }
-    .raven-grab-box-num[data-editing="true"] { padding: 0; background: transparent; }
+    .raven-grab-box-num[data-editing="true"] { position: relative; color: transparent; background: transparent; }
+    .raven-grab-box-num[data-editing="true"] .raven-grab-box-input { position: absolute; z-index: 1; top: 0; left: 50%; height: 100%; min-width: 100%; transform: translateX(-50%); }
+    .raven-grab-box-input::placeholder { color: var(--raven-grab-tertiary); }
     .raven-grab-box-input { width: calc(38px * var(--raven-grab-font-scale)); box-sizing: border-box; margin: 0; padding: 0 2px; border: 1px solid var(--raven-grab-accent); border-radius: 3px; background: var(--raven-grab-bg); color: var(--raven-grab-text); font: inherit; text-align: center; outline: none; }
     /* Mobile sheet: every number is a 44px tap target; the content box stacks W over H to fit. */
     :host([data-mobile-sheet="true"]) .raven-grab-box-ring { grid-template-columns: 44px minmax(0, 1fr) 44px; grid-template-rows: 44px auto 44px; }
@@ -1748,6 +1761,9 @@
     .raven-grab-changes-header span { color: var(--raven-grab-muted); font-weight: 400; }
     .raven-grab-changes-toggle { color: var(--raven-grab-text); font: 600 calc(11px * var(--raven-grab-font-scale))/1.3 var(--raven-grab-ui); }
     .raven-grab-changes-toggle:hover { color: var(--raven-grab-text); }
+    .raven-grab-changes[data-change-tray-empty] .raven-grab-changes-toggle { color: var(--raven-grab-muted); cursor: default; }
+    /* On the mobile sheet the tray sits below the scrolling list, so it never moves a field; the empty slot would only take room. */
+    :host([data-mobile-sheet="true"]) .raven-grab-changes[data-change-tray-empty] { display: none; }
     .raven-grab-changes-heading { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
     .raven-grab-changes-heading span { color: var(--raven-grab-muted); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .raven-grab-collapsible[data-change-tray-body] .raven-grab-change-list { margin-top: 8px; }
@@ -6558,7 +6574,7 @@
     var tokenEdited = matched && !!tokenIntents[matched.index];
     row.setAttribute("data-edited", edited || tokenEdited ? "true" : "false");
     var cell = buildStyleValueCell(property, value, styleState, matched, edited);
-    row.replaceChild(cell, editor);
+    unmountStyleEditor(row, cell, editor);
   }
 
   function cancelStyleEdit(input, previousValue) {
@@ -6805,6 +6821,101 @@
   // getComputedStyle; if one ever does, it stays a plain text edit).
   function isSingleColorValue(value) {
     return parseColorParts(value) !== null;
+  }
+
+  // A one-line editor opens inside its row. A larger editor (size, stroke, color,
+  // shadow, easing, a token choice) floats over the rows below as a popover, and
+  // the row keeps showing its value, so opening a field never moves another field.
+  var STYLE_POPOVER_CONTROLS = ["size", "stroke", "color", "box-shadow", "overflow", "text-decoration", "easing", "radius"];
+  // A token-linked editor has no raw field in focus (its token trigger has focus),
+  // so Escape and focus leaving the editor close it here, without writing a style.
+  function wireLinkedEditorDismiss(editor, close) {
+    editor.addEventListener("keydown", function (event) {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      if (editor.getAttribute("data-token-linked") !== "true") return;
+      var menu = editor.querySelector('.raven-grab-token-picker-menu[data-open="true"]');
+      event.preventDefault();
+      event.stopPropagation();
+      if (menu) {
+        menu.setAttribute("data-open", "false");
+        var trigger = editor.querySelector(".raven-grab-token-picker-trigger");
+        if (trigger) trigger.setAttribute("aria-expanded", "false");
+        return;
+      }
+      close();
+    });
+    editor.addEventListener("focusout", function (event) {
+      if (editor.getAttribute("data-token-linked") !== "true") return;
+      var next = event.relatedTarget;
+      if (!next || (typeof editor.contains === "function" && editor.contains(next))) return;
+      close();
+    });
+  }
+  function mountStyleEditor(valueCell, editor) {
+    var row = valueCell.parentNode;
+    var control = editor.getAttribute("data-control");
+    var popover = STYLE_POPOVER_CONTROLS.indexOf(control) !== -1 || !!editor.querySelector(".raven-grab-token-inline");
+    if (!popover || !row || String(row.tagName).toLowerCase() !== "li") {
+      row.replaceChild(editor, valueCell);
+      return;
+    }
+    var ghost = document.createElement("code");
+    ghost.className = valueCell.className;
+    ghost.textContent = valueCell.textContent;
+    ghost.setAttribute("aria-hidden", "true");
+    ghost.setAttribute("data-style-ghost", "true");
+    row.replaceChild(ghost, valueCell);
+    editor.setAttribute("data-popover", "true");
+    row.setAttribute("data-popover-open", "true");
+    row.appendChild(editor);
+    placeStylePopover(row, editor);
+  }
+
+  // Closing puts the value cell back where the row's copy of it sat.
+  function unmountStyleEditor(row, cell, editor) {
+    var ghost = editor.getAttribute("data-popover") === "true" ? row.querySelector(':scope > code[data-style-ghost="true"]') : null;
+    if (!ghost) { row.replaceChild(cell, editor); return; }
+    row.replaceChild(cell, ghost);
+    row.removeChild(editor);
+    row.removeAttribute("data-popover-open");
+  }
+
+  // The part of the screen the row's list actually shows: every clipping
+  // ancestor (the list, the sheet, the panel) and the window.
+  function styleListVisibleBox(row) {
+    var box = { top: 0, bottom: window.innerHeight };
+    var node = row.parentNode;
+    while (node) {
+      if (node.nodeType === 11) { node = node.host; continue; }
+      if (node.nodeType !== 1) break;
+      var nodeStyle = window.getComputedStyle(node);
+      if (nodeStyle.overflowY !== "visible") {
+        // Focus treats a scroll container's scroll padding as hidden too.
+        var rect = node.getBoundingClientRect();
+        box.top = Math.max(box.top, rect.top + (parseFloat(nodeStyle.scrollPaddingTop) || 0));
+        box.bottom = Math.min(box.bottom, rect.bottom - (parseFloat(nodeStyle.scrollPaddingBottom) || 0));
+      }
+      node = node.parentNode;
+    }
+    box.height = Math.max(0, box.bottom - box.top);
+    return box;
+  }
+
+  function placeStylePopover(row, editor) {
+    // Below the row if it fits, else above, else as high as the list allows; it
+    // always stays inside the list's visible area, so focusing it never scrolls.
+    var gap = 4;
+    var box = styleListVisibleBox(row);
+    var rowRect = row.getBoundingClientRect();
+    var room = Math.max(0, box.height - gap * 2);
+    editor.style.maxHeight = room + "px";
+    var height = Math.min(editor.getBoundingClientRect().height, room);
+    var top = rowRect.bottom + gap;
+    if (top + height > box.bottom - gap) {
+      top = rowRect.top - gap - height >= box.top + gap ? rowRect.top - gap - height : box.bottom - gap - height;
+    }
+    if (top < box.top + gap) top = box.top + gap;
+    editor.style.top = (top - rowRect.top) + "px";
   }
 
   function classifyStyleControl(property, value) {
@@ -7407,7 +7518,7 @@
       return !!styleEdits[property] && styleEdits[property].groupId === "stroke";
     });
     row.setAttribute("data-edited", edited ? "true" : "false");
-    row.replaceChild(cell, editor);
+    unmountStyleEditor(row, cell, editor);
   }
 
   function beginStrokeEdit(valueCell) {
@@ -7564,7 +7675,7 @@
         preview();
       }, null);
     }
-    valueCell.parentNode.replaceChild(editor, valueCell);
+    mountStyleEditor(valueCell, editor);
 
     function updatePositionButtons() {
       insideButton.setAttribute("aria-pressed", model.position === "inside" ? "true" : "false");
@@ -7842,7 +7953,7 @@
     editor.appendChild(lineField);
     editor.appendChild(styleField);
     editor.appendChild(colorField);
-    valueCell.parentNode.replaceChild(editor, valueCell);
+    mountStyleEditor(valueCell, editor);
 
     function readValue() {
       var color = colorText.value.trim() || "currentColor";
@@ -8029,7 +8140,7 @@
     editor.appendChild(spreadField.field);
     editor.appendChild(insetField);
     editor.appendChild(colorField);
-    valueCell.parentNode.replaceChild(editor, valueCell);
+    mountStyleEditor(valueCell, editor);
 
     function syncPresetButtons(activeId) {
       activePresetId = activeId || "";
@@ -8207,7 +8318,7 @@
     var yAxis = axisField("Y", model.y, "Overflow Y");
     editor.appendChild(xAxis.field);
     editor.appendChild(yAxis.field);
-    valueCell.parentNode.replaceChild(editor, valueCell);
+    mountStyleEditor(valueCell, editor);
 
     function readValue() {
       return composeOverflow({ x: xAxis.select.value, y: yAxis.select.value });
@@ -8319,7 +8430,7 @@
 
     editor.appendChild(modeField);
     editor.appendChild(valueRow);
-    valueCell.parentNode.replaceChild(editor, valueCell);
+    mountStyleEditor(valueCell, editor);
 
     function currentSizeMode() {
       return modeSelect.value || sizeModeForValue(previousValue === MIXED_STYLE_VALUE ? "" : previousValue);
@@ -9144,7 +9255,8 @@
       });
     }
 
-    valueCell.parentNode.replaceChild(editor, valueCell);
+    wireLinkedEditorDismiss(editor, cancel);
+    mountStyleEditor(valueCell, editor);
     focusTarget.focus();
     if (typeof focusTarget.select === "function") focusTarget.select();
 
@@ -9405,20 +9517,25 @@
     var raw = boxComputed(property);
     var offset = 0;
     var offsetMixed = false;
-    if ((property === "width" || property === "height") && raw !== MIXED_STYLE_VALUE) {
+    if (property === "width" || property === "height") {
+      // What box-sizing adds back, per selected element. One typed content size
+      // can make them all match only when every element adds back the same amount.
       var sides = property === "width" ? ["left", "right"] : ["top", "bottom"];
-      var sizing = boxComputed("box-sizing");
-      offsetMixed = sizing === MIXED_STYLE_VALUE;
-      if (sizing === "border-box") {
-        for (var i = 0; i < sides.length; i += 1) {
-          var padRaw = boxComputed("padding-" + sides[i]);
-          var borderRaw = boxComputed("border-" + sides[i] + "-width");
-          if (padRaw === MIXED_STYLE_VALUE || borderRaw === MIXED_STYLE_VALUE) offsetMixed = true;
-          offset += (boxPx(padRaw) || 0) + (boxPx(borderRaw) || 0);
+      var targets = styleApplicationTargets();
+      for (var t = 0; t < targets.length; t += 1) {
+        var own = 0;
+        if (computedStyleValueForElement(targets[t], "box-sizing") === "border-box") {
+          for (var i = 0; i < sides.length; i += 1) {
+            own += (boxPx(computedStyleValueForElement(targets[t], "padding-" + sides[i])) || 0) +
+              (boxPx(computedStyleValueForElement(targets[t], "border-" + sides[i] + "-width")) || 0);
+          }
         }
+        if (t === 0) offset = own;
+        else if (Math.abs(own - offset) > 0.001) offsetMixed = true;
       }
     }
-    // The content size differs per layer when what box-sizing adds back differs.
+    // The content size differs per layer when what box-sizing adds back differs,
+    // and one typed value cannot make those content sizes match.
     if (offsetMixed) raw = MIXED_STYLE_VALUE;
     var number = raw === MIXED_STYLE_VALUE ? null : boxPx(raw);
     var shown = number === null ? null : number - offset;
@@ -9430,7 +9547,7 @@
       offset: offset,
       number: shown,
       text: raw === MIXED_STYLE_VALUE ? "Mixed" : shown === null ? (raw || "auto") : boxNumberText(shown),
-      readOnly: offsetMixed ? "Padding or border differs across the selection" : raw === MIXED_STYLE_VALUE ? "Values differ across the selection" : boxReadOnlyReason(property),
+      readOnly: offsetMixed ? "Padding or border differs across the selection. Make those match first." : boxReadOnlyReason(property),
       edited: !!edit || (shorthand ? !!styleEdits[shorthand] : false)
     };
   }
@@ -9609,7 +9726,9 @@
     input.value = shown === null ? (openRaw === MIXED_STYLE_VALUE ? "" : (openRaw || "auto")) : boxNumberText(shown);
     // The field shows a rounded number; leaving it as shown is not an edit.
     var openText = input.value;
-    cell.textContent = "";
+    if (openRaw === MIXED_STYLE_VALUE) input.placeholder = "Mixed";
+    // The cell keeps its text (hidden), so it keeps its size and baseline; the
+    // field sits over it and nothing moves.
     cell.setAttribute("data-editing", "true");
     cell.appendChild(input);
     input.focus();
@@ -9870,7 +9989,8 @@
         inputs[0].focus();
       });
     }
-    valueCell.parentNode.replaceChild(editor, valueCell);
+    wireLinkedEditorDismiss(editor, cancel);
+    mountStyleEditor(valueCell, editor);
     (tokenUi && tokenUi.trigger ? tokenUi.trigger : inputs[0]).focus();
     if (!tokenUi || !tokenUi.trigger) inputs[0].select();
     activeStyleEditorFlush = commit;
@@ -12074,12 +12194,19 @@
 
   function changesTrayMarkup() {
     var items = changeTrayItems();
-    if (!items.length) return "";
+    // The tray's slot is always there, so the first change never pushes the box
+    // model and Instructions up.
+    if (!items.length) {
+      return '<div class="raven-grab-changes" data-change-tray-empty><div class="raven-grab-section-toggle raven-grab-changes-toggle" aria-disabled="true">'
+        + '<span class="raven-grab-changes-heading"><strong>Pending changes</strong><span>None yet</span></span></div></div>';
+    }
     var count = pendingLogicalCount();
     var localItems = items.filter(function (item) { return !!item.local; });
     var submittedItems = items.filter(function (item) { return !item.local; });
     if (dispatchState !== "idle" && localItems.length) {
-      return changeTraySectionMarkup(submittedItems, "Applying", activeDispatch ? activeDispatch.logicalCount + " active" : submittedItems.length + " active", "applying") + changeTraySectionMarkup(localItems, "Next changes", count + " pending", "next");
+      // One section, so a change made while others apply doesn't add a header and
+      // push the box model up; each row shows its own status.
+      return changeTraySectionMarkup(submittedItems.concat(localItems), "Applying", (activeDispatch ? activeDispatch.logicalCount : submittedItems.length) + " active · " + count + " next", "applying");
     }
     if (dispatchState !== "idle") return changeTraySectionMarkup(items, "Applying", activeDispatch ? activeDispatch.logicalCount + " active" : submittedItems.length + " active", "applying");
     return changeTraySectionMarkup(items, "Pending changes", count + " pending", "pending");
