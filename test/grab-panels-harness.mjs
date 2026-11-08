@@ -39,7 +39,7 @@ export async function withPanelsOverlay(fn, options = {}) {
   const b = await getBridge();
   const dir = await mkdtemp(path.join(tmpdir(), 'raven-grab-panels-'));
   const designPath = path.join(dir, 'DESIGN.md');
-  await writeFile(designPath, '---\ncolor:\n  text:\n    primary: "#ffffff"\n---\n\n# Fixture\n', 'utf8');
+  await writeFile(designPath, options.design || '---\ncolor:\n  text:\n    primary: "#ffffff"\n---\n\n# Fixture\n', 'utf8');
   const html = options.html || await readFile(FIXTURE_PATH, 'utf8');
   const session = await b.startGrabSession(designPath);
   const fixture = createServer((_req, res) => {

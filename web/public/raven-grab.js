@@ -256,6 +256,11 @@
   var styleEditScopeSiblingsTarget = null;
   var activeStyleEditorFlush = null;
   var activeStyleScrub = null;
+  // Box model (spec v0.2 §2): the open inline field and the live scrub.
+  var BOX_SIDES = ["top", "right", "bottom", "left"];
+  var BOX_SHORTHANDS = ["padding", "margin"];
+  var BOX_SCRUB_THRESHOLD = 3;
+  var boxGesture = null;
   var previewOriginals = Object.create(null);
   var activeTabA = "design";
   var activeTabB = motionOpenTab;
@@ -1527,6 +1532,34 @@
     .raven-grab-layer-row:hover { background: rgba(255,255,255,.04); }
     .raven-grab-layer-row[data-layer-hovered="true"] { background: rgba(255,255,255,.07); box-shadow: inset 2px 0 0 var(--raven-grab-accent); }
     .raven-grab-search { margin: 0 0 8px; }
+    .raven-grab-boxmodel { margin: 0 0 12px; color: var(--raven-grab-text); font: 400 calc(10px * var(--raven-grab-font-scale))/1 var(--raven-grab-ui); -webkit-user-select: none; user-select: none; }
+    .raven-grab-box-ring { position: relative; display: grid; grid-template-columns: calc(28px * var(--raven-grab-font-scale)) minmax(0, 1fr) calc(28px * var(--raven-grab-font-scale)); grid-template-rows: calc(14px * var(--raven-grab-font-scale)) auto calc(14px * var(--raven-grab-font-scale)); grid-template-areas: ". top ." "left inner right" ". bottom ."; align-items: center; justify-items: center; border-radius: 6px; }
+    .raven-grab-box-ring[data-ring="margin"] { border: 1px dashed rgba(255, 255, 255, .16); }
+    .raven-grab-box-ring[data-ring="border"] { border: 1px solid rgba(255, 255, 255, .26); background: rgba(255, 255, 255, .025); }
+    .raven-grab-box-ring[data-ring="padding"] { border: 1px dashed rgba(255, 255, 255, .16); background: rgba(255, 255, 255, .03); border-radius: 4px; }
+    .raven-grab-box-label { position: absolute; top: calc(3px * var(--raven-grab-font-scale)); left: 6px; color: var(--raven-grab-muted); font-size: calc(9px * var(--raven-grab-font-scale)); line-height: 1; pointer-events: none; }
+    .raven-grab-box-side[data-side="top"] { grid-area: top; }
+    .raven-grab-box-side[data-side="right"] { grid-area: right; }
+    .raven-grab-box-side[data-side="bottom"] { grid-area: bottom; }
+    .raven-grab-box-side[data-side="left"] { grid-area: left; }
+    .raven-grab-box-inner { grid-area: inner; width: 100%; min-width: 0; }
+    .raven-grab-box-content { display: flex; align-items: center; justify-content: center; gap: 2px; height: calc(20px * var(--raven-grab-font-scale)); border: 1px solid rgba(0, 191, 255, .32); border-radius: 3px; background: rgba(0, 191, 255, .06); color: var(--raven-grab-muted); }
+    .raven-grab-box-num { display: inline-block; min-width: calc(14px * var(--raven-grab-font-scale)); padding: 1px 3px; border-radius: 3px; color: var(--raven-grab-text); font-variant-numeric: tabular-nums; text-align: center; cursor: ew-resize; outline: none; }
+    .raven-grab-box-num:hover { background: rgba(0, 191, 255, .14); }
+    .raven-grab-box-num:focus-visible { box-shadow: 0 0 0 1px var(--raven-grab-accent); }
+    .raven-grab-box-num[data-edited="true"] { color: var(--raven-grab-accent); font-weight: 500; }
+    .raven-grab-box-num[data-readonly="true"] { color: var(--raven-grab-tertiary); cursor: default; }
+    .raven-grab-box-num[data-readonly="true"]:hover { background: transparent; }
+    .raven-grab-box-num[data-editing="true"] { padding: 0; background: transparent; }
+    .raven-grab-box-input { width: calc(38px * var(--raven-grab-font-scale)); box-sizing: border-box; margin: 0; padding: 0 2px; border: 1px solid var(--raven-grab-accent); border-radius: 3px; background: var(--raven-grab-bg); color: var(--raven-grab-text); font: inherit; text-align: center; outline: none; }
+    /* Mobile sheet: every number is a 44px tap target; the content box stacks W over H to fit. */
+    :host([data-mobile-sheet="true"]) .raven-grab-box-ring { grid-template-columns: 44px minmax(0, 1fr) 44px; grid-template-rows: 44px auto 44px; }
+    :host([data-mobile-sheet="true"]) .raven-grab-box-num { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; min-width: 44px; min-height: 44px; }
+    :host([data-mobile-sheet="true"]) .raven-grab-box-content { flex-direction: column; height: auto; gap: 0; }
+    :host([data-mobile-sheet="true"]) .raven-grab-box-content > [aria-hidden="true"] { display: none; }
+    :host([data-mobile-sheet="true"]) .raven-grab-box-content > [data-box-prop="width"]::before { content: "W\\00a0"; color: var(--raven-grab-muted); }
+    :host([data-mobile-sheet="true"]) .raven-grab-box-content > [data-box-prop="height"]::before { content: "H\\00a0"; color: var(--raven-grab-muted); }
+    :host([data-mobile-sheet="true"]) .raven-grab-box-label { top: 4px; }
     .raven-grab-input.raven-grab-search-input { width: 100%; box-sizing: border-box; font: 400 calc(13px * var(--raven-grab-font-scale))/1.4 var(--raven-grab-ui); -webkit-appearance: none; appearance: none; }
     .raven-grab-search-input::placeholder { color: var(--raven-grab-muted); }
     .raven-grab-search-input::-webkit-search-cancel-button, .raven-grab-search-input::-webkit-search-decoration { -webkit-appearance: none; appearance: none; }
@@ -5255,7 +5288,10 @@
   }
 
   function rollbackStyleEdits() {
-    Object.keys(styleEditOriginalInline).forEach(restoreStyleEdit);
+    // Newest first: a longhand captured after its shorthand's preview holds the
+    // shorthand's value as its "original", so it must be undone before the
+    // shorthand (spec "Grab panels" v0.2 §2, shorthand and side edits).
+    Object.keys(styleEditOriginalInline).reverse().forEach(restoreStyleEdit);
     styleEdits = Object.create(null);
     styleEditOriginalInline = Object.create(null);
     styleEditTarget = null;
@@ -5508,12 +5544,27 @@
         || (currentSelection && currentSelection.styles && currentSelection.styles[property])
         || "";
     }
+    var replacedSides = BOX_SHORTHANDS.indexOf(property) !== -1
+      ? BOX_SIDES.filter(function (side) { return !!styleEdits[property + "-" + side]; })
+      : [];
+    if (replacedSides.length && !styleEdits[property]) {
+      // The shorthand row shows the sides' live values; its true original is the
+      // sides' saved originals plus the untouched sides as computed.
+      originalValue = composeBoxSides(BOX_SIDES.map(function (side) {
+        var sideEdit = styleEdits[property + "-" + side];
+        return sideEdit ? sideEdit.oldValue : (capturedOriginalComputed(property + "-" + side, selectedElement) || computedStyleValueForElement(selectedElement, property + "-" + side));
+      }));
+    }
+    // The side records go; their saved originals stay so cancel restores the page.
+    replacedSides.forEach(function (side) { delete styleEdits[property + "-" + side]; });
     captureStyleOriginals(property, targets);
     if (newValue === originalValue && resolved !== MIXED_STYLE_VALUE && currentValue !== MIXED_STYLE_VALUE) {
       clearStyleEdit(property);
     } else {
       setStyleOnTargets(property, newValue, targets);
       applyStyleToScopeSiblings(property, newValue);
+      // Edit order is draft order: re-committing a property moves it to the end.
+      delete styleEdits[property];
       styleEdits[property] = { property: property, oldValue: originalValue, newValue: newValue };
       if (tokenMeta && tokenMeta.name) {
         styleEdits[property].token = tokenMeta.name;
@@ -5522,6 +5573,11 @@
       }
     }
     syncActiveStyleDraftKey();
+    // The status line is rebuilt by the render that follows a commit, so say it after.
+    if (replacedSides.length) {
+      var replacedMessage = capitalized(property) + " sides replaced by " + property;
+      window.setTimeout(function () { setGlobalActionStatus(replacedMessage); }, 0);
+    }
     return true;
   }
 
@@ -9256,6 +9312,382 @@
     window.addEventListener("mousemove", move, true);
     window.addEventListener("mouseup", release, true);
     window.addEventListener("blur", cancel);
+    event.preventDefault();
+    return true;
+  }
+
+  // --- Box model (spec "Grab panels" v0.2 §2) --------------------------------
+  // Margin, border, padding and the content box of the selection, each side a
+  // number you can drag, click to type, or step with the arrow keys. Every edit
+  // is the longhand through commitStyleEdit, so scope, Pending changes and the
+  // payload treat it like any Styles edit.
+  function composeBoxSides(sides) {
+    if (!sides || sides.length !== 4) return "";
+    if (sides[0] === sides[1] && sides[0] === sides[2] && sides[0] === sides[3]) return sides[0];
+    if (sides[0] === sides[2] && sides[1] === sides[3]) return sides[0] + " " + sides[1];
+    if (sides[1] === sides[3]) return sides[0] + " " + sides[1] + " " + sides[2];
+    return sides.join(" ");
+  }
+
+  function boxPx(value) {
+    var match = /^(-?\d*\.?\d+)px$/.exec(String(value || "").trim());
+    return match ? Number(match[1]) : null;
+  }
+
+  function boxNumberText(number) {
+    return String(Math.round(number * 100) / 100);
+  }
+
+  // Computed across the selection; MIXED_STYLE_VALUE when members disagree.
+  function boxComputed(property) {
+    var targets = styleApplicationTargets();
+    if (!targets.length) return "";
+    var first = computedStyleValueForElement(targets[0], property);
+    for (var i = 1; i < targets.length; i += 1) {
+      if (computedStyleValueForElement(targets[i], property) !== first) return MIXED_STYLE_VALUE;
+    }
+    return first;
+  }
+
+  function boxShorthandOf(property) {
+    if (/^padding-/.test(property)) return "padding";
+    if (/^margin-/.test(property)) return "margin";
+    if (/^border-(top|right|bottom|left)-width$/.test(property)) return "border-width";
+    return null;
+  }
+
+  function boxReadOnlyReason(property) {
+    var shorthand = boxShorthandOf(property);
+    var matched = matchedTokenEntryForProperty(property) || (shorthand ? matchedTokenEntryForProperty(shorthand) : null);
+    if (matched && !styleEdits[property] && !(shorthand && styleEdits[shorthand])) return "Linked to a token. Detach it in Styles first.";
+    var border = /^border-(top|right|bottom|left)-width$/.exec(property);
+    if (border) {
+      var style = boxComputed("border-" + border[1] + "-style");
+      if (!style || style === "none") return "Add a stroke first";
+    }
+    return "";
+  }
+
+  // One cell: what it shows, what it writes, and whether it can be edited.
+  // Width and height show the content box; `offset` is what box-sizing adds back.
+  function boxCell(property) {
+    var raw = boxComputed(property);
+    var offset = 0;
+    if ((property === "width" || property === "height") && raw !== MIXED_STYLE_VALUE) {
+      var sides = property === "width" ? ["left", "right"] : ["top", "bottom"];
+      if (boxComputed("box-sizing") === "border-box") {
+        for (var i = 0; i < sides.length; i += 1) {
+          var pad = boxPx(boxComputed("padding-" + sides[i]));
+          var border = boxPx(boxComputed("border-" + sides[i] + "-width"));
+          offset += (pad || 0) + (border || 0);
+        }
+      }
+    }
+    var number = raw === MIXED_STYLE_VALUE ? null : boxPx(raw);
+    var shown = number === null ? null : number - offset;
+    var edit = styleEdits[property];
+    var shorthand = boxShorthandOf(property);
+    return {
+      property: property,
+      raw: raw,
+      offset: offset,
+      number: shown,
+      text: raw === MIXED_STYLE_VALUE ? "Mixed" : shown === null ? (raw || "auto") : boxNumberText(shown),
+      readOnly: boxReadOnlyReason(property),
+      edited: !!edit || (shorthand ? !!styleEdits[shorthand] : false)
+    };
+  }
+
+  function boxNumberMarkup(property, label) {
+    var cell = boxCell(property);
+    return '<span class="raven-grab-box-num" data-box-prop="' + escapeHtml(property) + '" data-box-raw="' + escapeHtml(cell.raw) + '" data-box-offset="' + cell.offset + '"' +
+      ' tabindex="0" role="spinbutton" aria-label="' + escapeHtml(label) + '" aria-valuetext="' + escapeHtml(cell.text === "Mixed" || cell.text === "auto" ? cell.text : cell.text + "px") + '"' +
+      (cell.number !== null ? ' aria-valuenow="' + boxNumberText(cell.number) + '"' : "") +
+      (cell.readOnly ? ' aria-readonly="true" data-readonly="true" title="' + escapeHtml(cell.readOnly) + '"' : "") +
+      (cell.edited ? ' data-edited="true"' : "") + '>' + escapeHtml(cell.text) + '</span>';
+  }
+
+  function boxRingMarkup(ring, inner) {
+    var prop = function (side) { return ring === "border" ? "border-" + side + "-width" : ring + "-" + side; };
+    var num = function (side) { return '<span class="raven-grab-box-side" data-side="' + side + '">' + boxNumberMarkup(prop(side), ring + " " + side) + '</span>'; };
+    return '<div class="raven-grab-box-ring" data-ring="' + ring + '"><span class="raven-grab-box-label" aria-hidden="true">' + ring + '</span>' +
+      num("top") + num("left") + '<div class="raven-grab-box-inner">' + inner + '</div>' + num("right") + num("bottom") + '</div>';
+  }
+
+  function boxModelMarkup() {
+    if (simpleMode() || !selectedElement || !currentSelection) return "";
+    var content = '<div class="raven-grab-box-content">' + boxNumberMarkup("width", "content width") + '<span aria-hidden="true">×</span>' + boxNumberMarkup("height", "content height") + '</div>';
+    return '<section class="raven-grab-boxmodel" data-box-model aria-label="Box model">' +
+      boxRingMarkup("margin", boxRingMarkup("border", boxRingMarkup("padding", content))) + '</section>';
+  }
+
+  // What a typed or stepped entry writes. Width and height convert the content
+  // size back to what the element's box-sizing needs.
+  function boxValueFromEntry(cell, entry) {
+    var property = cell.getAttribute("data-box-prop") || "";
+    var text = String(entry == null ? "" : entry).trim().toLowerCase();
+    if (!text) return null;
+    if (text === "auto") return /^(margin-|width$|height$)/.test(property) ? "auto" : null;
+    var offset = Number(cell.getAttribute("data-box-offset")) || 0;
+    if (/^-?\d*\.?\d+$/.test(text)) {
+      var number = Number(text);
+      if (!/^margin-/.test(property) && number < 0) number = 0;
+      return boxNumberText(number + offset) + "px";
+    }
+    if (!offset) return text;
+    return "calc(" + text + " + " + boxNumberText(offset) + "px)";
+  }
+
+  function boxShownNumber(cell) {
+    var raw = boxPx(cell.getAttribute("data-box-raw"));
+    if (raw === null) return null;
+    return raw - (Number(cell.getAttribute("data-box-offset")) || 0);
+  }
+
+  // A pending Stroke group owns its border widths: update that record in place so
+  // the tray keeps one Stroke row.
+  function boxStrokeOwner(property) {
+    var edit = styleEdits[property];
+    return edit && edit.groupId === "stroke" ? edit : null;
+  }
+
+  // A uniform Stroke group writes the border-width shorthand. Editing one side
+  // turns the group per-side (all four sides as longhands), still one Stroke row.
+  function boxSplitUniformStroke(property, value) {
+    var side = /^border-(top|right|bottom|left)-width$/.exec(property);
+    var width = styleEdits["border-width"];
+    if (!side || !width || width.groupId !== "stroke") return null;
+    var styleEdit = styleEdits["border-style"];
+    var colorEdit = styleEdits["border-color"];
+    var emitted = [];
+    for (var i = 0; i < BOX_SIDES.length; i += 1) {
+      var name = BOX_SIDES[i];
+      emitted.push({ property: "border-" + name + "-width", value: name === side[1] ? value : width.newValue });
+      emitted.push({ property: "border-" + name + "-style", value: styleEdit && styleEdit.groupId === "stroke" ? styleEdit.newValue : boxComputed("border-" + name + "-style") });
+      emitted.push({ property: "border-" + name + "-color", value: colorEdit && colorEdit.groupId === "stroke" ? colorEdit.newValue : boxComputed("border-" + name + "-color") });
+    }
+    emitted.push({ property: "box-sizing", value: "border-box" });
+    emitted.push({ property: "outline-width", value: "0px" });
+    return applyStrokeEmission(emitted, null);
+  }
+
+  function boxPreview(property, value) {
+    return previewStyleEdit(property, value);
+  }
+
+  function boxRollback(property, hadEdit, committedValue) {
+    if (hadEdit) restoreCommittedValueWithSiblings(property, committedValue);
+    else {
+      restoreStyleEdit(property);
+      delete styleEditOriginalInline[property];
+    }
+  }
+
+  function boxCommit(property, value, openRaw) {
+    var owner = boxStrokeOwner(property);
+    var changed;
+    var split = owner ? null : boxSplitUniformStroke(property, value);
+    if (split !== null) {
+      changed = split;
+    } else if (owner) {
+      changed = owner.newValue !== value && previewStyleEdit(property, value);
+      if (changed) {
+        owner.newValue = value;
+        syncActiveStyleDraftKey();
+      }
+    } else {
+      changed = commitStyleEdit(property, value, openRaw);
+    }
+    syncSendButtonDisabled();
+    renderPanel();
+    return changed;
+  }
+
+  // Styles edits update their own row without a full render; bring the box
+  // model's numbers up to date the same way. An open field or gesture is left alone.
+  function refreshBoxModel() {
+    if (boxGesture) return;
+    var sections = panelQueryAll("[data-box-model]");
+    if (!sections.length) return;
+    var markup = boxModelMarkup();
+    var focused = shadow.activeElement && shadow.activeElement.getAttribute ? shadow.activeElement.getAttribute("data-box-prop") : null;
+    for (var i = 0; i < sections.length; i += 1) {
+      if (sections[i].querySelector("[data-box-input]")) continue;
+      var holder = document.createElement("div");
+      holder.innerHTML = markup;
+      if (holder.firstChild) sections[i].parentNode.replaceChild(holder.firstChild, sections[i]);
+      else sections[i].parentNode.removeChild(sections[i]);
+    }
+    if (focused) boxFocusCell(focused);
+  }
+
+  function boxFocusCell(property) {
+    var cells = panelQueryAll('[data-box-prop="' + property + '"]');
+    for (var i = 0; i < cells.length; i += 1) {
+      if (cells[i].getClientRects && cells[i].getClientRects().length) { cells[i].focus({ preventScroll: true }); return; }
+    }
+  }
+
+  function boxStep(cell, delta) {
+    if (cell.getAttribute("data-readonly") === "true") return false;
+    var shown = boxShownNumber(cell);
+    if (shown === null) return false;
+    var property = cell.getAttribute("data-box-prop");
+    var value = boxValueFromEntry(cell, boxNumberText(shown + delta));
+    if (!value) return false;
+    boxCommit(property, value, cell.getAttribute("data-box-raw"));
+    boxFocusCell(property);
+    return true;
+  }
+
+  function openBoxField(cell) {
+    if (!cell || cell.getAttribute("data-readonly") === "true" || !selectedElement) return false;
+    if (activeStyleEditorFlush) activeStyleEditorFlush();
+    var property = cell.getAttribute("data-box-prop");
+    var openRaw = cell.getAttribute("data-box-raw");
+    var target = selectedElement;
+    var hadEdit = !!styleEdits[property];
+    var previewed = false;
+    var finished = false;
+    var input = document.createElement("input");
+    input.className = "raven-grab-box-input";
+    input.type = "text";
+    input.setAttribute("inputmode", "decimal");
+    input.setAttribute("aria-label", cell.getAttribute("aria-label"));
+    input.setAttribute("data-box-input", property);
+    input.spellcheck = false;
+    var shown = boxShownNumber(cell);
+    input.value = shown === null ? (openRaw === MIXED_STYLE_VALUE ? "" : (openRaw || "auto")) : boxNumberText(shown);
+    cell.textContent = "";
+    cell.setAttribute("data-editing", "true");
+    cell.appendChild(input);
+    input.focus();
+    input.select();
+
+    function close() {
+      finished = true;
+      activeStyleEditorFlush = null;
+    }
+    function cancel() {
+      if (finished) return;
+      close();
+      if (previewed && target === selectedElement) boxRollback(property, hadEdit, hadEdit ? styleEdits[property].newValue : openRaw);
+      renderPanel();
+      boxFocusCell(property);
+    }
+    function commit() {
+      if (finished) return;
+      close();
+      if (target !== selectedElement || input.isConnected === false) return;
+      var value = boxValueFromEntry(cell, input.value);
+      if (!value) {
+        if (previewed) boxRollback(property, hadEdit, hadEdit ? styleEdits[property].newValue : openRaw);
+        renderPanel();
+        return;
+      }
+      if (!boxCommit(property, value, openRaw) && previewed) {
+        boxRollback(property, hadEdit, hadEdit ? styleEdits[property].newValue : openRaw);
+        renderPanel();
+      }
+    }
+    activeStyleEditorFlush = commit;
+    input.addEventListener("keydown", function (event) {
+      if (event.isComposing) return;
+      if (event.key === "Enter") {
+        event.preventDefault();
+        event.stopPropagation();
+        commit();
+        boxFocusCell(property);
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        cancel();
+      } else if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+        event.preventDefault();
+        event.stopPropagation();
+        var current = Number(input.value);
+        if (!isFinite(current) || input.value.trim() === "") return;
+        var next = current + (event.key === "ArrowUp" ? 1 : -1) * (event.shiftKey ? 10 : 1);
+        if (!/^margin-/.test(property) && next < 0) next = 0;
+        input.value = boxNumberText(next);
+        var value = boxValueFromEntry(cell, input.value);
+        if (value && target === selectedElement && boxPreview(property, value)) previewed = true;
+      }
+    });
+    input.addEventListener("blur", function () { commit(); });
+    return true;
+  }
+
+  // Press on a number: past BOX_SCRUB_THRESHOLD px it scrubs (live preview, commit
+  // on release, never opens the field); released before that it is a click and
+  // opens the field.
+  function beginBoxPress(cell, event) {
+    if (!cell || !selectedElement || activeStyleScrub || boxGesture) return false;
+    if (event.button !== 0) return false;
+    if (cell.getAttribute("data-editing") === "true") return false;
+    if (cell.getAttribute("data-readonly") === "true") return false;
+    if (activeStyleEditorFlush) activeStyleEditorFlush();
+    var property = cell.getAttribute("data-box-prop");
+    var openRaw = cell.getAttribute("data-box-raw");
+    var start = boxShownNumber(cell);
+    var target = selectedElement;
+    var hadEdit = !!styleEdits[property];
+    var startX = event.clientX;
+    var scrubbing = false;
+    var latest = null;
+    // Re-read live: renderPanel is deferred while boxGesture is set, so `cell` stays.
+    function move(moveEvent) {
+      if (target !== selectedElement || cell.isConnected === false) { cancel(); return; }
+      var dx = moveEvent.clientX - startX;
+      if (!scrubbing) {
+        if (Math.abs(dx) < BOX_SCRUB_THRESHOLD) return;
+        if (start === null) return; // auto and Mixed cannot be scrubbed
+        scrubbing = true;
+        activeStyleScrub = { cancel: cancel };
+        host.setAttribute("data-box-scrubbing", "true");
+      }
+      var mode = scrubPrecisionMode(moveEvent);
+      var next = start + Math.round(dx) * mode.multiplier;
+      var value = boxValueFromEntry(cell, boxNumberText(next));
+      if (!value || !boxPreview(property, value)) return;
+      latest = value;
+      cell.textContent = boxNumberText(boxPx(value) - (Number(cell.getAttribute("data-box-offset")) || 0));
+      moveEvent.preventDefault();
+    }
+    function cleanup() {
+      window.removeEventListener("mousemove", move, true);
+      window.removeEventListener("mouseup", release, true);
+      window.removeEventListener("blur", cancel);
+      window.removeEventListener("keydown", escape, true);
+      host.removeAttribute("data-box-scrubbing");
+      boxGesture = null;
+      activeStyleScrub = null;
+    }
+    function release() {
+      var wasScrub = scrubbing;
+      cleanup();
+      if (target !== selectedElement || cell.isConnected === false) return;
+      if (!wasScrub) { openBoxField(cell); return; }
+      if (latest) boxCommit(property, latest, openRaw);
+      boxFocusCell(property);
+    }
+    function cancel() {
+      var wasScrub = scrubbing;
+      cleanup();
+      if (wasScrub && target === selectedElement) boxRollback(property, hadEdit, hadEdit ? styleEdits[property].newValue : openRaw);
+      renderPanel();
+    }
+    function escape(keyEvent) {
+      if (keyEvent.key !== "Escape") return;
+      keyEvent.preventDefault();
+      keyEvent.stopImmediatePropagation();
+      cancel();
+    }
+    boxGesture = { cancel: cancel };
+    window.addEventListener("mousemove", move, true);
+    window.addEventListener("mouseup", release, true);
+    window.addEventListener("blur", cancel);
+    window.addEventListener("keydown", escape, true);
     event.preventDefault();
     return true;
   }
@@ -13632,7 +14064,7 @@
     if (activeTabB === "motion" && !motionTabAvailable()) activeTabB = "layers";
     // Defer background rerenders while the user is typing in a style editor;
     // gesture paths flush the editor first, and the next poll renders after it closes.
-    if (activeStyleEditorFlush || activeStyleScrub) return;
+    if (activeStyleEditorFlush || activeStyleScrub || boxGesture) return;
     // A mid-drag rerender (template load, operation poll) detaches the drag's rows
     // and silently cancels the drop — defer; every endLayerDrag path renders.
     if (layerDrag && layerDrag.active && !layerDragRenderBypass) return;
@@ -13662,6 +14094,13 @@
       var matched = matchedTokenEntryForProperty(property);
       var edit = styleEdits[property];
       var value = edit ? edit.newValue : (hasSelection ? resolvedStyleValue(property) : "");
+      // A side edited in the box model: the shorthand row shows the four effective
+      // sides. Display only; never written back into the shorthand edit.
+      var sidesEdited = hasSelection && BOX_SHORTHANDS.indexOf(property) !== -1 && BOX_SIDES.some(function (side) { return !!styleEdits[property + "-" + side]; });
+      if (sidesEdited) {
+        var sideValues = BOX_SIDES.map(function (side) { return resolvedStyleValue(property + "-" + side); });
+        value = sideValues.indexOf(MIXED_STYLE_VALUE) !== -1 ? MIXED_STYLE_VALUE : composeBoxSides(sideValues);
+      }
       if (!value && !edit) {
         // Fall back to primary computed map so single-select still shows defaults.
         value = hasSelection && currentSelection.styles ? (currentSelection.styles[property] || "") : "";
@@ -13677,7 +14116,7 @@
       var tokenAttr = (!isMixed && !edit && matched) ? ' data-token-index="' + escapeHtml(String(matched.index)) + '"' : "";
       var tokenEdited = matched && !!tokenIntents[normalizeIntentKey(matched.index)];
       var displayInner = styleValueDisplayMarkup(property, value, null, matched, !!edit, isMixed);
-      return '<li data-style-property="' + escapeHtml(property) + '"' + tokenAttr + ' data-edited="' + (edit || tokenEdited ? "true" : "false") + '">' + label + '<code data-style-value data-style-raw="' + escapeHtml(value) + '" data-mixed="' + (isMixed ? "true" : "false") + '" tabindex="0" role="button" aria-label="Edit ' + escapeHtml(property) + '">' + displayInner + "</code></li>";
+      return '<li data-style-property="' + escapeHtml(property) + '"' + tokenAttr + ' data-edited="' + (edit || tokenEdited || sidesEdited ? "true" : "false") + '">' + label + '<code data-style-value data-style-raw="' + escapeHtml(value) + '" data-mixed="' + (isMixed ? "true" : "false") + '" tabindex="0" role="button" aria-label="Edit ' + escapeHtml(property) + '">' + displayInner + "</code></li>";
     }
     var stylesMarkup = "";
     var styleQuery = panelSearchQuery("styles");
@@ -13856,7 +14295,7 @@
     var motionMarkup = '<div class="raven-grab-motion" data-motion-root></div>';
     var mobileBodyMarkup = activeTabB === "assets" ? assetsMarkup
       : activeTabB === "styles" ? designMarkup
-      : activeTabB === "instructions" ? instructionsMarkup
+      : activeTabB === "instructions" ? instructionsMarkup + boxModelMarkup()
       : activeTabB === "motion" ? motionMarkup
       : layersMarkup;
     // Simple mode is prod's tool: what you grabbed, what you want changed, Send.
@@ -13877,7 +14316,7 @@
     // settings off-screen whenever the left was collapsed ("Show right only", and
     // every session in simple mode) with no keyboard way back -- the ⌘K chord only
     // fires when focus is already inside Raven.
-    var actionMarkupA = (mobileTabbedSheetMode() ? "" : footerMarkupA) + '<div class="raven-grab-global-actions-host"></div>' + structureFooterMarkup;
+    var actionMarkupA = (mobileTabbedSheetMode() ? "" : boxModelMarkup() + footerMarkupA) + '<div class="raven-grab-global-actions-host"></div>' + structureFooterMarkup;
     var actionMarkupB = '<div class="raven-grab-global-actions-host"></div>' + structureFooterMarkup;
     var changesMarkup = "";
     var requestHintText = "No destination configured — requests can't be sent yet. Ask your agent to set up GitHub routing.";
@@ -14056,6 +14495,7 @@
 
   function syncSendButtonDisabled() {
     mountGlobalActions();
+    refreshBoxModel();
     schedulePersistPending();
     // The instruction box is the half of "is there work" that never touches the
     // style collections, so syncActiveStyleDraftKey never fires for it. Typing
@@ -15092,6 +15532,24 @@
     panelSearch[role] = event.target.value;
     if (role === "styles" && panelSearchQuery("styles")) expandedSections.styles = true;
     renderPanel();
+  });
+  onPanels("mousedown", function (event) {
+    var cell = event.target && event.target.closest ? event.target.closest("[data-box-prop]") : null;
+    if (!cell || (event.target.closest && event.target.closest("[data-box-input]"))) return;
+    beginBoxPress(cell, event);
+  });
+  onPanels("keydown", function (event) {
+    var cell = event.target && typeof event.target.getAttribute === "function" && event.target.getAttribute("data-box-prop") ? event.target : null;
+    if (!cell) return;
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      event.stopPropagation();
+      openBoxField(cell);
+    } else if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+      event.preventDefault();
+      event.stopPropagation();
+      boxStep(cell, (event.key === "ArrowUp" ? 1 : -1) * (event.shiftKey ? 10 : 1));
+    }
   });
   onPanels("keydown", function (event) {
     if (handlePanelSearchKey(event)) return;

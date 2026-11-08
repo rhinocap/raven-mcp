@@ -970,6 +970,22 @@ function styleProperties(item: GrabBridgeSelection): string[] {
   return properties;
 }
 
+// A newer shorthand covers the older sides it sets (box model §2: a `padding`
+// edit replaces earlier `padding-right`). A side never covers its shorthand.
+var BOX_SHORTHAND_SIDES: Record<string, string[]> = {
+  padding: ["padding-top", "padding-right", "padding-bottom", "padding-left"],
+  margin: ["margin-top", "margin-right", "margin-bottom", "margin-left"],
+  "border-width": ["border-top-width", "border-right-width", "border-bottom-width", "border-left-width"]
+};
+
+function styleCoveredBy(newestProperties: string[], property: string): boolean {
+  if (newestProperties.indexOf(property) !== -1) return true;
+  return newestProperties.some(function (newer) {
+    var sides = BOX_SHORTHAND_SIDES[newer];
+    return !!sides && sides.indexOf(property) !== -1;
+  });
+}
+
 function supersedeOlderStyleProperties(session: BridgeSession, newest: GrabBridgeSelection): void {
   var newestProperties = styleProperties(newest);
   if (newestProperties.length === 0) return;
@@ -977,7 +993,7 @@ function supersedeOlderStyleProperties(session: BridgeSession, newest: GrabBridg
     var older = session.queue[i];
     if (older.batchId !== newest.batchId || older.target !== newest.target || older.state !== "sent") continue;
     var olderProperties = styleProperties(older);
-    var collisions = olderProperties.filter(function (property) { return newestProperties.indexOf(property) !== -1; });
+    var collisions = olderProperties.filter(function (property) { return styleCoveredBy(newestProperties, property); });
     if (collisions.length === 0) continue;
     older.supersededProperties = (older.supersededProperties || []).concat(collisions.filter(function (property) {
       return !older.supersededProperties || older.supersededProperties.indexOf(property) === -1;

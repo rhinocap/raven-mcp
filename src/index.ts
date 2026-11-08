@@ -3707,7 +3707,7 @@ server.tool(
       var grabbed = await getGrabbedElements(timeout_ms);
       var payload: Record<string, unknown> = { ...grabbed };
       if (grabbed.batchCommit) {
-        payload.agent_protocol = "Implement this committed batch now in one patch. Use batch.pending in ascending sequence, resolve every style and reorder target against the batch baseline before structural changes, apply same-parent reorders strictly by sequence, and mark each successful change applied with get_grab_operation. Reject ambiguous or disconnected targets instead of guessing.";
+        payload.agent_protocol = "Implement this committed batch now in one patch. Use batch.pending in ascending sequence, resolve every style and reorder target against the batch baseline before structural changes, apply same-parent reorders strictly by sequence, and mark each successful change applied with get_grab_operation. Within a change, apply styleEdits in array order and keep longhand names as sent (padding-right stays padding-right); do not alphabetize, regroup or merge overlapping declarations, and skip properties listed in supersededProperties. Reject ambiguous or disconnected targets instead of guessing.";
       } else if (grabbed.count > 0 && grabbed.captureOnly) {
         // start_grab_session already told the agent no batchCommit is coming in
         // capture-only proxy mode, and this line used to contradict it on the

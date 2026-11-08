@@ -1165,6 +1165,34 @@ test('phase 2A keeps style changes durable and exposes the unified batch through
   });
 });
 
+test('a newer sent shorthand supersedes the older sides it covers; a side never supersedes its shorthand', async () => {
+  const designPath = await makeDesignFixture();
+  await withClient(indexMod.buildServer({}), async (client) => {
+    const started = await client.callTool({ name: 'start_grab_session', arguments: { path: designPath } });
+    const session = JSON.parse(started.content[0].text);
+    const key = sessionKey(session);
+    const send = async (selector, styleEdits) => {
+      const response = await fetch(`${session.url}/grab?key=${key}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ selector, styleEdits })
+      });
+      return (await response.json()).element;
+    };
+    await send('#cta', [{ property: 'padding-right', oldValue: '14px', newValue: '18px' }, { property: 'color', oldValue: 'red', newValue: 'blue' }]);
+    await send('#cta', [{ property: 'margin-top', oldValue: '8px', newValue: '10px' }]);
+    await send('#other', [{ property: 'padding-left', oldValue: '4px', newValue: '6px' }]);
+    await send('#cta', [{ property: 'padding', oldValue: '14px', newValue: '20px' }]);
+    await send('#cta', [{ property: 'padding-top', oldValue: '20px', newValue: '22px' }]);
+    const batch = JSON.parse((await client.callTool({ name: 'get_grab_operation', arguments: { batch: true } })).content[0].text);
+    assert.deepEqual(batch.changes.map((change) => change.state), ['sent', 'sent', 'sent', 'sent', 'sent']);
+    assert.deepEqual(batch.changes[0].supersededProperties, ['padding-right'], 'padding covers the older padding-right, not color');
+    assert.equal(batch.changes[1].supersededProperties, undefined, 'margin-top is not covered by padding');
+    assert.equal(batch.changes[2].supersededProperties, undefined, 'another target is untouched');
+    assert.equal(batch.changes[3].supersededProperties, undefined, 'a later side does not supersede the shorthand');
+    await client.callTool({ name: 'stop_grab_session', arguments: {} });
+  });
+});
+
 test('phase 2A sequences style and reorder records and supersedes older same-property edits', async () => {
   const designPath = await makeDesignFixture();
   await withClient(indexMod.buildServer({}), async (client) => {
@@ -6196,7 +6224,9 @@ test('panel preset tooltip escapes panel clipping through one fixed shadow-root 
   // Instructions is its own tab. mobileTabbedSheetMode() is false above 760px, so the
   // desktop composition is unchanged -- the actions host and the settings footer stay
   // pinned here, and the conditional is pinned too so it cannot silently widen.
-  assert.match(source, /var actionMarkupA = \(mobileTabbedSheetMode\(\) \? "" : footerMarkupA\) \+ '<div class="raven-grab-global-actions-host"><\/div>' \+ structureFooterMarkup;/);
+  // The box model (spec "Grab panels" §2) sits above the composer on desktop and
+  // moves to the Instructions tab with it on the mobile sheet.
+  assert.match(source, /var actionMarkupA = \(mobileTabbedSheetMode\(\) \? "" : boxModelMarkup\(\) \+ footerMarkupA\) \+ '<div class="raven-grab-global-actions-host"><\/div>' \+ structureFooterMarkup;/);
   assert.match(source, /:host\(\[data-settings-home="right"\]\) \.raven-grab-panel:not\(\[data-side="left"\]\) \.raven-grab-structure-footer \{ display: block; \}/);
   // :not([data-side=left]) on purpose -- the right panel carries no data-side, and
   // adding one would wake the dormant narrow-viewport [data-side="right"] rule.
