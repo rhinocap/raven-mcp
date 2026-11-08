@@ -85,7 +85,7 @@ try {
 
   var selected = await page.evaluate(() => {
     var root = document.querySelector('[data-raven-grab-overlay]').shadowRoot;
-    return root.querySelector('[data-element-selector]')?.getAttribute('title') || null;
+    return root.querySelector('[data-selected-selector]')?.getAttribute('data-selected-selector') || root.querySelector('[data-element-selector]')?.getAttribute('title') || null;
   });
   console.log('selected: ' + selected);
   if (!selected) throw new Error('the click selected nothing — re-run the discovery pass for a current coordinate');
