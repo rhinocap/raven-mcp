@@ -135,6 +135,7 @@ test('every row kind in the table', async (t) => {
       push(api.rowsForStyleDraft(draft(document.querySelector('a.hero-cta'), 'a.hero-cta', { textEdit: { oldText: 'Get started', newText: 'Start free' } }), false));
       push(api.rowsForStyleDraft(draft(document.querySelector('#hero'), 'section.hero', { instruction: 'make this feel calmer' }), false));
       push(api.rowsForStyleDraft(draft(document.querySelector('#hero'), 'section.hero', { attachments: [{ id: 'a1', name: 'hero.png', state: 'ready' }] }), false));
+      push(api.rowsForStyleDraft(draft(document.querySelector('p.lede'), 'p.lede', { editScope: 'component', tokenIntents: { 0: { property: 'color', oldTokenPath: 'text/muted', newTokenPath: 'text/primary' } } }), false));
       return { out, move: api.changeElementLabel(card, null, 'main > div.cards > div.card') };
     });
     assert.deepEqual(rows.out[0], ['Style – padding-right', '14px → 18px – button.cta']);
@@ -145,6 +146,7 @@ test('every row kind in the table', async (t) => {
     assert.deepEqual(rows.out[4], ['Copy', '“Get started” → “Start free” – a.hero-cta']);
     assert.deepEqual(rows.out[5], ['Instruction', 'make this feel calmer – section#hero']);
     assert.deepEqual(rows.out[6], ['Attachment', 'hero.png – section#hero']);
+    assert.deepEqual(rows.out[7], ['Token – color', 'text/muted → text/primary – p.lede (all siblings)'], 'a token row names its scope');
     assert.equal(rows.move, 'div#card-a');
   }, { expose: ['rowsForStyleDraft', 'changeElementLabel'] });
 });
@@ -166,4 +168,40 @@ test('page-derived text in rows and titles is escaped', async (t) => {
     assert.doesNotMatch(markup, /<img/);
     assert.doesNotMatch(markup, /title="[^"]*"quoted/);
   }, { expose: ['changeTrayRowsMarkup'] });
+});
+
+test('Retry keeps the element label the designer saw when it was sent', async (t) => {
+  await run(t, async (page, { bridge }) => {
+    await selectElement(page, 'button.cta');
+    await editStyle(page, 'padding', '18px');
+    await sendBatch(page);
+    // The agent rejects the change, as it would through get_grab_operation.
+    const drained = await bridge.getGrabbedElements(0);
+    const sent = (drained.selections || drained.elements || drained.items || []).filter((item) => item.state === 'sent');
+    assert.equal(sent.length, 1, JSON.stringify(Object.keys(drained)));
+    bridge.getGrabOperation(sent[0].id, 'rejected');
+    await selectElement(page, '#card-a');
+    await page.evaluate(() => { document.querySelector('button.cta').className = 'cta renamed'; });
+    const openAll = () => shadowEval(page, (root) => { root.querySelectorAll('[data-change-tray-toggle][aria-expanded="false"]').forEach((b) => b.click()); return true; });
+    await page.waitForFunction(() => Boolean(document.querySelector('[data-raven-grab-overlay]').shadowRoot.querySelector('[data-retry-change]')), null, { timeout: 15000 });
+    await openAll();
+    // Wait for the tray body to finish opening, so the click lands on Retry itself.
+    await page.waitForFunction(() => {
+      const root = document.querySelector('[data-raven-grab-overlay]').shadowRoot;
+      const button = root.querySelector('[data-retry-change]');
+      if (!button) return false;
+      button.scrollIntoView({ block: 'center' });
+      const r = button.getBoundingClientRect();
+      return root.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) === button;
+    }, null, { timeout: 5000 });
+    const retry = await shadowEval(page, (root) => {
+      const r = root.querySelector('[data-retry-change]').getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    });
+    await page.mouse.click(retry.x, retry.y);
+    await openAll();
+    const pending = (await readTray(page)).flatMap((section) => section.rows).find((row) => row.line1 === 'Style – padding' && row.status === 'Pending');
+    assert.ok(pending, 'the retried row is pending again');
+    assert.equal(pending.line2, '14px → 18px – button.cta');
+  });
 });

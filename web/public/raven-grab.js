@@ -4922,7 +4922,9 @@
       draft.textEdit.target.textContent = draft.textEdit.oldText;
     }
     var target = draft.styleEditTarget || draft.target;
-    Object.keys(draft.styleEditOriginalInline || {}).forEach(function (property) {
+    // Newest first: an overlapping later edit (a side over its shorthand) must be
+    // undone before the earlier one writes the true original back.
+    Object.keys(draft.styleEditOriginalInline || {}).reverse().forEach(function (property) {
       restoreStyleOriginalEntries(property, draft.styleEditOriginalInline[property], target);
     });
     Object.keys(draft.previewOriginals || {}).forEach(function (cssVar) {
@@ -5262,7 +5264,7 @@
   }
 
   function restoreStyleScopeSiblingOriginalStore(originalStore) {
-    Object.keys(originalStore || {}).forEach(function (property) {
+    Object.keys(originalStore || {}).reverse().forEach(function (property) {
       (originalStore[property] || []).forEach(function (entry) {
         if (entry.value) entry.element.style.setProperty(property, entry.value, entry.priority);
         else entry.element.style.removeProperty(property);
@@ -6399,6 +6401,18 @@
           restoreStyleEdit(property);
           delete styleEdits[property];
         }
+      });
+      // A plain border-side edit from the box model that this emission covers
+      // becomes part of the Stroke: undo it (newest first) so the Stroke's own
+      // baseline is the true original, and the tray shows one Stroke row.
+      Object.keys(styleEdits).reverse().forEach(function (property) {
+        var edit = styleEdits[property];
+        var side = /^border-(top|right|bottom|left)-(width|style|color)$/.exec(property);
+        if (!side || !edit || edit.groupId === "stroke") return;
+        if (!emittedProperties[property] && !emittedProperties["border-" + side[2]]) return;
+        restoreStyleEdit(property);
+        delete styleEditOriginalInline[property];
+        delete styleEdits[property];
       });
       var strokeTargets = styleApplicationTargets();
       captureStrokeSnapshotTargets(editorSnapshot, strokeTargets);
@@ -9416,7 +9430,7 @@
       offset: offset,
       number: shown,
       text: raw === MIXED_STYLE_VALUE ? "Mixed" : shown === null ? (raw || "auto") : boxNumberText(shown),
-      readOnly: offsetMixed ? "Padding or border differs across the selection" : boxReadOnlyReason(property),
+      readOnly: offsetMixed ? "Padding or border differs across the selection" : raw === MIXED_STYLE_VALUE ? "Values differ across the selection" : boxReadOnlyReason(property),
       edited: !!edit || (shorthand ? !!styleEdits[shorthand] : false)
     };
   }
@@ -11825,7 +11839,7 @@
     var rows = [];
     var hasStrokeDraft = false;
     var selector = draft.selector || (draft.selection && draft.selection.selector) || "element";
-    var element = changeElementLabel(draft.target, draft.selection, selector);
+    var element = draft.frozenElementLabel || changeElementLabel(draft.target, draft.selection, selector);
     Object.keys(draft.styleEdits).forEach(function (property) {
       var edit = draft.styleEdits[property];
       if (edit.groupId === "stroke") {
@@ -11844,7 +11858,7 @@
       var intent = draft.tokenIntents[key];
       var fromToken = intent.oldTokenPath || intent.oldToken || "current";
       var toToken = intent.newTokenPath || intent.newToken || "new";
-      rows.push(changeRow({ id: "draft-token:" + draft.clientKey + ":" + key, kind: "token", type: "Token", line1: "Token – " + (intent.property || "token"), property: intent.property || "token", from: fromToken, to: toToken, element: element, selector: selector, target: selector + " · " + (intent.property || "token") + " · " + fromToken + " → " + toToken, status: intent.needsRecheck || intent.invalid ? "Needs recheck" : "Pending", removable: true, local: true }));
+      rows.push(changeRow({ id: "draft-token:" + draft.clientKey + ":" + key, kind: "token", type: "Token", line1: "Token – " + (intent.property || "token"), property: intent.property || "token", from: fromToken, to: toToken, element: element, selector: selector, scope: intent.scope || draft.editScope, target: selector + " · " + (intent.property || "token") + " · " + fromToken + " → " + toToken, status: intent.needsRecheck || intent.invalid ? "Needs recheck" : "Pending", removable: true, local: true }));
     });
     if (hasStrokeDraft) {
       var strokeNeedsRecheck = STROKE_PROPERTIES.some(function (property) {
@@ -12290,6 +12304,10 @@
       // stashed draft the user has kept editing keeps its own chosen scope —
       // otherwise a newer instance edit silently broadens to component-wide.
       var retryDraftIsFresh = Object.keys(retryDraft.styleEdits).length === 0 && Object.keys(retryDraft.tokenIntents).length === 0;
+      // A fresh retry keeps the element label the designer saw when it was sent.
+      if (retryDraftIsFresh && sourceChange.logicalRows && sourceChange.logicalRows.length) {
+        retryDraft.frozenElementLabel = String(sourceChange.logicalRows[0].element || "").replace(/ \(all siblings\)$/, "") || null;
+      }
       if (!retryReusesActive && retryDraftIsFresh) {
         var frozenScope = "instance";
         (payload.styleEdits || []).forEach(function (edit) { if (edit && edit.scope === "component") frozenScope = "component"; });
@@ -14337,7 +14355,7 @@
     var motionMarkup = '<div class="raven-grab-motion" data-motion-root></div>';
     var mobileBodyMarkup = activeTabB === "assets" ? assetsMarkup
       : activeTabB === "styles" ? designMarkup
-      : activeTabB === "instructions" ? instructionsMarkup + boxModelMarkup()
+      : activeTabB === "instructions" ? boxModelMarkup() + instructionsMarkup
       : activeTabB === "motion" ? motionMarkup
       : layersMarkup;
     // Simple mode is prod's tool: what you grabbed, what you want changed, Send.

@@ -530,3 +530,116 @@ test('multi-select under border-box with different padding: the content size rea
     assert.equal(box.width.title, 'Padding or border differs across the selection');
   }, { html });
 });
+
+test('shorthand, then a side over it, then Send: the page keeps no leftover inline padding', async (t) => {
+  await run(t, async (page) => {
+    await selectElement(page, 'button.cta');
+    await editStyle(page, 'padding', '18px');
+    await typeInBox(page, 'padding-right', '24');
+    await sendBatch(page);
+    assert.equal(await page.evaluate(() => document.querySelector('button.cta').getAttribute('style') || ''), '');
+    assert.deepEqual(await computed(page, 'button.cta', ['padding-top', 'padding-right']), { 'padding-top': '14px', 'padding-right': '14px' });
+  });
+});
+
+test('multi-select: a side that differs reads Mixed and is read-only', async (t) => {
+  const html = (await readFile(FIXTURE_PATH, 'utf8')).replace('</style>', '#card-b { padding-left: 20px; }\n</style>');
+  await run(t, async (page) => {
+    await selectElement(page, '#card-a');
+    const at = await page.evaluate(() => { const r = document.querySelector('#card-b').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+    await page.keyboard.down('Shift');
+    await page.mouse.move(at.x, at.y);
+    await page.mouse.click(at.x, at.y);
+    await page.keyboard.up('Shift');
+    await page.waitForTimeout(150);
+    const box = await readBox(page);
+    assert.equal(box['padding-left'].text, 'Mixed');
+    assert.equal(box['padding-left'].readonly, true);
+    assert.equal(box['padding-left'].title, 'Values differ across the selection');
+    assert.equal(box['padding-right'].readonly, false, 'a shared value stays editable');
+    const point = await cellPoint(page, 'padding-left');
+    await page.mouse.click(point.x, point.y);
+    assert.equal(await boxInputOpen(page), null, 'no field opens on a Mixed number');
+  }, { html });
+});
+
+test('a box border edit, then a Stroke edit: one Stroke row from the true original', async (t) => {
+  await run(t, async (page, { grabBodies }) => {
+    await selectElement(page, 'button.cta');
+    await typeInBox(page, 'border-left-width', '2');
+    const point = await shadowEval(page, (root) => {
+      const cell = root.querySelector('li[data-style-property="__raven-stroke__"] code[data-style-value]');
+      cell.scrollIntoView({ block: 'center' });
+      const rect = cell.getBoundingClientRect();
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    });
+    await page.mouse.click(point.x, point.y);
+    await shadowEval(page, (root) => {
+      const input = root.querySelector('input[aria-label="Stroke width"]');
+      input.focus();
+      input.value = '3';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      return true;
+    });
+    await page.keyboard.press('Enter');
+    // The sides already differ, so Stroke edits per side: top changes, left keeps the box edit.
+    assert.deepEqual(await computed(page, 'button.cta', ['border-top-width', 'border-left-width']), { 'border-top-width': '3px', 'border-left-width': '2px' });
+    const rows = (await readTray(page))[0].rows;
+    assert.deepEqual(rows.map((row) => row.line1), ['Stroke'], 'the box edit joined the Stroke row');
+    assert.match(rows[0].line2, /^1px solid /, 'the Stroke starts from the original 1px');
+    await sendBatch(page);
+    const sent = grabBodies.at(-1).styleEdits;
+    assert.ok(sent.every((edit) => edit.groupId === 'stroke'), 'no plain border edit is left over');
+    const left = sent.filter((edit) => edit.property === 'border-left-width');
+    assert.equal(left.length, 1);
+    assert.deepEqual([left[0].oldValue, left[0].newValue], ['1px', '2px']);
+  });
+});
+
+test('mobile sheet: the box model sits above Instructions and the field is still reachable', async (t) => {
+  await run(t, async (page) => {
+    await page.addStyleTag({ content: '.site { left: 10px !important; width: 360px !important; }' });
+    const at = await page.evaluate(() => { const r = document.querySelector('button.cta').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+    await page.mouse.move(at.x - 2, at.y - 2);
+    await page.mouse.move(at.x, at.y);
+    await page.mouse.click(at.x, at.y);
+    await page.waitForFunction(() => Boolean(document.querySelector('[data-raven-grab-overlay]')?.shadowRoot?.querySelector('.raven-grab-layer-row[data-primary="true"], [data-element-selector]')), null, { timeout: 5000 });
+    const tab = await shadowEval(page, (root) => { const r = root.querySelector('.raven-grab-mobile-tabs [data-tab="instructions"]').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+    await page.mouse.click(tab.x, tab.y);
+    const order = await shadowEval(page, (root) => {
+      const box = root.querySelector('[data-box-model]').getBoundingClientRect();
+      const field = root.querySelector('[data-instruction]');
+      field.scrollIntoView({ block: 'nearest' });
+      const rect = field.getBoundingClientRect();
+      return { boxAbove: box.top < field.getBoundingClientRect().top, hit: root.elementFromPoint(rect.left + rect.width / 2, rect.top + 12) === field, x: rect.left + rect.width / 2, y: rect.top + 12 };
+    });
+    assert.equal(order.boxAbove, true);
+    assert.equal(order.hit, true, 'nothing covers the field once scrolled to');
+    await page.mouse.click(order.x, order.y);
+    await page.keyboard.type('Tighten this');
+    assert.equal(await shadowEval(page, (root) => root.querySelector('[data-instruction]').value), 'Tighten this');
+  }, { viewport: { width: 390, height: 844 } });
+});
+
+test('a box border edit, then a uniform Stroke: the Stroke covers every side, one row', async (t) => {
+  await run(t, async (page, { grabBodies }) => {
+    await selectElement(page, 'button.cta');
+    await typeInBox(page, 'border-left-width', '2');
+    await page.evaluate(() => {
+      const api = window.__ravenGrabPanels;
+      api.commitStrokeEdit(
+        { position: 'inside', width: '3px', style: 'solid', color: 'rgb(221, 221, 221)' },
+        { position: 'inside', width: '1px', style: 'solid', color: 'rgb(221, 221, 221)' }
+      );
+      api.renderPanel();
+    });
+    assert.equal((await computed(page, 'button.cta', ['border-left-width']))['border-left-width'], '3px');
+    const rows = (await readTray(page))[0].rows;
+    assert.deepEqual(rows.map((row) => row.line1), ['Stroke']);
+    assert.match(rows[0].line2, /^1px solid .* → 3px solid /);
+    await sendBatch(page);
+    const sent = grabBodies.at(-1).styleEdits;
+    assert.ok(sent.every((edit) => edit.groupId === 'stroke'));
+    assert.equal(sent.some((edit) => edit.property === 'border-left-width'), false, 'the box edit is absorbed');
+  }, { expose: ['commitStrokeEdit', 'renderPanel'] });
+});
