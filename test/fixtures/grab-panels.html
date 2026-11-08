@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Grab panels fixture</title>
+<style>
+  body { font: 16px/1.4 system-ui; margin: 0; background: #f6f6f4; color: #1d1d1f; }
+  .site { position: absolute; left: 420px; top: 40px; width: 520px; }
+  section.hero { padding: 32px; margin: 0 0 24px; background: #fff; border-radius: 12px; }
+  p.lede { margin: 0 0 16px; color: #555; }
+  a.hero-cta { display: inline-block; color: #0a58ca; margin-right: 12px; }
+  button.cta { padding: 14px; margin: 8px 0 0; border: 1px solid #ddd; border-radius: 8px; background: #fff; font: inherit; }
+  .cards { display: flex; gap: 12px; }
+  div.card { width: 150px; height: 80px; padding: 12px; border-radius: 8px; background: #e7eef8; }
+  .stack { padding: 8px 12px 16px 20px; margin: 4px 6px 10px 2px; }
+</style>
+</head>
+<body>
+  <main class="site">
+    <section class="hero" id="hero">
+      <p class="lede">Motion and spacing, tuned by hand.</p>
+      <a class="hero-cta" href="#start">Get started</a>
+      <button class="cta" type="button">Start free</button>
+    </section>
+    <div class="cards" id="cards">
+      <div class="card" id="card-a">Card A</div>
+      <div class="card" id="card-b">Card B</div>
+      <div class="card" id="card-c">Card C</div>
+    </div>
+    <div class="stack" id="stack">Uneven sides</div>
+  </main>
+</body>
+</html>
