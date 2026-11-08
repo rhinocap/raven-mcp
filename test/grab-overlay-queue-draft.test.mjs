@@ -1231,6 +1231,24 @@ test('a successful bank confirms itself instead of immediately re-refusing', asy
 // rows that matched, so a test can assert its own precondition rather than pass
 // vacuously when the selector finds nothing.
 async function removeFirstDraftRow(page) {
+  // Tray sections start collapsed (Grab panels spec v0.2 §3): open the section
+  // first, as a user would, and let it finish opening before reaching for its
+  // Remove control.
+  const opened = await shadowEval(page, (root) => {
+    const button = root.querySelector('[data-remove-change^="draft-"]');
+    const section = button && button.closest('section.raven-grab-changes');
+    const toggle = section && section.querySelector('[data-change-tray-toggle]');
+    if (!toggle || toggle.getAttribute('aria-expanded') !== 'false') return false;
+    toggle.click();
+    return true;
+  });
+  if (opened) {
+    await page.waitForFunction(() => {
+      const button = document.querySelector('[data-raven-grab-overlay]').shadowRoot.querySelector('[data-remove-change^="draft-"]');
+      return Boolean(button && button.getBoundingClientRect().height > 0);
+    }, null, { timeout: 3000 });
+    await page.waitForTimeout(350);
+  }
   const found = await shadowEval(page, (root) => {
     const buttons = root.querySelectorAll('[data-remove-change^="draft-"]');
     if (!buttons.length) return { count: 0, point: null };

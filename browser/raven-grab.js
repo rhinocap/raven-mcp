@@ -1665,6 +1665,11 @@
     .raven-grab-change-icon { color: var(--raven-grab-accent); font: 600 calc(11px * var(--raven-grab-font-scale))/1 var(--raven-grab-ui); text-align: center; }
     .raven-grab-change-copy { display: flex; min-width: 0; flex-direction: column; gap: 1px; font: 500 calc(10px * var(--raven-grab-font-scale))/1.2 var(--raven-grab-ui); }
     .raven-grab-change-copy span { overflow: hidden; color: var(--raven-grab-muted); font: 400 calc(9px * var(--raven-grab-font-scale))/1.2 var(--raven-grab-mono); text-overflow: ellipsis; white-space: nowrap; }
+    .raven-grab-change-copy .raven-grab-change-line2 { display: flex; min-width: 0; }
+    .raven-grab-change-line2 .raven-grab-change-value { flex: 0 1000 auto; min-width: 4ch; }
+    .raven-grab-change-line2 .raven-grab-change-sep { flex: none; white-space: pre; }
+    .raven-grab-change-line2 .raven-grab-change-element { flex: 0 1 auto; min-width: 0; }
+    .raven-grab-changes-heading .raven-grab-changes-errors { color: var(--raven-grab-error); flex: none; }
     .raven-grab-change-status { color: var(--raven-grab-muted); font: 500 calc(9px * var(--raven-grab-font-scale))/1.2 var(--raven-grab-ui); white-space: nowrap; }
     .raven-grab-change-row[data-local="true"] .raven-grab-change-copy strong, .raven-grab-change-row[data-local="true"] .raven-grab-change-status { color: var(--raven-grab-accent); }
     .raven-grab-change-row[data-local="false"] .raven-grab-change-copy strong { color: var(--raven-grab-muted); }
@@ -11179,44 +11184,121 @@
     return liveLayerChildrenMatch(draft.parentElement, draft.baselineChildren);
   }
 
+  // The short Element-chip label for a change row: component name, tag#id or
+  // tag.classes, without the text suffix (that lives in the chip, not the row).
+  // Defensive: unit tests drive the tray with fake elements.
+  function changeElementLabel(element, selection, fallbackSelector) {
+    try {
+      if (element && element.nodeType === 1) {
+        var componentName = (selection && selection.componentScope && selection.componentScope.componentName) || componentNameFor(element, null);
+        if (componentName) return componentName;
+        var tag = String(element.localName || element.tagName || "").toLowerCase() || "element";
+        if (element.id) return tag + "#" + element.id;
+        var classes = distinctiveClassesFor(element).slice(0, 2);
+        if (classes.length) return tag + "." + classes.join(".");
+        // A bare tag says little: prefer the selector's last part when it
+        // names this tag (a.hero-cta rather than a).
+        var tail = String(fallbackSelector || (selection && selection.selector) || "").split(/\s*[>+~]\s*|\s+/).filter(Boolean).pop();
+        if (tail && tail.toLowerCase().indexOf(tag) === 0 && tail.length > tag.length) return tail;
+        return tag;
+      }
+    } catch (error) { /* fall through to the selector */ }
+    var selector = String(fallbackSelector || (selection && selection.selector) || "element");
+    var parts = selector.split(/\s*[>+~]\s*|\s+/).filter(Boolean);
+    return parts.length ? parts[parts.length - 1] : selector;
+  }
+
+  // One change row, structured: line 1 names the change, line 2 shows the
+  // values then the element. `target` stays the legacy joined string.
+  function changeRow(fields) {
+    var element = fields.element || "";
+    if (element && fields.scope === "component") element += " (all siblings)";
+    var change = fields.change != null ? fields.change : ((fields.from != null || fields.to != null) ? String(fields.from == null ? "" : fields.from) + " → " + String(fields.to == null ? "" : fields.to) : "");
+    var row = {};
+    for (var key in fields) if (Object.prototype.hasOwnProperty.call(fields, key)) row[key] = fields[key];
+    row.change = change;
+    row.element = element;
+    row.title = fields.title || ((fields.selector || "") + (fields.scope === "component" ? " · all siblings" : ""));
+    return row;
+  }
+
+  var CHANGE_ROW_PRESENTATION_FIELDS = ["kind", "type", "target", "line1", "state", "property", "from", "to", "change", "element", "selector", "scope", "title"];
+
+  function changeRowPresentation(row) {
+    var out = {};
+    CHANGE_ROW_PRESENTATION_FIELDS.forEach(function (key) { if (row[key] !== undefined) out[key] = row[key]; });
+    return out;
+  }
+
+  function strokeBeforeDraft(draft) {
+    var edits = {};
+    STROKE_PROPERTIES.forEach(function (property) {
+      var edit = draft.styleEdits[property];
+      if (edit && edit.groupId === "stroke") edits[property] = { newValue: edit.oldValue };
+    });
+    return { styleEdits: edits, selection: draft.selection, target: draft.target };
+  }
+
+  function capitalized(value) {
+    var text = String(value || "");
+    return text ? text.charAt(0).toUpperCase() + text.slice(1) : text;
+  }
+
   function rowsForStyleDraft(draft, isActive) {
     var rows = [];
     var hasStrokeDraft = false;
     var selector = draft.selector || (draft.selection && draft.selection.selector) || "element";
+    var element = changeElementLabel(draft.target, draft.selection, selector);
     Object.keys(draft.styleEdits).forEach(function (property) {
       var edit = draft.styleEdits[property];
       if (edit.groupId === "stroke") {
         hasStrokeDraft = true;
         return;
       }
-      rows.push({ id: "draft-style:" + draft.clientKey + ":" + property, kind: "style", type: "Style", target: selector + " · " + property + " · " + edit.oldValue + " → " + (edit.token || edit.newValue) + " · " + (edit.scope || draft.editScope), status: edit.needsRecheck ? "Needs recheck" : "Pending", removable: true, local: true });
+      var scope = edit.scope || draft.editScope;
+      rows.push(changeRow({ id: "draft-style:" + draft.clientKey + ":" + property, kind: "style", type: "Style", line1: "Style – " + property, property: property, from: edit.oldValue, to: edit.token || edit.newValue, element: element, selector: selector, scope: scope, target: selector + " · " + property + " · " + edit.oldValue + " → " + (edit.token || edit.newValue) + " · " + scope, status: edit.needsRecheck ? "Needs recheck" : "Pending", removable: true, local: true }));
     });
     Object.keys(draft.stateStyleEdits || {}).forEach(function (key) {
       var edit = draft.stateStyleEdits[key];
-      rows.push({ id: "draft-state-style:" + draft.clientKey + ":" + key, kind: "state-style", type: "State", target: selector + ":" + edit.state + " · " + edit.property + " · " + edit.oldValue + " → " + (edit.token || edit.newValue) + " · " + (edit.scope || draft.editScope), status: edit.needsRecheck ? "Needs recheck" : "Pending", removable: true, local: true });
+      var scope = edit.scope || draft.editScope;
+      rows.push(changeRow({ id: "draft-state-style:" + draft.clientKey + ":" + key, kind: "state-style", type: "State", line1: capitalized(edit.state) + " – " + edit.property, state: edit.state, property: edit.property, from: edit.oldValue, to: edit.token || edit.newValue, element: element, selector: selector, scope: scope, target: selector + ":" + edit.state + " · " + edit.property + " · " + edit.oldValue + " → " + (edit.token || edit.newValue) + " · " + scope, status: edit.needsRecheck ? "Needs recheck" : "Pending", removable: true, local: true }));
     });
     Object.keys(draft.tokenIntents).forEach(function (key) {
       var intent = draft.tokenIntents[key];
-      rows.push({ id: "draft-token:" + draft.clientKey + ":" + key, kind: "token", type: "Token", target: selector + " · " + (intent.property || "token") + " · " + (intent.oldTokenPath || intent.oldToken || "current") + " → " + (intent.newTokenPath || intent.newToken || "new"), status: intent.needsRecheck || intent.invalid ? "Needs recheck" : "Pending", removable: true, local: true });
+      var fromToken = intent.oldTokenPath || intent.oldToken || "current";
+      var toToken = intent.newTokenPath || intent.newToken || "new";
+      rows.push(changeRow({ id: "draft-token:" + draft.clientKey + ":" + key, kind: "token", type: "Token", line1: "Token – " + (intent.property || "token"), property: intent.property || "token", from: fromToken, to: toToken, element: element, selector: selector, target: selector + " · " + (intent.property || "token") + " · " + fromToken + " → " + toToken, status: intent.needsRecheck || intent.invalid ? "Needs recheck" : "Pending", removable: true, local: true }));
     });
     if (hasStrokeDraft) {
       var strokeNeedsRecheck = STROKE_PROPERTIES.some(function (property) {
         return !!draft.styleEdits[property] && draft.styleEdits[property].groupId === "stroke" && !!draft.styleEdits[property].needsRecheck;
       });
-      rows.push({ id: "draft-stroke:" + draft.clientKey, kind: "stroke", type: "Stroke", target: selector + " · " + strokeSummary(strokeModelForDraft(draft)), status: strokeNeedsRecheck ? "Needs recheck" : "Pending", removable: true, local: true });
+      var strokeAfter = strokeSummary(strokeModelForDraft(draft));
+      var strokeBefore = strokeSummary(strokeModelForDraft(strokeBeforeDraft(draft)));
+      rows.push(changeRow({ id: "draft-stroke:" + draft.clientKey, kind: "stroke", type: "Stroke", line1: "Stroke", from: strokeBefore, to: strokeAfter, element: element, selector: selector, scope: draft.editScope, target: selector + " · " + strokeAfter, status: strokeNeedsRecheck ? "Needs recheck" : "Pending", removable: true, local: true }));
     }
     if (draft.textEdit) {
-      rows.push({ id: "draft-text:" + draft.clientKey, kind: "text", type: "Copy", target: selector + " · “" + truncateCopy(draft.textEdit.oldText) + "” → “" + truncateCopy(draft.textEdit.newText) + "”", status: "Pending", removable: true, local: true });
+      var oldCopy = "“" + truncateCopy(draft.textEdit.oldText) + "”";
+      var newCopy = "“" + truncateCopy(draft.textEdit.newText) + "”";
+      rows.push(changeRow({ id: "draft-text:" + draft.clientKey, kind: "text", type: "Copy", line1: "Copy", from: oldCopy, to: newCopy, element: element, selector: selector, target: selector + " · " + oldCopy + " → " + newCopy, status: "Pending", removable: true, local: true }));
     }
     // The active draft's instruction lives in the shared box; a stored/retry draft
     // carries its own on draft.instruction. Resolve by which this draft is.
     var effectiveInstruction = isActive ? instructionDraft : (draft.instruction || "");
-    if (effectiveInstruction.trim()) rows.push({ id: "draft-instruction:" + draft.clientKey, kind: "instruction", type: "Instruction", target: selector + " · " + effectiveInstruction.trim(), status: "Pending", removable: true, local: true });
+    if (effectiveInstruction.trim()) rows.push(changeRow({ id: "draft-instruction:" + draft.clientKey, kind: "instruction", type: "Instruction", line1: "Instruction", change: effectiveInstruction.trim().replace(/\s+/g, " "), element: element, selector: selector, target: selector + " · " + effectiveInstruction.trim(), status: "Pending", removable: true, local: true }));
     var effectiveAttachments = isActive ? attachmentDraft : (draft.attachments || []);
     effectiveAttachments.filter(function (attachment) { return attachment.state === "ready"; }).forEach(function (attachment) {
-      rows.push({ id: "draft-attachment:" + draft.clientKey + ":" + attachment.id, kind: "attachment", type: "Attachment", target: selector + " · " + attachment.name, status: "Pending", removable: true, local: true });
+      rows.push(changeRow({ id: "draft-attachment:" + draft.clientKey + ":" + attachment.id, kind: "attachment", type: "Attachment", line1: "Attachment", change: attachment.name, element: element, selector: selector, target: selector + " · " + attachment.name, status: "Pending", removable: true, local: true }));
     });
     return rows;
+  }
+
+  function moveChangeRow(order, fields) {
+    var moveType = order.operation === "reparent" ? "Reparent" : "Move";
+    var selector = order.fromSelector || order.parentSelector;
+    var base = { kind: "move", type: moveType, line1: moveType, change: "", element: changeElementLabel(order.movedElement, null, selector), selector: selector, target: selector };
+    for (var key in fields) if (Object.prototype.hasOwnProperty.call(fields, key)) base[key] = fields[key];
+    return changeRow(base);
   }
 
   function allStyleDrafts() {
@@ -11234,8 +11316,7 @@
     });
     localLayerDrafts().forEach(function (draft) {
       var draftStatus = draft.state === "draft" && !validLayerDraft(draft) ? "Needs recheck" : layerOrderStatus(draft);
-      var moveType = draft.operation === "reparent" ? "Reparent" : "Move";
-      rows.push({ id: draft.clientKey, kind: "move", type: moveType, target: draft.fromSelector || draft.parentSelector, status: draftStatus, removable: true, local: true });
+      rows.push(moveChangeRow(draft, { id: draft.clientKey, status: draftStatus, removable: true, local: true }));
     });
     return rows;
   }
@@ -11313,12 +11394,12 @@
   function changeTrayItems() {
     var items = pendingLogicalRows();
     allLayerOrders().forEach(function (order) {
-      items.push({ id: order.operationId || order.clientKey, batchId: order.batchId, kind: "move", type: "Move", target: order.fromSelector || order.parentSelector, status: layerOrderStatus(order), removable: false, retryable: order.state === "rejected" });
+      items.push(moveChangeRow(order, { id: order.operationId || order.clientKey, batchId: order.batchId, status: layerOrderStatus(order), removable: false, retryable: order.state === "rejected" }));
     });
     appliedLayerReceipts.forEach(function (order) {
       if (!activeDispatch || activeDispatch.layerRecords.indexOf(order) === -1) return;
       if (items.some(function (item) { return item.id === (order.operationId || order.clientKey); })) return;
-      items.push({ id: order.operationId || order.clientKey, batchId: order.batchId, kind: "move", type: "Move", target: order.fromSelector || order.parentSelector, status: layerOrderStatus(order), removable: false, retryable: false });
+      items.push(moveChangeRow(order, { id: order.operationId || order.clientKey, batchId: order.batchId, status: layerOrderStatus(order), removable: false, retryable: false }));
     });
     Object.keys(styleChanges).forEach(function (id) {
       var change = styleChanges[id];
@@ -11332,13 +11413,25 @@
       if (change.state === "registration-error") status = "Not sent";
       if (change.state === "sent-locally") status = "Sent locally";
       if (change.state === "preview-only") status = "Preview only";
-      var logicalRows = change.logicalRows && change.logicalRows.length ? change.logicalRows : [{ kind: "style", type: "Style", target: change.selector || "element" }];
+      var logicalRows = change.logicalRows && change.logicalRows.length ? change.logicalRows : [{ kind: "style", type: "Style", line1: "Style", change: "", element: changeElementLabel(null, null, change.selector), selector: change.selector || "element", target: change.selector || "element" }];
       logicalRows.forEach(function (logicalRow, index) {
-        items.push({ id: id + ":" + index, sourceId: id, batchId: change.batchId, kind: logicalRow.kind || "style", type: logicalRow.type || "Style", target: logicalRow.target || change.target, status: status, removable: false, retryable: change.state === "rejected" });
+        // Render from the presentation snapshot taken at freeze, never from the
+        // current selection, so a row reads the same before and after Send.
+        var item = changeRowPresentation(logicalRow);
+        item.id = id + ":" + index;
+        item.sourceId = id;
+        item.batchId = change.batchId;
+        item.kind = logicalRow.kind || "style";
+        item.type = logicalRow.type || "Style";
+        item.target = logicalRow.target || change.target;
+        item.status = status;
+        item.removable = false;
+        item.retryable = change.state === "rejected";
+        items.push(item);
       });
     });
     carriedPending.forEach(function (entry) {
-      items.push({ id: "carried:" + entry.key, kind: "change", type: "Carried", target: entry.label || "element", status: "Pending", local: true, removable: true });
+      items.push({ id: "carried:" + entry.key, kind: "change", type: "Carried", line1: "Carried over", change: "", element: entry.label || "element", title: entry.label || "element", target: entry.label || "element", status: "Pending", local: true, removable: true });
     });
     return items;
   }
@@ -11350,19 +11443,39 @@
       var control = item.removable
         ? '<button class="raven-grab-change-control" type="button" data-remove-change="' + escapeHtml(item.id) + '">Remove</button>'
         : (item.retryable ? '<button class="raven-grab-change-control" type="button" data-retry-change="' + escapeHtml(item.sourceId || item.id) + '">Retry</button>' : "");
-      var isError = item.status === "Rejected" || item.status === "Needs review" || item.status === "Needs recheck" || item.status === "Not sent";
-      return '<li class="raven-grab-change-row" data-local="' + (item.local ? "true" : "false") + '" data-error="' + (isError ? "true" : "false") + '"><span class="raven-grab-change-icon" aria-hidden="true">' + icon + '</span><span class="raven-grab-change-copy"><strong>' + escapeHtml(type) + '</strong><span title="' + escapeHtml(item.target) + '">' + escapeHtml(item.target) + '</span></span><span class="raven-grab-change-status">' + escapeHtml(item.status) + '</span>' + control + '</li>';
+      var isError = changeTrayItemIsError(item);
+      var line1 = item.line1 || type;
+      var change = item.change == null ? "" : String(item.change);
+      var element = item.element == null ? String(item.target || "") : String(item.element);
+      var line2 = (change ? '<span class="raven-grab-change-value">' + escapeHtml(change) + '</span>' : "")
+        + (change && element ? '<span class="raven-grab-change-sep"> – </span>' : "")
+        + (element ? '<span class="raven-grab-change-element">' + escapeHtml(element) + '</span>' : "");
+      var title = item.title || item.target || "";
+      return '<li class="raven-grab-change-row" data-local="' + (item.local ? "true" : "false") + '" data-error="' + (isError ? "true" : "false") + '" data-change-kind="' + escapeHtml(item.kind || "") + '"><span class="raven-grab-change-icon" aria-hidden="true">' + icon + '</span><span class="raven-grab-change-copy"><strong data-change-line1>' + escapeHtml(line1) + '</strong><span class="raven-grab-change-line2" data-change-line2 title="' + escapeHtml(title) + '">' + line2 + '</span></span><span class="raven-grab-change-status">' + escapeHtml(item.status) + '</span>' + control + '</li>';
     }).join("");
     return rows;
   }
 
+  function changeTrayItemIsError(item) {
+    return item.status === "Rejected" || item.status === "Needs review" || item.status === "Needs recheck" || item.status === "Not sent";
+  }
+
+  // Every tray section starts collapsed: a role only opens once the user opens
+  // it, and dismiss() forgets every role.
+  function changeTrayRoleCollapsed(role) {
+    return changeTrayCollapsed[role] !== false;
+  }
+
   function changeTraySectionMarkup(items, heading, summary, role) {
     if (!items.length) return "";
-    var collapsed = !!changeTrayCollapsed[role];
+    var collapsed = changeTrayRoleCollapsed(role);
+    // Collapsing never hides an error: the header carries the count.
+    var errorCount = items.filter(changeTrayItemIsError).length;
+    var errorMarkup = errorCount ? '<span class="raven-grab-changes-errors" data-change-tray-errors>' + errorCount + (errorCount === 1 ? " needs review" : " need review") + '</span>' : "";
     var bodyId = "raven-grab-tray-" + role;
     return '<section class="raven-grab-changes" aria-label="' + escapeHtml(heading) + '">'
       + '<button class="raven-grab-section-toggle raven-grab-changes-toggle" type="button" data-change-tray-toggle="' + escapeHtml(role) + '" aria-expanded="' + (collapsed ? "false" : "true") + '" aria-controls="' + bodyId + '">'
-      + '<span class="raven-grab-changes-heading"><strong>' + escapeHtml(heading) + '</strong><span>' + escapeHtml(summary) + '</span></span>'
+      + '<span class="raven-grab-changes-heading"><strong>' + escapeHtml(heading) + '</strong><span>' + escapeHtml(summary) + '</span>' + errorMarkup + '</span>'
       + '<span class="raven-grab-caret" aria-hidden="true">▾</span></button>'
       + '<div class="raven-grab-collapsible" id="' + bodyId + '" data-change-tray-body="' + escapeHtml(role) + '" data-open="' + (collapsed ? "false" : "true") + '" aria-hidden="' + (collapsed ? "true" : "false") + '"><div class="raven-grab-collapsible-inner"><ul class="raven-grab-change-list">' + changeTrayRowsMarkup(items) + '</ul></div></div>'
       + '</section>';
@@ -11903,7 +12016,8 @@
           originalStyleInline: draft.styleEditOriginalInline,
           tokenPreviewOriginals: draft.previewOriginals,
           styleEditTarget: draft.styleEditTarget,
-          logicalRows: logicalRows.map(function (row) { return { kind: row.kind, type: row.type, target: row.target }; })
+          // Presentation snapshot only: never part of the dispatched payload.
+          logicalRows: logicalRows.map(changeRowPresentation)
         });
         frozenDrafts.push(draft);
       });
@@ -13857,14 +13971,14 @@
 
   function toggleChangeTraySection(role) {
     if (!role) return;
-    changeTrayCollapsed[role] = !changeTrayCollapsed[role];
+    changeTrayCollapsed[role] = !changeTrayRoleCollapsed(role);
     var toggle = panelQuery('[data-change-tray-toggle="' + role + '"]');
     var body = panelQuery('[data-change-tray-body="' + role + '"]');
     if (!toggle || !body) {
       renderPanel();
       return;
     }
-    var collapsed = !!changeTrayCollapsed[role];
+    var collapsed = changeTrayRoleCollapsed(role);
     toggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
     body.setAttribute("data-open", collapsed ? "false" : "true");
     body.setAttribute("aria-hidden", collapsed ? "true" : "false");
@@ -13892,6 +14006,8 @@
     // durable setting. Disarming ends the session, so carrying the flag past it would
     // leave the next re-arm unable to ever open properties from a selection again.
     propertiesDismissed = false;
+    // Tray sections reopen collapsed in the next Grab session.
+    changeTrayCollapsed = Object.create(null);
     multiSelections = [];
     selectionAnchor = null;
     selectionOrigin = "";

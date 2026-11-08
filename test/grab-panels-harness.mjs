@@ -60,6 +60,18 @@ export async function withPanelsOverlay(fn, options = {}) {
         try { grabBodies.push(request.postDataJSON()); } catch { /* non-JSON */ }
       }
     });
+    if (options.expose) {
+      // Expose overlay internals to window.__ravenGrabPanels for table tests:
+      // the overlay is served by the bridge, so rewrite it in flight.
+      await page.route((url) => url.pathname.endsWith('/raven-grab.js'), async (route) => {
+        const response = await route.fetch();
+        const source = await response.text();
+        const marker = '  if (grabConfig) {';
+        if (!source.includes(marker)) throw new Error('overlay marker missing');
+        const names = options.expose.map((name) => `${name}: typeof ${name} === "undefined" ? undefined : ${name}`).join(', ');
+        await route.fulfill({ response, body: source.replace(marker, `  window.__ravenGrabPanels = { ${names} };\n${marker}`) });
+      });
+    }
     if (options.beforeLoad) await options.beforeLoad(page, session);
     await page.goto('http://127.0.0.1:' + fixture.address().port + '/', { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(
@@ -88,6 +100,9 @@ export async function selectElement(page, selector) {
     const rect = document.querySelector(sel).getBoundingClientRect();
     return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
   }, selector);
+  // Hover first: after a re-arm the overlay selects what it last saw hovered.
+  await page.mouse.move(at.x - 2, at.y - 2);
+  await page.mouse.move(at.x, at.y);
   await page.mouse.click(at.x, at.y);
   await page.waitForFunction(() => {
     const root = document.querySelector('[data-raven-grab-overlay]')?.shadowRoot;

@@ -9103,9 +9103,10 @@ test('[phase1 tray] a draft becomes Sent in the Changes tray and Apply marks the
   assert.match(internals.getGlobalActionsHtml(), /Pending</);
   assert.match(internals.getGlobalActionsHtml(), /Remove/);
   // The pending tray is collapsible (reclaims vertical space on the mobile sheet):
-  // a header toggle + a collapsible body, defaulting to expanded.
+  // a header toggle + a collapsible body, starting collapsed (Grab panels spec
+  // v0.2 §3: every tray section starts collapsed until the user opens it).
   assert.match(internals.getGlobalActionsHtml(), /data-change-tray-toggle="pending"/);
-  assert.match(internals.getGlobalActionsHtml(), /data-change-tray-body="pending" data-open="true"/);
+  assert.match(internals.getGlobalActionsHtml(), /data-change-tray-body="pending" data-open="false"/);
 
   internals.dispatchPendingBatch();
   await flushOverlayPromises();
