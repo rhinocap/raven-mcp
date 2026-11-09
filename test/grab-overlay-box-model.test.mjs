@@ -239,7 +239,7 @@ test('no stroke: border numbers are read-only with a reason', async (t) => {
     const box = await readBox(page);
     for (const side of ['top', 'right', 'bottom', 'left']) {
       assert.equal(box[`border-${side}-width`].readonly, true);
-      assert.equal(box[`border-${side}-width`].title, 'Add a stroke first');
+      assert.equal(box[`border-${side}-width`].title, '0px. Add a stroke first');
     }
     const point = await cellPoint(page, 'border-top-width');
     await page.mouse.click(point.x, point.y);
@@ -356,7 +356,7 @@ test('a number linked to a token is read-only until detached', async (t) => {
     await selectElement(page, '#stack');
     const box = await readBox(page);
     assert.equal(box['padding-left'].readonly, true);
-    assert.equal(box['padding-left'].title, 'Linked to a token. Detach it in Styles first.');
+    assert.match(box['padding-left'].title, /^[\d.]+px\. Linked to a token\. Detach it in Styles first\.$/);
     assert.equal(box['padding-right'].readonly, false);
   }, { html, design: '---\nspacing:\n  md: "16px"\n---\n\n# Fixture\n' });
 });
@@ -519,7 +519,7 @@ test('a pending Outside stroke makes the border numbers read-only', async (t) =>
     const box = await readBox(page);
     for (const side of ['top', 'right', 'bottom', 'left']) {
       assert.equal(box[`border-${side}-width`].readonly, true, side);
-      assert.equal(box[`border-${side}-width`].title, 'Edit this stroke in Stroke');
+      assert.equal(box[`border-${side}-width`].title.replace(/^[\d.]+px\. /, ''), 'Edit this stroke in Stroke');
     }
     assert.equal((await computed(page, 'button.cta', ['outline-width']))['outline-width'], '2px', 'the outline stays');
   }, { expose: ['commitStrokeEdit', 'renderPanel'] });
@@ -537,7 +537,7 @@ test('multi-select under border-box with different padding: the content size rea
     assert.equal(box['padding-left'].title, 'Mixed', 'hovering the dash says Mixed');
     assert.equal(box.width.text, '–');
     assert.equal(box.width.readonly, true);
-    assert.equal(box.width.title, 'Padding or border differs across the selection. Make those match first.');
+    assert.equal(box.width.title, 'Mixed. Padding or border differs across the selection. Make those match first.');
   }, { html });
 });
 
@@ -714,6 +714,65 @@ test('a box border edit, then a uniform Stroke: the Stroke covers every side, on
 // inside the margin ring and clear of its neighbours; a value that cannot fit
 // shortens with an ellipsis and keeps its full text in the title.
 const LONG_VALUES = (html) => html.replace('</style>', '#card-b { padding-right: 1234.56px; margin-left: 987.65px; border: 3.5px solid #ccc; }\n</style>');
+// Sol: at 140% a 56px editor centred on a 24px margin number poked past the
+// box edge, and on the phone sheet a long value could not shorten. Side
+// editors open inward; phone numbers shorten like desktop ones.
+test('at 140% text a side editor opens inside the box', async (t) => {
+  for (const prop of ['margin-left', 'margin-right', 'border-right-width']) {
+    await run(t, async (page) => {
+      await selectElement(page, 'button.cta');
+      await addToSelection(page, '#card-a');
+      await page.evaluate(() => { const h = document.querySelector('[data-raven-grab-overlay]'); for (const n of [h, ...h.shadowRoot.querySelectorAll('*')]) if (n.style && n.style.getPropertyValue('--raven-grab-font-scale')) n.style.setProperty('--raven-grab-font-scale', '1.4'); h.style.setProperty('--raven-grab-font-scale', '1.4'); });
+      const pt = await shadowEval(page, (root, p) => { const n = Array.from(root.querySelectorAll(`[data-box-prop="${p}"]`)).find((x) => x.getClientRects().length); n.scrollIntoView({ block: 'center' }); const r = n.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, prop);
+      await page.mouse.click(pt.x, pt.y);
+      await page.waitForFunction((p) => !!document.querySelector('[data-raven-grab-overlay]').shadowRoot.querySelector(`[data-box-input="${p}"]`), prop, { timeout: 5000 });
+      const fit = await shadowEval(page, (root, p) => {
+        const ring = Array.from(root.querySelectorAll('.raven-grab-box-ring[data-ring="margin"]')).find((x) => x.getClientRects().length).getBoundingClientRect();
+        const r = root.querySelector(`[data-box-input="${p}"]`).getBoundingClientRect();
+        return { left: r.left - ring.left, right: ring.right - r.right };
+      }, prop);
+      assert.ok(fit.left >= -0.5 && fit.right >= -0.5, `${prop} editor inside the box: ${JSON.stringify(fit)}`);
+    }, { viewport: { width: 1024, height: 768 } });
+  }
+});
+
+test('phone sheet at 100% and 140% text: Mixed and long numbers stay 44px, inside the box and apart', async (t) => {
+  for (const scale of ['1', '1.4']) {
+    await run(t, async (page) => {
+      await page.addStyleTag({ content: '.site { left: 10px !important; width: 360px !important; }' });
+      const centre = (sel) => page.evaluate((s) => { const r = document.querySelector(s).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, sel);
+      let at = await centre('button.cta');
+      await page.mouse.move(at.x - 2, at.y - 2); await page.mouse.click(at.x, at.y); await page.waitForTimeout(400);
+      at = await centre('#card-a');
+      await page.keyboard.down('Shift'); await page.mouse.move(at.x, at.y); await page.mouse.click(at.x, at.y); await page.keyboard.up('Shift'); await page.waitForTimeout(400);
+      const tab = await shadowEval(page, (root) => { const r = root.querySelector('.raven-grab-mobile-tabs [data-tab="instructions"]').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+      await page.mouse.click(tab.x, tab.y); await page.waitForTimeout(300);
+      const bad = await shadowEval(page, (root, fs) => {
+        const host = root.host;
+        for (const node of [host, ...root.querySelectorAll('*')]) if (node.style && node.style.getPropertyValue('--raven-grab-font-scale')) node.style.setProperty('--raven-grab-font-scale', fs);
+        host.style.setProperty('--raven-grab-font-scale', fs);
+        const visible = (sel) => Array.from(root.querySelectorAll(sel)).filter((n) => n.getClientRects().length);
+        // A long value on a side, as the CSS sees it.
+        for (const p of ['padding-left', 'border-right-width']) visible(`[data-box-prop="${p}"]`)[0].textContent = '1234.56';
+        const ring = visible('.raven-grab-box-ring[data-ring="margin"]')[0].getBoundingClientRect();
+        const cells = visible('.raven-grab-box-num').map((n) => ({ prop: n.getAttribute('data-box-prop'), r: n.getBoundingClientRect() }));
+        const out = [];
+        if (!cells.some((c) => c.prop === 'margin-left')) out.push('no box model');
+        for (const c of cells) {
+          if (c.r.left < ring.left - 0.5 || c.r.right > ring.right + 0.5) out.push(`${c.prop} outside`);
+          if (c.r.width < 43.5 || c.r.height < 43.5) out.push(`${c.prop} under 44px`);
+        }
+        for (let i = 0; i < cells.length; i++) for (let j = i + 1; j < cells.length; j++) {
+          const p = cells[i].r, q = cells[j].r;
+          if (p.left < q.right - 0.5 && q.left < p.right - 0.5 && p.top < q.bottom - 0.5 && q.top < p.bottom - 0.5) out.push(`${cells[i].prop}/${cells[j].prop} overlap`);
+        }
+        return out;
+      }, scale);
+      assert.deepEqual(bad, [], `phone at ${scale}`);
+    }, { viewport: { width: 390, height: 844 } });
+  }
+});
+
 test('at 80–140% panel text the box numbers never overlap or leave the box', async (t) => {
   const fixture = await readFile(FIXTURE_PATH, 'utf8');
   const scenarios = [

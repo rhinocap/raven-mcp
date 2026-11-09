@@ -1574,7 +1574,8 @@
     /* When values outgrow the panel (Mixed, 1234.56, large text) a number shortens with an ellipsis; nothing overlaps or leaves the box. */
     .raven-grab-box-side { max-width: 100%; }
     .raven-grab-box-side[data-side="left"], .raven-grab-box-side[data-side="right"] { max-width: calc(30px * var(--raven-grab-font-scale)); }
-    .raven-grab-box-num:not([data-editing="true"]) { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
+    .raven-grab-box-num { max-width: 100%; }
+    .raven-grab-box-num:not([data-editing="true"]) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
     .raven-grab-box-inner { grid-area: inner; width: 100%; min-width: 0; }
     .raven-grab-box-content { display: flex; align-items: center; justify-content: center; gap: 4px; min-width: 0; max-width: 100%; height: calc(28px * var(--raven-grab-font-scale)); border: 1px solid rgba(0, 191, 255, .32); border-radius: 3px; background: rgba(0, 191, 255, .06); color: var(--raven-grab-muted); }
     .raven-grab-box-num { display: inline-block; min-width: 24px; box-sizing: border-box; padding: calc(4px * var(--raven-grab-font-scale)) 4px; border-radius: 3px; color: var(--raven-grab-text); font-variant-numeric: tabular-nums; text-align: center; cursor: ew-resize; outline: none; }
@@ -1585,6 +1586,9 @@
     .raven-grab-box-num[data-readonly="true"]:hover { background: transparent; }
     .raven-grab-box-num[data-editing="true"] { position: relative; color: transparent; background: transparent; }
     .raven-grab-box-num[data-editing="true"] .raven-grab-box-input { position: absolute; z-index: 1; top: 0; left: 50%; height: 100%; min-width: 100%; transform: translateX(-50%); }
+    /* A side editor opens inward, so at large text it never pokes past the box edge. */
+    .raven-grab-box-side[data-side="left"] .raven-grab-box-num[data-editing="true"] .raven-grab-box-input { left: 0; transform: none; }
+    .raven-grab-box-side[data-side="right"] .raven-grab-box-num[data-editing="true"] .raven-grab-box-input { left: auto; right: 0; transform: none; }
     .raven-grab-box-input::placeholder { color: var(--raven-grab-tertiary); }
     .raven-grab-box-input { width: calc(40px * var(--raven-grab-font-scale)); box-sizing: border-box; margin: 0; padding: 0 2px; border: 1px solid var(--raven-grab-accent); border-radius: 3px; background: var(--raven-grab-bg); color: var(--raven-grab-text); font: inherit; text-align: center; outline: none; }
     /* Mobile sheet: every number is a 44px tap target; the content box stacks W over H to fit. */
@@ -1595,9 +1599,9 @@
       .raven-grab-box-content > [data-box-prop="width"]::before { content: "W\\00a0"; color: var(--raven-grab-muted); }
       .raven-grab-box-content > [data-box-prop="height"]::before { content: "H\\00a0"; color: var(--raven-grab-muted); }
     }
-    :host([data-mobile-sheet="true"]) .raven-grab-box-ring { grid-template-columns: 44px minmax(0, 1fr) 44px; grid-template-rows: 44px auto 44px; }
-    :host([data-mobile-sheet="true"]) .raven-grab-box-side[data-side="left"], :host([data-mobile-sheet="true"]) .raven-grab-box-side[data-side="right"] { max-width: none; }
-    :host([data-mobile-sheet="true"]) .raven-grab-box-num { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; min-width: 44px; min-height: 44px; }
+    :host([data-mobile-sheet="true"]) .raven-grab-box-ring { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: 44px auto 44px; }
+    :host([data-mobile-sheet="true"]) .raven-grab-box-side[data-side="left"], :host([data-mobile-sheet="true"]) .raven-grab-box-side[data-side="right"] { min-width: 44px; max-width: 52px; }
+    :host([data-mobile-sheet="true"]) .raven-grab-box-num { display: inline-block; box-sizing: border-box; min-width: 44px; min-height: 44px; padding: 0 4px; line-height: 44px; }
     :host([data-mobile-sheet="true"]) .raven-grab-box-content { flex-direction: column; height: auto; gap: 0; }
     :host([data-mobile-sheet="true"]) .raven-grab-box-content > [aria-hidden="true"] { display: none; }
     :host([data-mobile-sheet="true"]) .raven-grab-box-content > [data-box-prop="width"]::before { content: "W\\00a0"; color: var(--raven-grab-muted); }
@@ -9662,12 +9666,17 @@
     };
   }
 
+  // The hover text always starts with the full value, so a shortened number or a dash can be read in full.
+  function boxValueTitle(cell) {
+    return cell.text === "Mixed" || cell.text === "auto" ? cell.text : cell.text + "px";
+  }
+
   function boxNumberMarkup(property, label) {
     var cell = boxCell(property);
     return '<span class="raven-grab-box-num" data-box-prop="' + escapeHtml(property) + '" data-box-raw="' + escapeHtml(cell.raw) + '" data-box-offset="' + cell.offset + '"' +
       ' tabindex="0" role="spinbutton" aria-label="' + escapeHtml(label) + '" aria-valuetext="' + escapeHtml(cell.text === "Mixed" || cell.text === "auto" ? cell.text : cell.text + "px") + '"' +
       (cell.number !== null ? ' aria-valuenow="' + boxNumberText(cell.number) + '"' : "") +
-      (cell.readOnly ? ' aria-readonly="true" data-readonly="true" title="' + escapeHtml(cell.readOnly) + '"' : ' title="' + escapeHtml(cell.text) + '"') +
+      ' title="' + escapeHtml(cell.readOnly ? boxValueTitle(cell) + ". " + cell.readOnly : cell.text) + '"' + (cell.readOnly ? ' aria-readonly="true" data-readonly="true"' : "") +
       (cell.text === "Mixed" ? ' data-mixed="true"' : "") +
       (cell.edited ? ' data-edited="true"' : "") + '>' + escapeHtml(cell.text === "Mixed" ? "\u2013" : cell.text) + '</span>';
   }
