@@ -713,7 +713,7 @@ test('a box border edit, then a uniform Stroke: the Stroke covers every side, on
 // 140%, in the narrow 1024 panel and the wider 1440 one, every number stays
 // inside the margin ring and clear of its neighbours; a value that cannot fit
 // shortens with an ellipsis and keeps its full text in the title.
-const LONG_VALUES = (html) => html.replace('</style>', '#card-b { padding-right: 1234.56px; margin-left: 987.65px; border: 3.5px solid #ccc; }\n</style>');
+const LONG_VALUES = (html) => html.replace('</style>', '#card-b { padding: 0 1234.56px; margin: 0 987.65px; border: solid #ccc; border-width: 0 123.45px; }\n</style>');
 // Sol: at 140% a 56px editor centred on a 24px margin number poked past the
 // box edge, and on the phone sheet a long value could not shorten. Side
 // editors open inward; phone numbers shorten like desktop ones.
@@ -753,7 +753,7 @@ test('phone sheet at 100% and 140% text: Mixed and long numbers stay 44px, insid
         host.style.setProperty('--raven-grab-font-scale', fs);
         const visible = (sel) => Array.from(root.querySelectorAll(sel)).filter((n) => n.getClientRects().length);
         // A long value on a side, as the CSS sees it.
-        for (const p of ['padding-left', 'border-right-width']) visible(`[data-box-prop="${p}"]`)[0].textContent = '1234.56';
+        for (const p of ['padding-left', 'padding-right', 'border-left-width', 'border-right-width', 'margin-left', 'margin-right']) visible(`[data-box-prop="${p}"]`)[0].textContent = '1234.56';
         const ring = visible('.raven-grab-box-ring[data-ring="margin"]')[0].getBoundingClientRect();
         const cells = visible('.raven-grab-box-num').map((n) => ({ prop: n.getAttribute('data-box-prop'), r: n.getBoundingClientRect() }));
         const out = [];
