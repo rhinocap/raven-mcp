@@ -29,7 +29,8 @@ function readBox(page) {
         text: cell.textContent,
         edited: cell.getAttribute('data-edited') === 'true',
         readonly: cell.getAttribute('data-readonly') === 'true',
-        title: cell.getAttribute('title') || ''
+        title: cell.getAttribute('title') || '',
+        valuetext: cell.getAttribute('aria-valuetext') || ''
       };
     }
     return out;
@@ -531,8 +532,10 @@ test('multi-select under border-box with different padding: the content size rea
     await selectElement(page, '#card-a');
     await addToSelection(page, '#card-b');
     const box = await readBox(page);
-    assert.equal(box['padding-left'].text, 'Mixed', 'the selection really is mixed');
-    assert.equal(box.width.text, 'Mixed');
+    assert.equal(box['padding-left'].text, '–', 'the selection really is mixed');
+    assert.equal(box['padding-left'].valuetext, 'Mixed', 'a mixed number shows a dash and still reads Mixed aloud');
+    assert.equal(box['padding-left'].title, 'Mixed', 'hovering the dash says Mixed');
+    assert.equal(box.width.text, '–');
     assert.equal(box.width.readonly, true);
     assert.equal(box.width.title, 'Padding or border differs across the selection. Make those match first.');
   }, { html });
@@ -555,7 +558,7 @@ test('multi-select: typing into a Mixed side makes every selected element match'
     await selectElement(page, '#card-a');
     await addToSelection(page, '#card-b');
     const before = await readBox(page);
-    assert.equal(before['padding-left'].text, 'Mixed');
+    assert.equal(before['padding-left'].text, '–');
     assert.equal(before['padding-left'].readonly, false, 'a Mixed number can be typed into');
     const point = await cellPoint(page, 'padding-left');
     await page.mouse.click(point.x, point.y);
@@ -597,7 +600,7 @@ test('multi-select: a Mixed content width with matching padding takes one typed 
   await run(t, async (page) => {
     await selectElement(page, '#card-a');
     await addToSelection(page, '#card-b');
-    assert.equal((await readBox(page)).width.text, 'Mixed');
+    assert.equal((await readBox(page)).width.text, '–');
     await typeInBox(page, 'width', '150');
     const a = await page.evaluate(() => { const s = getComputedStyle(document.querySelector('#card-a')); return parseFloat(s.width) - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight) - parseFloat(s.borderLeftWidth) - parseFloat(s.borderRightWidth); });
     const b = await page.evaluate(() => { const s = getComputedStyle(document.querySelector('#card-b')); return parseFloat(s.width) - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight) - parseFloat(s.borderLeftWidth) - parseFloat(s.borderRightWidth); });
@@ -615,7 +618,7 @@ test('multi-select: sides that differ but add up the same keep one content width
     await addToSelection(page, '#card-b');
     const content = (sel) => page.evaluate((s) => { const c = getComputedStyle(document.querySelector(s)); return parseFloat(c.width) - parseFloat(c.paddingLeft) - parseFloat(c.paddingRight) - parseFloat(c.borderLeftWidth) - parseFloat(c.borderRightWidth); }, sel);
     const box = await readBox(page);
-    assert.equal(box['padding-left'].text, 'Mixed', 'the sides really differ');
+    assert.equal(box['padding-left'].text, '–', 'the sides really differ');
     assert.equal(box.width.text, String(await content('#card-a')), 'both content widths are equal, so the box shows the number');
     assert.equal(box.width.readonly, false);
     await typeInBox(page, 'width', '150');
@@ -705,35 +708,50 @@ test('a box border edit, then a uniform Stroke: the Stroke covers every side, on
   }, { expose: ['commitStrokeEdit', 'renderPanel'] });
 });
 
-// Andrew's live check found W and H overlapping at 140% panel text. Every
-// number must stay inside the margin ring and clear of its neighbours from
-// 80% to 140%, in the narrow 1024 panel and the wider 1440 one.
+// Andrew's live check found W and H overlapping at 140% panel text, and Sol
+// found Mixed and long values pushing numbers out of the panel. From 80% to
+// 140%, in the narrow 1024 panel and the wider 1440 one, every number stays
+// inside the margin ring and clear of its neighbours; a value that cannot fit
+// shortens with an ellipsis and keeps its full text in the title.
+const LONG_VALUES = (html) => html.replace('</style>', '#card-b { padding-right: 1234.56px; margin-left: 987.65px; border: 3.5px solid #ccc; }\n</style>');
 test('at 80–140% panel text the box numbers never overlap or leave the box', async (t) => {
-  for (const viewport of [{ width: 1024, height: 768 }, { width: 1440, height: 900 }]) {
-    for (const scale of ['0.8', '1', '1.2', '1.4']) {
-      await run(t, async (page) => {
-        await selectElement(page, '#card-b');
-        await page.evaluate((fs) => {
-          const host = document.querySelector('[data-raven-grab-overlay]');
-          for (const node of [host, ...host.shadowRoot.querySelectorAll('*')]) {
-            if (node.style && node.style.getPropertyValue('--raven-grab-font-scale')) node.style.setProperty('--raven-grab-font-scale', fs);
-          }
-          host.style.setProperty('--raven-grab-font-scale', fs);
-        }, scale);
-        const bad = await shadowEval(page, (root) => {
-          const visible = (s) => Array.from(root.querySelectorAll(s)).filter((n) => n.getClientRects().length);
-          const cells = visible('.raven-grab-box-num').map((n) => ({ prop: n.getAttribute('data-box-prop'), r: n.getBoundingClientRect() }));
-          const ring = visible('.raven-grab-box-ring[data-ring="margin"]')[0].getBoundingClientRect();
-          const out = [];
-          for (const c of cells) if (c.r.left < ring.left - 0.5 || c.r.right > ring.right + 0.5) out.push(`${c.prop} outside`);
-          for (let i = 0; i < cells.length; i++) for (let j = i + 1; j < cells.length; j++) {
-            const p = cells[i].r, q = cells[j].r;
-            if (p.left < q.right - 0.5 && q.left < p.right - 0.5 && p.top < q.bottom - 0.5 && q.top < p.bottom - 0.5) out.push(`${cells[i].prop}/${cells[j].prop} overlap`);
-          }
-          return out;
-        });
-        assert.deepEqual(bad, [], `${viewport.width}px at ${scale}`);
-      }, { viewport });
+  const fixture = await readFile(FIXTURE_PATH, 'utf8');
+  const scenarios = [
+    { name: 'card', select: async (page) => selectElement(page, '#card-b') },
+    { name: 'mixed', select: async (page) => { await selectElement(page, 'button.cta'); await addToSelection(page, '#card-a'); } },
+    { name: 'long', html: LONG_VALUES(fixture), select: async (page) => selectElement(page, '#card-b') }
+  ];
+  for (const scenario of scenarios) {
+    for (const viewport of [{ width: 1024, height: 768 }, { width: 1440, height: 900 }]) {
+      for (const scale of ['0.8', '1', '1.4']) {
+        await run(t, async (page) => {
+          await scenario.select(page);
+          await page.evaluate((fs) => {
+            const host = document.querySelector('[data-raven-grab-overlay]');
+            for (const node of [host, ...host.shadowRoot.querySelectorAll('*')]) {
+              if (node.style && node.style.getPropertyValue('--raven-grab-font-scale')) node.style.setProperty('--raven-grab-font-scale', fs);
+            }
+            host.style.setProperty('--raven-grab-font-scale', fs);
+          }, scale);
+          const bad = await shadowEval(page, (root) => {
+            const visible = (s) => Array.from(root.querySelectorAll(s)).filter((n) => n.getClientRects().length);
+            const cells = visible('.raven-grab-box-num').map((n) => ({ prop: n.getAttribute('data-box-prop'), r: n.getBoundingClientRect(), node: n }))
+              .concat(visible('.raven-grab-box-label').map((n) => ({ prop: `${n.textContent} label`, r: n.getBoundingClientRect(), node: n })));
+            const ring = visible('.raven-grab-box-ring[data-ring="margin"]')[0].getBoundingClientRect();
+            const out = [];
+            for (const c of cells) {
+              if (c.r.left < ring.left - 0.5 || c.r.right > ring.right + 0.5) out.push(`${c.prop} outside`);
+              if (c.node.scrollWidth > c.node.clientWidth + 1 && !c.node.getAttribute('title')) out.push(`${c.prop} cut without a title`);
+            }
+            for (let i = 0; i < cells.length; i++) for (let j = i + 1; j < cells.length; j++) {
+              const p = cells[i].r, q = cells[j].r;
+              if (p.left < q.right - 0.5 && q.left < p.right - 0.5 && p.top < q.bottom - 0.5 && q.top < p.bottom - 0.5) out.push(`${cells[i].prop}/${cells[j].prop} overlap`);
+            }
+            return out;
+          });
+          assert.deepEqual(bad, [], `${scenario.name} at ${viewport.width}px, ${scale}`);
+        }, { viewport, ...(scenario.html ? { html: scenario.html } : {}) });
+      }
     }
   }
 });
