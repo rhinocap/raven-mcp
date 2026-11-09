@@ -12207,11 +12207,11 @@
     var activeCount = activeDispatch ? activeDispatch.logicalCount : 0;
     if (hasUploadingAttachments()) return { state: "pending-upload", label: "Wait for the upload to finish", enabled: false, count: nextCount };
     var counts;
-    if (dispatchState === "registering") return { state: "registering", label: "Sending " + activeCount + " changes…", enabled: false, count: activeCount };
-    if (dispatchState === "committing") return { state: "committing", label: "Sending " + activeCount + " changes…", enabled: false, count: activeCount };
+    if (dispatchState === "registering") return { state: "registering", label: "Sending " + activeCount + (activeCount === 1 ? " change…" : " changes…"), enabled: false, count: activeCount };
+    if (dispatchState === "committing") return { state: "committing", label: "Sending " + activeCount + (activeCount === 1 ? " change…" : " changes…"), enabled: false, count: activeCount };
     if (dispatchState === "applying") {
       if (nextCount) return { state: "applying-with-next", label: sendQueued ? "Applying " + activeCount + " · " + nextCount + " queued" : "Applying " + activeCount + " · send " + nextCount + " next", enabled: !sendQueued, count: nextCount };
-      return { state: "applying", label: "Applying " + activeCount + " changes…", enabled: false, count: activeCount };
+      return { state: "applying", label: "Applying " + activeCount + (activeCount === 1 ? " change…" : " changes…"), enabled: false, count: activeCount };
     }
     if (dispatchState === "done") {
       // "Applied" would be a lie on someone else's site — nothing was changed

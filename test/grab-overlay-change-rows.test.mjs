@@ -205,3 +205,17 @@ test('Retry keeps the element label the designer saw when it was sent', async (t
     assert.equal(pending.line2, '14px → 18px – button.cta');
   });
 });
+
+test('one sent change reads "1 change", not "1 changes"', async (t) => {
+  await run(t, async (page) => {
+    await selectElement(page, 'button.cta');
+    await editStyle(page, 'padding', '18px');
+    await sendBatch(page);
+    await page.waitForFunction(() => {
+      const label = document.querySelector('[data-raven-grab-overlay]')?.shadowRoot?.querySelector('[data-send-batch]')?.textContent || '';
+      return /^(Sending|Applying) 1 /.test(label.trim());
+    }, null, { timeout: 5000 });
+    const label = await shadowEval(page, (root) => root.querySelector('[data-send-batch]').textContent.trim());
+    assert.match(label, /^(Sending|Applying) 1 change…$/);
+  });
+});
