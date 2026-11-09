@@ -1515,19 +1515,20 @@
     .raven-grab-scope[data-scope-value="instance"] .raven-grab-scope-labels span:first-child,
     .raven-grab-scope[data-scope-value="component"] .raven-grab-scope-labels span:last-child { color: var(--raven-grab-bg); }
     /* Scope sits on the Styles heading row, so it costs no extra height. */
-    .raven-grab-styles-head { display: flex; align-items: center; gap: 8px; }
-    .raven-grab-styles-head .raven-grab-section-toggle { flex: 1 1 0; width: auto; min-width: 0; }
+    .raven-grab-styles-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+    .raven-grab-styles-head .raven-grab-section-toggle { flex: 1 0 auto; width: auto; }
     .raven-grab-styles-head[data-has-scope="true"] .raven-grab-section-toggle { justify-content: flex-start; gap: 6px; }
     .raven-grab-styles-head .raven-grab-scope {
-      flex: 0 0 196px; width: 196px; min-height: 0; padding: 2px;
+      flex: 0 0 auto; width: calc(52px + 144px * var(--raven-grab-font-scale)); max-width: 100%; min-height: 0; padding: 2px;
       grid-template-columns: 24px minmax(0, 1fr) 24px;
     }
     .raven-grab-styles-head .raven-grab-scope-cap { width: 24px; height: 24px; }
     .raven-grab-styles-head .raven-grab-scope-ico { width: 13px; height: 13px; }
     .raven-grab-styles-head .raven-grab-scope-ico[data-kind="instance"] span { width: 9px; height: 9px; }
     .raven-grab-styles-head .raven-grab-scope-track { height: 24px; }
+    .raven-grab-styles-head .raven-grab-scope-labels span { white-space: nowrap; }
     .raven-grab-styles-head .raven-grab-scope-knob { height: 20px; box-shadow: none; }
-    :host([data-mobile-sheet="true"]) .raven-grab-styles-head .raven-grab-scope { flex-basis: 236px; width: 236px; grid-template-columns: 44px minmax(0, 1fr) 44px; }
+    :host([data-mobile-sheet="true"]) .raven-grab-styles-head .raven-grab-scope { width: calc(92px + 144px * var(--raven-grab-font-scale)); grid-template-columns: 44px minmax(0, 1fr) 44px; }
     :host([data-mobile-sheet="true"]) .raven-grab-styles-head .raven-grab-scope-cap { width: 44px; height: 44px; }
     :host([data-mobile-sheet="true"]) .raven-grab-styles-head .raven-grab-scope-track { height: 32px; }
     :host([data-mobile-sheet="true"]) .raven-grab-styles-head .raven-grab-scope-knob { height: 28px; }
