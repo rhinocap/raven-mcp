@@ -1562,12 +1562,14 @@
     .raven-grab-layer-row[data-layer-hovered="true"] { background: rgba(255,255,255,.07); box-shadow: inset 2px 0 0 var(--raven-grab-accent); }
     .raven-grab-search { margin: 0 0 8px; }
     .raven-grab-boxmodel { margin: 0 0 12px; color: var(--raven-grab-text); font: 400 calc(12px * var(--raven-grab-font-scale))/1 var(--raven-grab-ui); -webkit-user-select: none; user-select: none; container-type: inline-size; }
-    .raven-grab-box-ring { position: relative; display: grid; grid-template-columns: fit-content(calc(30px * var(--raven-grab-font-scale))) minmax(calc(32px * var(--raven-grab-font-scale)), 1fr) fit-content(calc(30px * var(--raven-grab-font-scale))); grid-template-rows: calc(20px * var(--raven-grab-font-scale)) auto calc(20px * var(--raven-grab-font-scale)); grid-template-areas: ". top ." "left inner right" ". bottom ."; align-items: center; justify-items: center; border-radius: 6px; }
+    .raven-grab-box-ring { position: relative; display: grid; grid-template-columns: fit-content(calc(30px * var(--raven-grab-font-scale))) minmax(calc(32px * var(--raven-grab-font-scale)), 1fr) fit-content(calc(30px * var(--raven-grab-font-scale))); grid-template-rows: calc(20px * var(--raven-grab-font-scale)) auto calc(20px * var(--raven-grab-font-scale)); grid-template-areas: "top top top" "left inner right" ". bottom ."; align-items: center; justify-items: center; border-radius: 6px; }
     .raven-grab-box-ring[data-ring="margin"] { border: 1px dashed rgba(255, 255, 255, .16); }
     .raven-grab-box-ring[data-ring="border"] { border: 1px solid rgba(255, 255, 255, .26); background: rgba(255, 255, 255, .025); }
     .raven-grab-box-ring[data-ring="padding"] { border: 1px dashed rgba(255, 255, 255, .16); background: rgba(255, 255, 255, .03); border-radius: 4px; }
     .raven-grab-box-label { position: absolute; top: calc(3px * var(--raven-grab-font-scale)); left: 6px; color: var(--raven-grab-muted); font-size: calc(10px * var(--raven-grab-font-scale)); line-height: 1; pointer-events: none; }
-    .raven-grab-box-side[data-side="top"] { grid-area: top; }
+    /* The top number centres on the ring, but never under the ring's name: on a narrow ring it moves right of the label. */
+    .raven-grab-box-side[data-side="top"] { grid-area: top; justify-self: stretch; display: grid; grid-template-columns: minmax(calc(8px + 40px * var(--raven-grab-font-scale)), 1fr) auto minmax(0, 1fr); align-items: center; max-width: none; }
+    .raven-grab-box-side[data-side="top"] > .raven-grab-box-num { grid-column: 2; }
     .raven-grab-box-side[data-side="right"] { grid-area: right; }
     .raven-grab-box-side[data-side="bottom"] { grid-area: bottom; }
     .raven-grab-box-side[data-side="left"] { grid-area: left; }

@@ -713,7 +713,9 @@ test('a box border edit, then a uniform Stroke: the Stroke covers every side, on
 // 140%, in the narrow 1024 panel and the wider 1440 one, every number stays
 // inside the margin ring and clear of its neighbours; a value that cannot fit
 // shortens with an ellipsis and keeps its full text in the title.
-const LONG_VALUES = (html) => html.replace('</style>', '#card-b { padding: 0 1234.56px; margin: 0 987.65px; border: solid #ccc; border-width: 0 123.45px; }\n</style>');
+// Long values go straight into the six side numbers: real 1234px paddings
+// would push the card off screen and the click would select something else.
+const SIDES = ['padding-left', 'padding-right', 'border-left-width', 'border-right-width', 'margin-left', 'margin-right'];
 // Sol: at 140% a 56px editor centred on a 24px margin number poked past the
 // box edge, and on the phone sheet a long value could not shorten. Side
 // editors open inward; phone numbers shorten like desktop ones.
@@ -758,6 +760,10 @@ test('phone sheet at 100% and 140% text: Mixed and long numbers stay 44px, insid
         const cells = visible('.raven-grab-box-num').map((n) => ({ prop: n.getAttribute('data-box-prop'), r: n.getBoundingClientRect() }));
         const out = [];
         if (!cells.some((c) => c.prop === 'margin-left')) out.push('no box model');
+        for (const n of visible('.raven-grab-box-label')) {
+          const l = n.getBoundingClientRect();
+          for (const c of cells) if (l.left < c.r.right - 0.5 && c.r.left < l.right - 0.5 && l.top < c.r.bottom - 0.5 && c.r.top < l.bottom - 0.5) out.push(`${n.textContent} label/${c.prop} overlap`);
+        }
         for (const c of cells) {
           if (c.r.left < ring.left - 0.5 || c.r.right > ring.right + 0.5) out.push(`${c.prop} outside`);
           if (c.r.width < 43.5 || c.r.height < 43.5) out.push(`${c.prop} under 44px`);
@@ -774,11 +780,14 @@ test('phone sheet at 100% and 140% text: Mixed and long numbers stay 44px, insid
 });
 
 test('at 80–140% panel text the box numbers never overlap or leave the box', async (t) => {
-  const fixture = await readFile(FIXTURE_PATH, 'utf8');
   const scenarios = [
     { name: 'card', select: async (page) => selectElement(page, '#card-b') },
     { name: 'mixed', select: async (page) => { await selectElement(page, 'button.cta'); await addToSelection(page, '#card-a'); } },
-    { name: 'long', html: LONG_VALUES(fixture), select: async (page) => selectElement(page, '#card-b') }
+    { name: 'long', select: async (page) => {
+      await selectElement(page, '#card-b');
+      const set = await shadowEval(page, (root, sides) => sides.filter((p) => { const n = Array.from(root.querySelectorAll(`[data-box-prop="${p}"]`)).find((x) => x.getClientRects().length); if (n) n.textContent = '1234.56'; return !!n; }).length, SIDES);
+      assert.equal(set, 6, 'all six sides hold a long value');
+    } }
   ];
   for (const scenario of scenarios) {
     for (const viewport of [{ width: 1024, height: 768 }, { width: 1440, height: 900 }]) {
@@ -809,7 +818,7 @@ test('at 80–140% panel text the box numbers never overlap or leave the box', a
             return out;
           });
           assert.deepEqual(bad, [], `${scenario.name} at ${viewport.width}px, ${scale}`);
-        }, { viewport, ...(scenario.html ? { html: scenario.html } : {}) });
+        }, { viewport });
       }
     }
   }
