@@ -2922,6 +2922,9 @@ test('overlay component scope is opt-in, scopes both intent types, previews one 
   assert.match(internals.getPanelHtml(), /data-edit-scope="component"[^>]*aria-label="All siblings \(2\)"/);
   assert.match(internals.getPanelHtml(), /All siblings/);
   assert.match(internals.getPanelHtml(), /raven-grab-scope-ico" data-kind="siblings"/);
+  // The switch shares the Styles heading row; there is no separate Scope section.
+  assert.match(internals.getPanelHtml(), /class="raven-grab-styles-head" data-has-scope="true"><button[^>]*data-section-toggle="styles"[\s\S]*?<\/button><div class="raven-grab-scope"/);
+  assert.doesNotMatch(internals.getPanelHtml(), />Scope<\/h2>/);
   const componentChip = {
     closest(selector) { return selector === '[data-edit-scope]' ? this : null; },
     getAttribute(name) { return name === 'data-edit-scope' ? 'component' : null; }

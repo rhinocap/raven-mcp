@@ -1514,6 +1514,23 @@
     .raven-grab-scope-labels span { text-align: center; color: var(--raven-grab-muted); }
     .raven-grab-scope[data-scope-value="instance"] .raven-grab-scope-labels span:first-child,
     .raven-grab-scope[data-scope-value="component"] .raven-grab-scope-labels span:last-child { color: var(--raven-grab-bg); }
+    /* Scope sits on the Styles heading row, so it costs no extra height. */
+    .raven-grab-styles-head { display: flex; align-items: center; gap: 8px; }
+    .raven-grab-styles-head .raven-grab-section-toggle { flex: 1 1 0; width: auto; min-width: 0; }
+    .raven-grab-styles-head[data-has-scope="true"] .raven-grab-section-toggle { justify-content: flex-start; gap: 6px; }
+    .raven-grab-styles-head .raven-grab-scope {
+      flex: 0 0 196px; width: 196px; min-height: 0; padding: 2px;
+      grid-template-columns: 24px minmax(0, 1fr) 24px;
+    }
+    .raven-grab-styles-head .raven-grab-scope-cap { width: 24px; height: 24px; }
+    .raven-grab-styles-head .raven-grab-scope-ico { width: 13px; height: 13px; }
+    .raven-grab-styles-head .raven-grab-scope-ico[data-kind="instance"] span { width: 9px; height: 9px; }
+    .raven-grab-styles-head .raven-grab-scope-track { height: 24px; }
+    .raven-grab-styles-head .raven-grab-scope-knob { height: 20px; box-shadow: none; }
+    :host([data-mobile-sheet="true"]) .raven-grab-styles-head .raven-grab-scope { flex-basis: 236px; width: 236px; grid-template-columns: 44px minmax(0, 1fr) 44px; }
+    :host([data-mobile-sheet="true"]) .raven-grab-styles-head .raven-grab-scope-cap { width: 44px; height: 44px; }
+    :host([data-mobile-sheet="true"]) .raven-grab-styles-head .raven-grab-scope-track { height: 32px; }
+    :host([data-mobile-sheet="true"]) .raven-grab-styles-head .raven-grab-scope-knob { height: 28px; }
     .raven-grab-color-input { flex: 0 0 28px; width: 28px; height: 28px; padding: 0; background: none; border: 1px solid var(--raven-grab-accent); border-radius: 8px; cursor: pointer; }
     .raven-grab-style-select, .raven-grab-style-format, .raven-grab-style-unit {
       min-height: 32px; padding: 6px 8px; color: var(--raven-grab-text); background: var(--raven-grab-bg);
@@ -14418,8 +14435,7 @@
       : "";
     var componentScope = hasSelection ? currentSelection.componentScope : null;
     var scopeMarkup = componentScope && componentScope.matchCount >= 2
-      ? '<section class="raven-grab-section"><h2 class="raven-grab-section-title">Scope</h2>' +
-          '<div class="raven-grab-scope" role="group" aria-label="Edit scope" data-scope-value="' + (editScope === "component" ? "component" : "instance") + '">' +
+      ? '<div class="raven-grab-scope" role="group" aria-label="Edit scope" data-scope-value="' + (editScope === "component" ? "component" : "instance") + '">' +
             '<button class="raven-grab-scope-cap" type="button" data-edit-scope="instance" aria-pressed="' + (editScope === "instance" ? "true" : "false") + '" aria-label="Instance">' +
               '<span class="raven-grab-scope-ico" data-kind="instance" aria-hidden="true"><span></span></span>' +
             '</button>' +
@@ -14430,7 +14446,7 @@
             '<button class="raven-grab-scope-cap" type="button" data-edit-scope="component" aria-pressed="' + (editScope === "component" ? "true" : "false") + '" aria-label="All siblings (' + componentScope.matchCount + ')">' +
               '<span class="raven-grab-scope-ico" data-kind="siblings" aria-hidden="true"><span></span><span></span><span></span><span></span></span>' +
             '</button>' +
-          '</div></section>'
+          '</div>'
       : "";
 
     var elementLabel = hasSelection ? selectionDisplayLabel(selectedElement, currentSelection) : "";
@@ -14453,9 +14469,8 @@
     var noSelectionHint = hasSelection ? "" : '<section class="raven-grab-section"><span class="raven-grab-element-placeholder">Click an element to inspect</span></section>';
     var designMarkup = `
       ${noSelectionHint}
-      ${scopeMarkup}
       <section class="raven-grab-section"${hasSelection ? ` data-selected-selector="${escapeHtml(currentSelection.selector)}"` : ""}>
-        <button class="raven-grab-section-toggle" type="button" data-section-toggle="styles" aria-expanded="${expandedSections.styles ? "true" : "false"}" aria-controls="raven-grab-styles"><span>Styles</span><span class="raven-grab-caret" aria-hidden="true">▾</span></button>
+        <div class="raven-grab-styles-head"${scopeMarkup ? ' data-has-scope="true"' : ""}><button class="raven-grab-section-toggle" type="button" data-section-toggle="styles" aria-expanded="${expandedSections.styles ? "true" : "false"}" aria-controls="raven-grab-styles"><span>Styles</span><span class="raven-grab-caret" aria-hidden="true">▾</span></button>${scopeMarkup}</div>
         ${hasSelection ? panelSearchFieldMarkup("styles", "Find a style") : ""}
         <div class="raven-grab-collapsible" id="raven-grab-styles" data-section-body="styles" data-open="${expandedSections.styles ? "true" : "false"}" aria-hidden="${expandedSections.styles ? "false" : "true"}"><div class="raven-grab-collapsible-inner">${tokensEmptyMarkup}${styleSearchEmptyMarkup}<ul class="raven-grab-styles">${stylesMarkup}</ul>${stateStylesMarkup}${styleVersionsMarkup()}</div></div>
       </section>`;
