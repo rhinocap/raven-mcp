@@ -12221,7 +12221,7 @@
       if (grabConfig && activeDispatch && activeDispatch.styleRecords.length && activeDispatch.styleRecords.every(function (record) { return record.state === "preview-only"; })) return { state: "done", label: "Preview only", enabled: false, count: nextCount };
       if (grabConfig && activeDispatch && activeDispatch.styleRecords.length && activeDispatch.styleRecords.every(function (record) { return record.state === "sent-locally"; })) return { state: "done", label: "Sent locally", enabled: false, count: nextCount };
       counts = activeDispatchCounts();
-      return { state: "done", label: counts.failed ? "Applied " + counts.applied + " · " + counts.failed + " need review" : activeCount + " changes applied ✓", enabled: false, count: nextCount };
+      return { state: "done", label: counts.failed ? "Applied " + counts.applied + " · " + counts.failed + " need review" : activeCount + (activeCount === 1 ? " change applied ✓" : " changes applied ✓"), enabled: false, count: nextCount };
     }
     if (dispatchState === "registration-error") return { state: "registration-error", label: "Retry send", enabled: !!activeDispatch && !activeDispatch.registrationErrors.batchMismatch, count: activeCount };
     if (dispatchState === "commit-error") return { state: "commit-error", label: "Retry send", enabled: !!activeDispatch && !!activeDispatch.batchId, count: activeCount };
