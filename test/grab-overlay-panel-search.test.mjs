@@ -315,3 +315,44 @@ test('simple mode shows no search fields', async (t) => {
     assert.equal(count, 0);
   }, { beforeLoad: (page) => page.addInitScript(() => localStorage.setItem('raven-grab-mode', 'simple')) });
 });
+
+// The "pad" result has to be readable without scrolling on short windows and
+// the half-height phone sheet, not tucked under the Instructions block.
+function padRowInView(page) {
+  return shadowEval(page, (root) => {
+    const row = root.querySelector('#raven-grab-styles li[data-style-property="padding"]:not([data-style-state])');
+    const body = row && row.closest('.raven-grab-body');
+    if (!row || !body) return null;
+    const r = row.getBoundingClientRect();
+    const b = body.getBoundingClientRect();
+    return { top: r.top >= b.top - 0.5, bottom: r.bottom <= b.bottom + 0.5, height: Math.round(r.height) };
+  });
+}
+
+for (const size of [{ width: 1024, height: 768 }, { width: 1440, height: 900 }]) {
+  test(`"pad" result row is fully in view at ${size.width}x${size.height}`, async (t) => {
+    await run(t, async (page) => {
+      await selectElement(page, 'button.cta');
+      await focusSearch(page, 'styles');
+      await page.keyboard.type('pad');
+      assert.deepEqual((await styleRows(page)).rows, ['padding']);
+      assert.deepEqual(await padRowInView(page), { top: true, bottom: true, height: 36 });
+    }, { viewport: size });
+  });
+}
+
+test('"pad" result row is fully in view on the half-height phone sheet', async (t) => {
+  await run(t, async (page) => {
+    await page.addStyleTag({ content: '.site { left: 10px !important; width: 360px !important; }' });
+    await clickSelect(page, 'button.cta');
+    const tab = await shadowEval(page, (root) => {
+      const r = root.querySelector('.raven-grab-mobile-tabs [data-tab="styles"]').getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    });
+    await page.mouse.click(tab.x, tab.y);
+    await focusSearch(page, 'styles');
+    await page.keyboard.type('pad');
+    assert.deepEqual((await styleRows(page)).rows, ['padding']);
+    assert.deepEqual(await padRowInView(page), { top: true, bottom: true, height: 36 });
+  }, { viewport: { width: 390, height: 844 } });
+});

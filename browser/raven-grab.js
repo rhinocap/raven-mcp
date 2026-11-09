@@ -1174,6 +1174,8 @@
     .raven-grab-assets-cta { margin-top: 12px; }
     .raven-grab-composer { margin: 0 0 12px; }
     .raven-grab-composer .raven-grab-textarea { width: 100%; box-sizing: border-box; max-height: 30vh; }
+    /* Short windows (1024x768): Instructions starts at three lines so Styles keeps room for its rows. */
+    @media (max-height: 820px) { :host(:not([data-mobile-sheet="true"])) .raven-grab-composer .raven-grab-textarea { min-height: 52px; } }
     .raven-grab-composer[data-drop-active] { outline: 1px solid var(--raven-grab-accent); outline-offset: 3px; }
     .raven-grab-attachment-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
     .raven-grab-attachment-chip { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 6px; color: var(--raven-grab-text); background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.12); border-radius: 6px; }
@@ -1881,6 +1883,8 @@
     .raven-grab-send:disabled { cursor: not-allowed; opacity: .5; transform: none; box-shadow: none; }
     .raven-grab-send:not([data-send-state="default"]):disabled { opacity: 1; }
     .raven-grab-status { min-height: 18px; margin: 8px 2px 0; color: var(--raven-grab-tertiary); font: 400 calc(11px * var(--raven-grab-font-scale))/1.4 var(--raven-grab-ui); text-align: center; }
+    /* An empty status line gives its 26px back to the Styles list; the live region stays in the DOM. */
+    .raven-grab-status:empty { min-height: 0; margin-top: 0; }
     .raven-grab-status a { color: #00BFFF; text-decoration: underline; }
     .raven-grab-status[data-kind="error"] { color: var(--raven-grab-error); }
     .raven-grab-status[data-kind="success"] { color: #00E676; }
