@@ -323,6 +323,9 @@ function padRowInView(page) {
     const row = root.querySelector('#raven-grab-styles li[data-style-property="padding"]:not([data-style-state])');
     const body = row && row.closest('.raven-grab-body');
     if (!row || !body) return null;
+    // focusSearch scrolls the field into view; measure from the top of the list
+    // so the check cannot pass on a scrolled body.
+    body.scrollTop = 0;
     const r = row.getBoundingClientRect();
     const b = body.getBoundingClientRect();
     return { top: r.top >= b.top - 0.5, bottom: r.bottom <= b.bottom + 0.5, height: Math.round(r.height) };
@@ -355,4 +358,20 @@ test('"pad" result row is fully in view on the half-height phone sheet', async (
     assert.deepEqual((await styleRows(page)).rows, ['padding']);
     assert.deepEqual(await padRowInView(page), { top: true, bottom: true, height: 36 });
   }, { viewport: { width: 390, height: 844 } });
+});
+
+test('a status message does not move the footer at 1024x768', async (t) => {
+  await run(t, async (page) => {
+    await selectElement(page, 'button.cta');
+    const heights = await shadowEval(page, (root) => {
+      const actions = Array.from(root.querySelectorAll('.raven-grab-actions')).find((n) => n.getClientRects().length && n.querySelector('[data-status]'));
+      const status = actions.querySelector('[data-status]');
+      const before = actions.getBoundingClientRect().height;
+      status.textContent = 'Padding sides replaced by padding';
+      const after = actions.getBoundingClientRect().height;
+      status.textContent = '';
+      return { before, after };
+    });
+    assert.equal(heights.after, heights.before);
+  }, { viewport: { width: 1024, height: 768 } });
 });

@@ -1883,8 +1883,10 @@
     .raven-grab-send:disabled { cursor: not-allowed; opacity: .5; transform: none; box-shadow: none; }
     .raven-grab-send:not([data-send-state="default"]):disabled { opacity: 1; }
     .raven-grab-status { min-height: 18px; margin: 8px 2px 0; color: var(--raven-grab-tertiary); font: 400 calc(11px * var(--raven-grab-font-scale))/1.4 var(--raven-grab-ui); text-align: center; }
-    /* An empty status line gives its 26px back to the Styles list; the live region stays in the DOM. */
-    .raven-grab-status:empty { min-height: 0; margin-top: 0; }
+    /* Half-height phone sheet: the status line keeps its reserved height so a message never moves the footer;
+       the room for a Styles result comes from tighter top padding and a 4px status gap instead. */
+    :host([data-mobile-sheet="true"]) .raven-grab-content { padding-top: 8px; }
+    :host([data-mobile-sheet="true"]) .raven-grab-status { margin-top: 4px; }
     .raven-grab-status a { color: #00BFFF; text-decoration: underline; }
     .raven-grab-status[data-kind="error"] { color: var(--raven-grab-error); }
     .raven-grab-status[data-kind="success"] { color: #00E676; }
