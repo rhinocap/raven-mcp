@@ -704,3 +704,36 @@ test('a box border edit, then a uniform Stroke: the Stroke covers every side, on
     assert.equal(sent.some((edit) => edit.property === 'border-left-width'), false, 'the box edit is absorbed');
   }, { expose: ['commitStrokeEdit', 'renderPanel'] });
 });
+
+// Andrew's live check found W and H overlapping at 140% panel text. Every
+// number must stay inside the margin ring and clear of its neighbours from
+// 80% to 140%, in the narrow 1024 panel and the wider 1440 one.
+test('at 80–140% panel text the box numbers never overlap or leave the box', async (t) => {
+  for (const viewport of [{ width: 1024, height: 768 }, { width: 1440, height: 900 }]) {
+    for (const scale of ['0.8', '1', '1.2', '1.4']) {
+      await run(t, async (page) => {
+        await selectElement(page, '#card-b');
+        await page.evaluate((fs) => {
+          const host = document.querySelector('[data-raven-grab-overlay]');
+          for (const node of [host, ...host.shadowRoot.querySelectorAll('*')]) {
+            if (node.style && node.style.getPropertyValue('--raven-grab-font-scale')) node.style.setProperty('--raven-grab-font-scale', fs);
+          }
+          host.style.setProperty('--raven-grab-font-scale', fs);
+        }, scale);
+        const bad = await shadowEval(page, (root) => {
+          const visible = (s) => Array.from(root.querySelectorAll(s)).filter((n) => n.getClientRects().length);
+          const cells = visible('.raven-grab-box-num').map((n) => ({ prop: n.getAttribute('data-box-prop'), r: n.getBoundingClientRect() }));
+          const ring = visible('.raven-grab-box-ring[data-ring="margin"]')[0].getBoundingClientRect();
+          const out = [];
+          for (const c of cells) if (c.r.left < ring.left - 0.5 || c.r.right > ring.right + 0.5) out.push(`${c.prop} outside`);
+          for (let i = 0; i < cells.length; i++) for (let j = i + 1; j < cells.length; j++) {
+            const p = cells[i].r, q = cells[j].r;
+            if (p.left < q.right - 0.5 && q.left < p.right - 0.5 && p.top < q.bottom - 0.5 && q.top < p.bottom - 0.5) out.push(`${cells[i].prop}/${cells[j].prop} overlap`);
+          }
+          return out;
+        });
+        assert.deepEqual(bad, [], `${viewport.width}px at ${scale}`);
+      }, { viewport });
+    }
+  }
+});

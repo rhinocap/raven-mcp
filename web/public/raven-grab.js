@@ -1562,7 +1562,7 @@
     .raven-grab-layer-row[data-layer-hovered="true"] { background: rgba(255,255,255,.07); box-shadow: inset 2px 0 0 var(--raven-grab-accent); }
     .raven-grab-search { margin: 0 0 8px; }
     .raven-grab-boxmodel { margin: 0 0 12px; color: var(--raven-grab-text); font: 400 calc(12px * var(--raven-grab-font-scale))/1 var(--raven-grab-ui); -webkit-user-select: none; user-select: none; container-type: inline-size; }
-    .raven-grab-box-ring { position: relative; display: grid; grid-template-columns: calc(30px * var(--raven-grab-font-scale)) minmax(0, 1fr) calc(30px * var(--raven-grab-font-scale)); grid-template-rows: calc(20px * var(--raven-grab-font-scale)) auto calc(20px * var(--raven-grab-font-scale)); grid-template-areas: ". top ." "left inner right" ". bottom ."; align-items: center; justify-items: center; border-radius: 6px; }
+    .raven-grab-box-ring { position: relative; display: grid; grid-template-columns: minmax(auto, calc(30px * var(--raven-grab-font-scale))) minmax(min-content, 1fr) minmax(auto, calc(30px * var(--raven-grab-font-scale))); grid-template-rows: calc(20px * var(--raven-grab-font-scale)) auto calc(20px * var(--raven-grab-font-scale)); grid-template-areas: ". top ." "left inner right" ". bottom ."; align-items: center; justify-items: center; border-radius: 6px; }
     .raven-grab-box-ring[data-ring="margin"] { border: 1px dashed rgba(255, 255, 255, .16); }
     .raven-grab-box-ring[data-ring="border"] { border: 1px solid rgba(255, 255, 255, .26); background: rgba(255, 255, 255, .025); }
     .raven-grab-box-ring[data-ring="padding"] { border: 1px dashed rgba(255, 255, 255, .16); background: rgba(255, 255, 255, .03); border-radius: 4px; }
@@ -1573,7 +1573,7 @@
     .raven-grab-box-side[data-side="left"] { grid-area: left; }
     .raven-grab-box-inner { grid-area: inner; width: 100%; min-width: 0; }
     .raven-grab-box-content { display: flex; align-items: center; justify-content: center; gap: 4px; height: calc(28px * var(--raven-grab-font-scale)); border: 1px solid rgba(0, 191, 255, .32); border-radius: 3px; background: rgba(0, 191, 255, .06); color: var(--raven-grab-muted); }
-    .raven-grab-box-num { display: inline-block; min-width: calc(24px * var(--raven-grab-font-scale)); box-sizing: border-box; padding: 4px 4px; border-radius: 3px; color: var(--raven-grab-text); font-variant-numeric: tabular-nums; text-align: center; cursor: ew-resize; outline: none; }
+    .raven-grab-box-num { display: inline-block; min-width: 24px; box-sizing: border-box; padding: calc(4px * var(--raven-grab-font-scale)) 4px; border-radius: 3px; color: var(--raven-grab-text); font-variant-numeric: tabular-nums; text-align: center; cursor: ew-resize; outline: none; }
     .raven-grab-box-num:hover { background: rgba(0, 191, 255, .14); }
     .raven-grab-box-num:focus-visible { box-shadow: 0 0 0 1px var(--raven-grab-accent); }
     .raven-grab-box-num[data-edited="true"] { color: var(--raven-grab-accent); font-weight: 500; }
@@ -1585,7 +1585,7 @@
     .raven-grab-box-input { width: calc(40px * var(--raven-grab-font-scale)); box-sizing: border-box; margin: 0; padding: 0 2px; border: 1px solid var(--raven-grab-accent); border-radius: 3px; background: var(--raven-grab-bg); color: var(--raven-grab-text); font: inherit; text-align: center; outline: none; }
     /* Mobile sheet: every number is a 44px tap target; the content box stacks W over H to fit. */
     /* A narrow right panel (about 270px at a 1024 window) has no room for "68.2 × 22.39" on one line at 12px, so width and height stack, as on the phone. */
-    @container (max-width: 300px) {
+    @container (max-width: 25em) {
       .raven-grab-box-content { flex-direction: column; height: auto; gap: 0; padding: 2px 0; }
       .raven-grab-box-content > [aria-hidden="true"] { display: none; }
       .raven-grab-box-content > [data-box-prop="width"]::before { content: "W\\00a0"; color: var(--raven-grab-muted); }
