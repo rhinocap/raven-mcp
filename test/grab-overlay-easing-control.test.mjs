@@ -299,10 +299,9 @@ function editorState(page, property) {
   }, property);
 }
 
-// Releasing the pointer commits, which rebuilds the panel and closes the editor
-// — the same path beginStyleScrub takes. So after a drag the value to read is
-// the COMMITTED one on the row (and, better, the inline style actually written
-// to the element), not a live input that no longer exists.
+// A release keeps the editor open with the curve previewed. `live` is the open
+// field, `inline` the style written to the element, and `raw` the row's value
+// once Enter or a press outside has committed and the panel has been rebuilt.
 function committedValue(page, property, selector) {
   return shadowEval(page, (root, arg) => {
     const row = root.querySelector('li[data-style-property="' + arg.property + '"]');
@@ -316,6 +315,18 @@ function committedValue(page, property, selector) {
       inline: target ? target.style.getPropertyValue(arg.property) : null
     };
   }, { property, selector });
+}
+
+// Enter on the open editor's field: the commit a drag or a preset no longer makes.
+async function commitOpenEditor(page, property) {
+  await shadowEval(page, (root, prop) => {
+    root.querySelector('li[data-style-property="' + prop + '"] .raven-grab-style-editor input').focus();
+  }, property);
+  await page.keyboard.press('Enter');
+  await page.waitForFunction((prop) => {
+    const root = document.querySelector('[data-raven-grab-overlay]').shadowRoot;
+    return !root.querySelector('li[data-style-property="' + prop + '"] .raven-grab-style-editor');
+  }, property, { timeout: 5000 });
 }
 
 function pointsOf(value) {
@@ -368,7 +379,25 @@ test('dragging a handle rewrites the committed value, not just the drawing', asy
     await page.mouse.move(before.handleBox.x - 40, before.handleBox.y - 20, { steps: 6 });
     await page.mouse.up();
 
+    // Release keeps the editor open with the curve previewed on the page.
+    const held = await committedValue(page, 'transition-timing-function', '#target');
+    assert.notEqual(held.live, null, 'release must not close the editor');
+    assert.notEqual(held.live, before.value, 'the drag must reach the field');
+    assert.equal(held.inline, held.live, 'the dragged curve must be previewed on the element');
+
+    // So a second drag can follow in the same session.
+    const second = await editorState(page, 'transition-timing-function');
+    await page.mouse.move(second.handleBox.x, second.handleBox.y);
+    await page.mouse.down();
+    await page.mouse.move(second.handleBox.x, second.handleBox.y + 10, { steps: 4 });
+    await page.mouse.up();
+    const heldAgain = await committedValue(page, 'transition-timing-function', '#target');
+    assert.notEqual(heldAgain.live, null, 'the second release must not close the editor either');
+    assert.notEqual(heldAgain.live, held.live, 'the second drag must move the curve again');
+
+    await commitOpenEditor(page, 'transition-timing-function');
     const after = await committedValue(page, 'transition-timing-function', '#target');
+    assert.equal(after.raw, heldAgain.live, 'Enter commits the curve the field showed');
     assert.notEqual(after.raw, before.value, 'the drag must reach the committed value');
     // The inline style is the only assertion that says the change reached the
     // page rather than only the panel's own bookkeeping.
@@ -396,6 +425,7 @@ test('dragging past the top of the surface keeps y out of the unit square', asyn
     await page.mouse.down();
     await page.mouse.move(before.handleBox.x, before.canvasBox.y - 30, { steps: 6 });
     await page.mouse.up();
+    await commitOpenEditor(page, 'transition-timing-function');
 
     const points = pointsOf((await committedValue(page, 'transition-timing-function', '#target')).raw);
     assert.ok(points[1] > 1, `y1 came back ${points[1]} — an overshoot curve cannot be drawn`);
@@ -433,6 +463,7 @@ test('dragging one handle leaves the other handle\'s precision intact', async ()
     await page.mouse.down();
     await page.mouse.move(handleB.x - 20, handleB.y, { steps: 4 });
     await page.mouse.up();
+    await commitOpenEditor(page, 'transition-timing-function');
 
     const after = await committedValue(page, 'transition-timing-function', '#precise');
     const points = pointsOf(after.raw);
@@ -481,18 +512,54 @@ test('a cancelled drag restores the curve instead of stranding a preview', async
 });
 
 // The restore point is the value THIS drag started from, not the row's
-// original — and that distinction is reachable rather than theoretical. Both
-// the pointerup path and every preset COMMIT, which rebuilds the panel and
-// destroys the editor, so a second drag inside one editor session is
-// impossible by those routes. Typing is the one thing that moves input.value
-// without committing: the "input" listener redraws the curve and leaves the
-// editor alive. Type a curve, start nudging a handle, lose the pointer, and a
-// restore to previousValue throws away work the user did in this session.
+// original — and that distinction is reachable rather than theoretical.
+// Typing, a finished drag and a preset all move input.value and leave the
+// editor open (a release and a preset committed until live style editing; see
+// docs/spec-grab-live-style-editing.md). Type a curve, start nudging a handle,
+// lose the pointer, and a restore to previousValue throws away work the user
+// did in this session.
 //
 // This test exists because the mutant that restores previousValue SURVIVED the
 // first matrix. A surviving mutant is either a missing test or a clause with no
 // reachable trigger; this one was the former, and the difference was decided by
 // reading which paths commit — not by assuming.
+test('T9 a pointercancel during a second drag restores the first drag\'s curve; Enter commits it', async () => {
+  await withLocalOverlay(async (page) => {
+    await selectElement(page, '#target');
+    await openStyleEditor(page, 'transition-timing-function');
+    const before = await editorState(page, 'transition-timing-function');
+
+    await page.mouse.move(before.handleBox.x, before.handleBox.y);
+    await page.mouse.down();
+    await page.mouse.move(before.handleBox.x - 40, before.handleBox.y - 20, { steps: 6 });
+    await page.mouse.up();
+    const first = await committedValue(page, 'transition-timing-function', '#target');
+    assert.notEqual(first.live, null, 'the first release must leave the editor open');
+    assert.notEqual(first.live, before.value, 'the first drag must move the curve');
+
+    const second = await editorState(page, 'transition-timing-function');
+    await page.mouse.move(second.handleBox.x, second.handleBox.y);
+    await page.mouse.down();
+    await page.mouse.move(second.handleBox.x + 30, second.handleBox.y + 25, { steps: 6 });
+    const mid = await committedValue(page, 'transition-timing-function', '#target');
+    assert.notEqual(mid.live, first.live, 'the second drag must move the curve before it is cancelled');
+
+    await shadowEval(page, (root) => {
+      const handle = root.querySelectorAll('.raven-grab-easing-handle')[0];
+      handle.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true, pointerId: 1 }));
+    });
+    const cancelled = await committedValue(page, 'transition-timing-function', '#target');
+    assert.equal(cancelled.live, first.live, 'the cancel goes back to the first drag, not to the row original');
+    assert.equal(cancelled.inline, first.live, 'and the page shows the first drag again');
+    await page.mouse.up();
+
+    await commitOpenEditor(page, 'transition-timing-function');
+    const after = await committedValue(page, 'transition-timing-function', '#target');
+    assert.equal(after.raw, first.live, 'Enter commits the first drag');
+    assert.equal(after.inline, first.live);
+  });
+});
+
 test('a cancelled drag restores what the user typed, not the row original', async () => {
   await withLocalOverlay(async (page) => {
     await selectElement(page, '#target');
@@ -516,6 +583,7 @@ test('a cancelled drag restores what the user typed, not the row original', asyn
 
     const typedState = await committedValue(page, 'transition-timing-function', '#target');
     assert.equal(typedState.live, TYPED, 'typing did not reach the editor input');
+    assert.equal(typedState.inline, TYPED, 'typing did not reach the page');
 
     // Handle positions moved when the typed curve redrew, so re-read them.
     const afterTyping = await editorState(page, 'transition-timing-function');
@@ -565,17 +633,15 @@ test('a preset writes the KEYWORD, not its bezier expansion', async () => {
     assert.ok(point.hits, 'the ease-out preset must be hit-testable at its own centre');
     await page.mouse.click(point.x, point.y);
 
-    const applied = await shadowEval(page, (root) => {
-      const row = root.querySelector('li[data-style-property="transition-timing-function"]');
-      const cell = row && row.querySelector('code[data-style-value]');
-      const editor = row && row.querySelector('.raven-grab-style-editor');
-      const input = editor && editor.querySelector('input');
-      return { committed: cell ? cell.getAttribute('data-style-raw') : null, live: input ? input.value : null };
-    });
+    // A preset previews and keeps the editor open; Enter commits it.
+    const held = await committedValue(page, 'transition-timing-function', '#target');
+    assert.equal(held.live, 'ease-out', 'the preset must fill the field and leave the editor open');
+    assert.equal(held.inline, 'ease-out', 'the preset must be previewed on the element');
+    await commitOpenEditor(page, 'transition-timing-function');
     // "ease-out" is what a designer reads and what a stylesheet should carry;
     // expanding it to cubic-bezier(0, 0, 0.58, 1) is identical CSS and strictly
     // worse to hand back to an agent that is about to write the file.
-    assert.equal(applied.live === null ? applied.committed : applied.live, 'ease-out');
+    assert.equal((await committedValue(page, 'transition-timing-function', '#target')).raw, 'ease-out');
   });
 });
 

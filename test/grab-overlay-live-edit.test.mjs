@@ -71,6 +71,7 @@ test('T3 choosing % then Escape cancels: no inline style, computed 26px, nothing
 
     const closed = await editorState(page, 'line-height');
     assert.equal(closed.mounted, false, 'Escape must close the editor');
+    assert.deepEqual([closed.text, closed.edited], ['26px', 'false'], 'the row reads its opening value and is not marked edited');
     assert.equal(await inlineStyle(page, '#copy'), '');
     assert.equal(await computed(page, '#copy', 'line-height'), '26px');
     assert.equal(
@@ -272,7 +273,7 @@ test('T10c Enter after a refused conversion closes the editor and nothing is sen
 });
 
 test('T14 transition-duration on #timed converts between s and ms from the unrounded value', async (t) => {
-  await run(t, async (page) => {
+  await run(t, async (page, { grabBodies }) => {
     await selectElement(page, '#timed');
     await openRow(page, 'transition-duration');
     assert.deepEqual(
@@ -307,6 +308,11 @@ test('T14 transition-duration on #timed converts between s and ms from the unrou
     assert.equal(await inlineStyle(page, '#timed'), 'transition-duration: 0.25s;');
 
     assert.deepEqual(await statusLine(page).then((lines) => lines.filter((l) => l.kind === 'error')), []);
+
+    await page.keyboard.press('Enter');
+    assert.equal(await editorState(page, 'transition-duration').then((s) => s.mounted), false);
+    await sendBatch(page);
+    assert.deepEqual(sentStyleEdits(grabBodies[0]), [['transition-duration', '0.2s', '0.25s']]);
   });
 });
 
@@ -375,6 +381,7 @@ test('T19c resting line-height row on #hoverable: choosing % converts against th
     assert.equal(state.unit, '%');
     assert.equal(state.focusOnNumber, true, 'focus returns to the number field');
     assert.deepEqual(state.selection, [0, 6], 'the converted number is selected');
+    assert.equal(await inlineStyle(page, '#hoverable'), 'line-height: 144.44%;', 'the resting row previews on the element');
     assert.deepEqual(await statusLine(page).then((lines) => lines.filter((l) => l.kind === 'error')), []);
   });
 });

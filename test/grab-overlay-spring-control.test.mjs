@@ -300,10 +300,20 @@ function editorState(page, property) {
   }, property);
 }
 
-// A spring preset commits, which rebuilds the panel and destroys the editor —
-// the same path the easing presets take. So the value to read afterwards is the
-// committed row value and, better, the inline style actually written to the
-// element.
+// A spring preset previews and leaves the editor open, as the easing presets
+// do; Enter commits it and rebuilds the panel. So the value to read after the
+// commit is the row value and, better, the inline style written to the element.
+async function commitOpenEditor(page, property) {
+  await shadowEval(page, (root, prop) => {
+    root.querySelector('li[data-style-property="' + prop + '"] .raven-grab-style-editor input').focus();
+  }, property);
+  await page.keyboard.press('Enter');
+  await page.waitForFunction((prop) => {
+    const root = document.querySelector('[data-raven-grab-overlay]').shadowRoot;
+    return !root.querySelector('li[data-style-property="' + prop + '"] .raven-grab-style-editor');
+  }, property, { timeout: 5000 });
+}
+
 function committedValue(page, property, selector) {
   return shadowEval(page, (root, arg) => {
     const row = root.querySelector('li[data-style-property="' + arg.property + '"]');
@@ -434,6 +444,14 @@ test('a spring preset commits a linear() that re-opens verbatim', async (t) => {
     await selectElement(page, '#target');
     await openStyleEditor(page, 'transition-timing-function');
     await clickSpringPreset(page, 'transition-timing-function', 'bouncy');
+    // The preset previews and leaves the editor open; Enter is the commit.
+    const held = await committedValue(page, 'transition-timing-function', '#target');
+    const heldOpen = await shadowEval(page, (root) => Boolean(
+      root.querySelector('li[data-style-property="transition-timing-function"] .raven-grab-style-editor')
+    ));
+    assert.equal(heldOpen, true, 'a spring preset must not close the editor');
+    assert.ok(held.inline.startsWith('linear('), `the preset is previewed on the element, got ${held.inline}`);
+    await commitOpenEditor(page, 'transition-timing-function');
     await page.waitForFunction(() => {
       const target = document.querySelector('#target');
       return target.style.getPropertyValue('transition-timing-function').startsWith('linear(');
@@ -477,17 +495,83 @@ test('a spring preset commits a linear() that re-opens verbatim', async (t) => {
     'Chromium parsed the curve and agrees about both endpoints');
 });
 
+test('T18 a spring pick hides the curve canvas and its handles do nothing; ease-out brings the canvas back', async (t) => {
+  if (skipIfNoBrowser(t)) return;
+  await withLocalOverlay(async (page) => {
+    const errors = [];
+    page.on('pageerror', (error) => errors.push(String(error)));
+    await selectElement(page, '#target');
+    await openStyleEditor(page, 'transition-timing-function');
+    const read = () => shadowEval(page, (root) => {
+      const editor = root.querySelector('li[data-style-property="transition-timing-function"] .raven-grab-style-editor');
+      const svg = editor.querySelector('.raven-grab-easing-canvas');
+      return {
+        shown: getComputedStyle(svg).display !== 'none',
+        value: editor.querySelector('input').value,
+        curve: editor.querySelector('.raven-grab-easing-curve').getAttribute('d'),
+        inline: document.querySelector('#target').style.getPropertyValue('transition-timing-function')
+      };
+    });
+    const pressHandle = () => shadowEval(page, (root) => {
+      const handle = root.querySelector('li[data-style-property="transition-timing-function"] .raven-grab-easing-handle');
+      const box = root.querySelector('li[data-style-property="transition-timing-function"] .raven-grab-style-editor').getBoundingClientRect();
+      const at = { bubbles: true, composed: true, pointerId: 1, clientX: box.left + 20, clientY: box.top + 20 };
+      handle.dispatchEvent(new PointerEvent('pointerdown', at));
+      handle.dispatchEvent(new PointerEvent('pointerup', at));
+    });
+    const clickKeyword = async (label) => {
+      const point = await shadowEval(page, (root, text) => {
+        const button = Array.from(root.querySelectorAll('li[data-style-property="transition-timing-function"] .raven-grab-easing-preset'))
+          .find((b) => b.textContent.trim() === text);
+        button.scrollIntoView({ block: 'center' });
+        const rect = button.getBoundingClientRect();
+        return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      }, label);
+      await page.mouse.click(point.x, point.y);
+    };
+
+    const opening = await read();
+    assert.equal(opening.shown, true, 'a cubic-bezier row opens with its curve');
+    await clickSpringPreset(page, 'transition-timing-function', 'bouncy');
+    const spring = await read();
+    assert.ok(spring.value.startsWith('linear('), `the field holds the spring, got ${spring.value}`);
+    assert.equal(spring.shown, false, 'a linear() value has no curve to draw');
+
+    // The canvas is not displayed, so no real pointer can reach a handle. A
+    // dispatched press proves the handle itself refuses while there is no curve.
+    await pressHandle();
+    const pressed = await read();
+    assert.equal(pressed.value, spring.value, 'a press on a hidden handle must not replace the spring');
+    assert.equal(pressed.inline, spring.inline);
+    assert.deepEqual(errors, [], 'the handle ignores the press; it does not throw');
+
+    await clickKeyword('ease-out');
+    const keyword = await read();
+    assert.equal(keyword.value, 'ease-out');
+    assert.equal(keyword.shown, true, 'a keyword is a cubic curve again, so the canvas returns');
+    assert.notEqual(keyword.curve, opening.curve, 'and the canvas draws the keyword, not the curve the row opened with');
+
+    await clickSpringPreset(page, 'transition-timing-function', 'bouncy');
+    assert.equal((await read()).value, spring.value);
+    await commitOpenEditor(page, 'transition-timing-function');
+    const committed = await committedValue(page, 'transition-timing-function', '#target');
+    assert.equal(committed.raw, spring.value, 'Enter commits the linear() string unchanged');
+  });
+});
+
 test('two different springs write two different curves', async (t) => {
   if (skipIfNoBrowser(t)) return;
   const both = await withLocalOverlay(async (page) => {
     await selectElement(page, '#target');
     await openStyleEditor(page, 'transition-timing-function');
     await clickSpringPreset(page, 'transition-timing-function', 'smooth');
+    await commitOpenEditor(page, 'transition-timing-function');
     await page.waitForFunction(() => document.querySelector('#target').style
       .getPropertyValue('transition-timing-function').startsWith('linear('), null, { timeout: 5000 });
     const smooth = (await committedValue(page, 'transition-timing-function', '#target')).inline;
     await openStyleEditor(page, 'transition-timing-function');
     await clickSpringPreset(page, 'transition-timing-function', 'bouncy');
+    await commitOpenEditor(page, 'transition-timing-function');
     await page.waitForFunction((prev) => {
       const now = document.querySelector('#target').style.getPropertyValue('transition-timing-function');
       return now.startsWith('linear(') && now !== prev;
@@ -529,4 +613,94 @@ test('a token-linked timing row renders the springs and refuses them', async (t)
   // curve onto the element and then commits nothing, because commit() returns
   // early while the row is linked. That is output-disagreeing-with-state.
   assert.equal(result.after.inline, '', 'nothing was written to the element');
+});
+
+test('T51 an easing or spring preset reached with the keyboard stays in the editor: Escape cancels from it and focus leaving it commits', async (t) => {
+  if (skipIfNoBrowser(t)) return;
+  await withLocalOverlay(async (page) => {
+    await selectElement(page, '#target');
+    const row = 'li[data-style-property="transition-timing-function"]';
+    const state = () => shadowEval(page, (root, sel) => ({
+      open: Boolean(root.querySelector(sel + ' .raven-grab-style-editor')),
+      inline: document.querySelector('#target').style.getPropertyValue('transition-timing-function')
+    }), row);
+    const focusPreset = (selector, text) => shadowEval(page, (root, arg) => {
+      const button = Array.from(root.querySelectorAll(arg.row + ' ' + arg.selector)).find((b) => b.textContent.trim() === arg.text);
+      if (!button) throw new Error('no preset ' + arg.text);
+      button.focus();
+      return root.activeElement === button;
+    }, { row, selector, text });
+    const cases = [['.raven-grab-easing-preset', 'ease-out', /^ease-out$/], ['.raven-grab-spring-preset', 'bouncy', /^linear\(/]];
+
+    for (const [selector, text, expected] of cases) {
+      await openStyleEditor(page, 'transition-timing-function');
+      const opening = await state();
+      assert.equal(await focusPreset(selector, text), true);
+      assert.equal((await state()).open, true, 'focus moving to the ' + text + ' preset must not close the editor');
+      await page.keyboard.press('Space');
+      const picked = await state();
+      assert.equal(picked.open, true);
+      assert.match(picked.inline, expected, 'Space on the preset previews it');
+      await page.keyboard.press('Escape');
+      const cancelled = await state();
+      assert.equal(cancelled.open, false, 'Escape on the ' + text + ' preset closes the editor');
+      assert.equal(cancelled.inline, opening.inline, 'and restores the page');
+    }
+
+    await openStyleEditor(page, 'transition-timing-function');
+    await focusPreset('.raven-grab-spring-preset', 'bouncy');
+    await page.keyboard.press('Space');
+    await shadowEval(page, (root) => { root.activeElement.blur(); return true; });
+    const committed = await state();
+    assert.equal(committed.open, false, 'focus leaving the preset for nothing in the editor commits');
+    assert.match(committed.inline, /^linear\(/, 'and the preset stays on the page');
+  });
+});
+
+test('T51b focus coming back to the plain-text timing field from a spring preset keeps the editor open', async (t) => {
+  if (skipIfNoBrowser(t)) return;
+  await withLocalOverlay(async (page) => {
+    await selectElement(page, '#stepped');
+    const row = 'li[data-style-property="transition-timing-function"]';
+    await openStyleEditor(page, 'transition-timing-function');
+    const moved = await shadowEval(page, (root, sel) => {
+      const preset = root.querySelector(sel + ' .raven-grab-spring-preset');
+      const field = root.querySelector(sel + ' .raven-grab-style-editor input[type="text"]');
+      if (!preset || !field) throw new Error('the steps() row must offer a text field and springs');
+      preset.focus();
+      const onPreset = root.activeElement === preset;
+      field.focus();
+      return { onPreset, onField: root.activeElement === field };
+    }, row);
+    assert.deepEqual(moved, { onPreset: true, onField: true }, 'focus moves to the preset and back to the field');
+    const open = () => shadowEval(page, (root, sel) => Boolean(root.querySelector(sel + ' .raven-grab-style-editor')), row);
+    assert.equal(await open(), true, 'the editor is still open');
+    await page.keyboard.press('Escape');
+    assert.equal(await open(), false, 'and Escape still closes it');
+  });
+});
+
+test('T57 typing in the plain-text timing field previews on the page while the editor stays open', async (t) => {
+  if (skipIfNoBrowser(t)) return;
+  await withLocalOverlay(async (page) => {
+    await selectElement(page, '#stepped');
+    const row = 'li[data-style-property="transition-timing-function"]';
+    const timing = () => page.evaluate(() => getComputedStyle(document.querySelector('#stepped')).transitionTimingFunction);
+    assert.match(await timing(), /^steps\(4/);
+    await openStyleEditor(page, 'transition-timing-function');
+    await shadowEval(page, (root, sel) => {
+      const field = root.querySelector(sel + ' .raven-grab-style-editor input[type="text"]');
+      if (!field) throw new Error('the steps() row must offer a text field');
+      field.focus();
+      field.value = 'steps(8, end)';
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+      return true;
+    }, row);
+    assert.match(await timing(), /^steps\(8/, 'the typed value is on the page before any commit');
+    const open = () => shadowEval(page, (root, sel) => Boolean(root.querySelector(sel + ' .raven-grab-style-editor')), row);
+    assert.equal(await open(), true, 'typing does not close the editor');
+    await page.keyboard.press('Escape');
+    assert.equal(await open(), false);
+    assert.match(await timing(), /^steps\(4/, 'Escape restores the opening value');
+  });
 });

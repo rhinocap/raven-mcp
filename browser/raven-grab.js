@@ -1431,6 +1431,7 @@
     }
     .raven-grab-easing { display: grid; gap: 8px; width: 100%; min-width: 0; }
     .raven-grab-easing-canvas { width: 100%; aspect-ratio: 240 / 96; background: rgba(255, 255, 255, .03); border: 1px solid rgba(255, 255, 255, .1); border-radius: 8px; touch-action: none; }
+    .raven-grab-easing-canvas[data-hidden="true"] { display: none; }
     .raven-grab-easing-track { stroke: rgba(255, 255, 255, .16); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
     .raven-grab-easing-arm { stroke: rgba(0, 191, 255, .35); stroke-width: 1; vector-effect: non-scaling-stroke; }
     .raven-grab-easing-curve { fill: none; stroke: var(--raven-grab-accent); stroke-width: 2; vector-effect: non-scaling-stroke; }
@@ -4801,7 +4802,7 @@
   function queueDraftBlocker() {
     if (!selectedElement) return "Select an element first";
     if (attachmentDraft.some(function (attachment) { return attachment.state === "uploading"; })) return "Wait for the upload to finish";
-    if (!Object.keys(styleEdits).length && !Object.keys(stateStyleEdits).length && !Object.keys(tokenIntents).length && !textEdit && !instructionDraft.trim() && !attachmentDraft.some(function (attachment) { return attachment.state === "ready"; })) {
+    if (!Object.keys(styleEdits).length && !Object.keys(stateStyleEdits).length && !Object.keys(tokenIntents).length && !textEdit && !instructionDraft.trim() && !attachmentDraft.some(function (attachment) { return attachment.state === "ready"; }) && !styleEditorHoldsChange()) {
       return QUEUE_NEEDS_WORK;
     }
     // The bank is a STASH, and the very next sweep DROPS a stashed draft whose
@@ -5631,7 +5632,11 @@
   }
 
   function commitStyleEdit(property, newValue, currentValue, tokenMeta) {
+    var primary = selectedElement;
     var targets = styleApplicationTargets();
+    // As in previewStyleEdit: reading the targets promotes another layer when
+    // the page removed the primary. The edit belonged to the removed one.
+    if (selectedElement !== primary) return false;
     if (!targets.length || newValue === currentValue) return false;
     if (!styleValueSupported(property, newValue)) return false;
     styleEditTarget = selectedElement;
@@ -5660,6 +5665,13 @@
     var replacedSides = BOX_SHORTHANDS.indexOf(property) !== -1
       ? BOX_SIDES.filter(function (side) { return !!styleEdits[property + "-" + side]; })
       : [];
+    if (replacedSides.length && !styleEdits[property] && styleEditOriginalInline[property]) {
+      // A preview of a shorthand that has no edit yet was captured over the side
+      // edits. Undo it before the untouched sides are read, or they read the
+      // previewed value and the edit is sent with a wrong original.
+      restoreStyleEdit(property);
+      delete styleEditOriginalInline[property];
+    }
     if (replacedSides.length && !styleEdits[property]) {
       // The shorthand row shows the sides' live values; its true original is the
       // sides' saved originals plus the untouched sides as computed.
@@ -5671,13 +5683,7 @@
     if (replacedSides.length) {
       // Put the page back to before the sides were edited, so the shorthand's
       // saved original is clean and no side keeps a stale original that a later
-      // cancel would write back. A preview of a shorthand that has no edit yet
-      // was captured over the side edits, so undo it first; then the sides,
-      // newest first.
-      if (!styleEdits[property] && styleEditOriginalInline[property]) {
-        restoreStyleEdit(property);
-        delete styleEditOriginalInline[property];
-      }
+      // cancel would write back. Newest first.
       Object.keys(styleEdits).filter(function (key) {
         return replacedSides.some(function (side) { return key === property + "-" + side; });
       }).reverse().forEach(function (key) {
@@ -6678,6 +6684,8 @@
 
   function cancelStyleEdit(input, previousValue) {
     if (input && input.parentNode) replaceStyleInput(input, previousValue);
+    // The editor no longer holds a value, so Send goes back to what is recorded.
+    syncSendEnabledInPlace();
   }
 
   // Figma-inspector-style typed editing: numbers get a number field (unit fixed),
@@ -7167,6 +7175,131 @@
   // so Escape and focus leaving the editor close it here, without writing a style.
   var linkedDismiss = null;
   var linkedDismissWired = false;
+  // The style editor that is open now. A press outside it commits it. Picks no
+  // longer commit, and a native colour panel can close with focus on nothing,
+  // so no blur would arrive to commit the preview.
+  var openStyleEditor = null;
+  // renderPanel() returned early for an open editor since the last press outside one.
+  var panelRenderSkipped = false;
+  function registerOpenStyleEditor(editor, commit) {
+    activeStyleEditorFlush = commit;
+    // The row (a box-model field's cell) counts as part of the editor.
+    openStyleEditor = { editor: editor, row: editor.parentNode || null, commit: commit };
+    wireStyleEditorOutsidePress();
+  }
+  // A tap, and a press the outside-press listener holds until its release,
+  // deliver their click before the commit that press deferred. A panel action
+  // that reads or replaces the style draft commits the open editor first, so
+  // it acts on the value the page shows and is the later of the two choices.
+  function commitOpenStyleEditorFirst() {
+    if (activeStyleEditorFlush) activeStyleEditorFlush();
+  }
+
+  // Gives a structured editor's commit the two hooks the generic editor's has.
+  // Send is enabled while the editor shows a previewed value other than the one
+  // it opened with, and a rebase of the drafts writes that preview again.
+  function holdStylePreview(commit, held, repreview) {
+    commit.holdsChange = held;
+    commit.repreview = repreview;
+  }
+  function wireStyleEditorOutsidePress() {
+    if (linkedDismissWired || typeof window === "undefined" || typeof window.addEventListener !== "function") return;
+    linkedDismissWired = true;
+    // One listener for whichever editor is open: a press outside it closes it,
+    // whether or not the press lands on something that takes focus. A
+    // token-linked editor closes without writing; any other editor commits.
+    var linkedOpen = function () {
+      var open = linkedDismiss;
+      if (!open) return null;
+      if (open.editor.isConnected === false) { linkedDismiss = null; return null; }
+      return open.editor.getAttribute("data-token-linked") === "true" ? open : null;
+    };
+    var dismissLinked = function (open) {
+      if (linkedDismiss !== open) return;
+      linkedDismiss = null;
+      open.close();
+    };
+    // Open for as long as it is the editor a flush would commit.
+    var editorOpen = function () {
+      var open = openStyleEditor;
+      if (!open) return null;
+      if (activeStyleEditorFlush !== open.commit || open.editor.isConnected === false) { openStyleEditor = null; return null; }
+      return open.editor.getAttribute("data-token-linked") === "true" ? null : open;
+    };
+    var outside = function (path, editor, row) {
+      return path.indexOf(editor) === -1 && !(row && path.indexOf(row) !== -1);
+    };
+    // Send closes the open editor itself, on the click. A commit made between
+    // the press and the release replaces the Send button, and the click is lost.
+    var onSend = function (path) {
+      for (var i = 0; i < path.length; i += 1) {
+        if (path[i] && typeof path[i].hasAttribute === "function" && path[i].hasAttribute("data-send-batch")) return true;
+      }
+      return false;
+    };
+    // What a press closes, or null when it lands inside the open editor or its row.
+    var pressTarget = function (event) {
+      var hasPath = typeof event.composedPath === "function";
+      var path = hasPath ? event.composedPath() : [];
+      var linked = linkedOpen();
+      // The open row (its label, its value) counts as part of the field.
+      if (linked) return outside(path, linked.editor, linked.editor.parentNode) ? { linked: linked } : null;
+      var open = hasPath && !onSend(path) ? editorOpen() : null;
+      if (!open || !outside(path, open.editor, open.row)) return null;
+      // The commit rebuilds the change tray and the left dock. A press on either
+      // closes the editor once it is released, so the pressed control still gets
+      // its click.
+      var onDock = (!!globalActions && path.indexOf(globalActions) !== -1) ||
+        (!!structureActions && path.indexOf(structureActions) !== -1);
+      return { open: open, onRelease: onDock };
+    };
+    var closeTarget = function (target) {
+      if (target.linked) {
+        if (linkedOpen() === target.linked) dismissLinked(target.linked);
+        return;
+      }
+      // The commit waits until the press has been delivered. The pressed control's
+      // own handler and the blur the press causes then run first, as they did
+      // before this listener existed; a commit made here, in the capture phase,
+      // re-renders the panel and removes the control under the pointer before
+      // its handler has seen the press. commit() runs once: finished guards it.
+      panelRenderSkipped = false;
+      window.setTimeout(function () {
+        if (editorOpen() !== target.open) return;
+        openStyleEditor = null;
+        target.open.commit();
+        // The pressed control's handler asked for a render while the editor was
+        // still open (a tab switch in the mobile sheet). It runs now.
+        if (panelRenderSkipped && !activeStyleEditorFlush) renderPanel();
+      }, 0);
+    };
+    // A press that closes on release. A touch that turns into a scroll keeps
+    // the editor open, so a touch closes it only when it lifts without moving.
+    var heldPress = null;
+    window.addEventListener("pointerdown", function (event) {
+      var target = pressTarget(event);
+      if (!target) return;
+      var touch = event.pointerType === "touch";
+      if (touch || target.onRelease) {
+        heldPress = { id: event.pointerId, x: event.clientX, y: event.clientY, target: target, touch: touch };
+        return;
+      }
+      closeTarget(target);
+    }, true);
+    window.addEventListener("pointermove", function (event) {
+      if (!heldPress || !heldPress.touch || event.pointerId !== heldPress.id) return;
+      if (Math.abs(event.clientX - heldPress.x) > 10 || Math.abs(event.clientY - heldPress.y) > 10) heldPress = null;
+    }, true);
+    window.addEventListener("pointercancel", function (event) {
+      if (heldPress && event.pointerId === heldPress.id) heldPress = null;
+    }, true);
+    window.addEventListener("pointerup", function (event) {
+      if (!heldPress || event.pointerId !== heldPress.id) return;
+      var press = heldPress;
+      heldPress = null;
+      closeTarget(press.target);
+    }, true);
+  }
   function wireLinkedEditorDismiss(editor, close) {
     editor.addEventListener("keydown", function (event) {
       if (event.key !== "Escape" || event.defaultPrevented) return;
@@ -7186,51 +7319,7 @@
       close();
     });
     linkedDismiss = { editor: editor, close: close };
-    if (!linkedDismissWired && typeof window !== "undefined" && typeof window.addEventListener === "function") {
-      linkedDismissWired = true;
-      // One listener for whichever linked editor is open: a press outside it closes
-      // it, whether or not the press lands on something that takes focus.
-      var linkedOpen = function () {
-        var open = linkedDismiss;
-        if (!open) return null;
-        if (open.editor.isConnected === false) { linkedDismiss = null; return null; }
-        return open.editor.getAttribute("data-token-linked") === "true" ? open : null;
-      };
-      var dismissLinked = function (open) {
-        if (linkedDismiss !== open) return;
-        linkedDismiss = null;
-        open.close();
-      };
-      // A touch that turns into a scroll keeps the editor open, so a touch closes it
-      // only when it lifts without moving.
-      var touchPress = null;
-      window.addEventListener("pointerdown", function (event) {
-        var open = linkedOpen();
-        if (!open) return;
-        var path = typeof event.composedPath === "function" ? event.composedPath() : [];
-        // The open row (its label, its value) counts as part of the field.
-        var row = open.editor.parentNode;
-        if (path.indexOf(open.editor) !== -1 || (row && path.indexOf(row) !== -1)) return;
-        if (event.pointerType === "touch") {
-          touchPress = { id: event.pointerId, x: event.clientX, y: event.clientY, open: open };
-          return;
-        }
-        dismissLinked(open);
-      }, true);
-      window.addEventListener("pointermove", function (event) {
-        if (!touchPress || event.pointerId !== touchPress.id) return;
-        if (Math.abs(event.clientX - touchPress.x) > 10 || Math.abs(event.clientY - touchPress.y) > 10) touchPress = null;
-      }, true);
-      window.addEventListener("pointercancel", function (event) {
-        if (touchPress && event.pointerId === touchPress.id) touchPress = null;
-      }, true);
-      window.addEventListener("pointerup", function (event) {
-        if (!touchPress || event.pointerId !== touchPress.id) return;
-        var press = touchPress;
-        touchPress = null;
-        if (linkedOpen() === press.open) dismissLinked(press.open);
-      }, true);
-    }
+    wireStyleEditorOutsidePress();
     editor.addEventListener("focusout", function (event) {
       if (editor.getAttribute("data-token-linked") !== "true") return;
       var next = event.relatedTarget;
@@ -8278,6 +8367,11 @@
     // with relatedTarget === null (same as "clicked elsewhere"), which closed the
     // editor before a color could be picked. Its own input/change listeners above
     // already call preview(), which is enough to keep the edit live.
+    // It takes Enter and Escape like the other controls.
+    colorInput.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); cancel(); }
+      else if (event.key === "Enter") { event.preventDefault(); commit(); }
+    });
     var controls = [widthInput, widthUnit, styleSelect, colorText, colorFormat, insideButton, outsideButton]
       .concat(STROKE_SIDES.concat(["all"]).map(function (name) { return sideButtons[name]; }));
     controls.forEach(function (control) {
@@ -8292,7 +8386,7 @@
     });
     updatePositionButtons();
     updateSideButtons();
-    activeStyleEditorFlush = commit;
+    registerOpenStyleEditor(editor, commit);
     widthInput.focus();
     widthInput.select();
     return true;
@@ -8382,21 +8476,29 @@
     }
 
     function preview() {
+      if (finished) return;
+      // The page removed this editor's layer and another was promoted: write nothing.
+      if (editorTarget !== selectedElement) { syncSendEnabledInPlace(); return; }
       var next = readValue();
-      if (next == null) return;
-      previewed = previewStyleEdit(property, next) || previewed;
+      if (next != null) previewed = previewStyleEdit(property, next) || previewed;
+      syncSendEnabledInPlace();
+    }
+
+    // Puts the page back to what it showed when the editor opened. The record
+    // it opened on may be gone: a rebase drops an edit the page now has.
+    function restoreOpened() {
+      if (!previewed || editorTarget !== selectedElement) return;
+      if (hadEditAtOpen && styleEdits[property]) restoreCommittedValueWithSiblings(property, previousValue);
+      else {
+        restoreStyleEdit(property);
+        delete styleEditOriginalInline[property];
+      }
     }
 
     function cancel() {
       finished = true;
       activeStyleEditorFlush = null;
-      if (previewed && editorTarget === selectedElement) {
-        if (hadEditAtOpen) restoreCommittedValueWithSiblings(property, previousValue);
-        else {
-          restoreStyleEdit(property);
-          delete styleEditOriginalInline[property];
-        }
-      }
+      restoreOpened();
       cancelStyleEdit(lineSelect, previousValue);
     }
 
@@ -8410,17 +8512,13 @@
       var next = readValue();
       finished = true;
       activeStyleEditorFlush = null;
-      if (next == null || next === previousValue) {
+      // Nothing to record, or the value was refused: the preview does not outlive the editor.
+      if (next == null || next === previousValue || !commitStyleEdit(property, next, previousValue)) {
+        restoreOpened();
         cancelStyleEdit(lineSelect, previousValue);
-        if (previewed && editorTarget === selectedElement && !hadEditAtOpen) {
-          restoreStyleEdit(property);
-          delete styleEditOriginalInline[property];
-        }
         return;
       }
-      var ok = commitStyleEdit(property, next, previousValue);
-      if (!ok) cancelStyleEdit(lineSelect, previousValue);
-      else replaceStyleInput(lineSelect, next);
+      replaceStyleInput(lineSelect, next);
     }
 
     function handleBlur(event) {
@@ -8434,7 +8532,6 @@
           colorText.value = formatColorValue(colorText.value, colorFormat.value);
         }
         preview();
-        if (control === lineSelect || control === styleSelect) commit();
       });
       control.addEventListener("blur", handleBlur);
       control.addEventListener("keydown", function (event) {
@@ -8442,13 +8539,27 @@
         else if (event.key === "Enter") { event.preventDefault(); commit(); }
       });
     });
-    colorInput.addEventListener("input", function () {
+    var previewPickedColor = function () {
       colorText.value = normalizeColorEntry(colorInput.value, colorText.value, "hex");
       colorFormat.value = "hex";
       preview();
+    };
+    colorInput.addEventListener("input", previewPickedColor);
+    // The panel closing is not a decision; the editor stays open with the preview.
+    colorInput.addEventListener("change", previewPickedColor);
+    // Enter and Escape close the editor from the native input too. It has no
+    // blur commit, because opening the colour panel blurs it.
+    colorInput.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { event.preventDefault(); cancel(); }
+      else if (event.key === "Enter") { event.preventDefault(); commit(); }
     });
-    colorInput.addEventListener("change", commit);
-    activeStyleEditorFlush = commit;
+    colorText.addEventListener("input", preview);
+    registerOpenStyleEditor(editor, commit);
+    holdStylePreview(commit, function () {
+      if (finished || !previewed || editorTarget !== selectedElement) return false;
+      var held = readValue();
+      return held != null && held !== previousValue;
+    }, function () { if (!finished && previewed) preview(); });
     lineSelect.focus();
     return true;
   }
@@ -8477,6 +8588,8 @@
     presetRow.setAttribute("role", "group");
     presetRow.setAttribute("aria-label", "Box shadow presets");
     var presetButtons = [];
+    // The exact string of the preset picked last, until any control changes.
+    var presetValue = null;
     BOX_SHADOW_PRESETS.forEach(function (preset) {
       var button = document.createElement("button");
       button.type = "button";
@@ -8605,45 +8718,49 @@
     }
 
     function preview(nextValue) {
+      if (finished) return;
+      // The page removed this editor's layer and another was promoted: write nothing.
+      if (editorTarget !== selectedElement) { syncSendEnabledInPlace(); return; }
       var next = nextValue != null ? nextValue : readValue();
-      if (next == null) return;
-      previewed = previewStyleEdit(property, next) || previewed;
+      if (next != null) previewed = previewStyleEdit(property, next) || previewed;
+      syncSendEnabledInPlace();
+    }
+
+    // Puts the page back to what it showed when the editor opened.
+    function restoreOpened() {
+      if (!previewed || editorTarget !== selectedElement) return;
+      if (hadEditAtOpen) restoreCommittedValueWithSiblings(property, previousValue);
+      else {
+        restoreStyleEdit(property);
+        delete styleEditOriginalInline[property];
+      }
     }
 
     function cancel() {
       finished = true;
       activeStyleEditorFlush = null;
-      if (previewed && editorTarget === selectedElement) {
-        if (hadEditAtOpen) restoreCommittedValueWithSiblings(property, previousValue);
-        else {
-          restoreStyleEdit(property);
-          delete styleEditOriginalInline[property];
-        }
-      }
+      restoreOpened();
       cancelStyleEdit(xField.input, previousValue);
     }
 
-    function commit(nextValue) {
+    function commit() {
       if (finished) return;
       if (editorTarget !== selectedElement || xField.input.isConnected === false) {
         finished = true;
         activeStyleEditorFlush = null;
         return;
       }
-      var next = nextValue != null ? nextValue : readValue();
+      // A preset writes its own string, as long as no control changed after the pick.
+      var next = presetValue != null ? presetValue : readValue();
       finished = true;
       activeStyleEditorFlush = null;
-      if (next == null || next === previousValue) {
+      // Nothing to record, or the value was refused: the preview does not outlive the editor.
+      if (next == null || next === previousValue || !commitStyleEdit(property, next, previousValue)) {
+        restoreOpened();
         cancelStyleEdit(xField.input, previousValue);
-        if (previewed && editorTarget === selectedElement && !hadEditAtOpen) {
-          restoreStyleEdit(property);
-          delete styleEditOriginalInline[property];
-        }
         return;
       }
-      var ok = commitStyleEdit(property, next, previousValue);
-      if (!ok) cancelStyleEdit(xField.input, previousValue);
-      else replaceStyleInput(xField.input, next);
+      replaceStyleInput(xField.input, next);
     }
 
     function handleBlur(event) {
@@ -8660,21 +8777,27 @@
           if (BOX_SHADOW_PRESETS[i].id === id) { preset = BOX_SHADOW_PRESETS[i]; break; }
         }
         if (!preset) return;
-        var next = applyPreset(preset);
-        preview(next);
-        commit(next);
+        presetValue = applyPreset(preset);
+        preview(presetValue);
+      });
+      // A preset no longer closes the editor, so one reached with Tab needs the
+      // editor's own way out: Escape cancels, focus leaving the editor commits.
+      button.addEventListener("blur", handleBlur);
+      button.addEventListener("keydown", function (event) {
+        if (event.key === "Escape") { event.preventDefault(); cancel(); }
       });
     });
 
     [xField.input, yField.input, blurField.input, spreadField.input, colorText, colorFormat, insetInput].forEach(function (control) {
       control.addEventListener("change", function () {
+        presetValue = null;
         syncPresetButtons("");
         if (control === colorFormat) colorText.value = formatColorValue(colorText.value, colorFormat.value);
         preview();
-        if (control === insetInput || control === colorFormat) commit();
       });
       control.addEventListener("input", function () {
         if (control === insetInput) return;
+        presetValue = null;
         syncPresetButtons("");
         preview();
       });
@@ -8684,15 +8807,29 @@
         else if (event.key === "Enter") { event.preventDefault(); commit(); }
       });
     });
-    colorInput.addEventListener("input", function () {
+    var previewPickedColor = function () {
+      presetValue = null;
       syncPresetButtons("");
       colorText.value = normalizeColorEntry(colorInput.value, colorText.value, "hex");
       colorFormat.value = "hex";
       preview();
+    };
+    colorInput.addEventListener("input", previewPickedColor);
+    // The panel closing is not a decision; the editor stays open with the preview.
+    colorInput.addEventListener("change", previewPickedColor);
+    // Enter and Escape close the editor from the native input too. It has no
+    // blur commit, because opening the colour panel blurs it.
+    colorInput.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { event.preventDefault(); cancel(); }
+      else if (event.key === "Enter") { event.preventDefault(); commit(); }
     });
-    colorInput.addEventListener("change", function () { commit(); });
     syncPresetButtons(activePresetId);
-    activeStyleEditorFlush = commit;
+    registerOpenStyleEditor(editor, commit);
+    holdStylePreview(commit, function () {
+      if (finished || !previewed || editorTarget !== selectedElement) return false;
+      var held = presetValue != null ? presetValue : readValue();
+      return held != null && held !== previousValue;
+    }, function () { if (!finished && previewed) preview(presetValue); });
     xField.input.focus();
     xField.input.select();
     return true;
@@ -8741,20 +8878,28 @@
     }
 
     function preview() {
+      if (finished) return;
+      // The page removed this editor's layer and another was promoted: write nothing.
+      if (editorTarget !== selectedElement) { syncSendEnabledInPlace(); return; }
       var next = readValue();
       previewed = previewStyleEdit(property, next) || previewed;
+      syncSendEnabledInPlace();
+    }
+
+    // Puts the page back to what it showed when the editor opened.
+    function restoreOpened() {
+      if (!previewed || editorTarget !== selectedElement) return;
+      if (hadEditAtOpen && styleEdits[property]) restoreCommittedValueWithSiblings(property, previousValue === MIXED_STYLE_VALUE ? "" : previousValue);
+      else {
+        restoreStyleEdit(property);
+        delete styleEditOriginalInline[property];
+      }
     }
 
     function cancel() {
       finished = true;
       activeStyleEditorFlush = null;
-      if (previewed && editorTarget === selectedElement) {
-        if (hadEditAtOpen) restoreCommittedValueWithSiblings(property, previousValue === MIXED_STYLE_VALUE ? "" : previousValue);
-        else {
-          restoreStyleEdit(property);
-          delete styleEditOriginalInline[property];
-        }
-      }
+      restoreOpened();
       cancelStyleEdit(xAxis.select, previousValue);
     }
 
@@ -8762,18 +8907,16 @@
       if (finished) return;
       finished = true;
       activeStyleEditorFlush = null;
+      if (editorTarget !== selectedElement || xAxis.select.isConnected === false) { syncSendEnabledInPlace(); return; }
       var next = readValue();
       var ok = commitStyleEdit(property, next, previousValue);
-      if (!ok && previewed) {
-        restoreStyleEdit(property);
-        delete styleEditOriginalInline[property];
-      }
+      if (!ok) restoreOpened();
       replaceStyleInput(xAxis.select, ok ? next : previousValue);
       syncSendButtonDisabled();
     }
 
     [xAxis.select, yAxis.select].forEach(function (control) {
-      control.addEventListener("change", function () { preview(); commit(); });
+      control.addEventListener("change", preview);
       control.addEventListener("keydown", function (event) {
         if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); cancel(); }
         else if (event.key === "Enter") { event.preventDefault(); commit(); }
@@ -8783,7 +8926,10 @@
         commit();
       });
     });
-    activeStyleEditorFlush = commit;
+    registerOpenStyleEditor(editor, commit);
+    holdStylePreview(commit, function () {
+      return !finished && previewed && editorTarget === selectedElement && readValue() !== previousValue;
+    }, function () { if (!finished && previewed) preview(); });
     xAxis.select.focus();
     return true;
   }
@@ -8869,23 +9015,40 @@
       return formatNumericResult(expression.number) + expression.unit;
     }
 
+    // An emptied number in fixed mode is not a value: commit puts the row back.
+    function emptiedFixed() {
+      return currentSizeMode() === "fixed" && numberInput.value.trim() === "";
+    }
+
     function preview() {
+      if (finished) return;
+      // The page removed this editor's layer and another was promoted: write nothing.
+      if (editorTarget !== selectedElement) { syncSendEnabledInPlace(); return; }
       var next = readValue();
-      if (next == null) return;
-      if (currentSizeMode() === "fixed" && numberInput.value.trim() === "" && previousValue !== MIXED_STYLE_VALUE) return;
-      previewed = previewStyleEdit(property, next) || previewed;
+      if (next != null && !(emptiedFixed() && previousValue !== MIXED_STYLE_VALUE)) {
+        previewed = previewStyleEdit(property, next) || previewed;
+      } else if (next != null) {
+        // Emptied: the page shows the value the row opened with.
+        restoreOpened();
+        previewed = false;
+      }
+      syncSendEnabledInPlace();
+    }
+
+    // Puts the page back to what it showed when the editor opened.
+    function restoreOpened() {
+      if (!previewed || editorTarget !== selectedElement) return;
+      if (hadEditAtOpen && styleEdits[property] && previousValue !== MIXED_STYLE_VALUE) restoreCommittedValueWithSiblings(property, previousValue);
+      else {
+        restoreStyleEdit(property);
+        delete styleEditOriginalInline[property];
+      }
     }
 
     function cancel() {
       finished = true;
       activeStyleEditorFlush = null;
-      if (previewed && editorTarget === selectedElement) {
-        if (hadEditAtOpen && previousValue !== MIXED_STYLE_VALUE) restoreCommittedValueWithSiblings(property, previousValue);
-        else {
-          restoreStyleEdit(property);
-          delete styleEditOriginalInline[property];
-        }
-      }
+      restoreOpened();
       cancelStyleEdit(numberInput, previousValue);
     }
 
@@ -8893,39 +9056,31 @@
       if (finished) return;
       finished = true;
       activeStyleEditorFlush = null;
+      if (editorTarget !== selectedElement || numberInput.isConnected === false) { syncSendEnabledInPlace(); return; }
       var next = readValue();
       if (next == null) {
-        if (previewed) {
-          restoreStyleEdit(property);
-          delete styleEditOriginalInline[property];
-        }
+        restoreOpened();
         row.setAttribute("data-error", "true");
         replaceStyleInput(numberInput, numberInput.value.trim());
         syncSendButtonDisabled();
         return;
       }
       if (currentSizeMode() === "fixed" && numberInput.value.trim() === "") {
-        if (previewed) {
-          restoreStyleEdit(property);
-          delete styleEditOriginalInline[property];
-        }
+        restoreOpened();
         replaceStyleInput(numberInput, previousValue);
         syncSendButtonDisabled();
         return;
       }
       var ok = commitStyleEdit(property, next, previousValue);
-      if (!ok && previewed) {
-        restoreStyleEdit(property);
-        delete styleEditOriginalInline[property];
-      }
+      if (!ok) restoreOpened();
       replaceStyleInput(numberInput, ok ? next : previousValue);
       syncSendButtonDisabled();
     }
 
     modeSelect.addEventListener("change", function () {
       syncFixedEnabled();
-      if (currentSizeMode() !== "fixed") preview();
-      else if (numberInput.value.trim() !== "") preview();
+      // Back to Fixed with no number: preview() takes the Hug or Fill value off.
+      preview();
     });
     numberInput.addEventListener("input", preview);
     unitSelect.addEventListener("change", preview);
@@ -8968,7 +9123,12 @@
       commit();
     });
     syncFixedEnabled();
-    activeStyleEditorFlush = commit;
+    registerOpenStyleEditor(editor, commit);
+    holdStylePreview(commit, function () {
+      if (finished || !previewed || editorTarget !== selectedElement) return false;
+      var held = readValue();
+      return held != null && held !== previousValue && !emptiedFixed();
+    }, function () { if (!finished && previewed) preview(); });
     if (currentSizeMode() === "fixed") {
       numberInput.focus();
       numberInput.select();
@@ -9294,6 +9454,29 @@
     return { select: select, unlinkBtn: unlinkBtn, tokenBlock: tokenBlock, index: index, trigger: trigger };
   }
 
+  // An editor still open on another row is committed before a row opens. A
+  // touch delivers its click, and the keyboard its Enter, without the press
+  // that closes an editor. The commit re-renders the panel, so the row is
+  // found again; null when it is gone.
+  function flushedStyleRow(row) {
+    if (!row || !activeStyleEditorFlush) return row;
+    var property = row.getAttribute("data-style-property");
+    var state = row.getAttribute("data-style-state");
+    activeStyleEditorFlush();
+    var rows = panelQueryAll('[data-style-property="' + property + '"]');
+    for (var i = 0; i < rows.length; i += 1) {
+      if (rows[i].getAttribute("data-style-state") === state && rows[i].getClientRects && rows[i].getClientRects().length) return rows[i];
+    }
+    return null;
+  }
+
+  function openStyleValue(valueCell) {
+    var row = flushedStyleRow(valueCell.parentElement);
+    if (!row) return false;
+    var cell = row.contains(valueCell) ? valueCell : row.querySelector("[data-style-value]");
+    return cell ? beginStyleEdit(cell) : false;
+  }
+
   function beginStyleEdit(valueCell) {
     var editorTarget = selectedElement;
     var row = valueCell.parentElement;
@@ -9327,6 +9510,8 @@
     var currentUnit = "";
     var unitAnchor = null;
     var pendingTokenPick = null;
+    // Brings the curve diagram in step with the field; set by the easing control.
+    var resyncEasing = function () {};
     var stateEditKey = styleState ? stateStyleEditKey(styleState, property) : null;
     var hadEditAtOpen = styleState ? !!stateStyleEdits[stateEditKey] : !!styleEdits[property];
     var matchedToken = matchedTokenEntryForProperty(property, styleState);
@@ -9388,6 +9573,7 @@
         input.unitSelect = unitSelect; // ponytail: readValue reads the live unit
         relatedInternal.push(input, unitSelect);
         unitSelect.addEventListener("blur", handleBlur);
+        unitSelect.addEventListener("keydown", handleControlKey);
         // A unit change converts the number and keeps the editor open.
         unitSelect.addEventListener("change", handleUnitChange);
       } else {
@@ -9414,40 +9600,42 @@
       relatedInternal.push(input, colorInput, formatSelect);
       var reformat = function () { input.value = formatColorValue(input.value, formatSelect.value); };
       formatSelect.addEventListener("change", reformat);
-      // input fires on every drag tick inside a native <input type=color> panel —
-      // committing (which tears down the editor) on each tick closed the editor
-      // after the first pixel of movement. Only preview on input; commit on change,
-      // which fires once when the native panel is dismissed.
+      // input fires on every drag tick inside a native <input type=color> panel,
+      // and change fires once when the panel is dismissed. Both preview: the
+      // editor stays open until Enter, a press outside, Escape or a flush.
       var previewColor = function () {
+        // The panel can report a pick on change alone. A colour other than the
+        // one a chip put in the field is not that chip's token.
+        if (colorInputValue(input.value) !== colorInput.value) pendingTokenPick = null;
         input.value = normalizeColorEntry(colorInput.value, input.value, "hex");
         formatSelect.value = "hex";
-        if (styleState) previewed = previewStateStyleEdit(styleState, property, input.value) || previewed;
-        else previewed = previewStyleEdit(property, input.value) || previewed;
+        previewCurrent();
       };
-      var commitColor = function () {
-        input.value = normalizeColorEntry(colorInput.value, input.value, "hex");
-        formatSelect.value = "hex";
-        commit();
-      };
-      input.addEventListener("input", function () { pendingTokenPick = null; });
+      input.addEventListener("input", function () {
+        pendingTokenPick = null;
+        previewCurrent();
+      });
       colorInput.addEventListener("input", function () { pendingTokenPick = null; });
       colorInput.addEventListener("input", previewColor);
-      colorInput.addEventListener("change", commitColor);
+      colorInput.addEventListener("change", previewColor);
       // No blur->commit on colorInput: opening the native color panel blurs the
       // input immediately with relatedTarget === null, indistinguishable from
       // "user clicked elsewhere" — that closed the editor before a color could be
-      // picked. change (above) is the correct "picker closed" signal.
+      // picked. With the panel closed and focus on nothing, a press outside the
+      // editor commits (registerOpenStyleEditor).
+      colorInput.addEventListener("keydown", handleControlKey);
       formatSelect.addEventListener("blur", handleBlur);
+      formatSelect.addEventListener("keydown", handleControlKey);
       appendGroupedColorSuggestions(editor, property, previousValue, function (pickedValue, tokenMeta) {
         input.value = normalizeColorEntry(pickedValue, previousValue, formatSelect.value);
         colorInput.value = colorInputValue(input.value);
         pendingTokenPick = tokenMeta;
-        // A suggestion pick is a decisive choice, like dismissing the native
-        // panel — commit it. Preview-only left the pick stranded: the chip's
-        // mousedown preventDefault means no blur ever fires, so nothing was
-        // queued and the preview silently reverted on the next click-away.
-        commit();
+        // A pick previews and stays pending with its token until the editor
+        // closes. The chip's mousedown preventDefault means no blur follows it;
+        // the press outside the editor is what commits the pick.
+        previewCurrent();
       }, relatedInternal);
+      Array.prototype.forEach.call(editor.querySelectorAll(".raven-grab-color-suggestion"), wirePresetButton);
     } else if (control === "easing") {
       // The text input stays the source of truth for commit — readValue() reads
       // it, replaceStyleInput writes it back, and typing a curve by hand still
@@ -9557,9 +9745,8 @@
             node.removeEventListener("pointermove", move);
             node.removeEventListener("pointerup", up);
             node.removeEventListener("pointercancel", cancelDrag);
-            // Release commits, matching beginStyleScrub: a finished drag is a
-            // decision, and leaving it as a preview is how tuned values get lost.
-            commit();
+            // Release keeps the editor open with the preview, so a second drag
+            // can follow. Enter, a press outside or a flush commits the curve.
           };
           var cancelDrag = function () {
             node.removeEventListener("pointermove", move);
@@ -9603,12 +9790,12 @@
           // is what the author meant and what a token would hold, and expanding
           // it to cubic-bezier(0, 0, 0.58, 1) makes every later diff read as a
           // change nobody made.
-          easingPoints = EASING_KEYWORDS[keyword].slice();
-          drawEasing();
           input.value = keyword;
           pendingTokenPick = null;
-          commit();
+          resyncEasing();
+          previewCurrent();
         });
+        wirePresetButton(button);
         presets.appendChild(button);
       });
 
@@ -9617,17 +9804,27 @@
       wrap.appendChild(presets);
       editor.appendChild(wrap);
       relatedInternal.push(input);
-      // Typing keeps the curve honest: an unparseable string leaves the last
-      // drawn curve in place rather than redrawing a lie, and the row still
-      // commits whatever was typed.
+      // The diagram follows the field. A value that is not one cubic curve (a
+      // spring's linear(), steps(), text still being typed) has no diagram: the
+      // canvas is hidden and its handles do nothing, so a drag cannot replace
+      // that value with a curve left over from an earlier one.
+      resyncEasing = function () {
+        easingPoints = parseEasingValue(input.value);
+        if (easingPoints) {
+          svg.removeAttribute("data-hidden");
+          drawEasing();
+        } else svg.setAttribute("data-hidden", "true");
+      };
       input.addEventListener("input", function () {
-        var next = parseEasingValue(input.value);
-        if (next) { easingPoints = next; drawEasing(); }
+        resyncEasing();
+        previewCurrent();
       });
     } else {
       input.type = "text";
       input.value = previousValue;
+      input.addEventListener("input", previewCurrent);
       editor.appendChild(input);
+      relatedInternal.push(input);
     }
 
     // Springs attach to the PROPERTY, not to the control, so they are here
@@ -9662,8 +9859,10 @@
         button.addEventListener("click", function () {
           input.value = value;
           pendingTokenPick = null;
-          commit();
+          resyncEasing();
+          previewCurrent();
         });
+        wirePresetButton(button);
         springs.appendChild(button);
       });
       // The same focus guard the easing wrapper uses: a mousedown that moves
@@ -9818,7 +10017,9 @@
       if (!previewed) return;
       if (styleState) clearStateStylePreview();
       else if (editorTarget === selectedElement) {
-        if (hadEditAtOpen) {
+        // The record the row opened on may be gone: a rebase drops an edit the
+        // page now has.
+        if (hadEditAtOpen && styleEdits[property]) {
           restoreCommittedValueWithSiblings(property, previousValue);
         }
         else {
@@ -9900,7 +10101,7 @@
       replaceStyleInput(input, committed ? newValue : previousValue);
       syncSendButtonDisabled();
     }
-    activeStyleEditorFlush = commit;
+    registerOpenStyleEditor(editor, commit);
     // A dispatch that finishes while this editor is open rebases every draft,
     // which puts the recorded values back on the page. rebaseNextDrafts calls
     // this to write the held preview again.
@@ -9936,8 +10137,34 @@
       if (relatedInternal.indexOf(event.relatedTarget) !== -1) return;
       commit();
     }
+    // Enter and Escape on the editor's other controls: the unit select, the
+    // colour format select and the native colour input.
+    function handleControlKey(event) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        commit();
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        cancel();
+      }
+    }
+    // A preset button or colour chip reached with Tab is part of the editor:
+    // focus moving to it does not commit, Escape cancels from it and focus
+    // leaving it for something outside the editor commits. Enter and Space
+    // stay the button's own press.
+    function wirePresetButton(button) {
+      if (relatedInternal.indexOf(button) === -1) relatedInternal.push(button);
+      button.addEventListener("blur", handleBlur);
+      button.addEventListener("keydown", function (event) {
+        if (event.key !== "Escape") return;
+        event.preventDefault();
+        event.stopPropagation();
+        cancel();
+      });
+    }
     input.addEventListener("blur", handleBlur);
-    if (control === "enum") input.addEventListener("change", commit);
+    if (control === "enum") input.addEventListener("change", previewCurrent);
   }
 
   function beginStyleScrub(label, event) {
@@ -10203,6 +10430,13 @@
     }
   }
 
+  // Puts the page back to what the field opened on. The record it opened on
+  // may be gone: a rebase drops an edit the page now has.
+  function boxRollbackToOpen(property, hadEdit, openRaw) {
+    var edit = hadEdit ? styleEdits[property] : null;
+    boxRollback(property, !!edit, edit ? edit.newValue : openRaw);
+  }
+
   function boxCommit(property, value, openRaw) {
     var owner = boxStrokeOwner(property);
     var changed;
@@ -10307,7 +10541,7 @@
     function cancel() {
       if (finished) return;
       close();
-      if (previewed && target === selectedElement) boxRollback(property, hadEdit, hadEdit ? styleEdits[property].newValue : openRaw);
+      if (previewed && target === selectedElement) boxRollbackToOpen(property, hadEdit, openRaw);
       renderPanel();
       boxFocusCell(property);
     }
@@ -10317,16 +10551,27 @@
       if (target !== selectedElement || input.isConnected === false) return;
       var value = input.value.trim() === openText.trim() ? null : boxValueFromEntry(cell, input.value);
       if (!value) {
-        if (previewed) boxRollback(property, hadEdit, hadEdit ? styleEdits[property].newValue : openRaw);
+        if (previewed) boxRollbackToOpen(property, hadEdit, openRaw);
         renderPanel();
         return;
       }
       if (!boxCommit(property, value, openRaw) && previewed) {
-        boxRollback(property, hadEdit, hadEdit ? styleEdits[property].newValue : openRaw);
+        boxRollbackToOpen(property, hadEdit, openRaw);
         renderPanel();
       }
     }
-    activeStyleEditorFlush = commit;
+    registerOpenStyleEditor(input, commit);
+    // Writes the field's number to the page, as typing and the arrow keys do.
+    function previewEntry() {
+      if (finished) return;
+      var value = boxValueFromEntry(cell, input.value);
+      if (value && target === selectedElement && boxPreview(property, value)) previewed = true;
+      syncSendEnabledInPlace();
+    }
+    holdStylePreview(commit, function () {
+      if (finished || !previewed || target !== selectedElement || input.isConnected === false) return false;
+      return input.value.trim() !== openText.trim() && !!boxValueFromEntry(cell, input.value);
+    }, function () { if (previewed) previewEntry(); });
     input.addEventListener("keydown", function (event) {
       if (event.isComposing) return;
       if (event.key === "Enter") {
@@ -10346,10 +10591,10 @@
         var next = current + (event.key === "ArrowUp" ? 1 : -1) * (event.shiftKey ? 10 : 1);
         if (!/^margin-/.test(property) && next < 0) next = 0;
         input.value = boxNumberText(next);
-        var value = boxValueFromEntry(cell, input.value);
-        if (value && target === selectedElement && boxPreview(property, value)) previewed = true;
+        previewEntry();
       }
     });
+    input.addEventListener("input", previewEntry);
     input.addEventListener("blur", function () { commit(); });
     return true;
   }
@@ -10415,7 +10660,7 @@
     function cancel() {
       var wasScrub = scrubbing;
       cleanup();
-      if (wasScrub && target === selectedElement) boxRollback(property, hadEdit, hadEdit ? styleEdits[property].newValue : openRaw);
+      if (wasScrub && target === selectedElement) boxRollbackToOpen(property, hadEdit, openRaw);
       renderPanel();
     }
     function escape(keyEvent) {
@@ -10484,16 +10729,19 @@
     }
 
     function preview() {
+      if (finished) return;
+      // The page removed this editor's layer and another was promoted: write nothing.
+      if (editorTarget !== selectedElement) { syncSendEnabledInPlace(); return; }
       var nextValue = composeBorderRadius(readCorners());
-      if (!nextValue) return;
-      previewed = previewStyleEdit("border-radius", nextValue) || previewed;
+      if (nextValue) previewed = previewStyleEdit("border-radius", nextValue) || previewed;
+      syncSendEnabledInPlace();
     }
 
     function cancel() {
       finished = true;
       activeStyleEditorFlush = null;
       if (previewed && editorTarget === selectedElement) {
-        if (hadEditAtOpen) restoreCommittedValueWithSiblings("border-radius", previousValue);
+        if (hadEditAtOpen && styleEdits["border-radius"]) restoreCommittedValueWithSiblings("border-radius", previousValue);
         else {
           restoreStyleEdit("border-radius");
           delete styleEditOriginalInline["border-radius"];
@@ -10511,7 +10759,7 @@
       var nextValue = composeBorderRadius(readCorners());
       var committed = commitStyleEdit("border-radius", nextValue, previousValue);
       if (!committed && previewed) {
-        if (hadEditAtOpen) restoreCommittedValueWithSiblings("border-radius", previousValue);
+        if (hadEditAtOpen && styleEdits["border-radius"]) restoreCommittedValueWithSiblings("border-radius", previousValue);
         else {
           restoreStyleEdit("border-radius");
           delete styleEditOriginalInline["border-radius"];
@@ -10559,7 +10807,13 @@
     mountStyleEditor(valueCell, editor);
     (tokenUi && tokenUi.trigger ? tokenUi.trigger : inputs[0]).focus();
     if (!tokenUi || !tokenUi.trigger) inputs[0].select();
-    activeStyleEditorFlush = commit;
+    registerOpenStyleEditor(editor, commit);
+    holdStylePreview(commit, function () {
+      if (finished || !previewed || editorTarget !== selectedElement) return false;
+      if (editor.getAttribute("data-token-linked") === "true") return false;
+      var held = composeBorderRadius(readCorners());
+      return !!held && held !== previousValue;
+    }, function () { if (!finished && previewed) preview(); });
     return true;
   }
 
@@ -12700,12 +12954,18 @@
     return !!activeStyleEditorFlush && typeof activeStyleEditorFlush.holdsChange === "function" && activeStyleEditorFlush.holdsChange();
   }
 
-  // Sets the Send button's disabled state on the node already in the panel.
-  // Replacing the button while a press is on it loses the click.
+  // Sets the Send button's disabled state and label on the node already in the
+  // panel. Replacing the button while a press is on it loses the click.
   function syncSendEnabledInPlace() {
+    // "Add to queue" counts a held value as work, so it follows the same changes.
+    syncQueueButton();
     if (!globalActions) return;
     var button = globalActions.querySelector("[data-send-batch]");
-    if (button) button.disabled = !batchUiState().enabled;
+    if (!button) return;
+    var ui = batchUiState();
+    button.disabled = !ui.enabled;
+    var label = button.querySelector(".raven-grab-send-label");
+    if (label && label.textContent !== ui.label) label.textContent = ui.label;
   }
 
   function changeTrayItems() {
@@ -13716,7 +13976,16 @@
   }
 
   function rebaseNextDrafts() {
+    // A hover or focus preview the open editor holds is not part of the page.
+    // It leaves the preview sheet while the selections are read again, or it is
+    // recorded as the value the state declares.
+    var heldStatePreview = activeStateStylePreview;
+    if (heldStatePreview) clearStateStylePreview();
     allStyleDrafts().forEach(rebaseStyleDraft);
+    if (heldStatePreview) {
+      activeStateStylePreview = heldStatePreview;
+      renderStatePreviewStyles();
+    }
     if (activeStyleEditorFlush && typeof activeStyleEditorFlush.repreview === "function") activeStyleEditorFlush.repreview();
     if (localLayerDrafts().length && !activeLayerOrders().length) {
       appliedLayerTree = buildLayerTree(document.body);
@@ -13740,7 +14009,8 @@
       // Conveyor: a Send pressed while this batch was in flight fires now.
       if (sendQueued) {
         sendQueued = false;
-        if (hasDispatchableDrafts()) dispatchPendingBatch();
+        // A value an open editor still holds is sent too: the dispatch commits it.
+        if (hasDispatchableDrafts() || styleEditorHoldsChange()) dispatchPendingBatch();
       }
     }, SEND_TIMINGS.hold);
   }
@@ -14858,7 +15128,12 @@
     if (activeTabB === "motion" && !motionTabAvailable()) activeTabB = "layers";
     // Defer background rerenders while the user is typing in a style editor;
     // gesture paths flush the editor first, and the next poll renders after it closes.
-    if (activeStyleEditorFlush || activeStyleScrub || boxGesture) return;
+    if (activeStyleEditorFlush || activeStyleScrub || boxGesture) {
+      panelRenderSkipped = true;
+      // Send still follows a dispatch that starts or finishes meanwhile.
+      syncSendEnabledInPlace();
+      return;
+    }
     // A mid-drag rerender (template load, operation poll) detaches the drag's rows
     // and silently cancels the drop — defer; every endLayerDrag path renders.
     if (layerDrag && layerDrag.active && !layerDragRenderBypass) return;
@@ -16044,13 +16319,17 @@
     if (elementChip) copyElementSelector(elementChip);
     var scopeChip = event.target.closest("[data-edit-scope]");
     if (scopeChip) {
-      setEditScope(scopeChip.getAttribute("data-edit-scope"));
+      var chipScope = scopeChip.getAttribute("data-edit-scope");
+      commitOpenStyleEditorFirst();
+      setEditScope(chipScope);
       return;
     }
     var scopeTrack = event.target.closest("[data-scope-track]");
     if (scopeTrack && typeof event.clientX === "number" && typeof scopeTrack.getBoundingClientRect === "function") {
       var trackRect = scopeTrack.getBoundingClientRect();
-      setEditScope(event.clientX < trackRect.left + trackRect.width / 2 ? "instance" : "component");
+      var trackScope = event.clientX < trackRect.left + trackRect.width / 2 ? "instance" : "component";
+      commitOpenStyleEditorFirst();
+      setEditScope(trackScope);
       return;
     }
     var panelPreset = event.target.closest("[data-panel-preset]");
@@ -16065,7 +16344,9 @@
     }
     var restoreVersion = event.target.closest("[data-restore-version]");
     if (restoreVersion) {
-      restoreStyleVersion(Number(restoreVersion.getAttribute("data-restore-version")));
+      var restoreVersionId = Number(restoreVersion.getAttribute("data-restore-version"));
+      commitOpenStyleEditorFirst();
+      restoreStyleVersion(restoreVersionId);
       renderPanel();
       return;
     }
@@ -16076,6 +16357,7 @@
       return;
     }
     if (event.target.closest("[data-save-version]")) {
+      commitOpenStyleEditorFirst();
       if (saveStyleVersion(styleVersionNameDraft)) styleVersionNameDraft = "";
       renderPanel();
       return;
@@ -16130,7 +16412,11 @@
     if (event.target.closest("[data-send-email]")) sendComponentRequest();
     if (event.target.closest("[data-save-template]")) saveTemplate();
     var removeChangeButton = event.target.closest("[data-remove-change]");
-    if (removeChangeButton) removeChange(removeChangeButton.getAttribute("data-remove-change"));
+    if (removeChangeButton) {
+      var removeChangeId = removeChangeButton.getAttribute("data-remove-change");
+      commitOpenStyleEditorFirst();
+      removeChange(removeChangeId);
+    }
     var retryChangeButton = event.target.closest("[data-retry-change]");
     if (retryChangeButton) retryChange(retryChangeButton.getAttribute("data-retry-change"));
     if (event.target.closest("[data-dismiss-request-hint]")) dismissRequestHint();
@@ -16148,7 +16434,7 @@
     var trayToggle = event.target.closest("[data-change-tray-toggle]");
     if (trayToggle) toggleChangeTraySection(trayToggle.getAttribute("data-change-tray-toggle"));
     var styleValue = event.target.closest("[data-style-value]");
-    if (styleValue && !event.target.closest("[data-token-detach]")) beginStyleEdit(styleValue);
+    if (styleValue && !event.target.closest("[data-token-detach]")) openStyleValue(styleValue);
     var detachBtn = event.target.closest("[data-token-detach]");
     if (detachBtn) {
       event.preventDefault();
@@ -16157,7 +16443,7 @@
       return;
     }
     var radiusExpand = event.target.closest("[data-radius-expand]");
-    if (radiusExpand) beginRadiusEdit(radiusExpand.closest("[data-style-property]"));
+    if (radiusExpand) beginRadiusEdit(flushedStyleRow(radiusExpand.closest("[data-style-property]")));
   });
 
   function attachmentTransferKind(dataTransfer) {
@@ -16359,7 +16645,7 @@
     var styleValue = event.target.closest("[data-style-value]");
     if (styleValue && (event.key === "Enter" || event.key === " ")) {
       event.preventDefault();
-      beginStyleEdit(styleValue);
+      openStyleValue(styleValue);
     }
   });
   onPanels("change", function (event) {
@@ -17131,11 +17417,13 @@
     // Keep the edited owner pinned while it remains selected. Once the primary
     // truly changes, transfer its singleton maps into a persistent element draft;
     // previews stay applied until removal, dispatch, detachment, or dismissal.
+    // An open editor commits first, against the selection that showed its
+    // preview: a tap's click arrives before the commit its press deferred.
+    commitOpenStyleEditorFirst();
     var previousPrimary = selectedElement;
     var hasUnsentEdits = Object.keys(styleEdits).length > 0 || Object.keys(stateStyleEdits).length > 0 || Object.keys(tokenIntents).length > 0 || !!textEdit || instructionDraft !== "" || attachmentDraft.length > 0 || componentRequestHasDraft();
     if (hasUnsentEdits && selectedElement && elements.indexOf(selectedElement) !== -1) primary = selectedElement;
     if (previousPrimary !== primary) {
-      if (activeStyleEditorFlush) activeStyleEditorFlush();
       capturePanelDrafts();
       if (Object.keys(styleEdits).length || Object.keys(stateStyleEdits).length || Object.keys(tokenIntents).length || !!textEdit || instructionDraft.trim() || attachmentDraft.length) stashActiveStyleDraft();
       resetSelectionContext();
