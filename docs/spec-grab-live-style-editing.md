@@ -14,7 +14,7 @@ A line-height row shows `26px` on 18px text. Choosing `%` in the unit dropdown c
 |---|---|---|
 | The editor closes when the unit changes | The unit select's `change` handler is `commit`, and `commit` unmounts the editor through `replaceStyleInput` | 9084, 9471 |
 | 26px becomes 26% | `readValue` joins the unchanged number to the new unit | 9405–9411 |
-| Typing a number does not change the page until Enter or blur | The generic editor has no `input` listener for the number, colour-text or plain-text field. Only ArrowUp and ArrowDown preview | 9476–9487 |
+| Typing a number does not change the page until Enter or blur | No `input` listener in the generic editor previews. The number and plain-text fields have none; the colour text has one that only clears `pendingTokenPick` (9124). Only ArrowUp and ArrowDown preview | 9124, 9476–9487 |
 
 ## Target rules
 
@@ -22,7 +22,7 @@ A line-height row shows `26px` on 18px text. Choosing `%` in the unit dropdown c
 - **R2, open until dismissed.** The editor closes on Enter (commit), on a press outside it or focus leaving it (commit), on Escape (cancel, restores the value the row had when it opened), and on the overlay actions that already flush an open editor (Send, queue, selection change). No control inside the editor closes it.
 - **R3, a unit change keeps the rendered value.** Changing only the unit rewrites the number so the computed value stays the same. 26px on 18px text becomes 144.44%.
 
-**Model:** preview while open, commit once on close. The Size and Stroke editors already work this way (8497, 7646), so this adds no new kind of state. While an editor is open the page holds a previewed value and `styleEdits` is written at close. `activeStyleEditorFlush` is already read by Send (13114), queue (4753), the panel re-render guard (14382) and the layer poll (11069, 11939). The change tray shows the edit at commit, as it does today.
+**Model:** preview while open, commit once on close. The Size editor already works this way (8497), so this adds no new kind of state. While an editor is open the page holds a previewed value and `styleEdits` is written at close. **Stroke is the exception and stays as it is:** its `preview()` calls `commitStrokeEdit` (7908), which writes `styleEdits` and syncs the draft on every change (6482, 6494), and Escape restores a snapshot taken at open (7921). Do not move Stroke to the write-at-close model. `activeStyleEditorFlush` is already read by Send (13114), queue (4753), the panel re-render guard (14382) and the layer poll (11069, 11939). The change tray shows the edit at commit, as it does today.
 
 ## Inventory: every editor and control
 
@@ -43,6 +43,7 @@ A line-height row shows `26px` on 18px text. Choosing `%` in the unit dropdown c
 | | Easing text, typing | Redraws the curve only (9315) | Also preview when the value parses |
 | | Plain text field, typing | No page write | Preview when `CSS.supports` accepts the value |
 | Text decoration (8007) | Line select, style select | Preview, commit and close (8143) | Preview |
+| | Colour text, typing | Preview on `change` only, so at blur or Enter (8137–8142) | Preview on `input` |
 | | Colour panel dismissed | Commit and close (8156) | Preview |
 | Box shadow (8162) | Number fields, colour text | Preview on `input` (8382) | Unchanged |
 | | Inset checkbox, colour format | Commit and close (8380) | Preview |
@@ -53,9 +54,13 @@ A line-height row shows `26px` on 18px text. Choosing `%` in the unit dropdown c
 | | Unit select | Number unchanged (8637) | Convert the number |
 | Stroke (7646) | Every control | Preview, stay open | Unchanged for R1 and R2 |
 | | Width unit select | Number unchanged (7956). Offers `%`, which `border-width` rejects | Convert the number. Offer only units the property accepts |
-| Radius (10020), box-model fields (9833), label scrub (9505) | | Already live. No unit select | Unchanged |
-| Hover and focus state rows | Same generic editor with `styleState` | Preview through `previewStateStyleEdit` (4275) | Same targets as the generic editor |
-| Token-linked rows | Raw controls disabled until detach. `commit` refuses (9434) | | Unchanged. Preview also refuses while `data-token-linked="true"` |
+| Box-model fields `openBoxField` (9833) | Number, typing | No page write until Enter or blur (9892–9915) | Preview on `input` through `boxPreview` |
+| | Number, arrow keys | Preview (9903–9912) | Unchanged |
+| Radius (10020), label scrub (9505) | | Already live. No unit select | Unchanged |
+| Hover and focus state rows, generic editor only | Generic editor with `styleState` | Preview through `previewStateStyleEdit` (4275) | Same targets as the generic editor |
+| Token-linked rows, generic editor only | Raw controls disabled until detach. `commit` refuses (9434) | | Unchanged. Preview also refuses while `data-token-linked="true"` |
+
+The structured editors are chosen at 9008–9018, before `styleState` and the token match are read (9028–9030). A hover or focus row for `width`, `height`, `overflow`, `text-decoration`, `box-shadow` or stroke therefore opens an editor that writes the resting style, and those editors have no token lock. Both are existing behaviour, found in review. This change does not fix them and must not make them worse; see "Not in this change".
 
 ## Design
 
@@ -75,9 +80,12 @@ function previewCurrent() {
 }
 ```
 
-- Wire it to `input` on the number, colour-text, easing-text and plain-text fields, and to `change` on the enum select.
+- Wire it to `input` on the number, colour-text, easing-text and plain-text fields, and to `change` on the enum select. The colour text already has an `input` listener that clears `pendingTokenPick` (9124); keep that and add the preview after it. A chip sets `input.value` in code, which fires no `input` event, so its `pendingTokenPick` survives until the user types.
 - Replace each `commit()` call marked "Target: preview" in the inventory with `previewCurrent()`, after the control has written `input.value`.
 - The easing `up` handler (9248–9255) stops calling `commit()`. The drag-start snapshot and `cancelDrag` restore (9244–9275) stay as they are; the repository rule "restore drag-start values on cancellation" still applies, and a second drag in one session becomes reachable by pointer as well as by typing.
+- **Keep the curve diagram in step with the value.** After every preset, spring pick and text change, set `easingPoints = parseEasingValue(input.value)`. When it is null (a spring's `linear()`, `steps()`), hide the canvas and ignore handle presses, which is what the row shows when it is reopened on such a value (the plain-text control, 9328–9332). When it parses again, show the canvas and redraw. Without this, a handle drag after a spring pick serializes the old `easingPoints` (9216–9221) and replaces the spring with an unrelated cubic.
+- `openBoxField` gets an `input` listener that runs the same lines the arrow keys run (9910–9911): `boxValueFromEntry`, then `boxPreview` when the target is still selected.
+- Text-decoration colour text gets `input` wired to its existing `preview()`.
 - Every valid intermediate value is written. Typing `144` passes through `1` and `14`. This matches Chrome DevTools. No debounce: a delay removes the immediate feedback this change is for. Revisit only if the eyes-on pass shows the flash is a problem.
 - `previewValue` returns false when `CSS.supports` rejects the value, so the last valid preview stays on the page.
 
@@ -93,7 +101,8 @@ Added: **a press outside commits.** Once picks stop committing, blur alone is no
 - One `window` `pointerdown` listener in the capture phase: a press whose `composedPath()` contains neither the editor nor its row calls `commit()`.
 - Touch uses the existing lift-without-moving rule (6911–6937), so a scroll does not close the editor.
 - `commit()` is already idempotent through `finished`, so blur and the outside press can both fire.
-- Applies to every editor that sets `activeStyleEditorFlush`: generic, stroke, text decoration, box shadow, overflow, size, radius.
+- Applies to every editor that sets `activeStyleEditorFlush`: generic, stroke, text decoration, box shadow, overflow, size, radius, box-model field (9891).
+- Native popups: the option list of a `<select>` and the OS colour panel are drawn outside the page and are expected to deliver no `pointerdown` to `window`, and a press on the closed select is inside the editor. This was not measured. It is on the manual check list under Tests, because a synthetic event cannot prove it.
 
 Keyboard: in the generic editor the unit select, colour format select and native colour input get the same Enter (commit) and Escape (cancel) handlers the structured editors already put on their selects (8662–8666).
 
@@ -120,10 +129,14 @@ New helpers beside `STYLE_UNIT_OPTIONS` (6685).
 
 **Measuring a percentage base on the element.** Reading a computed value straight after writing it returns the old value when the element has a transition (measured: 26px straight after setting `100%` under `transition: line-height 1s`). The procedure:
 
-1. Save the inline value and priority of `transition` and of the property.
-2. Set `transition: none !important` and the property to `100% !important`. Read `getComputedStyle`.
-3. Restore the property. Read `getComputedStyle` again, so the restored value is committed while transitions are still off. Restore `transition`.
-4. Accept the reading only if it matches `/^-?[\d.]+px$/`.
+1. Measure only longhands whose computed value is the used value: `width`, `height`, `padding-*`, `margin-*`, and `top`, `right`, `bottom`, `left`. Any other property with no table entry has no base.
+2. Save `element.style.cssText`, and the inline value and priority of `transition-property` and of the property. Use the `transition-property` longhand, not the `transition` shorthand: reading the shorthand returns an empty string when only some longhands are set inline (for example `transition-duration: 1s` alone), and restoring that empty value deletes them.
+3. Set `transition-property: none !important` and the property to `100% !important`. Read `getComputedStyle`.
+4. Restore the property. Read `getComputedStyle` again, so the restored value is committed while transitions are still off. Restore `transition-property`.
+5. If `element.style.cssText` differs from the saved text, assign the saved text back.
+6. Accept the reading only if it matches `/^-?[\d.]+px$/`.
+
+The scratch test used the `transition` shorthand on an element with no inline transition. The longhand form above was not run; test 20 covers it.
 
 Measured with this procedure: `padding-left` and `width` return 800px in an 800px parent; the inline style is restored exactly; no animation is running afterwards. `text-indent`, `gap`, `top` on a static element, `letter-spacing` and `border-radius` return `100%`, not px, so they have no measurable base.
 
@@ -140,22 +153,29 @@ Measured with this procedure: `padding-left` and `width` return 800px in an 800p
 
 **Checking the result before accepting it.** The live preview already holds the pre-change value, so:
 
-1. `before` is the computed value of the property on the primary element.
-2. Apply the converted value with transitions suppressed as in the measuring procedure. `after` is the computed value.
-3. When both are px and `|after − before| > max(0.5, 1% of |before|)`, refuse.
-4. When either is not px (`normal`, `auto`, a percentage), accept the arithmetic.
+1. Set `transition-property: none !important` on the primary element, saved and restored as in the measuring procedure. Both readings happen inside this one suppression. A `before` read outside it can be a transition midpoint from the edit just typed, which would refuse a correct conversion.
+2. `before` is the computed value of the property.
+3. Apply the converted value through the normal preview. `after` is the computed value.
+4. When both are px and `|after − before| > max(0.5, 1% of |before|)`, put the previous value back and refuse.
+5. When either is not px (`normal`, `auto`, a percentage), accept the arithmetic.
+6. Restore `transition-property` after the last read.
 
 **Refusing.** The unit select returns to the previous unit, the number and the page are left as they were, and the status line (`setGlobalActionStatus`, 15339) says why, for example "Can't keep 300px when switching width to % here". Cases measured to refuse in this version:
 
 - A flex item: `width: 300px` is used at 250px, and `100%` measures 526px, so the base is wrong. `30%` would have been correct.
 - `height` in % under a parent with no set height: `50%` computes to the content height.
-- Properties whose percentage has no measurable base and no table entry (`border-radius`, `text-indent`, `gap`).
+- Properties whose percentage has no measurable base and no table entry (`gap`, `text-indent`, `min-width`, `max-width`).
 
 **Typed units, the way round a refusal.** `parseNumericExpression` rejects a typed unit that differs from the select (6720). Change: when the typed unit is one of the select's options, set the select to it and use the number as typed, with no conversion. Typing `30%` into a px field applies 30%.
 
 **Unit options.** Build each unit select from the units the property accepts: keep a unit only when `styleValueSupported(property, "1" + unit)` is true. Measured: `border-width` and `outline-offset` reject `%`. The current value's own unit always stays in the list (9077).
 
-**Hover and focus state rows.** Convert with the same bases, read from the element at rest. Skip the check, because the preview is a stylesheet rule that applies only in that state.
+**Hover and focus state rows.** The element is not in that state while it is edited, so nothing can be measured or checked.
+
+- Absolute units, rem, vw, vh, ms and s convert as usual.
+- em, ch, unitless and the font-relative `%` rows use the state's own font-size when that state sets one in px (its declaration, or its entry in `stateStyleEdits`), and the resting font-size when the state does not set font-size. A state font-size in any other unit refuses.
+- A measured `%` base refuses.
+- No before/after check runs.
 
 **Multi-select and "All N like this".** Bases come from the primary element. The same converted string is written to every target, as any edit is today. A target with a different font-size renders a different px value, as it would for any % or em edit across a mixed selection.
 
@@ -173,7 +193,7 @@ Both already stay open and preview. Their unit `change` handlers (8637, 7956) ca
 - px, %, px and close: `readValue` returns `26px`, equal to `previousValue`, so nothing is committed and the preview is rolled back (9458–9463).
 - px, % and Enter commits `line-height: 144.44%` with `oldValue: 26px`. The unit change is the edit.
 - Arrow steps use the precision already in the field (6783–6789), so `144.44` steps at two decimals. `scrubPrecisionMode` and its three consumers are untouched.
-- Springs stay generative-only and their serialized value is unchanged. Only the moment of commit moves.
+- Springs stay generative-only and their serialized value is unchanged. The moment of commit moves, and the curve diagram is hidden while the value is not a cubic (Design 1).
 - Both keyboard propagation guards are untouched.
 - `browser/raven-grab.js` and `web/public/raven-grab.js` stay byte-identical.
 - `STYLE_CATEGORIES` is not edited, so the Grab payload contract is unchanged. `styleEdits[].newValue` already carries any unit.
@@ -187,10 +207,10 @@ Both already stay open and preview. Their unit `change` handlers (8637, 7956) ca
 
 Existing tests that encode close-on-change must change in the same commit:
 
-- `test/grab-bridge.test.mjs` has three `dispatch('change'` sites. The colour case at 5601–5603 asserts a committed edit straight after `change`; it needs an Enter or a flush first.
-- `test/grab-overlay-easing-control.test.mjs` states at 105 and 485 that pointerup and every preset commit and destroy the editor. Its tests "dragging a handle rewrites the committed value" (358), "a preset writes the KEYWORD" (540) and the two cancelled-drag tests (454, 496) need a commit step or new expectations. This file is graded by mutants, so re-run the mutant matrix; survivors must be explained.
+- `test/grab-bridge.test.mjs` has three `dispatch('change'` sites. The colour case at 5601–5603 asserts a committed edit straight after `change`; it needs an Enter or a flush first. 11251–11254 asserts that colour `change` closes the editor and commits; it becomes "stays open with the preview, then a press outside commits".
+- `test/grab-overlay-easing-control.test.mjs` states at 105 and 485 that pointerup and every preset commit and destroy the editor. Its tests "dragging a handle rewrites the committed value" (358), "a preset writes the KEYWORD" (540) and the two cancelled-drag tests (454, 496) need a commit step or new expectations. So do the reads of `committedValue` straight after `mouse.up()` at 398–400 and 435–437. This file is graded by mutants, so re-run the mutant matrix; survivors must be explained.
 - `test/grab-overlay-spring-control.test.mjs`: "a spring preset commits a linear() that re-opens verbatim" (431) and "two different springs write two different curves" (480) need a commit step.
-- Run the full suite to find the rest. Only the three files above were read.
+- Run the full suite to find the rest. Only the three files above were read, and only in part.
 
 New tests. Conversion depends on computed style, which the fake DOM cannot supply, so the conversion tests run in Chromium through `test/grab-panels-harness.mjs`. Each is proved by the kill procedure in `.claude/skills/grab-falsify-loop/SKILL.md`: it fails against a scratch overlay with the one change reverted (`RAVEN_GRAB_TEST_OVERLAY`), and passes against the real one.
 
@@ -205,22 +225,36 @@ New tests. Conversion depends on computed style, which the fake DOM cannot suppl
 | 7 | Colour panel `change` leaves the editor open; a press outside commits; `styleEdits` matches the inline style | Remove the outside-press listener |
 | 8 | Colour chip, then a press outside: committed with its token name and path | Clear `pendingTokenPick` on preview |
 | 9 | Two easing handle drags in one session; `pointercancel` during the second restores the first drag's result; Enter commits the final curve | `up` calls `commit` |
-| 10 | Flex item width, px to %: select returns to px, number and page unchanged, status line set | Remove the before/after check |
+| 10 | `gap` 16px, px to %: select returns to px, number and page unchanged, status line set | Treat a non-px base reading as usable |
+| 10b | Flex item width in the Size editor, px to %: refused the same way | Remove the before/after check |
 | 11 | Stroke width unit select does not offer `%` | Remove the option filter |
 | 12 | Typing `30%` into a px field sets the select to `%` and applies 30% | Restore the mismatch rejection at 6720 |
 | 13 | Token-linked row: `input` events do not write to the page | Remove the linked guard in `previewCurrent` |
 | 14 | 200ms to s shows `0.2`; computed duration unchanged | |
 | 15 | Send while an editor holds a previewed value: the payload carries the edit | |
+| 16 | Typing in a padding field changes the computed padding before Enter or blur | Remove the box-field `input` listener |
+| 17 | Typing a colour in the text-decoration colour text changes the page before blur | Remove its `input` wiring |
+| 18 | Pick a spring in an easing editor: the canvas is hidden and a press where a handle was does not change the value; Enter commits the `linear()` string unchanged. Then pick `ease-out`: the canvas returns | Skip the `easingPoints` resync |
+| 19 | Hover rule sets `font-size: 36px` and `line-height: 26px` on 18px text: the hover line-height row, px to %, shows `72.22` | Use the resting font-size |
+| 20 | Element with only `transition-duration: 1s` inline: after a measured conversion and after a refused one, `style.cssText` is what it was, apart from the edited property | Suppress with the `transition` shorthand |
+| 21 | Element with `transition: line-height 1s`: type a new line-height, switch the unit at once. The conversion is accepted | Read `before` outside the suppression |
 
 Verification before calling it done: `RAVEN_NO_USAGE_LOG=1 npm test` exits 0, `cmp browser/raven-grab.js web/public/raven-grab.js` is silent, an eyes-on pass in the harness on a page with real paragraph text repeats the reported steps, and the adverse review runs for at most three rounds.
+
+Manual checks with a real pointer in headed Chromium. Synthetic events do not count as evidence for these:
+
+- Open the unit select's option list and pick a unit: the editor stays open and the number converts.
+- Open the option list and dismiss it with Escape and with a press elsewhere in the editor: nothing commits.
+- Open the OS colour panel, drag in it, close it: the editor stays open with the preview.
+- With the colour panel closed, press on the page: the edit commits once.
 
 ## Phases
 
 Each phase ships on its own.
 
-1. **The reported bug.** Generic number editor: preview on `input`, unit change converts and stays open, conversion helpers, the check and refusal. Tests 1–5, 10, 14.
-2. **Stay open everywhere.** Outside-press listener; enum, colour, easing, springs, text decoration, box shadow, overflow. Tests 6–9, 13, 15, plus the existing-test updates.
-3. **The other unit selects.** Size and Stroke conversion, unit option filter, typed-unit switch, and D2 if accepted. Tests 11, 12.
+1. **The reported bug.** Generic number editor: preview on `input`, unit change converts and stays open, conversion helpers, the check and refusal, state-row bases. Tests 1–5, 10, 14, 19, 20, 21.
+2. **Stay open and live everywhere.** Outside-press listener; enum, colour, easing, springs, text decoration, box shadow, overflow, box-model fields. Tests 6–9, 13, 15–18, the existing-test updates and the manual checks.
+3. **The other unit selects.** Size and Stroke conversion, unit option filter, typed-unit switch, and D2 if accepted. Tests 10b, 11, 12.
 
 ## Decisions
 
@@ -235,6 +269,7 @@ Each has a default the spec is written to. Change any of them before the build.
 ## Not in this change
 
 - A percentage base for width and height on flex and grid items. It needs the containing block resolved rather than measured.
+- Hover and focus rows for `width`, `height`, `overflow`, `text-decoration`, `box-shadow` and stroke writing the resting style, and the missing token lock on those editors (9008–9018). Existing behaviour; it needs its own change.
 - Debouncing live typing.
 - Showing a preview in the change tray before commit.
 - Bridge, payload-schema and MCP tool changes. None are needed.

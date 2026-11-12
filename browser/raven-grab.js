@@ -4967,7 +4967,10 @@
     entries.forEach(function (entry) {
       if (!entry || !entry.element) return;
       if (entry.value) entry.element.style.setProperty(property, entry.value, entry.priority);
-      else entry.element.style.removeProperty(property);
+      else {
+        entry.element.style.removeProperty(property);
+        restoreInlineLonghands(entry);
+      }
     });
   }
 
@@ -5194,6 +5197,34 @@
     return currentSelection && currentSelection.styles ? (currentSelection.styles[property] || "") : "";
   }
 
+  // An inline shorthand reads "" when its longhands differ in priority
+  // (padding-top !important beside three plain sides). Record the longhands
+  // that are set, so a restore writes them back; "" alone removes all of them.
+  function captureInlineLonghands(element, property) {
+    var style = element && element.style;
+    if (!style || typeof style.length !== "number" || typeof document.createElement !== "function") return null;
+    var probe = document.createElement("div");
+    if (!probe.style || typeof probe.style.setProperty !== "function") return null;
+    probe.style.setProperty(property, "initial");
+    if (typeof probe.style.length !== "number") return null;
+    var found = [];
+    for (var i = 0; i < probe.style.length; i += 1) {
+      var name = probe.style[i];
+      if (!name || name === property) continue;
+      var value = style.getPropertyValue(name);
+      if (value) found.push({ name: name, value: value, priority: style.getPropertyPriority(name) });
+    }
+    return found.length ? found : null;
+  }
+
+  // Puts back the longhands captureInlineLonghands recorded, after the shorthand
+  // that replaced them has been removed.
+  function restoreInlineLonghands(entry) {
+    (entry.longhands || []).forEach(function (longhand) {
+      entry.element.style.setProperty(longhand.name, longhand.value, longhand.priority);
+    });
+  }
+
   function captureStyleOriginals(property, targets) {
     // Append, never early-return: a member shift-selected AFTER the first
     // preview of this property must still get its original captured, or
@@ -5211,10 +5242,12 @@
     targets.forEach(function (element) {
       var already = captured.some(function (entry) { return entry && entry.element === element; });
       if (already) return;
+      var inlineValue = element.style.getPropertyValue(property);
       captured.push({
         element: element,
-        value: element.style.getPropertyValue(property),
+        value: inlineValue,
         priority: element.style.getPropertyPriority(property),
+        longhands: inlineValue ? null : captureInlineLonghands(element, property),
         // Clean computed captured BEFORE the first write — the only baseline that
         // stays correct even if currentSelection.styles is re-snapshotted mid-preview
         // (rebase / re-select paths). Read via capturedOriginalComputed().
@@ -5301,7 +5334,13 @@
     siblings.forEach(function (element) {
       var alreadyCaptured = captured.some(function (entry) { return entry.element === element; });
       if (!alreadyCaptured) {
-        captured.push({ element: element, value: element.style.getPropertyValue(property), priority: element.style.getPropertyPriority(property) });
+        var inlineValue = element.style.getPropertyValue(property);
+        captured.push({
+          element: element,
+          value: inlineValue,
+          priority: element.style.getPropertyPriority(property),
+          longhands: inlineValue ? null : captureInlineLonghands(element, property)
+        });
       }
       element.style.setProperty(property, newValue);
     });
@@ -5317,7 +5356,10 @@
   function restoreStyleScopeSiblingOriginalEntries(property, originals) {
     (originals || []).forEach(function (entry) {
       if (entry.value) entry.element.style.setProperty(property, entry.value, entry.priority);
-      else entry.element.style.removeProperty(property);
+      else {
+        entry.element.style.removeProperty(property);
+        restoreInlineLonghands(entry);
+      }
     });
   }
 
@@ -5325,7 +5367,10 @@
     Object.keys(originalStore || {}).reverse().forEach(function (property) {
       (originalStore[property] || []).forEach(function (entry) {
         if (entry.value) entry.element.style.setProperty(property, entry.value, entry.priority);
-        else entry.element.style.removeProperty(property);
+        else {
+          entry.element.style.removeProperty(property);
+          restoreInlineLonghands(entry);
+        }
       });
       delete originalStore[property];
     });
@@ -5339,6 +5384,14 @@
     if (editScope !== "component" || styleEditScopeSiblingsTarget !== selectedElement) return;
     (styleEditScopeSiblingsOriginal[property] || []).forEach(function (entry) {
       entry.element.style.setProperty(property, value);
+    });
+  }
+
+  // The same write with no check on who owns the session: for the path that
+  // puts a recorded value back after the primary was removed.
+  function setStyleOnCapturedScopeSiblingEntries(property, value) {
+    (styleEditScopeSiblingsOriginal[property] || []).forEach(function (entry) {
+      if (entry && entry.element && entry.element.isConnected !== false) entry.element.style.setProperty(property, value);
     });
   }
 
@@ -5658,7 +5711,11 @@
   }
 
   function previewStyleEdit(property, newValue) {
+    var primary = selectedElement;
     var targets = styleApplicationTargets();
+    // Reading the targets prunes a primary the page removed and promotes another
+    // layer. The editor that asked belongs to the removed one: write nothing.
+    if (selectedElement !== primary) return false;
     if (!targets.length) return false;
     if (window.CSS && typeof window.CSS.supports === "function" && !window.CSS.supports(property, newValue)) return false;
     styleEditTarget = selectedElement;
@@ -6683,6 +6740,243 @@
   // The value's ACTUAL unit is always preserved and prepended if it isn't here
   // (px is the default assumption, but a "cm"/"pt"/whatever value keeps its own).
   var STYLE_UNIT_OPTIONS = ["px", "pt", "rem", "em", "%", "vw", "vh", "ch", "cm", "mm", "in"];
+
+  // --- Unit conversion ------------------------------------------------------
+  // Changing only the unit of a number rewrites the number so the rendered value
+  // stays the same: 26px on 18px text reads 144.44 after choosing %. Every helper
+  // returns null when it cannot answer, and the caller refuses the unit change.
+
+  // Decimals kept when a converted number is shown. Two for the units a browser
+  // rounds coarsely anyway, three for the font-relative and large absolute ones,
+  // where a third decimal still moves the rendered value.
+  function styleUnitDecimals(unit) {
+    var coarse = { px: 1, "%": 1, vw: 1, vh: 1, pt: 1, mm: 1, ms: 1 };
+    return coarse[String(unit || "").toLowerCase()] === 1 ? 2 : 3;
+  }
+
+  function formatConvertedStyleNumber(number, unit) {
+    var text = Number(number).toFixed(styleUnitDecimals(unit));
+    if (text.indexOf(".") !== -1) text = text.replace(/\.?0+$/, "");
+    if (text === "-0") text = "0";
+    return text;
+  }
+
+  // Turns the element's transitions off and returns a restore(). It saves the
+  // transition-property LONGHAND: reading the `transition` shorthand returns ""
+  // when only some longhands are set inline (transition-duration alone), and
+  // restoring that empty value deletes them.
+  function suppressStyleTransitions(element) {
+    var savedValue = "";
+    var savedPriority = "";
+    var restored = false;
+    try {
+      savedValue = element.style.getPropertyValue("transition-property");
+      savedPriority = element.style.getPropertyPriority("transition-property");
+      element.style.setProperty("transition-property", "none", "important");
+    } catch (error) { restored = true; }
+    return function restore() {
+      if (restored) return;
+      restored = true;
+      try {
+        if (savedValue !== "") element.style.setProperty("transition-property", savedValue, savedPriority);
+        else element.style.removeProperty("transition-property");
+      } catch (error) {}
+    };
+  }
+
+  // Px length of 100% of `property` on the element, or null. Only longhands
+  // whose computed value is the used value can be measured. A single-value
+  // padding or margin row is measured through its -left longhand: every side of
+  // a percentage padding or margin resolves against the same width.
+  var STYLE_PERCENT_MEASURABLE = {
+    "width": 1, "height": 1,
+    "padding-top": 1, "padding-right": 1, "padding-bottom": 1, "padding-left": 1,
+    "margin-top": 1, "margin-right": 1, "margin-bottom": 1, "margin-left": 1,
+    "top": 1, "right": 1, "bottom": 1, "left": 1
+  };
+  function measureStylePercentBase(element, property) {
+    if (!element || !element.style || typeof getComputedStyle !== "function") return null;
+    var longhand = property;
+    if (property === "padding") longhand = "padding-left";
+    else if (property === "margin") longhand = "margin-left";
+    if (STYLE_PERCENT_MEASURABLE[longhand] !== 1) return null;
+    var savedCssText = null;
+    var restoreTransitions = null;
+    var measured = null;
+    try {
+      savedCssText = element.style.cssText;
+      var savedValue = element.style.getPropertyValue(longhand);
+      var savedPriority = element.style.getPropertyPriority(longhand);
+      restoreTransitions = suppressStyleTransitions(element);
+      element.style.setProperty(longhand, "100%", "important");
+      var reading = getComputedStyle(element).getPropertyValue(longhand).trim();
+      if (savedValue !== "") element.style.setProperty(longhand, savedValue, savedPriority);
+      else element.style.removeProperty(longhand);
+      // Read again so the restored value is committed while transitions are off.
+      getComputedStyle(element).getPropertyValue(longhand);
+      if (/^-?[\d.]+px$/.test(reading)) measured = parseFloat(reading);
+    } catch (error) {
+      measured = null;
+    }
+    if (restoreTransitions) restoreTransitions();
+    // setProperty and removeProperty can reorder or expand the inline style, so
+    // put the exact saved text back when it differs.
+    try {
+      if (savedCssText !== null && element.style.cssText !== savedCssText) element.style.cssText = savedCssText;
+    } catch (error) {}
+    if (measured === null || !isFinite(measured) || measured <= 0) return null;
+    return measured;
+  }
+
+  // Px width of 1ch in the element's font. The probe is a hidden 100ch span in
+  // the overlay's shadow root, so nothing is written to the page.
+  function styleChPx(element, fontSizePx) {
+    var span = null;
+    var width = null;
+    try {
+      var computed = getComputedStyle(element);
+      span = document.createElement("span");
+      span.style.position = "absolute";
+      span.style.visibility = "hidden";
+      span.style.pointerEvents = "none";
+      span.style.padding = "0";
+      span.style.border = "0";
+      span.style.boxSizing = "content-box";
+      span.style.fontFamily = computed.fontFamily;
+      span.style.fontWeight = computed.fontWeight;
+      span.style.fontStyle = computed.fontStyle;
+      span.style.fontStretch = computed.fontStretch;
+      span.style.fontSize = typeof fontSizePx === "number" ? fontSizePx + "px" : computed.fontSize;
+      span.style.width = "100ch";
+      shadow.appendChild(span);
+      width = span.getBoundingClientRect().width;
+    } catch (error) { width = null; }
+    try { if (span && span.parentNode) span.parentNode.removeChild(span); } catch (error) {}
+    if (typeof width !== "number" || !isFinite(width) || width <= 0) return null;
+    return width / 100;
+  }
+
+  // The font-size a hover or focus row's em, ch, unitless and font-relative %
+  // values resolve against: the state's own font-size when it sets one in px (an
+  // edit made in this session first, then its declaration), otherwise the
+  // resting font-size. A state font-size in any other unit has no answer.
+  function stateRowFontSizePx(state) {
+    try {
+      var text = null;
+      // The size a `font` shorthand sets, read through a detached element's
+      // style. "" when the shorthand has none to read (a var(), a system font).
+      function sizeInFontShorthand(value) {
+        var probe = document.createElement("span");
+        probe.style.font = String(value || "");
+        return String(probe.style.fontSize || "").trim();
+      }
+      // Session edits reach the page in key order, each !important, so the
+      // later of `font-size` and `font` is the one that sets the size.
+      var sizeKey = stateStyleEditKey(state, "font-size");
+      var shorthandKey = stateStyleEditKey(state, "font");
+      Object.keys(stateStyleEdits).forEach(function (key) {
+        var record = stateStyleEdits[key];
+        if (!record || record.newValue == null) return;
+        if (key === sizeKey) text = String(record.newValue).trim();
+        else if (key === shorthandKey) text = sizeInFontShorthand(record.newValue) || "unknown";
+      });
+      var stateStyle = currentSelection && currentSelection.stateStyles ? currentSelection.stateStyles[state] : null;
+      if (text === null && stateStyle && stateStyle.declarations) {
+        var shorthandText = null;
+        for (var i = 0; i < stateStyle.declarations.length; i++) {
+          var declared = stateStyle.declarations[i];
+          if (!declared) continue;
+          if (declared.property === "font-size") {
+            text = String(declared.value || "").trim();
+            break;
+          }
+          // The state rule's `font` shorthand sets the size too. A shorthand
+          // whose size cannot be read gives no base, so em and % are refused.
+          if (declared.property === "font") shorthandText = sizeInFontShorthand(declared.value) || "unknown";
+        }
+        if (text === null) text = shorthandText;
+      }
+      if (text === null || text === "") text = computedStyleValueForElement(selectedElement, "font-size");
+      if (!/^-?[\d.]+px$/.test(text)) return null;
+      var parsed = parseFloat(text);
+      return isFinite(parsed) && parsed > 0 ? parsed : null;
+    } catch (error) { return null; }
+  }
+
+  // True when a hover or focus rule, or an edit to that state made in this
+  // session, sets the font face. 1ch is then the width of a glyph the resting
+  // element does not show, and it cannot be measured.
+  function stateRowFontFaceChanged(state) {
+    var facePattern = /^font(-family|-weight|-style|-stretch|-variant(-[a-z-]+)?|-size-adjust|-feature-settings|-variation-settings|-kerning|-optical-sizing|-synthesis(-[a-z-]+)?)?$/;
+    try {
+      var prefix = stateStyleEditKey(state, "");
+      var editKeys = Object.keys(stateStyleEdits);
+      for (var k = 0; k < editKeys.length; k++) {
+        if (editKeys[k].indexOf(prefix) === 0 && facePattern.test(editKeys[k].slice(prefix.length))) return true;
+      }
+      var stateStyle = currentSelection && currentSelection.stateStyles ? currentSelection.stateStyles[state] : null;
+      var declarations = stateStyle && stateStyle.declarations ? stateStyle.declarations : [];
+      for (var i = 0; i < declarations.length; i++) {
+        if (declarations[i] && facePattern.test(String(declarations[i].property || ""))) return true;
+      }
+      return false;
+    } catch (error) { return true; }
+  }
+
+  // Px length of one `unit` of `property` on the element (ms for a time unit),
+  // or null. `stateContext` is null for a resting row and
+  // { fontSizePx, fontFaceChanged } for a hover or focus row, where the element
+  // is not in that state and nothing can be measured.
+  var STYLE_ABSOLUTE_UNIT_PX = { px: 1, pt: 96 / 72, "in": 96, cm: 96 / 2.54, mm: 96 / 25.4, pc: 16, q: 96 / 101.6 };
+  function styleUnitPx(element, property, unit, stateContext) {
+    var u = String(unit || "").toLowerCase();
+    var result = null;
+    function fontSizeOf(target) {
+      var parsed = parseFloat(computedStyleValueForElement(target, "font-size"));
+      return isFinite(parsed) ? parsed : null;
+    }
+    function elementFontSize() {
+      if (stateContext) return typeof stateContext.fontSizePx === "number" ? stateContext.fontSizePx : null;
+      return fontSizeOf(element);
+    }
+    function parentFontSize() {
+      return element && element.parentElement ? fontSizeOf(element.parentElement) : null;
+    }
+    try {
+      if (u === "ms" || u === "s") {
+        if (!isTimeProperty(property)) return null;
+        return u === "ms" ? 1 : 1000;
+      }
+      if (isTimeProperty(property)) return null;
+      if (Object.prototype.hasOwnProperty.call(STYLE_ABSOLUTE_UNIT_PX, u)) return STYLE_ABSOLUTE_UNIT_PX[u];
+      if (u === "rem") result = fontSizeOf(document.documentElement);
+      else if (u === "vw") result = window.innerWidth / 100;
+      else if (u === "vh") result = window.innerHeight / 100;
+      else if (u === "em") result = property === "font-size" ? parentFontSize() : elementFontSize();
+      else if (u === "ch") {
+        // In font-size itself ch is the parent's, as em is. Elsewhere, a state
+        // row whose font-size has no px answer refuses, as em does.
+        if (property === "font-size") result = element && element.parentElement ? styleChPx(element.parentElement, null) : null;
+        else if (!stateContext) result = styleChPx(element, null);
+        else if (typeof stateContext.fontSizePx === "number" && !stateContext.fontFaceChanged) result = styleChPx(element, stateContext.fontSizePx);
+      }
+      else if (u === "") result = property === "line-height" ? elementFontSize() : null;
+      else if (u === "%") {
+        if (property === "line-height" || property === "letter-spacing" || property === "word-spacing") {
+          result = elementFontSize();
+          if (result !== null) result = result / 100;
+        } else if (property === "font-size") {
+          result = parentFontSize();
+          if (result !== null) result = result / 100;
+        } else if (!stateContext) {
+          result = measureStylePercentBase(element, property);
+          if (result !== null) result = result / 100;
+        }
+      }
+    } catch (error) { result = null; }
+    if (typeof result !== "number" || !isFinite(result) || result <= 0) return null;
+    return result;
+  }
 
   // Single-value number+unit only (e.g. "16px", "1.4", "0.9", "0px"). Compound
   // values like "8px 16px" return null so they don't masquerade as a number field.
@@ -9024,6 +9318,14 @@
     var control = classifyStyleControl(property, previousValue);
     var finished = false;
     var previewed = false;
+    // The last value the page accepted as a preview, the unit the select showed
+    // before its latest change, and the unrounded px (ms for a time) of the last
+    // number typed or stepped. Unit changes convert from that anchor, so px, %,
+    // em and back to px shows 26 again instead of 25.99.
+    var lastPreviewValue = null;
+    var heldChangeShown = false;
+    var currentUnit = "";
+    var unitAnchor = null;
     var pendingTokenPick = null;
     var stateEditKey = styleState ? stateStyleEditKey(styleState, property) : null;
     var hadEditAtOpen = styleState ? !!stateStyleEdits[stateEditKey] : !!styleEdits[property];
@@ -9065,7 +9367,12 @@
       var parsed = parseNumericValue(previousValue);
       input.type = "text";
       input.value = parsed.number;
+      currentUnit = parsed.unit;
       input.setAttribute("inputmode", "decimal");
+      input.addEventListener("input", function () {
+        unitAnchor = null;
+        previewCurrent();
+      });
       editor.appendChild(input);
       // The unit is itself a choice — px/pt/rem/cm/… — so it's a dropdown, not a
       // fixed tag. The value's own unit is always kept (prepended if unusual).
@@ -9081,7 +9388,8 @@
         input.unitSelect = unitSelect; // ponytail: readValue reads the live unit
         relatedInternal.push(input, unitSelect);
         unitSelect.addEventListener("blur", handleBlur);
-        unitSelect.addEventListener("change", commit);
+        // A unit change converts the number and keeps the editor open.
+        unitSelect.addEventListener("change", handleUnitChange);
       } else {
         input.unitSelect = null;
       }
@@ -9383,11 +9691,130 @@
     if (typeof focusTarget.select === "function") focusTarget.select();
 
     function previewValue(newValue) {
-      if (styleState) return previewStateStyleEdit(styleState, property, newValue);
-      return previewStyleEdit(property, newValue);
+      // An editor whose layer is no longer the selected one writes nothing:
+      // the page may have removed it and promoted another layer.
+      if (editorTarget !== selectedElement || input.isConnected === false) return false;
+      var accepted = styleState
+        ? previewStateStyleEdit(styleState, property, newValue)
+        : previewStyleEdit(property, newValue);
+      if (accepted) {
+        lastPreviewValue = newValue;
+        previewed = true;
+      }
+      syncHeldChange();
+      return accepted;
+    }
+
+    // Send is enabled while this editor holds a value other than the one the
+    // row opened with, and goes back to its recorded state when it does not.
+    function holdsChange() {
+      if (finished || !previewed || lastPreviewValue === null) return false;
+      if (editorTarget !== selectedElement || input.isConnected === false) return false;
+      return lastPreviewValue !== previousValue;
+    }
+    function syncHeldChange() {
+      var held = holdsChange();
+      if (held === heldChangeShown) return;
+      heldChangeShown = held;
+      syncSendEnabledInPlace();
+    }
+
+    // Writes the field's current value to the page. Carries the same guards as
+    // commit(): a token-linked row and a stale editor write nothing.
+    function previewCurrent() {
+      if (finished) return;
+      if (editor.getAttribute("data-token-linked") === "true") return;
+      if (editorTarget !== selectedElement || input.isConnected === false) return;
+      var value = readValue();
+      if (value === null) return;                              // unparseable: keep the last valid preview
+      if (value === "") { rollbackPreviewState(); return; }    // emptied: show the value the row opened with
+      previewed = previewValue(value) || previewed;
+    }
+
+    // The select goes back to the unit it had; the number and the page stay as
+    // they were, and the status line says why.
+    function refuseUnitChange(shownValue, fromUnit, toUnit) {
+      input.unitSelect.value = fromUnit;
+      input.focus();
+      var message = "Can't keep " + shownValue + " when switching " + property + " to " + (toUnit || "unitless") + " here";
+      // Deferred: this runs inside the select's change event, and the panel's
+      // own change handler re-renders the status line when the event reaches it.
+      window.setTimeout(function () { setGlobalActionStatus(message, "error"); }, 0);
+    }
+
+    function handleUnitChange() {
+      if (finished) return;
+      if (editorTarget !== selectedElement || input.isConnected === false) return;
+      var fromUnit = currentUnit;
+      var toUnit = input.unitSelect.value;
+      if (editor.getAttribute("data-token-linked") === "true") { input.unitSelect.value = fromUnit; return; }
+      if (toUnit === fromUnit) return;
+      var numberText = input.value.trim();
+      var expression = numberText === "" ? null : parseNumericExpression(numberText, fromUnit);
+      if (!expression) {
+        // Nothing to convert: the unit switches and the page is left alone.
+        currentUnit = toUnit;
+        unitAnchor = null;
+        input.focus();
+        return;
+      }
+      var shownValue = formatNumericResult(expression.number) + fromUnit;
+      var anchor = unitAnchor;
+      var convertedNumber = "0";
+      if (expression.number === 0 && (anchor === null || anchor === 0)) {
+        anchor = 0;   // 0 is 0 in every unit; nothing is measured
+      } else {
+        var stateContext = styleState ? { fontSizePx: stateRowFontSizePx(styleState), fontFaceChanged: stateRowFontFaceChanged(styleState) } : null;
+        if (anchor === null) {
+          var fromFactor = styleUnitPx(editorTarget, property, fromUnit, stateContext);
+          if (fromFactor === null) { refuseUnitChange(shownValue, fromUnit, toUnit); return; }
+          anchor = expression.number * fromFactor;
+        }
+        var toFactor = styleUnitPx(editorTarget, property, toUnit, stateContext);
+        if (toFactor === null || !isFinite(anchor / toFactor)) { refuseUnitChange(shownValue, fromUnit, toUnit); return; }
+        convertedNumber = formatConvertedStyleNumber(anchor / toFactor, toUnit);
+        // A value too small for the unit's decimals would read 0. Refuse rather
+        // than turn a value that is not zero into none.
+        if (anchor !== 0 && Number(convertedNumber) === 0) { refuseUnitChange(shownValue, fromUnit, toUnit); return; }
+      }
+      var converted = convertedNumber + toUnit;
+      var previousPreview = lastPreviewValue;
+      // The before/after check needs the element in the state being edited, so it
+      // runs on resting rows only. Both reads sit inside one transition
+      // suppression: a `before` read outside it can be a transition midpoint from
+      // the number just typed, which would refuse a correct conversion.
+      var checked = !styleState && !isTimeProperty(property) && anchor !== 0;
+      var restoreTransitions = checked ? suppressStyleTransitions(editorTarget) : null;
+      var accepted = false;
+      try {
+        var before = checked ? computedStyleValueForElement(editorTarget, property) : "";
+        accepted = previewValue(converted);
+        previewed = accepted || previewed;
+        var after = checked ? computedStyleValueForElement(editorTarget, property) : "";
+        if (accepted && /^-?[\d.]+px$/.test(before) && /^-?[\d.]+px$/.test(after) &&
+            Math.abs(parseFloat(after) - parseFloat(before)) > Math.max(0.5, 0.01 * Math.abs(parseFloat(before)))) {
+          if (previousPreview !== null) previewValue(previousPreview);
+          else rollbackPreviewState();
+          // Read once more so the value put back is committed while transitions are off.
+          computedStyleValueForElement(editorTarget, property);
+          accepted = false;
+        }
+      } catch (error) {
+        accepted = false;
+      }
+      if (restoreTransitions) restoreTransitions();
+      if (!accepted) { refuseUnitChange(shownValue, fromUnit, toUnit); return; }
+      unitAnchor = anchor;
+      currentUnit = toUnit;
+      input.value = convertedNumber;
+      // Focus goes back to the number field, so the select's blur names it as
+      // relatedTarget and handleBlur ignores it.
+      input.focus();
+      if (typeof input.select === "function") input.select();
     }
 
     function rollbackPreviewState() {
+      lastPreviewValue = null;
       if (!previewed) return;
       if (styleState) clearStateStylePreview();
       else if (editorTarget === selectedElement) {
@@ -9400,6 +9827,7 @@
         }
       }
       previewed = false;
+      syncHeldChange();
     }
 
     function readValue() {
@@ -9438,6 +9866,7 @@
       if (editorTarget !== selectedElement || input.isConnected === false) {
         finished = true;
         activeStyleEditorFlush = null;
+        syncHeldChange();
         return;
       }
       var newValue = readValue();
@@ -9472,6 +9901,14 @@
       syncSendButtonDisabled();
     }
     activeStyleEditorFlush = commit;
+    // A dispatch that finishes while this editor is open rebases every draft,
+    // which puts the recorded values back on the page. rebaseNextDrafts calls
+    // this to write the held preview again.
+    commit.repreview = function () {
+      if (finished || styleState || !previewed || lastPreviewValue === null) return;
+      previewValue(lastPreviewValue);
+    };
+    commit.holdsChange = holdsChange;
 
     input.addEventListener("keydown", function (event) {
       if (control === "number" && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
@@ -9483,6 +9920,7 @@
         if (stepped !== null) {
           var parsedStep = parseNumericValue(stepped);
           input.value = parsedStep.number;
+          unitAnchor = null;
           previewed = previewValue(stepped) || previewed;
         }
       } else if (event.key === "Enter") {
@@ -10253,9 +10691,33 @@
         var detachedActiveDraft = previousActiveDraft;
         if (detachedActiveDraft && detachedActiveDraft.target === previousPrimary) {
           if ((detachedActiveDraft.attachments || []).length) {
+            // The draft is kept for its attachments. A preview an open editor
+            // holds is not in it: a property with no recorded edit goes back to
+            // its original, and one with a recorded edit goes back to that edit.
+            Object.keys(styleEditOriginalInline).reverse().forEach(function (property) {
+              var kept = styleEditOriginalInline[property];
+              var recorded = styleEdits[property];
+              if (recorded) {
+                (Array.isArray(kept) ? kept : []).forEach(function (entry) {
+                  if (entry && entry.element && entry.element.isConnected !== false) entry.element.style.setProperty(property, recorded.newValue);
+                });
+                setStyleOnCapturedScopeSiblingEntries(property, recorded.newValue);
+                return;
+              }
+              restoreStyleOriginalEntries(property, kept, previousPrimary);
+              delete styleEditOriginalInline[property];
+              restoreStyleScopeSiblings(property);
+            });
             styleDrafts[detachedActiveDraft.clientKey] = detachedActiveDraft;
             clearActiveStyleDraftState(true);
           } else dropStyleDraft(detachedActiveDraft, true);
+        } else if (!detachedActiveDraft) {
+          // A preview with nothing recorded has no draft to drop. Undo its page
+          // writes on the layers that stay before the snapshots are cleared.
+          Object.keys(styleEditOriginalInline).reverse().forEach(function (property) {
+            restoreStyleOriginalEntries(property, styleEditOriginalInline[property], previousPrimary);
+          });
+          restoreStyleScopeSiblingOriginalStore(styleEditScopeSiblingsOriginal);
         }
         var detachedStoredDraft = styleDraftForElement(previousPrimary);
         if (detachedStoredDraft && !(detachedStoredDraft.attachments || []).some(function (attachment) { return attachment.state === "uploading"; })) {
@@ -12227,7 +12689,23 @@
     if (dispatchState === "commit-error") return { state: "commit-error", label: "Retry send", enabled: !!activeDispatch && !!activeDispatch.batchId, count: activeCount };
     if (nextCount && (!hasDispatchableDrafts() || hasInvalidDrafts())) return { state: "pending-invalid", label: "Review pending changes", enabled: false, count: nextCount };
     if (hasDispatchableDrafts()) return { state: "pending", label: "Send " + nextCount + (nextCount === 1 ? " change" : " changes"), enabled: true, count: nextCount };
+    // Nothing is recorded yet. Send closes the open editor first, which records
+    // the value it holds, so one press on Send is enough.
+    if (styleEditorHoldsChange()) return { state: "idle", label: "Send to agent", enabled: true, count: 0 };
     return { state: "idle", label: "Send to agent", enabled: false, count: 0 };
+  }
+
+  // An open editor showing a value other than the one its row opened with.
+  function styleEditorHoldsChange() {
+    return !!activeStyleEditorFlush && typeof activeStyleEditorFlush.holdsChange === "function" && activeStyleEditorFlush.holdsChange();
+  }
+
+  // Sets the Send button's disabled state on the node already in the panel.
+  // Replacing the button while a press is on it loses the click.
+  function syncSendEnabledInPlace() {
+    if (!globalActions) return;
+    var button = globalActions.querySelector("[data-send-batch]");
+    if (button) button.disabled = !batchUiState().enabled;
   }
 
   function changeTrayItems() {
@@ -13239,6 +13717,7 @@
 
   function rebaseNextDrafts() {
     allStyleDrafts().forEach(rebaseStyleDraft);
+    if (activeStyleEditorFlush && typeof activeStyleEditorFlush.repreview === "function") activeStyleEditorFlush.repreview();
     if (localLayerDrafts().length && !activeLayerOrders().length) {
       appliedLayerTree = buildLayerTree(document.body);
       layerTree = appliedLayerTree;

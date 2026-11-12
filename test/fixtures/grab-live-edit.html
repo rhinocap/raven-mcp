@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Grab live edit fixture</title>
+<style>
+  html { font-size: 16px; }
+  body { font: 16px/1.4 system-ui; margin: 0; background: #f6f6f4; color: #1d1d1f; }
+  .site { position: absolute; left: 420px; top: 40px; width: 520px; }
+  p { margin: 0 0 16px; font-size: 18px; line-height: 26px; }
+  p.hoverable:hover { font-size: 36px; line-height: 26px; }
+  p.hover-em:hover { font-size: 2em; line-height: 30px; }
+  p.eased { transition: line-height 1s; }
+  p.hover-face:hover { font-family: monospace; line-height: 27px; }
+  p.hover-short:hover { font: 24px serif; margin-top: 20px; }
+  p.hover-both:hover { font: 24px serif; }
+  #hover-both:hover { font-size: 36px; margin-top: 20px; }
+  .row { display: flex; gap: 16px; width: 500px; margin: 0 0 16px; }
+  .item { width: 300px; height: 40px; background: #e7eef8; }
+  .pad { padding: 13px; margin: 0 0 16px; background: #fff; }
+  .timed { margin: 0 0 16px; transition-property: opacity; transition-duration: 200ms; }
+  .swatch { margin: 0 0 16px; color: #0a58ca; display: block; text-decoration: underline; }
+</style>
+</head>
+<body>
+  <main class="site">
+    <p class="copy" id="copy">Type is set at eighteen pixels on a twenty-six pixel line. The paragraph runs long enough to wrap onto several lines, so a wrong line height shows as lines that overlap or drift apart.</p>
+    <p class="hoverable" id="hoverable">A paragraph whose hover rule sets a larger font size.</p>
+    <p class="hover-em" id="hover-em">A paragraph whose hover rule sets its font size in em.</p>
+    <p class="eased" id="eased">A paragraph whose line height is animated over one second, and which wraps onto a second line at this width.</p>
+    <div class="row" id="row">
+      <div class="item" id="item-a">Item A</div>
+      <div class="item" id="item-b">Item B</div>
+    </div>
+    <div class="pad" id="pad" style="transition-duration: 1s">Padded block with an inline transition duration</div>
+    <div id="mixed" style="padding-top: 13px !important; padding-right: 13px; padding-bottom: 13px; padding-left: 13px;">Padding sides with different priorities</div>
+    <div class="feature-card" id="card-a" style="padding: 13px;">Card A</div>
+    <div class="feature-card" id="card-b" style="padding-top: 13px !important; padding-right: 13px; padding-bottom: 13px; padding-left: 13px;">Card B</div>
+    <div class="row" id="timed-row" style="transition-duration: 1s">
+      <div class="item">Item C</div>
+      <div class="item">Item D</div>
+    </div>
+    <div class="timed" id="timed">Timed block</div>
+    <a class="swatch" id="swatch" href="#x">Link colour</a>
+    <p class="hover-face" id="hover-face">A paragraph whose hover rule changes the font family.</p>
+    <p class="hover-short" id="hover-short">A paragraph whose hover rule sets the font shorthand.</p>
+    <p class="hover-both" id="hover-both">A paragraph with a hover font shorthand and a hover font size in two rules.</p>
+  </main>
+</body>
+</html>
