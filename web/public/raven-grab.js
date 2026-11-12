@@ -6986,6 +6986,106 @@
     return result;
   }
 
+  // --- A unit change, shared by the generic, Size and Stroke editors --------
+
+  // The number a field shows after its unit changes, and the unrounded px (ms
+  // for a time) it stands for. The anchor argument is that px from an earlier change in
+  // the same session, or null to work it out from the number. Null when a unit
+  // has no base here.
+  function convertStyleUnitNumber(element, property, number, fromUnit, toUnit, anchor, stateContext) {
+    // 0 is 0 in every unit; nothing is measured.
+    if (number === 0 && (anchor === null || anchor === 0)) return { number: "0", anchor: 0 };
+    if (anchor === null) {
+      var fromFactor = styleUnitPx(element, property, fromUnit, stateContext);
+      if (fromFactor === null) return null;
+      anchor = number * fromFactor;
+    }
+    var toFactor = styleUnitPx(element, property, toUnit, stateContext);
+    if (toFactor === null || !isFinite(anchor / toFactor)) return null;
+    var converted = formatConvertedStyleNumber(anchor / toFactor, toUnit);
+    // A value too small for the unit's decimals would read 0. Refuse rather
+    // than turn a value that is not zero into none.
+    if (anchor !== 0 && Number(converted) === 0) return null;
+    return { number: converted, anchor: anchor };
+  }
+
+  // Whether the property computes to the same px after a unit change as before
+  // it. apply() puts the converted value on the element and answers whether it
+  // took. undo() takes it off again: after a refusal, or every time when the
+  // value was only being tried (trial). Both computed reads sit inside one
+  // transition suppression: a before read outside it can be a transition
+  // midpoint from the number just typed, which would refuse a correct
+  // conversion. A value that is not px on both sides (normal, auto, a
+  // percentage) is accepted on the arithmetic.
+  function styleUnitChangeHolds(element, property, apply, undo, trial) {
+    var restoreTransitions = suppressStyleTransitions(element);
+    var applied = false;
+    var accepted = false;
+    try {
+      var before = computedStyleValueForElement(element, property);
+      applied = apply();
+      accepted = applied;
+      var after = computedStyleValueForElement(element, property);
+      if (accepted && /^-?[\d.]+px$/.test(before) && /^-?[\d.]+px$/.test(after) &&
+          Math.abs(parseFloat(after) - parseFloat(before)) > Math.max(0.5, 0.01 * Math.abs(parseFloat(before)))) {
+        accepted = false;
+      }
+    } catch (error) {
+      accepted = false;
+    }
+    try {
+      if (applied && (trial || !accepted)) {
+        undo();
+        // Read once more so the value put back is committed while transitions are off.
+        computedStyleValueForElement(element, property);
+      }
+    } catch (error) {
+      accepted = false;
+    }
+    restoreTransitions();
+    return accepted;
+  }
+
+  // The same check for an editor whose preview is more than one write (Size,
+  // Stroke): the converted value is written on the element as a preview would
+  // write it, read, and taken off, and the inline style ends as it began.
+  // Nothing is recorded. The editor previews only after this answers true.
+  function styleUnitTrialHolds(element, property, value) {
+    if (!styleValueSupported(property, value)) return false;
+    var style = element.style;
+    var saved = null;
+    return styleUnitChangeHolds(element, property, function () {
+      saved = { text: style.cssText, value: style.getPropertyValue(property), priority: style.getPropertyPriority(property) };
+      style.setProperty(property, value);
+      return true;
+    }, function () {
+      if (saved.value) style.setProperty(property, saved.value, saved.priority);
+      else style.removeProperty(property);
+      if (style.cssText !== saved.text) style.cssText = saved.text;
+    }, true);
+  }
+
+  // The select goes back to the unit it had; the number and the page stay as
+  // they were, and the status line says why.
+  function refuseStyleUnitChange(numberInput, unitSelect, label, shownValue, fromUnit, toUnit) {
+    unitSelect.value = fromUnit;
+    numberInput.focus();
+    var message = "Can't keep " + shownValue + " when switching " + label + " to " + (toUnit || "unitless") + " here";
+    // Deferred: this runs inside the select's change event, and the panel's
+    // own change handler re-renders the status line when the event reaches it.
+    window.setTimeout(function () { setGlobalActionStatus(message, "error"); }, 0);
+  }
+
+  // A unit typed into the number field that the unit select offers moves the
+  // select to it. The number is used as typed; nothing is converted. This is
+  // the way round a refused unit change: typing 30% into a px field applies 30%.
+  function adoptTypedStyleUnit(text, unitSelect, unitChoices) {
+    var expression = parseNumericExpression(String(text || "").trim(), unitSelect.value, unitChoices);
+    if (!expression || expression.unit === unitSelect.value) return false;
+    unitSelect.value = expression.unit;
+    return unitSelect.value === expression.unit;
+  }
+
   // Single-value number+unit only (e.g. "16px", "1.4", "0.9", "0px"). Compound
   // values like "8px 16px" return null so they don't masquerade as a number field.
   function parseNumericValue(value) {
@@ -6994,7 +7094,10 @@
     return { number: match[1], unit: match[2] || "" };
   }
 
-  function parseNumericExpression(value, defaultUnit) {
+  // unitChoices is the unit select's option list. With it, a typed unit is
+  // accepted when the list holds it, whatever the select shows now; the caller
+  // moves the select. Without it, a typed unit must be the default one.
+  function parseNumericExpression(value, defaultUnit, unitChoices) {
     // Accept "1,5" as a decimal separator — normalize digit,digit to digit.digit.
     var text = String(value || "").replace(/(\d),(\d)/g, "$1.$2");
     var index = 0;
@@ -7019,7 +7122,14 @@
         var unit = unitMatch[0];
         index += unit.length;
         if (explicitUnit && explicitUnit.toLowerCase() !== unit.toLowerCase()) invalid = true;
-        if (defaultUnit && defaultUnit.toLowerCase() !== unit.toLowerCase()) invalid = true;
+        if (unitChoices) {
+          var offered = null;
+          for (var choiceIndex = 0; choiceIndex < unitChoices.length; choiceIndex += 1) {
+            if (unitChoices[choiceIndex] && unitChoices[choiceIndex].toLowerCase() === unit.toLowerCase()) offered = unitChoices[choiceIndex];
+          }
+          if (offered === null) invalid = true;
+          else unit = offered;
+        } else if (defaultUnit && defaultUnit.toLowerCase() !== unit.toLowerCase()) invalid = true;
         explicitUnit = explicitUnit || unit;
       }
       return Number(match[0]);
@@ -7082,8 +7192,8 @@
     return String(Math.round(number * 1000000000000) / 1000000000000);
   }
 
-  function steppedNumericValue(value, delta, defaultUnit, minPrecision) {
-    var parsed = parseNumericExpression(value, defaultUnit);
+  function steppedNumericValue(value, delta, defaultUnit, minPrecision, unitChoices) {
+    var parsed = parseNumericExpression(value, defaultUnit, unitChoices);
     if (!parsed) return null;
     var next = parsed.number + delta;
     if (!isFinite(next)) return null;
@@ -7943,8 +8053,21 @@
       property === "animation-duration" || property === "animation-delay";
   }
 
+  // The units a property's unit select offers: the ones the property accepts.
+  // border-width and outline-offset take no %, for example. Line-height also
+  // takes a bare number, the form most design systems store. A new array each
+  // call; the caller adds the current value's own unit when it is not here.
   function unitOptionsForProperty(property) {
-    return isTimeProperty(property) ? TIME_UNIT_OPTIONS : STYLE_UNIT_OPTIONS;
+    var all = isTimeProperty(property) ? TIME_UNIT_OPTIONS : STYLE_UNIT_OPTIONS;
+    var accepted = all.filter(function (unit) { return styleValueSupported(property, "1" + unit); });
+    // Nothing accepted means support could not be asked here: offer every unit.
+    if (!accepted.length) accepted = all.slice();
+    if (property === "line-height") accepted.push("");
+    return accepted;
+  }
+
+  function unitOptionLabel(unit) {
+    return unit === "" ? "unitless" : unit;
   }
 
   // Reformat a color between hex and rgb WITHOUT losing alpha (a passive
@@ -8091,7 +8214,10 @@
     widthUnit.className = "raven-grab-style-unit";
     widthUnit.setAttribute("aria-label", "Stroke width unit");
     var initialUnit = parsedWidth.unit || "px";
-    var units = STYLE_UNIT_OPTIONS.slice();
+    // The unit the number is in, and the unrounded px of the last value typed.
+    var currentUnit = initialUnit;
+    var unitAnchor = null;
+    var units = unitOptionsForProperty("border-top-width");
     if (units.indexOf(initialUnit) === -1) units.unshift(initialUnit);
     widthUnit.innerHTML = units.map(function (unit) { return optionMarkup(unit, unit, initialUnit); }).join("");
     widthUnit.value = initialUnit;
@@ -8201,8 +8327,11 @@
 
     function loadControlsFromValues(width, style, color) {
       var parsed = parseNumericValue(width) || { number: "0", unit: "px" };
+      // Another number or unit on show is another value: a later unit change converts from it.
+      if (widthInput.value !== parsed.number || (parsed.unit && parsed.unit !== currentUnit)) unitAnchor = null;
       widthInput.value = parsed.number;
       if (parsed.unit) widthUnit.value = parsed.unit;
+      currentUnit = widthUnit.value || "px";
       var strokeStyleOptions = ["none", "solid", "dashed", "dotted", "double"];
       styleSelect.value = strokeStyleOptions.indexOf(style) === -1 ? "none" : style;
       colorText.value = color;
@@ -8210,7 +8339,7 @@
     }
 
     function readModel() {
-      var expression = parseNumericExpression(widthInput.value.trim(), widthUnit.value || "px");
+      var expression = parseNumericExpression(widthInput.value.trim(), widthUnit.value || "px", units);
       if (!expression) return null;
       var width = formatNumericResult(expression.number) + (expression.unit || "px");
       var color = normalizeColorEntry(colorText.value, model.color, colorFormat.value);
@@ -8297,6 +8426,51 @@
       return true;
     }
 
+    // The width longhand the page shows this stroke on.
+    function shownWidthProperty() {
+      if (model.position === "outside") return "outline-width";
+      return "border-" + (uniform ? "top" : (selectedSides[0] || "top")) + "-width";
+    }
+
+    // A unit change converts the number, as in the generic editor. preview()
+    // records the whole stroke, so the converted width is tried on the element
+    // first and previewed only when it renders the same.
+    function handleUnitChange() {
+      if (finished || editorTarget !== selectedElement || editor.isConnected === false) return;
+      var fromUnit = currentUnit;
+      var toUnit = widthUnit.value;
+      if (toUnit === fromUnit) return;
+      var numberText = widthInput.value.trim();
+      var expression = numberText === "" ? null : parseNumericExpression(numberText, fromUnit);
+      if (!expression) {
+        // Nothing to convert: the unit switches and the page is left alone.
+        currentUnit = toUnit;
+        unitAnchor = null;
+        widthInput.focus();
+        return;
+      }
+      var shownValue = formatNumericResult(expression.number) + fromUnit;
+      var widthProperty = shownWidthProperty();
+      var conversion = convertStyleUnitNumber(editorTarget, widthProperty, expression.number, fromUnit, toUnit, unitAnchor, null);
+      var accepted = !!conversion &&
+        (conversion.anchor === 0 || styleUnitTrialHolds(editorTarget, widthProperty, conversion.number + toUnit));
+      if (accepted) {
+        var shownNumber = widthInput.value;
+        var wasDirty = dirty;
+        widthInput.value = conversion.number;
+        accepted = preview();
+        if (!accepted) {
+          widthInput.value = shownNumber;
+          dirty = wasDirty;
+        }
+      }
+      if (!accepted) { refuseStyleUnitChange(widthInput, widthUnit, "stroke width", shownValue, fromUnit, toUnit); return; }
+      // preview() reloaded the controls: the unit is recorded and the anchor cleared.
+      unitAnchor = conversion.anchor;
+      widthInput.focus();
+      if (typeof widthInput.select === "function") widthInput.select();
+    }
+
     function cancel() {
       if (finished) return;
       finished = true;
@@ -8332,13 +8506,20 @@
     }
 
     widthInput.addEventListener("input", function () {
-      var expression = parseNumericExpression(widthInput.value.trim(), widthUnit.value || "px");
+      unitAnchor = null;
+      // A typed unit the select offers is read as typed; preview() reloads the
+      // controls from the recorded stroke, which moves the unit select.
+      var expression = parseNumericExpression(widthInput.value.trim(), widthUnit.value || "px", units);
       if (expression && expression.number > 0 && styleSelect.value === "none") styleSelect.value = "solid";
       preview();
     });
-    widthUnit.addEventListener("change", preview);
+    widthUnit.addEventListener("change", handleUnitChange);
     styleSelect.addEventListener("change", function () {
-      if (styleSelect.value === "none") widthInput.value = "0";
+      if (styleSelect.value === "none") {
+        // Another value on show: a later unit change converts 0, not the old width.
+        widthInput.value = "0";
+        unitAnchor = null;
+      }
       preview();
     });
     colorText.addEventListener("input", preview);
@@ -8979,9 +9160,12 @@
     var unitSelect = document.createElement("select");
     unitSelect.className = "raven-grab-style-unit";
     unitSelect.setAttribute("aria-label", property + " unit");
-    var units = STYLE_UNIT_OPTIONS.slice();
+    var units = unitOptionsForProperty(property);
     var unit = parsed && parsed.unit ? parsed.unit : "px";
     if (units.indexOf(unit) === -1) units.unshift(unit);
+    // The unit the number is in, and the unrounded px of the last value typed.
+    var currentUnit = unit;
+    var unitAnchor = null;
     unitSelect.innerHTML = units.map(function (u) { return optionMarkup(u, u, unit); }).join("");
     unitSelect.value = unit;
 
@@ -9010,7 +9194,7 @@
       if (mode === "fill" || mode === "hug") return sizeValueForMode(mode);
       var n = numberInput.value.trim();
       if (n === "") return "";
-      var expression = parseNumericExpression(n, unitSelect.value || "px");
+      var expression = parseNumericExpression(n, unitSelect.value || "px", units);
       if (!expression) return null;
       return formatNumericResult(expression.number) + expression.unit;
     }
@@ -9043,6 +9227,38 @@
         restoreStyleEdit(property);
         delete styleEditOriginalInline[property];
       }
+    }
+
+    // A unit change converts the number, as in the generic editor. The
+    // converted value is tried on the element first and previewed only when it
+    // renders the same.
+    function handleUnitChange() {
+      if (finished || editorTarget !== selectedElement || numberInput.isConnected === false) return;
+      var fromUnit = currentUnit;
+      var toUnit = unitSelect.value;
+      if (toUnit === fromUnit) return;
+      var numberText = numberInput.value.trim();
+      var expression = numberText === "" ? null : parseNumericExpression(numberText, fromUnit);
+      if (!expression) {
+        // Nothing to convert: the unit switches and the page is left alone.
+        currentUnit = toUnit;
+        unitAnchor = null;
+        numberInput.focus();
+        return;
+      }
+      var shownValue = formatNumericResult(expression.number) + fromUnit;
+      var conversion = convertStyleUnitNumber(editorTarget, property, expression.number, fromUnit, toUnit, unitAnchor, null);
+      if (!conversion ||
+          (conversion.anchor !== 0 && !styleUnitTrialHolds(editorTarget, property, conversion.number + toUnit))) {
+        refuseStyleUnitChange(numberInput, unitSelect, property, shownValue, fromUnit, toUnit);
+        return;
+      }
+      currentUnit = toUnit;
+      unitAnchor = conversion.anchor;
+      numberInput.value = conversion.number;
+      preview();
+      numberInput.focus();
+      if (typeof numberInput.select === "function") numberInput.select();
     }
 
     function cancel() {
@@ -9082,8 +9298,12 @@
       // Back to Fixed with no number: preview() takes the Hug or Fill value off.
       preview();
     });
-    numberInput.addEventListener("input", preview);
-    unitSelect.addEventListener("change", preview);
+    numberInput.addEventListener("input", function () {
+      unitAnchor = null;
+      if (adoptTypedStyleUnit(numberInput.value, unitSelect, units)) currentUnit = unitSelect.value;
+      preview();
+    });
+    unitSelect.addEventListener("change", handleUnitChange);
     numberInput.addEventListener("keydown", function (event) {
       if (event.key === "ArrowUp" || event.key === "ArrowDown") {
         if (currentSizeMode() !== "fixed") return;
@@ -9100,8 +9320,10 @@
         if (stepped === null) return;
         var steppedParsed = parseNumericValue(stepped);
         if (!steppedParsed) return;
+        unitAnchor = null;
+        // The unit select already shows the typed unit (the input handler
+        // moved it); the stepped number goes with it.
         numberInput.value = steppedParsed.number;
-        if (steppedParsed.unit) unitSelect.value = steppedParsed.unit;
         preview();
         return;
       }
@@ -9509,6 +9731,7 @@
     var heldChangeShown = false;
     var currentUnit = "";
     var unitAnchor = null;
+    var unitChoices = null;   // the unit select's options, when the row has one
     var pendingTokenPick = null;
     // Brings the curve diagram in step with the field; set by the easing control.
     var resyncEasing = function () {};
@@ -9556,18 +9779,21 @@
       input.setAttribute("inputmode", "decimal");
       input.addEventListener("input", function () {
         unitAnchor = null;
+        if (input.unitSelect && editor.getAttribute("data-token-linked") !== "true" &&
+            adoptTypedStyleUnit(input.value, input.unitSelect, unitChoices)) currentUnit = input.unitSelect.value;
         previewCurrent();
       });
       editor.appendChild(input);
       // The unit is itself a choice — px/pt/rem/cm/… — so it's a dropdown, not a
       // fixed tag. The value's own unit is always kept (prepended if unusual).
-      if (parsed.unit) {
+      if (parsed.unit || property === "line-height") {
         var unitSelect = document.createElement("select");
         unitSelect.className = "raven-grab-style-unit";
         unitSelect.setAttribute("aria-label", property + " unit");
-        var units = unitOptionsForProperty(property).slice();
+        var units = unitOptionsForProperty(property);
         if (units.indexOf(parsed.unit) === -1) units.unshift(parsed.unit);
-        unitSelect.innerHTML = units.map(function (u) { return optionMarkup(u, u, parsed.unit); }).join("");
+        unitChoices = units;
+        unitSelect.innerHTML = units.map(function (u) { return optionMarkup(u, unitOptionLabel(u), parsed.unit); }).join("");
         unitSelect.value = parsed.unit;
         editor.appendChild(unitSelect);
         input.unitSelect = unitSelect; // ponytail: readValue reads the live unit
@@ -9933,12 +10159,7 @@
     // The select goes back to the unit it had; the number and the page stay as
     // they were, and the status line says why.
     function refuseUnitChange(shownValue, fromUnit, toUnit) {
-      input.unitSelect.value = fromUnit;
-      input.focus();
-      var message = "Can't keep " + shownValue + " when switching " + property + " to " + (toUnit || "unitless") + " here";
-      // Deferred: this runs inside the select's change event, and the panel's
-      // own change handler re-renders the status line when the event reaches it.
-      window.setTimeout(function () { setGlobalActionStatus(message, "error"); }, 0);
+      refuseStyleUnitChange(input, input.unitSelect, property, shownValue, fromUnit, toUnit);
     }
 
     function handleUnitChange() {
@@ -9949,7 +10170,8 @@
       if (editor.getAttribute("data-token-linked") === "true") { input.unitSelect.value = fromUnit; return; }
       if (toUnit === fromUnit) return;
       var numberText = input.value.trim();
-      var expression = numberText === "" ? null : parseNumericExpression(numberText, fromUnit);
+      // The same unit rule as typing: a unit the select does not offer is unparseable.
+      var expression = numberText === "" ? null : parseNumericExpression(numberText, fromUnit, unitChoices);
       if (!expression) {
         // Nothing to convert: the unit switches and the page is left alone.
         currentUnit = toUnit;
@@ -9958,50 +10180,29 @@
         return;
       }
       var shownValue = formatNumericResult(expression.number) + fromUnit;
-      var anchor = unitAnchor;
-      var convertedNumber = "0";
-      if (expression.number === 0 && (anchor === null || anchor === 0)) {
-        anchor = 0;   // 0 is 0 in every unit; nothing is measured
-      } else {
-        var stateContext = styleState ? { fontSizePx: stateRowFontSizePx(styleState), fontFaceChanged: stateRowFontFaceChanged(styleState) } : null;
-        if (anchor === null) {
-          var fromFactor = styleUnitPx(editorTarget, property, fromUnit, stateContext);
-          if (fromFactor === null) { refuseUnitChange(shownValue, fromUnit, toUnit); return; }
-          anchor = expression.number * fromFactor;
-        }
-        var toFactor = styleUnitPx(editorTarget, property, toUnit, stateContext);
-        if (toFactor === null || !isFinite(anchor / toFactor)) { refuseUnitChange(shownValue, fromUnit, toUnit); return; }
-        convertedNumber = formatConvertedStyleNumber(anchor / toFactor, toUnit);
-        // A value too small for the unit's decimals would read 0. Refuse rather
-        // than turn a value that is not zero into none.
-        if (anchor !== 0 && Number(convertedNumber) === 0) { refuseUnitChange(shownValue, fromUnit, toUnit); return; }
-      }
+      var stateContext = styleState ? { fontSizePx: stateRowFontSizePx(styleState), fontFaceChanged: stateRowFontFaceChanged(styleState) } : null;
+      var conversion = convertStyleUnitNumber(editorTarget, property, expression.number, fromUnit, toUnit, unitAnchor, stateContext);
+      if (!conversion) { refuseUnitChange(shownValue, fromUnit, toUnit); return; }
+      var anchor = conversion.anchor;
+      var convertedNumber = conversion.number;
       var converted = convertedNumber + toUnit;
       var previousPreview = lastPreviewValue;
-      // The before/after check needs the element in the state being edited, so it
-      // runs on resting rows only. Both reads sit inside one transition
-      // suppression: a `before` read outside it can be a transition midpoint from
-      // the number just typed, which would refuse a correct conversion.
-      var checked = !styleState && !isTimeProperty(property) && anchor !== 0;
-      var restoreTransitions = checked ? suppressStyleTransitions(editorTarget) : null;
+      var applyConverted = function () {
+        var took = previewValue(converted);
+        previewed = took || previewed;
+        return took;
+      };
       var accepted = false;
-      try {
-        var before = checked ? computedStyleValueForElement(editorTarget, property) : "";
-        accepted = previewValue(converted);
-        previewed = accepted || previewed;
-        var after = checked ? computedStyleValueForElement(editorTarget, property) : "";
-        if (accepted && /^-?[\d.]+px$/.test(before) && /^-?[\d.]+px$/.test(after) &&
-            Math.abs(parseFloat(after) - parseFloat(before)) > Math.max(0.5, 0.01 * Math.abs(parseFloat(before)))) {
+      // The before/after check needs the element in the state being edited, so it
+      // runs on resting rows only.
+      if (!styleState && !isTimeProperty(property) && anchor !== 0) {
+        accepted = styleUnitChangeHolds(editorTarget, property, applyConverted, function () {
           if (previousPreview !== null) previewValue(previousPreview);
           else rollbackPreviewState();
-          // Read once more so the value put back is committed while transitions are off.
-          computedStyleValueForElement(editorTarget, property);
-          accepted = false;
-        }
-      } catch (error) {
-        accepted = false;
+        }, false);
+      } else {
+        try { accepted = applyConverted(); } catch (error) { accepted = false; }
       }
-      if (restoreTransitions) restoreTransitions();
       if (!accepted) { refuseUnitChange(shownValue, fromUnit, toUnit); return; }
       unitAnchor = anchor;
       currentUnit = toUnit;
@@ -10035,7 +10236,7 @@
       if (control === "number") {
         var n = input.value.trim();
         if (n === "") return "";
-        var expression = parseNumericExpression(n, input.unitSelect ? input.unitSelect.value : "");
+        var expression = parseNumericExpression(n, input.unitSelect ? input.unitSelect.value : "", input.unitSelect && editor.getAttribute("data-token-linked") !== "true" ? unitChoices : null);
         if (!expression) return null;
         return formatNumericResult(expression.number) + expression.unit;
       }
@@ -10117,7 +10318,9 @@
         var mode = scrubPrecisionMode(event);
         var delta = mode.multiplier;
         if (event.key === "ArrowDown") delta *= -1;
-        var stepped = steppedNumericValue(input.value, delta, input.unitSelect ? input.unitSelect.value : "", mode.minPrecision);
+        // The same unit rule as typing: a unit the select does not offer does not step.
+        var stepped = steppedNumericValue(input.value, delta, input.unitSelect ? input.unitSelect.value : "", mode.minPrecision,
+          input.unitSelect && editor.getAttribute("data-token-linked") !== "true" ? unitChoices : null);
         if (stepped !== null) {
           var parsedStep = parseNumericValue(stepped);
           input.value = parsedStep.number;

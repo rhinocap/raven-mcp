@@ -1,6 +1,7 @@
 // Live style editing, phase 2: every control previews and the editor closes
 // only on Enter, a press outside, Escape or a flush
-// (docs/spec-grab-live-style-editing.md, R1 and R2). Real Chromium.
+// (docs/spec-grab-live-style-editing.md, R1 and R2), and phase 3: the Size and
+// Stroke unit selects (R3). Real Chromium.
 //
 // The number after "T" in each name is the row in the spec's test table; the
 // rows past 21 cover defects found while building.
@@ -9,7 +10,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { selectElement, sendBatch, shadowEval } from './grab-panels-harness.mjs';
 import {
-  run, openRow, editorState, chooseUnit, typeNumber, computed, inlineStyle, sentStyleEdits, LIVE_FIXTURE_PATH
+  run, openRow, editorState, chooseUnit, typeNumber, computed, inlineStyle, statusLine, sentStyleEdits, LIVE_FIXTURE_PATH
 } from './grab-live-edit-helpers.mjs';
 
 const ROW = (property, state) => (state
@@ -1949,5 +1950,374 @@ test('T64 an Overflow Y pick previews and stays open; Escape puts the page back'
     await waitEditorClosed(page, 'overflow');
     assert.equal(await computed(page, '#pad', 'overflow-y'), 'hidden');
     assert.equal(await inlineStyle(page, '#pad').then((s) => /overflow/.test(s)), false, 'Escape leaves no overflow inline');
+  }, { html });
+});
+
+// --- Phase 3: the Size and Stroke unit selects --------------------------------
+function unitEditorState(page, property, numberLabel, unitLabel) {
+  return shadowEval(page, (root, arg) => {
+    const editor = root.querySelector(arg.row + ' .raven-grab-style-editor');
+    if (!editor) return { mounted: false };
+    const number = editor.querySelector('input[aria-label="' + arg.numberLabel + '"]');
+    const unit = editor.querySelector('select[aria-label="' + arg.unitLabel + '"]');
+    return {
+      mounted: true,
+      number: number.value,
+      unit: unit.value,
+      units: Array.from(unit.options).map((option) => option.value),
+      focusOnNumber: root.activeElement === number
+    };
+  }, { row: ROW(property), numberLabel, unitLabel });
+}
+const sizeState = (page, property) => unitEditorState(page, property, property + ' value', property + ' unit');
+const strokeState = (page) => unitEditorState(page, '__raven-stroke__', 'Stroke width', 'Stroke width unit');
+const STROKE_FIXTURE = '  #item-a { border: 5px solid #112233; }';
+
+async function errorStatus(page) {
+  // The status is set one tick after the change event.
+  await page.waitForTimeout(50);
+  return statusLine(page).then((lines) => lines.filter((line) => line.kind === 'error').map((line) => line.text));
+}
+
+test('T10b width on a flex item cannot convert px to %: the Size editor refuses, keeps 300px and reports an error', async (t) => {
+  await run(t, async (page) => {
+    await selectElement(page, '#item-a');
+    await openRow(page, 'width');
+    const opened = await sizeState(page, 'width');
+    await setControl(page, 'width', 'input[aria-label="width value"]', '300', ['input']);
+    const held = await inlineStyle(page, '#item-a');
+    const usedBefore = await computed(page, '#item-a', 'width');
+
+    await setControl(page, 'width', 'select[aria-label="width unit"]', '%', ['change']);
+
+    const state = await sizeState(page, 'width');
+    assert.equal(state.mounted, true, 'a refused conversion keeps the editor open');
+    assert.deepEqual([state.number, state.unit], ['300', opened.unit], 'the number and the unit are as they were');
+    assert.equal(state.focusOnNumber, true);
+    assert.equal(await inlineStyle(page, '#item-a'), held, 'the page is as it was');
+    assert.equal(await computed(page, '#item-a', 'width'), usedBefore);
+    assert.deepEqual(await errorStatus(page), ["Can't keep 300px when switching width to % here"]);
+  });
+});
+
+test('T10e the Size editor converts width px to % and back from the unrounded value; Escape leaves nothing inline', async (t) => {
+  await run(t, async (page) => {
+    await selectElement(page, '#pad');
+    await openRow(page, 'width');
+    assert.deepEqual(await sizeState(page, 'width').then((s) => [s.number, s.unit]), ['494', 'px']);
+
+    await setControl(page, 'width', 'select[aria-label="width unit"]', '%', ['change']);
+    let state = await sizeState(page, 'width');
+    assert.deepEqual([state.mounted, state.number, state.unit], [true, '95', '%'], '494px in a 520px parent');
+    assert.equal(state.focusOnNumber, true, 'focus returns to the number field');
+    assert.equal(await inlineStyle(page, '#pad'), 'transition-duration: 1s; width: 95%;');
+    assert.equal(await computed(page, '#pad', 'width'), '494px');
+
+    await setControl(page, 'width', 'select[aria-label="width unit"]', 'em', ['change']);
+    assert.equal(await sizeState(page, 'width').then((s) => s.number), '30.875');
+    await setControl(page, 'width', 'select[aria-label="width unit"]', 'px', ['change']);
+    state = await sizeState(page, 'width');
+    assert.deepEqual([state.number, state.unit], ['494', 'px']);
+    assert.deepEqual(await errorStatus(page), []);
+
+    await page.keyboard.press('Escape');
+    await waitEditorClosed(page, 'width');
+    assert.equal(await inlineStyle(page, '#pad'), 'transition-duration: 1s;');
+  });
+});
+
+test('T10f the Size editor takes a typed unit as typed: 50% in the px field sets the unit select to % and previews 50%', async (t) => {
+  await run(t, async (page, { grabBodies }) => {
+    await selectElement(page, '#pad');
+    await openRow(page, 'width');
+    await setControl(page, 'width', 'input[aria-label="width value"]', '50%', ['input']);
+    assert.equal(await sizeState(page, 'width').then((s) => s.unit), '%');
+    assert.equal(await inlineStyle(page, '#pad'), 'transition-duration: 1s; width: 50%;');
+
+    await page.keyboard.press('Enter');
+    await waitEditorClosed(page, 'width');
+    await sendBatch(page);
+    assert.deepEqual(sentStyleEdits(grabBodies[0]), [['width', '494px', '50%']]);
+  });
+});
+
+test('T10g the Size editor converts from a typed or stepped number, not from the earlier conversion', async (t) => {
+  await run(t, async (page) => {
+    await selectElement(page, '#pad');
+    await openRow(page, 'width');
+    await setControl(page, 'width', 'select[aria-label="width unit"]', 'em', ['change']);
+    await setControl(page, 'width', 'input[aria-label="width value"]', '10', ['input']);
+    await setControl(page, 'width', 'select[aria-label="width unit"]', 'px', ['change']);
+    assert.deepEqual(await sizeState(page, 'width').then((s) => [s.number, s.unit]), ['160', 'px'], '10em on 16px text');
+
+    await setControl(page, 'width', 'select[aria-label="width unit"]', 'em', ['change']);
+    await focusControl(page, 'width', 'input[aria-label="width value"]');
+    await page.keyboard.press('ArrowUp');
+    assert.equal(await sizeState(page, 'width').then((s) => s.number), '11');
+    await setControl(page, 'width', 'select[aria-label="width unit"]', 'px', ['change']);
+    assert.deepEqual(await sizeState(page, 'width').then((s) => [s.number, s.unit]), ['176', 'px'], '11em on 16px text');
+  });
+});
+
+test('T11 the Stroke width unit select does not offer %', async (t) => {
+  const html = await fixtureWith(STROKE_FIXTURE);
+  await run(t, async (page) => {
+    await selectElement(page, '#item-a');
+    await openRow(page, '__raven-stroke__');
+    const state = await strokeState(page);
+    assert.deepEqual([state.number, state.unit], ['5', 'px']);
+    assert.equal(state.units.includes('%'), false, 'a border width takes no percentage');
+    assert.deepEqual(state.units, ['px', 'pt', 'rem', 'em', 'vw', 'vh', 'ch', 'cm', 'mm', 'in']);
+  }, { html });
+});
+
+test('T11d the Stroke editor converts 5px to 3.75pt and back; Enter sends the width in pt', async (t) => {
+  const html = await fixtureWith(STROKE_FIXTURE);
+  await run(t, async (page, { grabBodies }) => {
+    await selectElement(page, '#item-a');
+    await openRow(page, '__raven-stroke__');
+
+    await setControl(page, '__raven-stroke__', 'select[aria-label="Stroke width unit"]', 'pt', ['change']);
+    let state = await strokeState(page);
+    assert.deepEqual([state.mounted, state.number, state.unit], [true, '3.75', 'pt']);
+    assert.equal(state.focusOnNumber, true);
+    assert.equal(await computed(page, '#item-a', 'border-top-width'), '5px', 'the rendered width is unchanged');
+    assert.match(await inlineStyle(page, '#item-a'), /3\.75pt/);
+
+    await setControl(page, '__raven-stroke__', 'select[aria-label="Stroke width unit"]', 'rem', ['change']);
+    assert.equal(await strokeState(page).then((s) => s.number), '0.313', 'rem from the unrounded 5px, not from 3.75pt');
+    await setControl(page, '__raven-stroke__', 'select[aria-label="Stroke width unit"]', 'px', ['change']);
+    assert.deepEqual(await strokeState(page).then((s) => [s.number, s.unit]), ['5', 'px']);
+
+    await setControl(page, '__raven-stroke__', 'input[aria-label="Stroke width"]', '6', ['input']);
+    await setControl(page, '__raven-stroke__', 'select[aria-label="Stroke width unit"]', 'pt', ['change']);
+    assert.deepEqual(await strokeState(page).then((s) => [s.number, s.unit]), ['4.5', 'pt'], 'a typed number replaces the anchor');
+    assert.deepEqual(await errorStatus(page), []);
+
+    await page.keyboard.press('Enter');
+    await waitEditorClosed(page, '__raven-stroke__');
+    await sendBatch(page);
+    assert.deepEqual(sentStyleEdits(grabBodies[0]).filter((edit) => edit[0] === 'border-width'), [['border-width', '5px', '4.5pt']]);
+  }, { html });
+});
+
+test('T11e the Stroke editor takes a typed unit as typed: 3pt in the px field sets the unit select to pt', async (t) => {
+  const html = await fixtureWith(STROKE_FIXTURE);
+  await run(t, async (page) => {
+    await selectElement(page, '#item-a');
+    await openRow(page, '__raven-stroke__');
+    await setControl(page, '__raven-stroke__', 'input[aria-label="Stroke width"]', '3pt', ['input']);
+    assert.deepEqual(await strokeState(page).then((s) => [s.number, s.unit]), ['3', 'pt']);
+    assert.equal(await computed(page, '#item-a', 'border-top-width'), '4px', '3pt is 4px');
+  }, { html });
+});
+
+test('T11f a Stroke unit change the page cannot render the same is refused and nothing is recorded', async (t) => {
+  const html = await fixtureWith(STROKE_FIXTURE);
+  await run(t, async (page) => {
+    // 5px is 0.132cm to three decimals, 4.99px, which a device pixel ratio of 1 draws as 4px.
+    if (await page.evaluate(() => window.devicePixelRatio) !== 1) { t.skip('needs a device pixel ratio of 1'); return; }
+    await selectElement(page, '#item-a');
+    await openRow(page, '__raven-stroke__');
+    const styleBefore = await inlineStyle(page, '#item-a');
+
+    await setControl(page, '__raven-stroke__', 'select[aria-label="Stroke width unit"]', 'cm', ['change']);
+
+    const state = await strokeState(page);
+    assert.deepEqual([state.mounted, state.number, state.unit], [true, '5', 'px']);
+    assert.equal(await inlineStyle(page, '#item-a'), styleBefore, 'the page is as it was');
+    assert.equal(await computed(page, '#item-a', 'border-top-width'), '5px');
+    assert.equal(await sendButton(page).then((b) => b.disabled), true, 'nothing is held or recorded');
+    assert.deepEqual(await errorStatus(page), ["Can't keep 5px when switching stroke width to cm here"]);
+  }, { html });
+});
+
+test('T12f a token-linked number row ignores a typed unit: the unit select stays and nothing is written', async (t) => {
+  const html = await fixtureWith('  :root { --leading-body: 26px; }\n  #copy { line-height: var(--leading-body); }');
+  await run(t, async (page) => {
+    await selectElement(page, '#copy');
+    await openRow(page, 'line-height');
+    const linked = await shadowEval(page, (root, row) => root.querySelector(row + ' .raven-grab-style-editor').getAttribute('data-token-linked'), ROW('line-height'));
+    assert.equal(linked, 'true', 'the fixture binds the row to a token');
+    await typeNumber(page, 'line-height', '30%');
+    assert.equal(await editorState(page, 'line-height').then((s) => s.unit), 'px');
+    assert.equal(await inlineStyle(page, '#copy'), '');
+  }, { html, design: '---\nleading:\n  body: "26px"\n---\n\n# Fixture\n' });
+});
+
+test('T10h an arrow step after a typed unit in upper case keeps that unit: 10EM, ArrowUp, Enter sends 11em', async (t) => {
+  await run(t, async (page, { grabBodies }) => {
+    await selectElement(page, '#pad');
+    await openRow(page, 'width');
+    await setControl(page, 'width', 'input[aria-label="width value"]', '10EM', ['input']);
+    assert.equal(await sizeState(page, 'width').then((s) => s.unit), 'em');
+    assert.equal(await inlineStyle(page, '#pad'), 'transition-duration: 1s; width: 10em;');
+
+    await page.keyboard.press('ArrowUp');
+    const state = await sizeState(page, 'width');
+    assert.deepEqual([state.number, state.unit], ['11', 'em'], 'the step keeps the unit the select shows');
+    assert.equal(await inlineStyle(page, '#pad'), 'transition-duration: 1s; width: 11em;');
+
+    await page.keyboard.press('Enter');
+    await waitEditorClosed(page, 'width');
+    await sendBatch(page);
+    assert.deepEqual(sentStyleEdits(grabBodies[0]), [['width', '494px', '11em']]);
+  });
+});
+
+test('T10i the Size editor keeps the unrounded px across unit changes: 27px reads 5.19 in % and 27 again in px', async (t) => {
+  await run(t, async (page) => {
+    await selectElement(page, '#pad');
+    await openRow(page, 'width');
+    await setControl(page, 'width', 'input[aria-label="width value"]', '27', ['input']);
+    await setControl(page, 'width', 'select[aria-label="width unit"]', '%', ['change']);
+    assert.deepEqual(await sizeState(page, 'width').then((s) => [s.number, s.unit]), ['5.19', '%'], '27px in a 520px parent');
+    await setControl(page, 'width', 'select[aria-label="width unit"]', 'px', ['change']);
+    assert.deepEqual(await sizeState(page, 'width').then((s) => [s.number, s.unit]), ['27', 'px'], '5.19% alone would read 26.99');
+    assert.deepEqual(await errorStatus(page), []);
+  });
+});
+
+test('T11g an outside stroke is checked on outline-width: a unit change the page cannot render the same is refused', async (t) => {
+  const html = await fixtureWith('  #item-a { outline: 5px solid #112233; }');
+  await run(t, async (page) => {
+    if (await page.evaluate(() => window.devicePixelRatio) !== 1) { t.skip('needs a device pixel ratio of 1'); return; }
+    await selectElement(page, '#item-a');
+    await openRow(page, '__raven-stroke__');
+    const outside = await shadowEval(page, (root, row) => root.querySelector(row + ' [data-stroke-position="outside"]').getAttribute('aria-pressed'), ROW('__raven-stroke__'));
+    assert.equal(outside, 'true', 'the fixture opens as an outside stroke');
+    assert.equal(await computed(page, '#item-a', 'border-top-width'), '0px');
+    const styleBefore = await inlineStyle(page, '#item-a');
+
+    await setControl(page, '__raven-stroke__', 'select[aria-label="Stroke width unit"]', 'cm', ['change']);
+
+    const state = await strokeState(page);
+    assert.deepEqual([state.mounted, state.number, state.unit], [true, '5', 'px']);
+    assert.equal(await inlineStyle(page, '#item-a'), styleBefore, 'the page is as it was');
+    assert.equal(await computed(page, '#item-a', 'outline-width'), '5px');
+    assert.deepEqual(await errorStatus(page), ["Can't keep 5px when switching stroke width to cm here"]);
+  }, { html });
+});
+
+test('T10j a converted Size value is sent in the chosen unit: 494px, choose %, Enter sends 95%', async (t) => {
+  await run(t, async (page, { grabBodies }) => {
+    await selectElement(page, '#pad');
+    await openRow(page, 'width');
+    await setControl(page, 'width', 'select[aria-label="width unit"]', '%', ['change']);
+    assert.equal(await inlineStyle(page, '#pad'), 'transition-duration: 1s; width: 95%;');
+    await page.keyboard.press('Enter');
+    await waitEditorClosed(page, 'width');
+    await sendBatch(page);
+    assert.deepEqual(sentStyleEdits(grabBodies[0]), [['width', '494px', '95%']]);
+  });
+});
+
+test('T10k an emptied Size field switches the unit with no conversion and no preview; the next number converts from that unit', async (t) => {
+  await run(t, async (page) => {
+    await selectElement(page, '#pad');
+    await openRow(page, 'width');
+    await setControl(page, 'width', 'input[aria-label="width value"]', '', ['input']);
+    const emptied = await inlineStyle(page, '#pad');
+    await setControl(page, 'width', 'select[aria-label="width unit"]', 'em', ['change']);
+    assert.deepEqual(await sizeState(page, 'width').then((s) => [s.number, s.unit]), ['', 'em']);
+    assert.equal(await inlineStyle(page, '#pad'), emptied, 'the unit switch writes nothing');
+
+    await setControl(page, 'width', 'input[aria-label="width value"]', '10', ['input']);
+    assert.equal(await inlineStyle(page, '#pad'), 'transition-duration: 1s; width: 10em;');
+    await setControl(page, 'width', 'select[aria-label="width unit"]', 'px', ['change']);
+    assert.deepEqual(await sizeState(page, 'width').then((s) => [s.number, s.unit]), ['160', 'px'], '10em on 16px text');
+    assert.equal(await inlineStyle(page, '#pad'), 'transition-duration: 1s; width: 160px;');
+    assert.deepEqual(await errorStatus(page), []);
+  });
+});
+
+test('T11h a refused Stroke unit change keeps the pending edit: 6px typed down to 5, cm refused, Enter sends 5px', async (t) => {
+  const html = await fixtureWith('  #item-a { border: 6px solid #112233; }');
+  await run(t, async (page, { grabBodies }) => {
+    if (await page.evaluate(() => window.devicePixelRatio) !== 1) { t.skip('needs a device pixel ratio of 1'); return; }
+    await selectElement(page, '#item-a');
+    await openRow(page, '__raven-stroke__');
+    await setControl(page, '__raven-stroke__', 'input[aria-label="Stroke width"]', '5', ['input']);
+    const styleBefore = await inlineStyle(page, '#item-a');
+    assert.equal(await computed(page, '#item-a', 'border-top-width'), '5px');
+
+    await setControl(page, '__raven-stroke__', 'select[aria-label="Stroke width unit"]', 'cm', ['change']);
+
+    const state = await strokeState(page);
+    assert.deepEqual([state.mounted, state.number, state.unit], [true, '5', 'px']);
+    assert.equal(await inlineStyle(page, '#item-a'), styleBefore, 'the page is as it was before the refusal');
+    assert.equal(await sendButton(page).then((b) => b.disabled), false, 'the typed 5px is still pending');
+    assert.deepEqual(await errorStatus(page), ["Can't keep 5px when switching stroke width to cm here"]);
+
+    await page.keyboard.press('Enter');
+    await waitEditorClosed(page, '__raven-stroke__');
+    await sendBatch(page);
+    assert.deepEqual(sentStyleEdits(grabBodies[0]).filter((edit) => edit[0] === 'border-width'), [['border-width', '6px', '5px']]);
+  }, { html });
+});
+
+test('T11i an emptied Stroke width switches the unit with no conversion and no preview; the next number converts from that unit', async (t) => {
+  const html = await fixtureWith(STROKE_FIXTURE);
+  await run(t, async (page) => {
+    await selectElement(page, '#item-a');
+    await openRow(page, '__raven-stroke__');
+    await setControl(page, '__raven-stroke__', 'input[aria-label="Stroke width"]', '', ['input']);
+    const emptied = await inlineStyle(page, '#item-a');
+    await setControl(page, '__raven-stroke__', 'select[aria-label="Stroke width unit"]', 'pt', ['change']);
+    assert.deepEqual(await strokeState(page).then((s) => [s.number, s.unit]), ['', 'pt']);
+    assert.equal(await inlineStyle(page, '#item-a'), emptied, 'the unit switch writes nothing');
+
+    await setControl(page, '__raven-stroke__', 'input[aria-label="Stroke width"]', '6', ['input']);
+    assert.equal(await computed(page, '#item-a', 'border-top-width'), '8px', '6pt');
+    await setControl(page, '__raven-stroke__', 'select[aria-label="Stroke width unit"]', 'px', ['change']);
+    assert.deepEqual(await strokeState(page).then((s) => [s.number, s.unit]), ['8', 'px']);
+    assert.deepEqual(await errorStatus(page), []);
+  }, { html });
+});
+
+test('T11j Stroke style none sets the width to 0 and drops the unit anchor: a later unit change converts 0, not the old width', async (t) => {
+  const html = await fixtureWith(STROKE_FIXTURE);
+  await run(t, async (page) => {
+    await selectElement(page, '#item-a');
+    await openRow(page, '__raven-stroke__');
+    await setControl(page, '__raven-stroke__', 'select[aria-label="Stroke width unit"]', 'pt', ['change']);
+    assert.deepEqual(await strokeState(page).then((s) => [s.number, s.unit]), ['3.75', 'pt']);
+
+    await setControl(page, '__raven-stroke__', 'select[aria-label="Stroke style"]', 'none', ['change']);
+    await setControl(page, '__raven-stroke__', 'select[aria-label="Stroke style"]', 'solid', ['change']);
+    assert.deepEqual(await strokeState(page).then((s) => [s.number, s.unit]), ['0', 'pt']);
+
+    await setControl(page, '__raven-stroke__', 'select[aria-label="Stroke width unit"]', 'px', ['change']);
+    assert.deepEqual(await strokeState(page).then((s) => [s.number, s.unit]), ['0', 'px']);
+    assert.deepEqual(await errorStatus(page), []);
+    assert.equal(await computed(page, '#item-a', 'border-top-width'), '0px');
+  }, { html });
+});
+
+test('T11k a unit select offers every unit when the page answers no to every support question', async (t) => {
+  const html = await fixtureWith(STROKE_FIXTURE);
+  await run(t, async (page) => {
+    await selectElement(page, '#item-a');
+    await page.evaluate(() => { CSS.supports = () => false; });
+    await openRow(page, '__raven-stroke__');
+    const state = await strokeState(page);
+    assert.deepEqual(state.units, ['px', 'pt', 'rem', 'em', '%', 'vw', 'vh', 'ch', 'cm', 'mm', 'in']);
+  }, { html });
+});
+
+test('T11l a Stroke unit change the preview rejects puts the number back: an unreadable colour, pt chosen, the field still reads 5 and px', async (t) => {
+  const html = await fixtureWith(STROKE_FIXTURE);
+  await run(t, async (page) => {
+    await selectElement(page, '#item-a');
+    await openRow(page, '__raven-stroke__');
+    await setControl(page, '__raven-stroke__', 'input[aria-label="Stroke color"]', 'junk', ['input']);
+    const styleBefore = await inlineStyle(page, '#item-a');
+
+    await setControl(page, '__raven-stroke__', 'select[aria-label="Stroke width unit"]', 'pt', ['change']);
+
+    const state = await strokeState(page);
+    assert.deepEqual([state.mounted, state.number, state.unit], [true, '5', 'px']);
+    assert.equal(await inlineStyle(page, '#item-a'), styleBefore, 'the page is as it was');
+    assert.equal(await computed(page, '#item-a', 'border-top-width'), '5px');
   }, { html });
 });

@@ -880,3 +880,207 @@ test('T24b Send follows the held value: enabled when it differs from the opening
     assert.equal(await sendButton(page).then((b) => b.disabled), true, 'Escape leaves nothing to send');
   });
 });
+
+// --- Phase 3: unitless line-height and typed units ----------------------------
+test('T11b line-height offers unitless: 26px on 18px text reads 1.444, px again reads 26, and a unitless value reopens with its unit select', async (t) => {
+  await run(t, async (page, { grabBodies }) => {
+    await selectElement(page, '#copy');
+    await openRow(page, 'line-height');
+    const opened = await editorState(page, 'line-height');
+    assert.ok(opened.units.includes(''), 'the unit select offers unitless');
+    assert.ok(opened.units.includes('%'), 'and still offers %');
+    const label = await shadowEval(page, (root) => {
+      const select = root.querySelector('li[data-style-property="line-height"] select.raven-grab-style-unit');
+      return Array.from(select.options).filter((option) => option.value === '').map((option) => option.textContent);
+    });
+    assert.deepEqual(label, ['unitless']);
+
+    await chooseUnit(page, 'line-height', '');
+    let state = await editorState(page, 'line-height');
+    assert.deepEqual([state.mounted, state.number, state.unit], [true, '1.444', '']);
+    assert.equal(await inlineStyle(page, '#copy'), 'line-height: 1.444;');
+    const lineHeight = px(await computed(page, '#copy', 'line-height'));
+    assert.ok(Math.abs(lineHeight - 26) <= 0.5, `computed line-height ${lineHeight}px is not within 0.5px of 26`);
+
+    await chooseUnit(page, 'line-height', 'px');
+    state = await editorState(page, 'line-height');
+    assert.deepEqual([state.number, state.unit], ['26', 'px'], 'px again converts from the unrounded value');
+
+    await chooseUnit(page, 'line-height', '');
+    await page.keyboard.press('Enter');
+    const closed = await editorState(page, 'line-height');
+    assert.equal(closed.mounted, false);
+    assert.equal(closed.text, '1.444');
+
+    await openRow(page, 'line-height');
+    state = await editorState(page, 'line-height');
+    assert.deepEqual([state.number, state.unit], ['1.444', ''], 'a unitless value opens with unitless selected');
+    await chooseUnit(page, 'line-height', 'px');
+    assert.equal(await editorState(page, 'line-height').then((s) => s.number), '25.99', '1.444 on 18px text is 25.992px');
+    await page.keyboard.press('Escape');
+
+    await sendBatch(page);
+    assert.deepEqual(sentStyleEdits(grabBodies[grabBodies.length - 1]), [['line-height', '26px', '1.444']]);
+  });
+});
+
+test('T12 typing 30% into the px line-height field sets the unit select to % and applies 30%', async (t) => {
+  await run(t, async (page, { grabBodies }) => {
+    await selectElement(page, '#copy');
+    await openRow(page, 'line-height');
+    await typeNumber(page, 'line-height', '30%');
+
+    const state = await editorState(page, 'line-height');
+    assert.equal(state.mounted, true);
+    assert.equal(state.unit, '%', 'the typed unit moves the select');
+    assert.equal(state.number, '30%', 'the field keeps what was typed');
+    assert.equal(await inlineStyle(page, '#copy'), 'line-height: 30%;', 'the number is used as typed, with no conversion');
+
+    await page.keyboard.press('Enter');
+    assert.equal(await editorState(page, 'line-height').then((s) => s.text), '30%');
+    await sendBatch(page);
+    assert.deepEqual(sentStyleEdits(grabBodies[grabBodies.length - 1]), [['line-height', '26px', '30%']]);
+  });
+});
+
+test('T12b a unit change after a typed unit converts from the typed value: 2em on 18px text reads 36 after choosing px', async (t) => {
+  await run(t, async (page) => {
+    await selectElement(page, '#copy');
+    await openRow(page, 'line-height');
+    await typeNumber(page, 'line-height', '2em');
+    assert.equal(await editorState(page, 'line-height').then((s) => s.unit), 'em');
+    assert.equal(await inlineStyle(page, '#copy'), 'line-height: 2em;');
+
+    await chooseUnit(page, 'line-height', 'px');
+    const state = await editorState(page, 'line-height');
+    assert.deepEqual([state.number, state.unit], ['36', 'px']);
+    assert.equal(await inlineStyle(page, '#copy'), 'line-height: 36px;');
+  });
+});
+
+test('T12c a typed unit the select does not offer keeps the last valid preview and leaves the select alone', async (t) => {
+  await run(t, async (page) => {
+    await selectElement(page, '#copy');
+    await openRow(page, 'line-height');
+    await typeNumber(page, 'line-height', '30');
+    assert.equal(await inlineStyle(page, '#copy'), 'line-height: 30px;');
+
+    await typeNumber(page, 'line-height', '31q');
+    assert.equal(await editorState(page, 'line-height').then((s) => s.unit), 'px');
+    assert.equal(await inlineStyle(page, '#copy'), 'line-height: 30px;');
+  });
+});
+
+test('T12d in a unitless line-height field a bare number stays bare and a typed px moves the select to px', async (t) => {
+  await run(t, async (page) => {
+    await selectElement(page, '#copy');
+    await openRow(page, 'line-height');
+    await chooseUnit(page, 'line-height', '');
+    await typeNumber(page, 'line-height', '1.5');
+    assert.equal(await inlineStyle(page, '#copy'), 'line-height: 1.5;');
+    assert.equal(await editorState(page, 'line-height').then((s) => s.unit), '');
+
+    await typeNumber(page, 'line-height', '27px');
+    assert.equal(await editorState(page, 'line-height').then((s) => s.unit), 'px');
+    assert.equal(await inlineStyle(page, '#copy'), 'line-height: 27px;');
+  });
+});
+
+test('T12e a typed time unit moves the select: 300ms in the s field of transition-duration', async (t) => {
+  await run(t, async (page) => {
+    await selectElement(page, '#timed');
+    await openRow(page, 'transition-duration');
+    const opened = await editorState(page, 'transition-duration');
+    assert.deepEqual(opened.units.slice().sort(), ['ms', 's']);
+    const other = opened.unit === 's' ? 'ms' : 's';
+    const typed = other === 'ms' ? '300ms' : '0.3s';
+
+    await typeNumber(page, 'transition-duration', typed);
+    assert.equal(await editorState(page, 'transition-duration').then((s) => s.unit), other);
+    assert.equal(await inlineStyle(page, '#timed'), 'transition-duration: ' + typed + ';');
+  });
+});
+
+test('T12g a typed unit in upper case is taken as the select spells it: 2EM sets the select to em and applies 2em', async (t) => {
+  await run(t, async (page) => {
+    await selectElement(page, '#copy');
+    await openRow(page, 'line-height');
+    await typeNumber(page, 'line-height', '2EM');
+    assert.equal(await editorState(page, 'line-height').then((s) => s.unit), 'em');
+    assert.equal(await inlineStyle(page, '#copy'), 'line-height: 2em;');
+
+    await chooseUnit(page, 'line-height', 'px');
+    const state = await editorState(page, 'line-height');
+    assert.deepEqual([state.number, state.unit], ['36', 'px']);
+  });
+});
+
+test('T12h an arrow step reads the field under the typed-unit rule: 2q in a unitless field does not step', async (t) => {
+  await run(t, async (page) => {
+    await selectElement(page, '#copy');
+    await openRow(page, 'line-height');
+    await chooseUnit(page, 'line-height', '');
+    assert.equal(await inlineStyle(page, '#copy'), 'line-height: 1.444;');
+
+    await typeNumber(page, 'line-height', '2q');
+    assert.equal(await inlineStyle(page, '#copy'), 'line-height: 1.444;', 'q is not offered: the last valid preview stays');
+    await page.keyboard.press('ArrowUp');
+    const state = await editorState(page, 'line-height');
+    assert.deepEqual([state.number, state.unit], ['2q', ''], 'the field is left as typed');
+    assert.equal(await inlineStyle(page, '#copy'), 'line-height: 1.444;', 'and nothing new is previewed');
+
+    await typeNumber(page, 'line-height', '2EM');
+    await page.keyboard.press('ArrowUp');
+    const stepped = await editorState(page, 'line-height');
+    assert.deepEqual([stepped.number, stepped.unit], ['3', 'em']);
+    assert.equal(await inlineStyle(page, '#copy'), 'line-height: 3em;', 'the step previews the unit as the select spells it');
+  });
+});
+
+test('T4f zero converts with no measurement: gap 0px to % reads 0 and previews 0%', async (t) => {
+  await run(t, async (page) => {
+    await selectElement(page, '#row');
+    await openRow(page, 'gap');
+    await typeNumber(page, 'gap', '0');
+    await chooseUnit(page, 'gap', '%');
+    const state = await editorState(page, 'gap');
+    assert.deepEqual([state.mounted, state.number, state.unit], [true, '0', '%']);
+    assert.equal(await inlineStyle(page, '#row'), 'gap: 0%;');
+    await page.waitForTimeout(50);
+    assert.deepEqual((await statusLine(page)).filter((line) => line.kind === 'error'), []);
+  });
+});
+
+test('T12i a unit change reads the field under the typed-unit rule: 2q in a unitless field switches the unit with no conversion', async (t) => {
+  await run(t, async (page) => {
+    await selectElement(page, '#copy');
+    await openRow(page, 'line-height');
+    await chooseUnit(page, 'line-height', '');
+    await typeNumber(page, 'line-height', '2q');
+    await chooseUnit(page, 'line-height', 'px');
+    const state = await editorState(page, 'line-height');
+    assert.deepEqual([state.mounted, state.number, state.unit], [true, '2q', 'px'], 'the unit switches and the field is left as typed');
+    assert.equal(await inlineStyle(page, '#copy'), 'line-height: 1.444;', 'nothing is converted or previewed');
+    await page.waitForTimeout(50);
+    assert.deepEqual((await statusLine(page)).filter((line) => line.kind === 'error'), [], 'and nothing is refused');
+
+    await typeNumber(page, 'line-height', '30');
+    assert.equal(await inlineStyle(page, '#copy'), 'line-height: 30px;', 'the next number is read in the chosen unit');
+  });
+});
+
+test('T4g the check allows 1% of a large value: a 100px line on 72px text converts to 138.89%', async (t) => {
+  await run(t, async (page) => {
+    await page.addStyleTag({ content: '#copy { font-size: 72px; line-height: 100px; }' });
+    await selectElement(page, '#copy');
+    await openRow(page, 'line-height');
+    await chooseUnit(page, 'line-height', '%');
+    const state = await editorState(page, 'line-height');
+    assert.deepEqual([state.mounted, state.number, state.unit], [true, '138.89', '%']);
+    assert.equal(await inlineStyle(page, '#copy'), 'line-height: 138.89%;');
+    // Chromium computes a percentage line-height from the whole percent: 99.36px, 0.64px under.
+    assert.equal(await computed(page, '#copy', 'line-height'), '99.36px');
+    await page.waitForTimeout(50);
+    assert.deepEqual((await statusLine(page)).filter((line) => line.kind === 'error'), []);
+  });
+});

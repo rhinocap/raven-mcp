@@ -458,3 +458,56 @@ New open findings:
   - Generic colour editor: focus leaving through the native colour input does not commit (Sol, P2): the spec keeps the native input without a blur handler on purpose (Closing section); the outside press commits. Already recorded open.
   - Overflow Y had no test (Sol, P2 test gap): T64 added; mutant m64-overflow-y-commits KILLED. Controls file 76 tests, p2 mutant list 116.
 - Phase 2 idle npm test: tests 2199, pass 2196, fail 0, skipped 3, exit=0.
+- Phase 2 committed e4cd044. Phase 3: sh p3/build.sh BUILD_OK (patch10 over p2m), contract clean; tailA (6 tests) and tailB (9 tests) appended; live-edit file 40/40, controls file 85/85; anchors 38/116/26 with 0 bad. Mutant proof (p3-full1, p1-full6, p2-full6a/b) and panel round 1 running as background task b7k270grh.
+
+### Phase 3, round 1 (2026-11-12)
+
+- First mutant run on the phase 3 overlay: 21 killed, 5 survived. Phase 1 list 38 of 38 and phase 2 list 116 of 116 still killed.
+- Panel round 1 (9 remote legs, 1 local): one confirmed defect. Size width, type `10EM`, ArrowUp, Enter sent `11px`: the arrow step assigned the typed "EM" to the unit select, which cleared it. Fixed: the step keeps the unit the select shows. Test T10h.
+- Two Stroke lines were redundant (the preview reloads the controls from the recorded stroke) and were removed; their two mutants go with them.
+- Rejected: multi-select conversion checked on the primary only (the spec gives primary-element bases); `apply()` throwing after a write (no reachable throw; recorded P3).
+- Test gaps closed: T10i (the Size anchor: 27px reads 5.19 in % and 27 again in px), T12g (a typed unit in upper case).
+- Open from this round: the local contract leg timed out (903 s, no output); GLM returned empty content on the maths lens at the token limit; no unit-change test for an outside stroke or a single side.
+- Capture dry run: after choosing % the editor stays open showing 144.44 and %; computed line-height is 25.92px (Chromium truncates the percentage), so the three-line paragraph is 0.23px shorter.
+- Next: mutant list edits, full mutant runs on all three lists, panel round 2, Sol gate, npm test, commit.
+
+### Phase 3, round 2 (2026-11-12)
+
+- Mutants on the round 1 overlay: phase 3 list 28 of 28, phase 1 list 38 of 38, phase 2 list 116 of 116 killed.
+- Panel round 2 (9 remote legs, local contract leg returned this time): no code defect. Three test gaps closed: T10j, T10k, T11h, each with a killing mutant (3 of 3 killed). T11g added for an outside stroke.
+- Rejected: a hover row refusing a measured % base (the spec says it refuses); the trial write being visible to a MutationObserver (only the motion-marker observer exists).
+- GLM returned empty content on the maths lens again at the token limit.
+- Next: panel round 3 with the Sol gate round 1 in parallel.
+
+### Phase 3, round 3 and Sol gate round 1 (2026-11-12)
+
+- Panel round 3: no code defect; two test gaps closed (T4f zero conversion, T11i emptied Stroke width).
+- Sol gate round 1: one P1, confirmed in source. In a unitless line-height field, `2q` then ArrowUp previewed `3q` while the field and the commit said unitless 3: the arrow step parsed without the unit list. Fixed: `steppedNumericValue` takes the unit list and the generic editor passes it. Test T12h, mutant killed.
+- The Stroke empty-field `currentUnit = toUnit` has no killing test (the next valid input reloads the controls and sets it); the line stays and the mutant is not in the list.
+- Next: full mutant runs on the new overlay, panel round 4, Sol gate round 2.
+
+### Phase 3, round 4 and Sol gate round 2 (2026-11-12)
+
+- Mutants on the gate-fix overlay: phase 3 list 31 of 31, phase 1 list 38 of 38, phase 2 list 116 of 116 killed.
+- Sol gate round 2: NO P1 OR P2, no new P3.
+- Panel round 4: one confirmed P2. Stroke px to pt, style none, solid, pt to px was refused: style none wrote 0 into the width field and kept the old width's unit anchor. Fixed (the handler clears the anchor); test T11j proved failing before the fix. Test gap closed: T11k (unit list fallback). Rejected: a 1e-322% underflow.
+- The local contract leg timed out again (902 s, no output) while the mutant streams were finishing.
+- Next: full mutant runs on the new overlay, panel round 5, Sol gate round 3 (the last).
+
+## Phase 3, round 5 and Sol gate round 3 (2026-11-12)
+
+- Mutants on the p3e overlay (patch10 + 15 + 16 + 17): phase 3 33 of 33, phase 1 38 of 38, phase 2 116 of 116 killed.
+- Panel round 5: seven lenses answered NOTHING NEW. Sol Stroke lens: P1 by inspection, not reproduced — an inline `border: 5px solid … !important` against a stylesheet `border-style: none !important`; the width-only trial accepts and the Stroke preview then rewrites `border-style` without its priority. Sol tests lens: P3, no test requires the 1% tolerance above 0.5px.
+- Sol gate round 3 (3 of 3 used): P2 — the generic unit-change handler parses the field without the unit list, so `2q` in a unitless line-height field reads as 2, a conversion is attempted and refused. Spec line 150 wants the unit switched with no conversion.
+- Next: verify each in source; patch18 for the gate P2 with a test and a mutant; tolerance test and mutant; panel round 6 (the cap); then `npm test`, commit, captures, design-judge, done-gate, handoff.
+
+## Phase 3, round 6 (the cap) and close (2026-11-12)
+
+- Gate round 3 P2 verified in source and fixed (patch18): the generic unit change passes the unit list to its parse. Test T12i; mutant `p3-generic-unit-change-ignores-unit-choices` killed. Not re-reviewed by Sol: the three gate rounds are used.
+- Round 5 Stroke `!important` item: verified pre-existing. `setStyleOnTargets` writes with no priority at 84b10bf and the base unit select called `preview()` directly. Recorded open, not fixed.
+- Round 5 tolerance gap closed: T4g (100px line on 72px text reads 138.89%, computes 99.36px); mutant `p3-tolerance-flat-half-pixel` killed.
+- Mutants on the p3f overlay: phase 3 35 of 35, phase 1 38 of 38, phase 2 116 of 116 killed. A 36th phase 3 mutant (`p3-stroke-failed-preview-keeps-number`, T11l) was added after and killed.
+- Panel round 6: eight lenses NOTHING NEW (GLM state lens returned a provider error, empty). Sol Stroke lens: P3 test gap, the number restore after a rejected composite preview; closed with T11l.
+- Panel stop rule: rounds 5 and 6 raised items, so phase 3 ends at the declared cap of six rounds, not on two clean rounds. No code defect was raised in round 6.
+- Test files: live-edit 45, controls 95.
+- Phase 3 `RAVEN_NO_USAGE_LOG=1 npm test`: tests 2229, pass 2226, fail 0, skipped 3.
