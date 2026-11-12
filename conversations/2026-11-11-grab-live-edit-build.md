@@ -511,3 +511,13 @@ New open findings:
 - Panel stop rule: rounds 5 and 6 raised items, so phase 3 ends at the declared cap of six rounds, not on two clean rounds. No code defect was raised in round 6.
 - Test files: live-edit 45, controls 95.
 - Phase 3 `RAVEN_NO_USAGE_LOG=1 npm test`: tests 2229, pass 2226, fail 0, skipped 3.
+
+## Close (2026-11-12)
+
+- Phase 3 committed `ee913a7`.
+- Captures rerun on `ee913a7` (session scratchpad `eyes/`): editor open with `144.44` and `%`; paragraph 77.77px against 78px (25.92px lines, spec line 182); unitless `1.444`; Stroke 5px reads `3.75` `pt` with the border still 5px.
+- The same steps repeated on the bridge URL from `node scripts/grab-dev.mjs grab-live-edit.html`: `144.44`, `%`, inline `line-height: 144.44%`.
+- Design-judge on the captures: no findings, PASS (global layer; sibling is the editor's `px` state). No CSS literal was added by the three commits.
+- The four pointer checks were not run: they need a real pointer. Listed for Andrew.
+- Ledger: 272 legs, $10.84 open weight, 11,131,619 Codex tokens.
+- Handoff: `conversations/2026-11-12-grab-live-edit-handoff.md`.
