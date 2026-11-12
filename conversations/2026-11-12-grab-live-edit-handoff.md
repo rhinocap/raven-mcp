@@ -41,7 +41,7 @@ A fourth commit holds this file and the session log.
 
 Design-judge on the captures (surface: product tool UI, global layer only, no project overlay; sibling: the same editor in its `px` state): no findings, PASS. The change adds no CSS literal, colour or type style. A PASS is a pre-check; you have not seen this UI yet.
 
-Customer walkthrough. Solo indie dev: one click opens the editor, choosing a unit changes the number and nothing closes or jumps. Design-system team: the authored unit reaches the agent as chosen (T10j sends `95%`), and token-linked rows do not take a typed unit or a unit change. One point that can confuse either: while a value is only held, the panel still reads "Pending changes: None yet" and "Send to agent" (listed below).
+Customer walkthrough. Solo indie dev: one click opens the editor, choosing a unit changes the number and nothing closes or jumps. Design-system team: the authored unit reaches the agent as chosen (T10j sends `95%`), and token-linked rows do not take a typed unit or a unit change. While a value is only held, Send and the Pending summary now count it ("Send 1 change", "1 being edited"), fixed 2026-11-12 on Andrew's call.
 
 ## Legs and cost
 
@@ -70,10 +70,10 @@ Customer walkthrough. Solo indie dev: one click opens the editor, choosing a uni
 ### In this change, not fixed
 
 - The fix for the phase 3 gate's round 3 P2 (a unit change on a field holding an unoffered unit such as `2q`) has a test and a killed mutant and no Sol pass.
-- Send reads "Send to agent" and Pending reads "None yet" while a value is only held.
+- Fixed 2026-11-12: Send and the Pending summary count a held value (T65–T72).
 - Send stays disabled for a held value while a dispatch is "applying".
-- Send is enabled for a held invalid value, and the press then sends nothing.
-- A box-model field retyped to an equal number in another spelling enables Send, and the press sends nothing (P3).
+- Send is enabled for a held invalid value, and the press then sends nothing. Its count now leaves the invalid value out (T67).
+- A box-model field retyped to an equal number in another spelling enables Send, and the press sends nothing (P3). Its count now leaves that value out (T68).
 - A held preview stays on the staying layer until the next action after the primary layer is removed.
 - The outside-press commit is deferred one tick.
 - A dispatch finishing while a structured editor's field holds an invalid value shows the recorded value until the next valid input (P3).
@@ -130,5 +130,5 @@ Customer walkthrough. Solo indie dev: one click opens the editor, choosing a uni
 
 1. Run the four pointer checks above on the bridge URL in your own Chrome.
 2. Look at the editor at full size on the bridge URL; this is new UI behaviour you have not seen.
-3. Say whether the held-value Send label ("Send to agent", "None yet") should change before merge.
+3. Decided 2026-11-12: the held-value Send label changes before merge. Done; Sol round 2 left 0 P1/P2.
 4. If 1 to 3 are fine, approve a push of the branch and a PR against `main`. Pushing `main` deploys `mcp.ravenmcp.ai`, so the merge needs its own approval.

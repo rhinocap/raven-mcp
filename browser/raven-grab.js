@@ -7308,9 +7308,12 @@
   // Gives a structured editor's commit the two hooks the generic editor's has.
   // Send is enabled while the editor shows a previewed value other than the one
   // it opened with, and a rebase of the drafts writes that preview again.
-  function holdStylePreview(commit, held, repreview) {
+  // heldEdit names the property the editor records and the value it holds, so
+  // Send and the Pending summary can count that value before it is recorded.
+  function holdStylePreview(commit, held, repreview, heldEdit) {
     commit.holdsChange = held;
     commit.repreview = repreview;
+    commit.heldEdit = heldEdit;
   }
   function wireStyleEditorOutsidePress() {
     if (linkedDismissWired || typeof window === "undefined" || typeof window.addEventListener !== "function") return;
@@ -8740,7 +8743,9 @@
       if (finished || !previewed || editorTarget !== selectedElement) return false;
       var held = readValue();
       return held != null && held !== previousValue;
-    }, function () { if (!finished && previewed) preview(); });
+    }, function () { if (!finished && previewed) preview(); }, function () {
+      return { property: property, value: readValue() };
+    });
     lineSelect.focus();
     return true;
   }
@@ -9010,7 +9015,9 @@
       if (finished || !previewed || editorTarget !== selectedElement) return false;
       var held = presetValue != null ? presetValue : readValue();
       return held != null && held !== previousValue;
-    }, function () { if (!finished && previewed) preview(presetValue); });
+    }, function () { if (!finished && previewed) preview(presetValue); }, function () {
+      return { property: property, value: presetValue != null ? presetValue : readValue() };
+    });
     xField.input.focus();
     xField.input.select();
     return true;
@@ -9110,7 +9117,9 @@
     registerOpenStyleEditor(editor, commit);
     holdStylePreview(commit, function () {
       return !finished && previewed && editorTarget === selectedElement && readValue() !== previousValue;
-    }, function () { if (!finished && previewed) preview(); });
+    }, function () { if (!finished && previewed) preview(); }, function () {
+      return { property: property, value: readValue() };
+    });
     xAxis.select.focus();
     return true;
   }
@@ -9350,7 +9359,9 @@
       if (finished || !previewed || editorTarget !== selectedElement) return false;
       var held = readValue();
       return held != null && held !== previousValue && !emptiedFixed();
-    }, function () { if (!finished && previewed) preview(); });
+    }, function () { if (!finished && previewed) preview(); }, function () {
+      return { property: property, value: readValue() };
+    });
     if (currentSizeMode() === "fixed") {
       numberInput.focus();
       numberInput.select();
@@ -9728,7 +9739,7 @@
     // number typed or stepped. Unit changes convert from that anchor, so px, %,
     // em and back to px shows 26 again instead of 25.99.
     var lastPreviewValue = null;
-    var heldChangeShown = false;
+    var heldChangeShown = "false:0";
     var currentUnit = "";
     var unitAnchor = null;
     var unitChoices = null;   // the unit select's options, when the row has one
@@ -10137,8 +10148,10 @@
       if (editorTarget !== selectedElement || input.isConnected === false) return false;
       return lastPreviewValue !== previousValue;
     }
+    // The count can move without the hold changing (a re-edit typed back to the
+    // page's value records one row fewer), so the label follows both.
     function syncHeldChange() {
-      var held = holdsChange();
+      var held = holdsChange() + ":" + heldRowDelta();
       if (held === heldChangeShown) return;
       heldChangeShown = held;
       syncSendEnabledInPlace();
@@ -10151,8 +10164,10 @@
       if (editor.getAttribute("data-token-linked") === "true") return;
       if (editorTarget !== selectedElement || input.isConnected === false) return;
       var value = readValue();
-      if (value === null) return;                              // unparseable: keep the last valid preview
-      if (value === "") { rollbackPreviewState(); return; }    // emptied: show the value the row opened with
+      // Unparseable: keep the last valid preview. Send records nothing for it, so
+      // the count follows.
+      if (value === null) { syncHeldChange(); return; }
+      if (value === "") { rollbackPreviewState(); syncHeldChange(); return; } // emptied: show the value the row opened with
       previewed = previewValue(value) || previewed;
     }
 
@@ -10311,6 +10326,11 @@
       previewValue(lastPreviewValue);
     };
     commit.holdsChange = holdsChange;
+    // An unparseable or emptied field records nothing, so it is not counted.
+    commit.heldEdit = function () {
+      var current = readValue();
+      return { property: property, state: styleState || "", value: current ? lastPreviewValue : null };
+    };
 
     input.addEventListener("keydown", function (event) {
       if (control === "number" && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
@@ -10774,7 +10794,11 @@
     holdStylePreview(commit, function () {
       if (finished || !previewed || target !== selectedElement || input.isConnected === false) return false;
       return input.value.trim() !== openText.trim() && !!boxValueFromEntry(cell, input.value);
-    }, function () { if (previewed) previewEntry(); });
+    }, function () { if (previewed) previewEntry(); }, function () {
+      // boxCommit records nothing for the value the field opened with, however spelled.
+      var value = boxValueFromEntry(cell, input.value);
+      return { property: property, value: value && value !== openRaw ? value : null };
+    });
     input.addEventListener("keydown", function (event) {
       if (event.isComposing) return;
       if (event.key === "Enter") {
@@ -11016,7 +11040,9 @@
       if (editor.getAttribute("data-token-linked") === "true") return false;
       var held = composeBorderRadius(readCorners());
       return !!held && held !== previousValue;
-    }, function () { if (!finished && previewed) preview(); });
+    }, function () { if (!finished && previewed) preview(); }, function () {
+      return { property: "border-radius", value: composeBorderRadius(readCorners()) };
+    });
     return true;
   }
 
@@ -13129,7 +13155,10 @@
     if (dispatchState === "registering") return { state: "registering", label: "Sending " + activeCount + (activeCount === 1 ? " change…" : " changes…"), enabled: false, count: activeCount };
     if (dispatchState === "committing") return { state: "committing", label: "Sending " + activeCount + (activeCount === 1 ? " change…" : " changes…"), enabled: false, count: activeCount };
     if (dispatchState === "applying") {
-      if (nextCount) return { state: "applying-with-next", label: sendQueued ? "Applying " + activeCount + " · " + nextCount + " queued" : "Applying " + activeCount + " · send " + nextCount + " next", enabled: !sendQueued, count: nextCount };
+      // The queued send flushes the open editor first, so the held value is counted.
+      // A held value that undoes the only next edit leaves nothing to send next.
+      var nextShown = shownPendingCount();
+      if (nextCount && nextShown) return { state: "applying-with-next", label: sendQueued ? "Applying " + activeCount + " · " + nextShown + " queued" : "Applying " + activeCount + " · send " + nextShown + " next", enabled: !sendQueued, count: nextCount };
       return { state: "applying", label: "Applying " + activeCount + (activeCount === 1 ? " change…" : " changes…"), enabled: false, count: activeCount };
     }
     if (dispatchState === "done") {
@@ -13145,16 +13174,66 @@
     if (dispatchState === "registration-error") return { state: "registration-error", label: "Retry send", enabled: !!activeDispatch && !activeDispatch.registrationErrors.batchMismatch, count: activeCount };
     if (dispatchState === "commit-error") return { state: "commit-error", label: "Retry send", enabled: !!activeDispatch && !!activeDispatch.batchId, count: activeCount };
     if (nextCount && (!hasDispatchableDrafts() || hasInvalidDrafts())) return { state: "pending-invalid", label: "Review pending changes", enabled: false, count: nextCount };
-    if (hasDispatchableDrafts()) return { state: "pending", label: "Send " + nextCount + (nextCount === 1 ? " change" : " changes"), enabled: true, count: nextCount };
-    // Nothing is recorded yet. Send closes the open editor first, which records
-    // the value it holds, so one press on Send is enough.
-    if (styleEditorHoldsChange()) return { state: "idle", label: "Send to agent", enabled: true, count: 0 };
+    // Send closes the open editor first, which records the value it holds, so the
+    // label counts that value and one press sends what it says.
+    var shownCount = shownPendingCount();
+    if (hasDispatchableDrafts()) return { state: "pending", label: shownCount ? "Send " + shownCount + (shownCount === 1 ? " change" : " changes") : "Send to agent", enabled: true, count: nextCount };
+    if (styleEditorHoldsChange()) return { state: "idle", label: shownCount ? "Send " + shownCount + (shownCount === 1 ? " change" : " changes") : "Send to agent", enabled: true, count: 0 };
     return { state: "idle", label: "Send to agent", enabled: false, count: 0 };
   }
 
   // An open editor showing a value other than the one its row opened with.
   function styleEditorHoldsChange() {
     return !!activeStyleEditorFlush && typeof activeStyleEditorFlush.holdsChange === "function" && activeStyleEditorFlush.holdsChange();
+  }
+
+  // How the pending count moves when the open editor records the value it holds:
+  // 1 for a property with no edit yet, 0 for a re-edit, -1 for a re-edit back to
+  // the value the page had. A padding or margin shorthand replaces its side
+  // edits, and a Stroke group stays one row. Mirrors commitStyleEdit,
+  // commitStateStyleEdit and boxCommit.
+  function heldRowDelta() {
+    if (!styleEditorHoldsChange() || typeof activeStyleEditorFlush.heldEdit !== "function") return 0;
+    var held = activeStyleEditorFlush.heldEdit();
+    if (!held || !held.property || held.value == null) return 0;
+    if (held.state) {
+      var stateEdit = stateStyleEdits[stateStyleEditKey(held.state, held.property)];
+      if (!stateEdit) return 1;
+      return held.value === stateEdit.oldValue ? -1 : 0;
+    }
+    var edit = styleEdits[held.property];
+    if (edit && edit.groupId === "stroke") return 0;
+    var width = styleEdits["border-width"];
+    if (/^border-(top|right|bottom|left)-width$/.test(held.property) && width && width.groupId === "stroke") return 0;
+    if (edit) return held.value === edit.oldValue ? -1 : 0;
+    if (BOX_SHORTHANDS.indexOf(held.property) === -1) return 1;
+    var sideEdits = BOX_SIDES.filter(function (side) { return !!styleEdits[held.property + "-" + side]; });
+    if (!sideEdits.length) return 1;
+    // The shorthand's original is the sides' saved originals plus the untouched
+    // sides as computed, as commitStyleEdit builds it. Holding that original
+    // removes the side edits and records no shorthand.
+    // The preview has written the held value over the untouched sides, so they
+    // are read from the shorthand as captured before the first preview.
+    var captured = expandBoxSides(capturedOriginalComputed(held.property, selectedElement));
+    var original = composeBoxSides(BOX_SIDES.map(function (side, index) {
+      var sideEdit = styleEdits[held.property + "-" + side];
+      if (sideEdit) return sideEdit.oldValue;
+      if (captured) return captured[index];
+      return capturedOriginalComputed(held.property + "-" + side, selectedElement) || computedStyleValueForElement(selectedElement, held.property + "-" + side);
+    }));
+    return (held.value === original ? 0 : 1) - sideEdits.length;
+  }
+
+  // A padding or margin shorthand's one to four values as top, right, bottom, left.
+  function expandBoxSides(value) {
+    var parts = String(value || "").trim().split(/\s+/);
+    if (!parts[0] || parts.length > 4) return null;
+    return [parts[0], parts[1] || parts[0], parts[2] || parts[0], parts[3] || parts[1] || parts[0]];
+  }
+
+  // The pending count with the held value in it: what one press on Send sends.
+  function shownPendingCount() {
+    return Math.max(0, pendingLogicalCount() + heldRowDelta());
   }
 
   // Sets the Send button's disabled state and label on the node already in the
@@ -13169,6 +13248,20 @@
     button.disabled = !ui.enabled;
     var label = button.querySelector(".raven-grab-send-label");
     if (label && label.textContent !== ui.label) label.textContent = ui.label;
+    // The panel does not re-render while an editor is open, so the summary
+    // follows the held value here.
+    ["empty", "pending"].forEach(function (role) {
+      panelQueryAll('[data-change-tray-summary="' + role + '"]').forEach(function (summary) {
+        var text = pendingTraySummary(role);
+        if (summary.textContent !== text) summary.textContent = text;
+      });
+    });
+    // While a batch applies, the "next" count follows the held value too.
+    panelQueryAll('[data-change-tray-summary="applying"]').forEach(function (summary) {
+      var match = /^(\d+ active) · \d+ next$/.exec(summary.textContent);
+      var text = match ? match[1] + " · " + shownPendingCount() + " next" : summary.textContent;
+      if (summary.textContent !== text) summary.textContent = text;
+    });
   }
 
   function changeTrayItems() {
@@ -13255,7 +13348,7 @@
     var bodyId = "raven-grab-tray-" + role;
     return '<section class="raven-grab-changes" aria-label="' + escapeHtml(heading) + '">'
       + '<button class="raven-grab-section-toggle raven-grab-changes-toggle" type="button" data-change-tray-toggle="' + escapeHtml(role) + '" aria-expanded="' + (collapsed ? "false" : "true") + '" aria-controls="' + bodyId + '">'
-      + '<span class="raven-grab-changes-heading"><strong>' + escapeHtml(heading) + '</strong><span>' + escapeHtml(summary) + '</span>' + errorMarkup + '</span>'
+      + '<span class="raven-grab-changes-heading"><strong>' + escapeHtml(heading) + '</strong><span data-change-tray-summary="' + escapeHtml(role) + '">' + escapeHtml(summary) + '</span>' + errorMarkup + '</span>'
       + '<span class="raven-grab-caret" aria-hidden="true">▾</span></button>'
       + '<div class="raven-grab-collapsible" id="' + bodyId + '" data-change-tray-body="' + escapeHtml(role) + '" data-open="' + (collapsed ? "false" : "true") + '" aria-hidden="' + (collapsed ? "true" : "false") + '"><div class="raven-grab-collapsible-inner"><ul class="raven-grab-change-list">' + changeTrayRowsMarkup(items) + '</ul></div></div>'
       + '</section>';
@@ -13267,7 +13360,7 @@
     // model and Instructions up.
     if (!items.length) {
       return '<div class="raven-grab-changes" data-change-tray-empty><div class="raven-grab-section-toggle raven-grab-changes-toggle" aria-disabled="true">'
-        + '<span class="raven-grab-changes-heading"><strong>Pending changes</strong><span>None yet</span></span></div></div>';
+        + '<span class="raven-grab-changes-heading"><strong>Pending changes</strong><span data-change-tray-summary="empty">' + escapeHtml(pendingTraySummary("empty")) + '</span></span></div></div>';
     }
     var count = pendingLogicalCount();
     var localItems = items.filter(function (item) { return !!item.local; });
@@ -13278,7 +13371,16 @@
       return changeTraySectionMarkup(submittedItems.concat(localItems), "Applying", (activeDispatch ? activeDispatch.logicalCount : submittedItems.length) + " active · " + count + " next", "applying");
     }
     if (dispatchState !== "idle") return changeTraySectionMarkup(items, "Applying", activeDispatch ? activeDispatch.logicalCount + " active" : submittedItems.length + " active", "applying");
-    return changeTraySectionMarkup(items, "Pending changes", count + " pending", "pending");
+    return changeTraySectionMarkup(items, "Pending changes", pendingTraySummary("pending"), "pending");
+  }
+
+  // A value an open editor holds is not a row yet, but Send counts it, so the
+  // summary says it is there.
+  function pendingTraySummary(role) {
+    var delta = heldRowDelta();
+    var editing = delta > 0 ? "1 being edited" : (delta < 0 ? -delta + " undone by this edit" : "");
+    if (role === "empty") return delta > 0 ? editing : "None yet";
+    return pendingLogicalCount() + " pending" + (editing ? " · " + editing : "");
   }
 
   function styleDraftForClientKey(clientKey) {

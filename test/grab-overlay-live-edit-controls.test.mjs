@@ -462,7 +462,7 @@ test('T27 Send follows a dispatch that finishes while an editor holds a value', 
     await page.waitForTimeout(done.hold + 300);
     assert.equal(await editorOpen(page, 'line-height'), true, 'the editor stayed open throughout');
     const after = await sendButton(page);
-    assert.deepEqual([after.disabled, after.label], [false, 'Send to agent'], 'once the dispatch is over the held value can be sent');
+    assert.deepEqual([after.disabled, after.label], [false, 'Send 1 change'], 'once the dispatch is over the held value can be sent');
   }, { expose: ['finishActiveDispatch', 'SEND_TIMINGS'] });
 });
 
@@ -889,12 +889,12 @@ test('T37 a touch that scrolls keeps the editor open; a touch that lifts where i
     await touchTitle(page, [{ type: 'pointermove', dy: 30 }, { type: 'pointerup', dy: 30 }]);
     await page.waitForTimeout(50);
     assert.equal(await editorOpen(page, 'color'), true, 'a touch that moved was a scroll');
-    assert.equal(await sendButton(page).then((b) => b.label), 'Send to agent', 'the colour is still only held');
+    assert.equal(await sendButton(page).then((b) => b.label), 'Send 1 change', 'the held colour is counted');
 
     await touchTitle(page, [{ type: 'pointerdown' }, { type: 'pointermove', dx: 30 }, { type: 'pointerup', dx: 30 }]);
     await page.waitForTimeout(50);
     assert.equal(await editorOpen(page, 'color'), true, 'a touch that moved sideways was a scroll too');
-    assert.equal(await sendButton(page).then((b) => b.label), 'Send to agent');
+    assert.equal(await sendButton(page).then((b) => b.label), 'Send 1 change');
 
     // A finger rarely lifts on the pixel it landed on: 5px of drift is still a tap.
     await touchTitle(page, [{ type: 'pointerdown' }, { type: 'pointermove', dx: 5, dy: 5 }, { type: 'pointerup', dx: 5, dy: 5 }]);
@@ -915,7 +915,7 @@ test('T24d a touch on Send is left to the Send click: the press and its lift do 
     await touchOn(page, '[data-send-batch]', [{ type: 'pointerdown' }, { type: 'pointerup' }]);
     await page.waitForTimeout(50);
     assert.equal(await editorOpen(page, 'color'), true, 'Send flushes the editor on its click, not on the press');
-    assert.equal(await sendButton(page).then((b) => b.label), 'Send to agent', 'the colour is still only held');
+    assert.equal(await sendButton(page).then((b) => b.label), 'Send 1 change', 'the held colour is counted');
   });
 });
 
@@ -2320,4 +2320,155 @@ test('T11l a Stroke unit change the preview rejects puts the number back: an unr
     assert.equal(await inlineStyle(page, '#item-a'), styleBefore, 'the page is as it was');
     assert.equal(await computed(page, '#item-a', 'border-top-width'), '5px');
   }, { html });
+});
+
+function traySummary(page) {
+  return shadowEval(page, (root) => {
+    const summary = root.querySelector('[data-change-tray-summary]');
+    return summary ? summary.textContent : null;
+  });
+}
+
+test('T65 Send and the Pending summary count the value an open editor holds, and one press sends that many', async (t) => {
+  await run(t, async (page, { grabBodies }) => {
+    await selectElement(page, '#copy');
+    await openRow(page, 'line-height');
+    await typeNumber(page, 'line-height', '28');
+    assert.equal(await sendButton(page).then((b) => b.label), 'Send 1 change', 'a held value with nothing recorded');
+    assert.equal(await traySummary(page), '1 being edited');
+    await page.keyboard.press('Enter');
+    await waitEditorClosed(page, 'line-height');
+    assert.equal(await sendButton(page).then((b) => b.label), 'Send 1 change');
+    assert.equal(await traySummary(page), '1 pending');
+
+    await openRow(page, 'font-size');
+    await typeNumber(page, 'font-size', '20');
+    assert.equal(await sendButton(page).then((b) => b.label), 'Send 2 changes', 'one recorded and one held');
+    assert.equal(await traySummary(page), '1 pending · 1 being edited');
+    await page.keyboard.press('Escape');
+    await waitEditorClosed(page, 'font-size');
+    assert.equal(await sendButton(page).then((b) => b.label), 'Send 1 change', 'Escape drops the held value from the count');
+
+    await openRow(page, 'line-height');
+    await typeNumber(page, 'line-height', '30');
+    assert.equal(await sendButton(page).then((b) => b.label), 'Send 1 change', 'a re-edit of a recorded property adds no row');
+    assert.equal(await traySummary(page), '1 pending');
+    await page.keyboard.press('Enter');
+    await waitEditorClosed(page, 'line-height');
+
+    await openRow(page, 'font-size');
+    await typeNumber(page, 'font-size', '20');
+    assert.equal(await sendButton(page).then((b) => b.label), 'Send 2 changes');
+    await sendBatch(page);
+    assert.equal(grabBodies.length, 1);
+    const sent = sentStyleEdits(grabBodies[0]).map((edit) => edit[0]).sort();
+    assert.deepEqual(sent, ['font-size', 'line-height'], 'the press sent the two changes the label counted');
+  });
+});
+
+test('T66 a re-edit typed back to the page value counts one change fewer', async (t) => {
+  await run(t, async (page) => {
+    await selectElement(page, '#copy');
+    await openRow(page, 'line-height');
+    await typeNumber(page, 'line-height', '28');
+    await page.keyboard.press('Enter');
+    await waitEditorClosed(page, 'line-height');
+    await openRow(page, 'line-height');
+    await typeNumber(page, 'line-height', '26');
+    const held = await sendButton(page);
+    assert.deepEqual([held.disabled, held.label], [false, 'Send to agent'], 'the held value removes the only change');
+    assert.equal(await traySummary(page), '1 pending · 1 undone by this edit');
+    await page.keyboard.press('Enter');
+    await waitEditorClosed(page, 'line-height');
+    assert.equal(await traySummary(page), 'None yet');
+  });
+});
+
+test('T67 a held value that stops parsing drops out of the count', async (t) => {
+  await run(t, async (page) => {
+    await selectElement(page, '#copy');
+    await openRow(page, 'line-height');
+    await typeNumber(page, 'line-height', '28');
+    await page.keyboard.press('Enter');
+    await waitEditorClosed(page, 'line-height');
+    await openRow(page, 'font-size');
+    await typeNumber(page, 'font-size', '20');
+    assert.equal(await sendButton(page).then((b) => b.label), 'Send 2 changes');
+    await typeNumber(page, 'font-size', 'abc');
+    assert.equal(await sendButton(page).then((b) => b.label), 'Send 1 change', 'Send records nothing for an unparseable field');
+    assert.equal(await traySummary(page), '1 pending');
+  });
+});
+
+test('T68 a box-model field retyped to its own value in another spelling adds nothing to the count', async (t) => {
+  const html = await fixtureWith(PAD_STILL);
+  await run(t, async (page) => {
+    await selectElement(page, '#pad');
+    await commitBoxField(page, 'padding-top', '20');
+    await openBoxField(page, 'padding-left');
+    await typeBoxField(page, 'padding-left', '13px');
+    assert.equal(await sendButton(page).then((b) => b.label), 'Send 1 change');
+    await typeBoxField(page, 'padding-left', '15');
+    assert.equal(await sendButton(page).then((b) => b.label), 'Send 2 changes');
+  }, { html });
+});
+
+test('T69 the padding shorthand held at the original undoes the side edit in the count', async (t) => {
+  const html = await fixtureWith(PAD_STILL);
+  await run(t, async (page) => {
+    await selectElement(page, '#pad');
+    await commitBoxField(page, 'padding-right', '18');
+    await openRow(page, 'padding');
+    await typeNumber(page, 'padding', '13px');
+    assert.equal(await sendButton(page).then((b) => b.label), 'Send to agent', 'the shorthand at 13px records nothing');
+    assert.equal(await traySummary(page), '1 pending · 1 undone by this edit');
+    await typeNumber(page, 'padding', '14px');
+    assert.equal(await sendButton(page).then((b) => b.label), 'Send 1 change', 'the shorthand replaces the side edit');
+  }, { html });
+});
+
+test('T70 while a batch applies, "send N next" counts the value an open field holds', async (t) => {
+  const html = await fixtureWith(PAD_STILL);
+  await run(t, async (page, { grabBodies }) => {
+    await selectElement(page, '#pad');
+    await commitBoxField(page, 'padding-top', '20');
+    await sendBatch(page);
+    assert.equal(grabBodies.length, 1);
+    await commitBoxField(page, 'padding-left', '20');
+    await openBoxField(page, 'padding-right');
+    await typeBoxField(page, 'padding-right', '30');
+    assert.match(await sendButton(page).then((b) => b.label), /^Applying 1 · send 2 next$/);
+  }, { html, expose: ['finishActiveDispatch', 'SEND_TIMINGS'] });
+});
+
+test('T71 a held shorthand over uneven sides is counted against the sides the page had', async (t) => {
+  const html = await fixtureWith(PAD_STILL + '\n  #pad { padding: 10px 20px 30px 40px; }');
+  await run(t, async (page) => {
+    await selectElement(page, '#pad');
+    await commitBoxField(page, 'padding-top', '50');
+    await openRow(page, 'padding');
+    await typeNumber(page, 'padding', '10px');
+    assert.equal(await sendButton(page).then((b) => b.label), 'Send 1 change', '10px on every side is a change from 10px 20px 30px 40px');
+    await typeNumber(page, 'padding', '10px 20px 30px 40px');
+    assert.equal(await sendButton(page).then((b) => b.label), 'Send to agent', 'the original sides undo the side edit');
+  }, { html });
+});
+
+test('T72 while a batch applies, the tray and Send count the held value, and a held undo leaves nothing next', async (t) => {
+  const html = await fixtureWith(PAD_STILL);
+  await run(t, async (page, { grabBodies }) => {
+    await selectElement(page, '#pad');
+    await commitBoxField(page, 'padding-top', '20');
+    await sendBatch(page);
+    assert.equal(grabBodies.length, 1);
+    await commitBoxField(page, 'padding-left', '20');
+    await openBoxField(page, 'padding-right');
+    await typeBoxField(page, 'padding-right', '30');
+    assert.equal(await traySummary(page), '1 active · 2 next');
+    await page.keyboard.press('Escape');
+    await openBoxField(page, 'padding-left');
+    await typeBoxField(page, 'padding-left', '13');
+    assert.equal(await traySummary(page), '1 active · 0 next');
+    assert.equal(await sendButton(page).then((b) => b.label), 'Applying 1 change…');
+  }, { html, expose: ['finishActiveDispatch', 'SEND_TIMINGS'] });
 });
