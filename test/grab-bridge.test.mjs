@@ -326,6 +326,7 @@ async function loadOverlayInternals(options = {}) {
     },
     getLeftPanelAttribute: function (name) { return panelLeft.getAttribute(name); },
     hasActiveStyleEditor: function () { return activeStyleEditorFlush !== null; },
+    flushActiveStyleEditor: function () { if (activeStyleEditorFlush) activeStyleEditorFlush(); },
     setLayerElementsTestState: function (elements) { layerElements = new Map(elements); },
     getLayerElement: function (id) { return layerElements.get(id); },
     setLayerNoticeTestState: function (notice) { layerNotice = notice; },
@@ -2337,6 +2338,8 @@ test('overlay invalid computed-style value leaves the displayed value unchanged'
   const input = row.child.children.find((child) => child.type === 'text');
   input.value = 'definitely-invalid';
   input.dispatch('keydown', { key: 'Enter', preventDefault() {} });
+  assert.equal(internals.hasActiveStyleEditor(), true, 'Enter keeps a field that does not parse open');
+  internals.flushActiveStyleEditor();
 
   assert.equal(row.child.textContent, 'rgb(0, 0, 0)');
   assert.equal(element.style.getPropertyValue('color'), '');
@@ -2425,6 +2428,8 @@ test('[phase4 #6] numeric style editors evaluate arithmetic and reject mixed uni
   assert.equal(element.style.getPropertyValue('width'), '13px');
   mixedInput.value = '12px + 1rem';
   mixedInput.dispatch('keydown', { key: 'Enter', preventDefault() {} });
+  assert.equal(internals.hasActiveStyleEditor(), true, 'Enter keeps a field that does not parse open');
+  internals.flushActiveStyleEditor();
   assert.equal(mixedRow.child.textContent, '12px + 1rem');
   assert.equal(element.style.getPropertyValue('width'), '8px');
   assert.deepEqual(Array.from(internals.styleEditsForSend()), []);
@@ -2585,6 +2590,8 @@ test('[phase4 #15] color entry accepts bare hex, preserves alpha, and shows toke
   assert.equal(element.style.getPropertyValue('color'), '#ff000080');
   input.value = 'definitely-invalid';
   input.dispatch('keydown', { key: 'Enter', preventDefault() {} });
+  assert.equal(internals.hasActiveStyleEditor(), true, 'Enter keeps a field that does not parse open');
+  internals.flushActiveStyleEditor();
   assert.equal(element.style.getPropertyValue('color'), 'rgba(17, 34, 51, 0.5)');
   assert.deepEqual(Array.from(internals.styleEditsForSend(), (edit) => ({ ...edit })), [
     {

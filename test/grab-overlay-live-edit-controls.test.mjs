@@ -657,7 +657,7 @@ test('T33b width with a recorded edit: another number, the recorded number again
   });
 });
 
-test('T34 a box-shadow preset followed by a refused blur: Enter puts the page back and records nothing', async (t) => {
+test('T34 a box-shadow preset followed by a refused blur: Enter keeps the field open; Escape puts the page back and records nothing', async (t) => {
   await run(t, async (page) => {
     await selectElement(page, '#item-a');
     await openRow(page, 'box-shadow');
@@ -672,7 +672,8 @@ test('T34 a box-shadow preset followed by a refused blur: Enter puts the page ba
 
     // A negative blur is not valid CSS: the preview keeps the preset.
     await setControl(page, 'box-shadow', 'input[aria-label="Box shadow blur"]', '-1', ['input']);
-    await page.keyboard.press('Enter');
+    await enterHolds(page, 'box-shadow', 'input[aria-label="Box shadow blur"]');
+    await page.keyboard.press('Escape');
     await waitEditorClosed(page, 'box-shadow');
     assert.equal(await computed(page, '#item-a', 'box-shadow'), 'none', 'a refused commit leaves no preview behind');
     assert.equal(await inlineStyle(page, '#item-a'), '');
@@ -680,7 +681,7 @@ test('T34 a box-shadow preset followed by a refused blur: Enter puts the page ba
   });
 });
 
-test('T34b a text-decoration pick followed by a refused colour: Enter puts the page back and records nothing', async (t) => {
+test('T34b a text-decoration pick followed by a refused colour: Enter keeps the field open; Escape puts the page back and records nothing', async (t) => {
   await run(t, async (page) => {
     await selectElement(page, '#swatch');
     await openRow(page, 'text-decoration');
@@ -688,7 +689,9 @@ test('T34b a text-decoration pick followed by a refused colour: Enter puts the p
     assert.equal(await computed(page, '#swatch', 'text-decoration-line'), 'overline', 'the pick is previewed');
 
     await setControl(page, 'text-decoration', 'input[aria-label="Text decoration color value"]', 'notacolour', ['input']);
-    await page.keyboard.press('Enter');
+    await enterHolds(page, 'text-decoration', 'input[aria-label="Text decoration color value"]');
+    await enterHolds(page, 'text-decoration', 'input[aria-label="Text decoration color value"]', 'select[aria-label="Text decoration line"]');
+    await page.keyboard.press('Escape');
     await waitEditorClosed(page, 'text-decoration');
     assert.equal(await computed(page, '#swatch', 'text-decoration-line'), 'underline', 'a refused commit leaves no preview behind');
     assert.equal(await inlineStyle(page, '#swatch'), '');
@@ -2615,11 +2618,33 @@ async function blurOut(page, property) {
   return editorOpen(page, property);
 }
 
+// Enter, from the field or from another control in its editor, keeps the editor
+// open with the field marked and focused.
+async function enterHolds(page, property, field, from) {
+  assert.equal(await focusControl(page, property, from || field), true);
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(50);
+  assert.equal(await editorOpen(page, property), true, 'Enter from ' + (from || field) + ' keeps the editor open');
+  const state = await shadowEval(page, (root, arg) => {
+    const node = root.querySelector(arg.row + ' .raven-grab-style-editor ' + arg.field);
+    return { invalid: node.getAttribute('aria-invalid'), focused: root.activeElement === node };
+  }, { row: ROW(property), field });
+  assert.deepEqual(state, { invalid: 'true', focused: true }, 'the field stays marked and takes focus');
+}
+
+function ringAt(page, selector) {
+  return shadowEval(page, (root, sel) => {
+    const style = getComputedStyle(root.querySelector(sel));
+    return { ring: style.boxShadow, fill: style.backgroundColor };
+  }, selector);
+}
+
 async function expectHeldInvalid(page, selector, message) {
   const held = await sendButton(page);
   assert.deepEqual([held.disabled, held.label], [true, 'Fix the value being edited'], message);
   assert.equal(await invalidAt(page, selector), 'true', 'the field that does not parse is marked');
   assert.equal(await borderAt(page, selector), 'rgb(255, 92, 92)', 'the marked field shows the warning border');
+  assert.deepEqual(await ringAt(page, selector), { ring: 'rgb(255, 92, 92) 0px 0px 0px 2px', fill: 'rgba(255, 92, 92, 0.12)' }, 'the marked field shows the warning ring and fill');
 }
 
 test('T79 a size field that stops parsing holds Send', async (t) => {
@@ -2633,6 +2658,8 @@ test('T79 a size field that stops parsing holds Send', async (t) => {
     assert.equal(await blurOut(page, 'width'), true, 'losing focus does not commit and drop the value');
     assert.equal(await focusControl(page, 'width', 'select'), true);
     assert.equal(await blurOut(page, 'width'), true, 'focus leaving from the unit select keeps the field too');
+    await enterHolds(page, 'width', 'input[aria-label="width value"]');
+    await enterHolds(page, 'width', 'input[aria-label="width value"]', 'select');
   });
 });
 
@@ -2648,6 +2675,14 @@ test('T80 a box-model field that stops parsing holds Send and stays open on Tab'
     await page.keyboard.press('Tab');
     await page.waitForTimeout(50);
     assert.equal(await boxFieldOpen(page, 'padding-top'), true, 'Tab does not commit the field');
+    await shadowEval(page, (root) => { root.querySelector('[data-box-input="padding-top"]').focus(); return true; });
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(50);
+    assert.equal(await boxFieldOpen(page, 'padding-top'), true, 'Enter does not commit the field');
+    assert.deepEqual(await shadowEval(page, (root) => {
+      const input = root.querySelector('[data-box-input="padding-top"]');
+      return [input.getAttribute('aria-invalid'), root.activeElement === input];
+    }), ['true', true], 'the field stays marked and focused');
   }, { html });
 });
 
@@ -2664,6 +2699,8 @@ test('T81 Tab away from an unparseable field keeps it open and Add to queue bloc
     assert.equal((await fieldInvalid(page, 'font-size')).invalid, 'true');
     assert.equal(await queueButton(page).then((b) => b.disabled), true);
     assert.equal(await traySummary(page), 'Edited value not valid');
+    await enterHolds(page, 'font-size', '.raven-grab-style-input');
+    await enterHolds(page, 'font-size', '.raven-grab-style-input', 'select');
   });
 });
 
@@ -2702,6 +2739,8 @@ test('T83 a box-shadow blur that stops parsing holds Send', async (t) => {
     const colour = '.raven-grab-style-editor[data-control="box-shadow"] input.raven-grab-style-input[type="text"]:not([aria-label])';
     await setControl(page, 'box-shadow', 'input.raven-grab-style-input[type="text"]:not([aria-label])', 'notacolour', ['input']);
     await expectHeldInvalid(page, colour, 'a shadow colour that does not parse holds Send');
+    await enterHolds(page, 'box-shadow', 'input.raven-grab-style-input[type="text"]:not([aria-label])');
+    await enterHolds(page, 'box-shadow', 'input.raven-grab-style-input[type="text"]:not([aria-label])', 'input[type="color"]');
   });
 });
 
@@ -2715,6 +2754,7 @@ test('T84 a corner radius that stops parsing holds Send', async (t) => {
     await setControl(page, 'border-radius', 'input[data-radius-corner="top-left"]', '12qq', ['input']);
     await expectHeldInvalid(page, 'input[data-radius-corner="top-left"]', 'the radius editor holds Send');
     assert.equal(await blurOut(page, 'border-radius'), true, 'losing focus does not commit and drop the value');
+    await enterHolds(page, 'border-radius', 'input[data-radius-corner="top-left"]');
   }, { html });
 });
 
@@ -2727,6 +2767,7 @@ test('T85 a text-decoration colour that stops parsing holds Send', async (t) => 
     await setControl(page, 'text-decoration', 'input[aria-label="Text decoration color value"]', 'notacolour', ['input']);
     await expectHeldInvalid(page, 'input[aria-label="Text decoration color value"]', 'the colour holds Send');
     assert.equal(await blurOut(page, 'text-decoration'), true, 'losing focus does not commit and drop the value');
+    await enterHolds(page, 'text-decoration', 'input[aria-label="Text decoration color value"]', 'input[type="color"]');
   });
 });
 
@@ -2738,6 +2779,8 @@ test('T86 a Stroke colour that stops parsing holds Send and stays open when focu
     await setControl(page, '__raven-stroke__', 'input[aria-label="Stroke color"]', 'notacolour', ['input']);
     await expectHeldInvalid(page, '.raven-grab-style-editor input[aria-label="Stroke color"]', 'the Stroke editor holds Send');
     assert.equal(await blurOut(page, '__raven-stroke__'), true, 'losing focus does not commit and drop the value');
+    await enterHolds(page, '__raven-stroke__', 'input[aria-label="Stroke color"]');
+    await enterHolds(page, '__raven-stroke__', 'input[aria-label="Stroke color"]', 'input[type="color"]');
     assert.equal(grabBodies.length, 0);
   }, { html });
 });
@@ -2780,6 +2823,7 @@ test('T88 a typed colour that is not a colour holds Send', async (t) => {
     const held = await sendButton(page);
     assert.deepEqual([held.disabled, held.label], [true, 'Fix the value being edited']);
     assert.equal((await fieldInvalid(page, 'color')).invalid, 'true');
+    await enterHolds(page, 'color', '.raven-grab-style-input');
     await typeNumber(page, 'color', 'red');
     assert.equal(await sendButton(page).then((b) => b.disabled), false, 'a real colour clears the hold');
     assert.equal((await fieldInvalid(page, 'color')).invalid, null);

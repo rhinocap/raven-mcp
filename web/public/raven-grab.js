@@ -1366,8 +1366,7 @@
       font: 400 calc(11px * var(--raven-grab-font-scale))/1.4 var(--raven-grab-mono);
     }
     .raven-grab-style-input:focus { box-shadow: 0 0 0 3px rgba(0, 191, 255, .15); }
-    .raven-grab-style-input[aria-invalid="true"], .raven-grab-box-input[aria-invalid="true"], .raven-grab-radius-field input[aria-invalid="true"] { border-color: var(--raven-grab-warning); }
-    .raven-grab-style-input[aria-invalid="true"]:focus { box-shadow: 0 0 0 3px rgba(255, 92, 92, .15); }
+    .raven-grab-style-input[aria-invalid="true"], .raven-grab-box-input[aria-invalid="true"], .raven-grab-radius-field input[aria-invalid="true"] { border-color: var(--raven-grab-warning); background: rgba(255, 92, 92, .12); box-shadow: 0 0 0 2px var(--raven-grab-warning); }
     .raven-grab-style-editor { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; width: 100%; }
     /* A one-line field opens inside its row: 32px tall, but it takes only the
        value's 18px of layout, so the row and every row below stay where they are. */
@@ -8575,14 +8574,14 @@
     // It takes Enter and Escape like the other controls.
     colorInput.addEventListener("keydown", function (event) {
       if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); cancel(); }
-      else if (event.key === "Enter") { event.preventDefault(); commit(); }
+      else if (event.key === "Enter") { event.preventDefault(); if (!holdInvalidOnEnter()) commit(); }
     });
     var controls = [widthInput, widthUnit, styleSelect, colorText, colorFormat, insideButton, outsideButton]
       .concat(STROKE_SIDES.concat(["all"]).map(function (name) { return sideButtons[name]; }));
     controls.forEach(function (control) {
       control.addEventListener("keydown", function (event) {
         if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); cancel(); }
-        else if (event.key === "Enter") { event.preventDefault(); commit(); }
+        else if (event.key === "Enter") { event.preventDefault(); if (!holdInvalidOnEnter()) commit(); }
       });
       control.addEventListener("blur", function (event) {
         if (event.relatedTarget && typeof editor.contains === "function" && editor.contains(event.relatedTarget)) return;
@@ -8748,7 +8747,7 @@
       control.addEventListener("blur", handleBlur);
       control.addEventListener("keydown", function (event) {
         if (event.key === "Escape") { event.preventDefault(); cancel(); }
-        else if (event.key === "Enter") { event.preventDefault(); commit(); }
+        else if (event.key === "Enter") { event.preventDefault(); if (!holdInvalidOnEnter()) commit(); }
       });
     });
     var previewPickedColor = function () {
@@ -8763,7 +8762,7 @@
     // blur commit, because opening the colour panel blurs it.
     colorInput.addEventListener("keydown", function (event) {
       if (event.key === "Escape") { event.preventDefault(); cancel(); }
-      else if (event.key === "Enter") { event.preventDefault(); commit(); }
+      else if (event.key === "Enter") { event.preventDefault(); if (!holdInvalidOnEnter()) commit(); }
     });
     colorText.addEventListener("input", preview);
     registerOpenStyleEditor(editor, commit);
@@ -9024,7 +9023,7 @@
       control.addEventListener("blur", handleBlur);
       control.addEventListener("keydown", function (event) {
         if (event.key === "Escape") { event.preventDefault(); cancel(); }
-        else if (event.key === "Enter") { event.preventDefault(); commit(); }
+        else if (event.key === "Enter") { event.preventDefault(); if (!holdInvalidOnEnter()) commit(); }
       });
     });
     var previewPickedColor = function () {
@@ -9041,7 +9040,7 @@
     // blur commit, because opening the colour panel blurs it.
     colorInput.addEventListener("keydown", function (event) {
       if (event.key === "Escape") { event.preventDefault(); cancel(); }
-      else if (event.key === "Enter") { event.preventDefault(); commit(); }
+      else if (event.key === "Enter") { event.preventDefault(); if (!holdInvalidOnEnter()) commit(); }
     });
     syncPresetButtons(activePresetId);
     registerOpenStyleEditor(editor, commit);
@@ -9381,12 +9380,12 @@
         return;
       }
       if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); cancel(); }
-      else if (event.key === "Enter") { event.preventDefault(); commit(); }
+      else if (event.key === "Enter") { event.preventDefault(); if (!holdInvalidOnEnter()) commit(); }
     });
     [modeSelect, unitSelect].forEach(function (control) {
       control.addEventListener("keydown", function (event) {
         if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); cancel(); }
-        else if (event.key === "Enter") { event.preventDefault(); commit(); }
+        else if (event.key === "Enter") { event.preventDefault(); if (!holdInvalidOnEnter()) commit(); }
       });
       control.addEventListener("blur", function (event) {
         if (event.relatedTarget && typeof editor.contains === "function" && editor.contains(event.relatedTarget)) return;
@@ -10410,7 +10409,7 @@
         }
       } else if (event.key === "Enter") {
         event.preventDefault();
-        commit();
+        if (!holdInvalidOnEnter()) commit();
       } else if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
@@ -10427,7 +10426,7 @@
     function handleControlKey(event) {
       if (event.key === "Enter") {
         event.preventDefault();
-        commit();
+        if (!holdInvalidOnEnter()) commit();
       } else if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
@@ -10871,6 +10870,7 @@
       if (event.key === "Enter") {
         event.preventDefault();
         event.stopPropagation();
+        if (holdInvalidOnEnter()) return;
         commit();
         boxFocusCell(property);
       } else if (event.key === "Escape") {
@@ -11083,7 +11083,7 @@
       inputs.push(input);
       input.addEventListener("input", preview);
       input.addEventListener("keydown", function (event) {
-        if (event.key === "Enter") { event.preventDefault(); commit(); }
+        if (event.key === "Enter") { event.preventDefault(); if (!holdInvalidOnEnter()) commit(); }
         else if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); cancel(); }
       });
       input.addEventListener("blur", function (event) {
@@ -13267,6 +13267,15 @@
   }
   function styleEditorHoldsInvalid() {
     return !!styleEditorInvalidField();
+  }
+  // Enter on a field that does not parse keeps the editor open with the field
+  // focused, like blur does, instead of closing it on the old value.
+  function holdInvalidOnEnter() {
+    var field = styleEditorInvalidField();
+    if (!field) return false;
+    if (typeof field.focus === "function") field.focus();
+    syncSendEnabledInPlace();
+    return true;
   }
   // Marks the field Send and Add to queue are waiting on.
   var invalidFieldShown = null;
