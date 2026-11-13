@@ -1366,6 +1366,8 @@
       font: 400 calc(11px * var(--raven-grab-font-scale))/1.4 var(--raven-grab-mono);
     }
     .raven-grab-style-input:focus { box-shadow: 0 0 0 3px rgba(0, 191, 255, .15); }
+    .raven-grab-style-input[aria-invalid="true"], .raven-grab-box-input[aria-invalid="true"], .raven-grab-radius-field input[aria-invalid="true"] { border-color: var(--raven-grab-warning); }
+    .raven-grab-style-input[aria-invalid="true"]:focus { box-shadow: 0 0 0 3px rgba(255, 92, 92, .15); }
     .raven-grab-style-editor { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; width: 100%; }
     /* A one-line field opens inside its row: 32px tall, but it takes only the
        value's 18px of layout, so the row and every row below stay where they are. */
@@ -4793,6 +4795,7 @@
   // constant rather than by literal text: a reworded reason must not silently
   // become maskable.
   var QUEUE_NEEDS_WORK = "Change a style or write an instruction first";
+  var HELD_INVALID_TEXT = "Fix the value being edited";
   var QUEUE_ADDED_NOTICE = "Added to queue — change a style or write an instruction to add another";
   var queueNotice = "";
 
@@ -4802,6 +4805,7 @@
   function queueDraftBlocker() {
     if (!selectedElement) return "Select an element first";
     if (attachmentDraft.some(function (attachment) { return attachment.state === "uploading"; })) return "Wait for the upload to finish";
+    if (styleEditorHoldsInvalid()) return HELD_INVALID_TEXT;
     if (!Object.keys(styleEdits).length && !Object.keys(stateStyleEdits).length && !Object.keys(tokenIntents).length && !textEdit && !instructionDraft.trim() && !attachmentDraft.some(function (attachment) { return attachment.state === "ready"; }) && !styleEditorHoldsChange()) {
       return QUEUE_NEEDS_WORK;
     }
@@ -7310,10 +7314,17 @@
   // it opened with, and a rebase of the drafts writes that preview again.
   // heldEdit names the property the editor records and the value it holds, so
   // Send and the Pending summary can count that value before it is recorded.
-  function holdStylePreview(commit, held, repreview, heldEdit) {
+  function holdStylePreview(commit, held, repreview, heldEdit, invalidField) {
     commit.holdsChange = held;
     commit.repreview = repreview;
     commit.heldEdit = heldEdit;
+    commit.invalidField = invalidField;
+  }
+  // A field holding text the editor cannot use, or null. CSS.supports is the
+  // test for values the editor writes without parsing them.
+  function unsupportedStyleText(property, text) {
+    if (!text || !window.CSS || typeof window.CSS.supports !== "function") return false;
+    return !window.CSS.supports(property, text);
   }
   function wireStyleEditorOutsidePress() {
     if (linkedDismissWired || typeof window === "undefined" || typeof window.addEventListener !== "function") return;
@@ -7344,9 +7355,12 @@
     };
     // Send closes the open editor itself, on the click. A commit made between
     // the press and the release replaces the Send button, and the click is lost.
+    // Add to queue waits on a field that does not parse, so a press on it leaves
+    // the field open to fix.
     var onSend = function (path) {
+      var invalid = styleEditorHoldsInvalid();
       for (var i = 0; i < path.length; i += 1) {
-        if (path[i] && typeof path[i].hasAttribute === "function" && path[i].hasAttribute("data-send-batch")) return true;
+        if (path[i] && typeof path[i].hasAttribute === "function" && (path[i].hasAttribute("data-send-batch") || (invalid && path[i].hasAttribute("data-queue-draft")))) return true;
       }
       return false;
     };
@@ -7379,6 +7393,13 @@
       panelRenderSkipped = false;
       window.setTimeout(function () {
         if (editorOpen() !== target.open) return;
+        // A field that does not parse stays open to fix; the press does not drop it.
+        if (styleEditorHoldsInvalid()) {
+          var invalidField = styleEditorInvalidField();
+          if (invalidField && typeof invalidField.focus === "function") invalidField.focus();
+          syncSendEnabledInPlace();
+          return;
+        }
         openStyleEditor = null;
         target.open.commit();
         // The pressed control's handler asked for a render while the editor was
@@ -8419,9 +8440,9 @@
       if (finished || editorTarget !== selectedElement || editor.isConnected === false) return false;
       dirty = true;
       var nextModel = readModel();
-      if (!nextModel) { markError(); return false; }
+      if (!nextModel) { markError(); syncSendEnabledInPlace(); return false; }
       var committed = commitStrokeEdit(nextModel, previousModel, openState);
-      if (!committed) { markError(); return false; }
+      if (!committed) { markError(); syncSendEnabledInPlace(); return false; }
       syncControls(committed);
       row.setAttribute("data-edited", "true");
       row.removeAttribute("data-error");
@@ -8565,12 +8586,18 @@
       });
       control.addEventListener("blur", function (event) {
         if (event.relatedTarget && typeof editor.contains === "function" && editor.contains(event.relatedTarget)) return;
+        if (styleEditorHoldsInvalid()) return; // a field that does not parse stays open to fix
         commit();
       });
     });
     updatePositionButtons();
     updateSideButtons();
     registerOpenStyleEditor(editor, commit);
+    commit.invalidField = function () {
+      if (finished || !dirty || editorTarget !== selectedElement || editor.isConnected === false) return null;
+      if (!parseNumericExpression(widthInput.value.trim(), widthUnit.value || "px", units)) return widthInput;
+      return unsupportedStyleText("color", normalizeColorEntry(colorText.value, model.color, colorFormat.value)) ? colorText : null;
+    };
     widthInput.focus();
     widthInput.select();
     return true;
@@ -8707,6 +8734,7 @@
 
     function handleBlur(event) {
       if (event.relatedTarget && typeof editor.contains === "function" && editor.contains(event.relatedTarget)) return;
+      if (styleEditorHoldsInvalid()) return; // a field that does not parse stays open to fix
       commit();
     }
 
@@ -8745,6 +8773,11 @@
       return held != null && held !== previousValue;
     }, function () { if (!finished && previewed) preview(); }, function () {
       return { property: property, value: readValue() };
+    }, function () {
+      if (finished || editorTarget !== selectedElement) return null;
+      var color = colorText.value.trim();
+      if (!color || color.toLowerCase() === "currentcolor") return null;
+      return unsupportedStyleText("color", normalizeColorEntry(color, model.color, colorFormat.value === "rgb" ? "rgb" : "hex")) ? colorText : null;
     });
     lineSelect.focus();
     return true;
@@ -8951,6 +8984,7 @@
 
     function handleBlur(event) {
       if (event.relatedTarget && typeof editor.contains === "function" && editor.contains(event.relatedTarget)) return;
+      if (styleEditorHoldsInvalid()) return; // a field that does not parse stays open to fix
       commit();
     }
 
@@ -9017,6 +9051,16 @@
       return held != null && held !== previousValue;
     }, function () { if (!finished && previewed) preview(presetValue); }, function () {
       return { property: property, value: presetValue != null ? presetValue : readValue() };
+    }, function () {
+      if (finished || editorTarget !== selectedElement || presetValue != null || activePresetId === "none") return null;
+      var fields = [xField, yField, blurField, spreadField];
+      for (var i = 0; i < fields.length; i += 1) {
+        var text = fields[i].input.value.trim();
+        if (text && !isFinite(Number(text))) return fields[i].input;
+      }
+      if (Number(blurField.input.value.trim()) < 0) return blurField.input; // a blur radius is never negative
+      var color = colorText.value.trim();
+      return color && unsupportedStyleText("color", normalizeColorEntry(color, model.color, colorFormat.value)) ? colorText : null;
     });
     xField.input.focus();
     xField.input.select();
@@ -9346,11 +9390,13 @@
       });
       control.addEventListener("blur", function (event) {
         if (event.relatedTarget && typeof editor.contains === "function" && editor.contains(event.relatedTarget)) return;
+        if (styleEditorHoldsInvalid()) return; // a field that does not parse stays open to fix
         commit();
       });
     });
     numberInput.addEventListener("blur", function (event) {
       if (event.relatedTarget && typeof editor.contains === "function" && editor.contains(event.relatedTarget)) return;
+      if (styleEditorHoldsInvalid()) return; // a field that does not parse stays open to fix
       commit();
     });
     syncFixedEnabled();
@@ -9361,6 +9407,9 @@
       return held != null && held !== previousValue && !emptiedFixed();
     }, function () { if (!finished && previewed) preview(); }, function () {
       return { property: property, value: readValue() };
+    }, function () {
+      if (finished || editorTarget !== selectedElement || currentSizeMode() !== "fixed") return null;
+      return numberInput.value.trim() && readValue() === null ? numberInput : null;
     });
     if (currentSizeMode() === "fixed") {
       numberInput.focus();
@@ -9739,7 +9788,7 @@
     // number typed or stepped. Unit changes convert from that anchor, so px, %,
     // em and back to px shows 26 again instead of 25.99.
     var lastPreviewValue = null;
-    var heldChangeShown = "false:0";
+    var heldChangeShown = "false:0:false";
     var currentUnit = "";
     var unitAnchor = null;
     var unitChoices = null;   // the unit select's options, when the row has one
@@ -10148,10 +10197,21 @@
       if (editorTarget !== selectedElement || input.isConnected === false) return false;
       return lastPreviewValue !== previousValue;
     }
+    // A field that does not parse. Committing it records nothing, so Send and
+    // Add to queue wait for it to be fixed instead of dropping it.
+    function holdsInvalid() {
+      if (finished || editor.getAttribute("data-token-linked") === "true") return false;
+      if (editorTarget !== selectedElement || input.isConnected === false) return false;
+      var value = readValue();
+      if (value === null) return true;
+      // Colour entry passes text it does not recognise through unchanged.
+      return control === "color" && unsupportedStyleText("color", value);
+    }
     // The count can move without the hold changing (a re-edit typed back to the
     // page's value records one row fewer), so the label follows both.
     function syncHeldChange() {
-      var held = holdsChange() + ":" + heldRowDelta();
+      var invalid = holdsInvalid();
+      var held = holdsChange() + ":" + heldRowDelta() + ":" + invalid;
       if (held === heldChangeShown) return;
       heldChangeShown = held;
       syncSendEnabledInPlace();
@@ -10326,6 +10386,7 @@
       previewValue(lastPreviewValue);
     };
     commit.holdsChange = holdsChange;
+    commit.invalidField = function () { return holdsInvalid() ? input : null; };
     // An unparseable or emptied field records nothing, so it is not counted.
     commit.heldEdit = function () {
       var current = readValue();
@@ -10358,6 +10419,7 @@
     });
     function handleBlur(event) {
       if (relatedInternal.indexOf(event.relatedTarget) !== -1) return;
+      if (styleEditorHoldsInvalid()) return; // a field that does not parse stays open to fix
       commit();
     }
     // Enter and Escape on the editor's other controls: the unit select, the
@@ -10798,6 +10860,11 @@
       // boxCommit records nothing for the value the field opened with, however spelled.
       var value = boxValueFromEntry(cell, input.value);
       return { property: property, value: value && value !== openRaw ? value : null };
+    }, function () {
+      if (finished || target !== selectedElement || input.isConnected === false) return null;
+      if (!input.value.trim()) return null;
+      var entry = boxValueFromEntry(cell, input.value);
+      return !entry || unsupportedStyleText(property, entry) ? input : null;
     });
     input.addEventListener("keydown", function (event) {
       if (event.isComposing) return;
@@ -10822,7 +10889,10 @@
       }
     });
     input.addEventListener("input", previewEntry);
-    input.addEventListener("blur", function () { commit(); });
+    input.addEventListener("blur", function () {
+      if (styleEditorHoldsInvalid()) return; // a field that does not parse stays open to fix
+      commit();
+    });
     return true;
   }
 
@@ -11018,6 +11088,7 @@
       });
       input.addEventListener("blur", function (event) {
         if (inputs.indexOf(event.relatedTarget) !== -1) return;
+        if (styleEditorHoldsInvalid()) return; // a field that does not parse stays open to fix
         commit();
       });
     });
@@ -11042,6 +11113,12 @@
       return !!held && held !== previousValue;
     }, function () { if (!finished && previewed) preview(); }, function () {
       return { property: "border-radius", value: composeBorderRadius(readCorners()) };
+    }, function () {
+      if (finished || editorTarget !== selectedElement || editor.getAttribute("data-token-linked") === "true") return null;
+      for (var i = 0; i < inputs.length; i += 1) {
+        if (unsupportedStyleText("border-top-left-radius", inputs[i].value.trim())) return inputs[i];
+      }
+      return null;
     });
     return true;
   }
@@ -13158,7 +13235,7 @@
       // The queued send flushes the open editor first, so the held value is counted.
       // A held value that undoes the only next edit leaves nothing to send next.
       var nextShown = shownPendingCount();
-      if (nextCount && nextShown) return { state: "applying-with-next", label: sendQueued ? "Applying " + activeCount + " · " + nextShown + " queued" : "Applying " + activeCount + " · send " + nextShown + " next", enabled: !sendQueued, count: nextCount };
+      if (nextCount && nextShown && !styleEditorHoldsInvalid()) return { state: "applying-with-next", label: sendQueued ? "Applying " + activeCount + " · " + nextShown + " queued" : "Applying " + activeCount + " · send " + nextShown + " next", enabled: !sendQueued, count: nextCount };
       return { state: "applying", label: "Applying " + activeCount + (activeCount === 1 ? " change…" : " changes…"), enabled: false, count: activeCount };
     }
     if (dispatchState === "done") {
@@ -13177,9 +13254,27 @@
     // Send closes the open editor first, which records the value it holds, so the
     // label counts that value and one press sends what it says.
     var shownCount = shownPendingCount();
+    if (styleEditorHoldsInvalid()) return { state: "held-invalid", label: HELD_INVALID_TEXT, enabled: false, count: nextCount };
     if (hasDispatchableDrafts()) return { state: "pending", label: shownCount ? "Send " + shownCount + (shownCount === 1 ? " change" : " changes") : "Send to agent", enabled: true, count: nextCount };
     if (styleEditorHoldsChange()) return { state: "idle", label: shownCount ? "Send " + shownCount + (shownCount === 1 ? " change" : " changes") : "Send to agent", enabled: true, count: 0 };
     return { state: "idle", label: "Send to agent", enabled: false, count: 0 };
+  }
+
+  // The open editor's field that does not parse, or null.
+  function styleEditorInvalidField() {
+    if (!activeStyleEditorFlush || typeof activeStyleEditorFlush.invalidField !== "function") return null;
+    return activeStyleEditorFlush.invalidField() || null;
+  }
+  function styleEditorHoldsInvalid() {
+    return !!styleEditorInvalidField();
+  }
+  // Marks the field Send and Add to queue are waiting on.
+  var invalidFieldShown = null;
+  function syncInvalidField() {
+    var field = styleEditorInvalidField();
+    if (invalidFieldShown && invalidFieldShown !== field) invalidFieldShown.removeAttribute("aria-invalid");
+    if (field) field.setAttribute("aria-invalid", "true");
+    invalidFieldShown = field;
   }
 
   // An open editor showing a value other than the one its row opened with.
@@ -13241,6 +13336,7 @@
   function syncSendEnabledInPlace() {
     // "Add to queue" counts a held value as work, so it follows the same changes.
     syncQueueButton();
+    syncInvalidField();
     if (!globalActions) return;
     var button = globalActions.querySelector("[data-send-batch]");
     if (!button) return;
@@ -13379,7 +13475,8 @@
   function pendingTraySummary(role) {
     var delta = heldRowDelta();
     var editing = delta > 0 ? "1 being edited" : (delta < 0 ? -delta + " undone by this edit" : "");
-    if (role === "empty") return delta > 0 ? editing : "None yet";
+    if (styleEditorHoldsInvalid()) editing = "edited value not valid";
+    if (role === "empty") return editing ? editing.charAt(0).toUpperCase() + editing.slice(1) : "None yet";
     return pendingLogicalCount() + " pending" + (editing ? " · " + editing : "");
   }
 
@@ -14153,6 +14250,8 @@
     }
     // The copy edit is already staged via live input; exit edit mode cleanly (keeps the staged
     // textEdit) so the sent element carries no lingering contenteditable/spellcheck attributes.
+    // Committing an unparseable field records nothing; wait for it to be fixed.
+    if (styleEditorHoldsInvalid()) { syncSendEnabledInPlace(); return; }
     if (textEditingElement) teardownTextEditing(textEditingElement);
     if (activeStyleEditorFlush) activeStyleEditorFlush();
     capturePanelDrafts();
@@ -17469,6 +17568,8 @@
     // fires no click at all (the "had to click Send twice" bug). Keep focus for any focused field;
     // dispatchPendingBatch flushes the style editor, tears down copy editing, and captures drafts itself.
     if (event.target.closest("[data-send-batch]")) { event.preventDefault(); return; }
+    // Add to queue waits on a field that does not parse; keep it focused to fix.
+    if (event.target.closest("[data-queue-draft]") && styleEditorHoldsInvalid()) { event.preventDefault(); return; }
     var styleLabel = event.target.closest("[data-style-label]");
     if (styleLabel && beginStyleScrub(styleLabel, event)) return;
     var row = event.target.closest("[data-layer-id], [data-template-layer-id]");

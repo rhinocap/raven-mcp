@@ -2384,7 +2384,7 @@ test('T66 a re-edit typed back to the page value counts one change fewer', async
   });
 });
 
-test('T67 a held value that stops parsing drops out of the count', async (t) => {
+test('T67 a held value that stops parsing holds Send until it is fixed', async (t) => {
   await run(t, async (page) => {
     await selectElement(page, '#copy');
     await openRow(page, 'line-height');
@@ -2395,8 +2395,108 @@ test('T67 a held value that stops parsing drops out of the count', async (t) => 
     await typeNumber(page, 'font-size', '20');
     assert.equal(await sendButton(page).then((b) => b.label), 'Send 2 changes');
     await typeNumber(page, 'font-size', 'abc');
-    assert.equal(await sendButton(page).then((b) => b.label), 'Send 1 change', 'Send records nothing for an unparseable field');
-    assert.equal(await traySummary(page), '1 pending');
+    const held = await sendButton(page);
+    assert.deepEqual([held.disabled, held.label], [true, 'Fix the value being edited'], 'Send waits instead of dropping the field');
+    assert.equal(await traySummary(page), '1 pending · edited value not valid');
+  });
+});
+
+function fieldInvalid(page, property) {
+  return shadowEval(page, (root, sel) => {
+    const input = root.querySelector(sel + ' .raven-grab-style-input');
+    return input ? { invalid: input.getAttribute('aria-invalid'), border: getComputedStyle(input).borderTopColor, focused: root.activeElement === input } : null;
+  }, ROW(property));
+}
+
+test('T73 an unparseable held value warns on the field, the tray and Send, and fixing it clears all three', async (t) => {
+  await run(t, async (page) => {
+    await selectElement(page, '#copy');
+    await openRow(page, 'font-size');
+    await typeNumber(page, 'font-size', '20');
+    assert.equal((await fieldInvalid(page, 'font-size')).invalid, null);
+    await typeNumber(page, 'font-size', '20pxx');
+    const field = await fieldInvalid(page, 'font-size');
+    assert.equal(field.invalid, 'true');
+    assert.equal(field.border, 'rgb(255, 92, 92)', 'the field border takes the warning colour');
+    const held = await sendButton(page);
+    assert.deepEqual([held.disabled, held.label], [true, 'Fix the value being edited']);
+    assert.equal(await traySummary(page), 'Edited value not valid');
+    await typeNumber(page, 'font-size', '22');
+    assert.equal((await fieldInvalid(page, 'font-size')).invalid, null);
+    const fixed = await sendButton(page);
+    assert.deepEqual([fixed.disabled, fixed.label], [false, 'Send 1 change']);
+    assert.equal(await traySummary(page), '1 being edited');
+  });
+});
+
+test('T74 Add to queue waits on an unparseable held value and keeps the editor open', async (t) => {
+  await run(t, async (page) => {
+    await selectElement(page, '#copy');
+    await openRow(page, 'line-height');
+    await typeNumber(page, 'line-height', '28');
+    await page.keyboard.press('Enter');
+    await waitEditorClosed(page, 'line-height');
+    await openRow(page, 'font-size');
+    await typeNumber(page, 'font-size', '20');
+    await typeNumber(page, 'font-size', 'abc');
+    const queue = await queueButton(page);
+    assert.equal(queue.disabled, true);
+    assert.match(queue.status + ' ' + (await shadowEval(page, (root) => root.querySelector('[data-queue-draft]').getAttribute('title'))), /Fix the value being edited/);
+    await page.mouse.click(queue.x, queue.y);
+    assert.equal(await editorOpen(page, 'font-size'), true, 'the press leaves the field open to fix');
+    assert.equal((await fieldInvalid(page, 'font-size')).focused, true, 'the field keeps focus to be fixed');
+    assert.equal(await traySummary(page), '1 pending · edited value not valid', 'nothing was banked');
+  });
+});
+
+test('T77 a touch on Add to queue leaves an unparseable field open', async (t) => {
+  await run(t, async (page) => {
+    await selectElement(page, '#copy');
+    await openRow(page, 'font-size');
+    await typeNumber(page, 'font-size', '20');
+    await typeNumber(page, 'font-size', 'abc');
+    await touchOn(page, '[data-queue-draft]', [{ type: 'pointerdown' }, { type: 'pointerup' }]);
+    await page.waitForTimeout(50);
+    assert.equal(await editorOpen(page, 'font-size'), true, 'the touch does not commit the field');
+  });
+});
+
+test('T78 a re-edit that stops parsing holds Send', async (t) => {
+  await run(t, async (page) => {
+    await selectElement(page, '#copy');
+    await openRow(page, 'line-height');
+    await typeNumber(page, 'line-height', '28');
+    await page.keyboard.press('Enter');
+    await waitEditorClosed(page, 'line-height');
+    await openRow(page, 'line-height');
+    await typeNumber(page, 'line-height', '30');
+    assert.equal(await sendButton(page).then((b) => b.label), 'Send 1 change');
+    await typeNumber(page, 'line-height', 'abc');
+    const held = await sendButton(page);
+    assert.deepEqual([held.disabled, held.label], [true, 'Fix the value being edited']);
+  });
+});
+
+test('T75 a Send dispatched while the held value does not parse sends nothing and keeps the field', async (t) => {
+  await run(t, async (page, { grabBodies }) => {
+    await selectElement(page, '#copy');
+    await openRow(page, 'line-height');
+    await typeNumber(page, 'line-height', '28');
+    await page.keyboard.press('Enter');
+    await waitEditorClosed(page, 'line-height');
+    await openRow(page, 'font-size');
+    await typeNumber(page, 'font-size', '20');
+    await typeNumber(page, 'font-size', 'abc');
+    // A forced click: the disabled button is the first guard, the dispatch the second.
+    await shadowEval(page, (root) => {
+      const button = root.querySelector('[data-send-batch]');
+      button.disabled = false;
+      button.click();
+    });
+    await page.waitForTimeout(150);
+    assert.equal(grabBodies.length, 0, 'nothing was sent');
+    assert.equal(await editorOpen(page, 'font-size'), true, 'the field is still open to fix');
+    assert.equal(await sendButton(page).then((b) => b.label), 'Fix the value being edited');
   });
 });
 
@@ -2441,6 +2541,28 @@ test('T70 while a batch applies, "send N next" counts the value an open field ho
   }, { html, expose: ['finishActiveDispatch', 'SEND_TIMINGS'] });
 });
 
+test('T76 while a batch applies, an unparseable held value offers nothing to send next', async (t) => {
+  await run(t, async (page, { grabBodies }) => {
+    await selectElement(page, '#copy');
+    await openRow(page, 'line-height');
+    await typeNumber(page, 'line-height', '28');
+    await page.keyboard.press('Enter');
+    await waitEditorClosed(page, 'line-height');
+    await sendBatch(page);
+    assert.equal(grabBodies.length, 1);
+    await openRow(page, 'font-size');
+    await typeNumber(page, 'font-size', '20');
+    await page.keyboard.press('Enter');
+    await waitEditorClosed(page, 'font-size');
+    await openRow(page, 'line-height');
+    await typeNumber(page, 'line-height', '30');
+    assert.equal(await sendButton(page).then((b) => b.label), 'Applying 1 · send 2 next');
+    await typeNumber(page, 'line-height', 'abc');
+    const held = await sendButton(page);
+    assert.deepEqual([held.disabled, held.label], [true, 'Applying 1 change…'], 'the next send waits for the field');
+  }, { expose: ['finishActiveDispatch', 'SEND_TIMINGS'] });
+});
+
 test('T71 a held shorthand over uneven sides is counted against the sides the page had', async (t) => {
   const html = await fixtureWith(PAD_STILL + '\n  #pad { padding: 10px 20px 30px 40px; }');
   await run(t, async (page) => {
@@ -2471,4 +2593,195 @@ test('T72 while a batch applies, the tray and Send count the held value, and a h
     assert.equal(await traySummary(page), '1 active · 0 next');
     assert.equal(await sendButton(page).then((b) => b.label), 'Applying 1 change…');
   }, { html, expose: ['finishActiveDispatch', 'SEND_TIMINGS'] });
+});
+
+// --- An unparseable value in each structured editor holds Send ---------------
+
+function invalidAt(page, selector) {
+  return shadowEval(page, (root, sel) => {
+    const node = root.querySelector(sel);
+    return node ? node.getAttribute('aria-invalid') : 'missing';
+  }, selector);
+}
+
+function borderAt(page, selector) {
+  return shadowEval(page, (root, sel) => getComputedStyle(root.querySelector(sel)).borderTopColor, selector);
+}
+
+// Focus leaves the editor for nothing (relatedTarget null), as when the window loses focus.
+async function blurOut(page, property) {
+  await shadowEval(page, (root) => { if (root.activeElement) root.activeElement.blur(); return true; });
+  await page.waitForTimeout(50);
+  return editorOpen(page, property);
+}
+
+async function expectHeldInvalid(page, selector, message) {
+  const held = await sendButton(page);
+  assert.deepEqual([held.disabled, held.label], [true, 'Fix the value being edited'], message);
+  assert.equal(await invalidAt(page, selector), 'true', 'the field that does not parse is marked');
+  assert.equal(await borderAt(page, selector), 'rgb(255, 92, 92)', 'the marked field shows the warning border');
+}
+
+test('T79 a size field that stops parsing holds Send', async (t) => {
+  await run(t, async (page) => {
+    await selectElement(page, '#item-a');
+    await openRow(page, 'width');
+    await setControl(page, 'width', 'input[aria-label="width value"]', '320', ['input']);
+    assert.equal(await sendButton(page).then((b) => b.label), 'Send 1 change');
+    await setControl(page, 'width', 'input[aria-label="width value"]', 'abc', ['input']);
+    await expectHeldInvalid(page, 'input[aria-label="width value"]', 'the size editor holds Send');
+    assert.equal(await blurOut(page, 'width'), true, 'losing focus does not commit and drop the value');
+    assert.equal(await focusControl(page, 'width', 'select'), true);
+    assert.equal(await blurOut(page, 'width'), true, 'focus leaving from the unit select keeps the field too');
+  });
+});
+
+test('T80 a box-model field that stops parsing holds Send and stays open on Tab', async (t) => {
+  const html = await fixtureWith(PAD_STILL);
+  await run(t, async (page) => {
+    await selectElement(page, '#pad');
+    await openBoxField(page, 'padding-top');
+    await typeBoxField(page, 'padding-top', '20');
+    assert.equal(await sendButton(page).then((b) => b.label), 'Send 1 change');
+    await typeBoxField(page, 'padding-top', 'abc');
+    await expectHeldInvalid(page, '[data-box-input="padding-top"]', 'the box field holds Send');
+    await page.keyboard.press('Tab');
+    await page.waitForTimeout(50);
+    assert.equal(await boxFieldOpen(page, 'padding-top'), true, 'Tab does not commit the field');
+  }, { html });
+});
+
+test('T81 Tab away from an unparseable field keeps it open and Add to queue blocked', async (t) => {
+  await run(t, async (page) => {
+    await selectElement(page, '#copy');
+    await openRow(page, 'font-size');
+    await typeNumber(page, 'font-size', '20');
+    await typeNumber(page, 'font-size', 'abc');
+    await page.keyboard.press('Tab');
+    await page.waitForTimeout(50);
+    assert.equal(await editorOpen(page, 'font-size'), true, 'Tab does not commit and drop the value');
+    assert.equal(await blurOut(page, 'font-size'), true, 'focus leaving the editor does not commit and drop the value');
+    assert.equal((await fieldInvalid(page, 'font-size')).invalid, 'true');
+    assert.equal(await queueButton(page).then((b) => b.disabled), true);
+    assert.equal(await traySummary(page), 'Edited value not valid');
+  });
+});
+
+test('T82 a field that never parsed, with nothing pending, holds Send', async (t) => {
+  await run(t, async (page) => {
+    await selectElement(page, '#copy');
+    await openRow(page, 'font-size');
+    await typeNumber(page, 'font-size', 'abc');
+    const held = await sendButton(page);
+    assert.deepEqual([held.disabled, held.label], [true, 'Fix the value being edited'], 'Send and the tray agree');
+    assert.equal(await traySummary(page), 'Edited value not valid');
+  });
+});
+
+test('T83 a box-shadow blur that stops parsing holds Send', async (t) => {
+  await run(t, async (page) => {
+    await selectElement(page, '#item-a');
+    await openRow(page, 'box-shadow');
+    const preset = await shadowEval(page, (root) => {
+      const button = root.querySelector('.raven-grab-style-editor[data-control="box-shadow"] [data-shadow-preset="medium"]');
+      button.scrollIntoView({ block: 'center' });
+      const rect = button.getBoundingClientRect();
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    });
+    await page.mouse.click(preset.x, preset.y);
+    assert.equal(await sendButton(page).then((b) => b.label), 'Send 1 change');
+    const blur = '.raven-grab-style-editor[data-control="box-shadow"] input[aria-label="Box shadow blur"]';
+    await setControl(page, 'box-shadow', 'input[aria-label="Box shadow blur"]', 'abc', ['input']);
+    await expectHeldInvalid(page, blur, 'a blur that is not a number holds Send');
+    assert.equal(await blurOut(page, 'box-shadow'), true, 'losing focus does not commit and drop the value');
+    await setControl(page, 'box-shadow', 'input[aria-label="Box shadow blur"]', '-1', ['input']);
+    await expectHeldInvalid(page, blur, 'a negative blur holds Send');
+    await setControl(page, 'box-shadow', 'input[aria-label="Box shadow blur"]', '4', ['input']);
+    assert.equal(await sendButton(page).then((b) => b.label), 'Send 1 change');
+    assert.equal(await invalidAt(page, blur), null);
+    const colour = '.raven-grab-style-editor[data-control="box-shadow"] input.raven-grab-style-input[type="text"]:not([aria-label])';
+    await setControl(page, 'box-shadow', 'input.raven-grab-style-input[type="text"]:not([aria-label])', 'notacolour', ['input']);
+    await expectHeldInvalid(page, colour, 'a shadow colour that does not parse holds Send');
+  });
+});
+
+test('T84 a corner radius that stops parsing holds Send', async (t) => {
+  const html = await fixtureWith('  #item-a { border-radius: 4px; }');
+  await run(t, async (page) => {
+    await selectElement(page, '#item-a');
+    await openRadiusCorners(page);
+    await setControl(page, 'border-radius', 'input[data-radius-corner="top-left"]', '12px', ['input']);
+    assert.equal(await sendButton(page).then((b) => b.label), 'Send 1 change');
+    await setControl(page, 'border-radius', 'input[data-radius-corner="top-left"]', '12qq', ['input']);
+    await expectHeldInvalid(page, 'input[data-radius-corner="top-left"]', 'the radius editor holds Send');
+    assert.equal(await blurOut(page, 'border-radius'), true, 'losing focus does not commit and drop the value');
+  }, { html });
+});
+
+test('T85 a text-decoration colour that stops parsing holds Send', async (t) => {
+  await run(t, async (page) => {
+    await selectElement(page, '#swatch');
+    await openRow(page, 'text-decoration');
+    await setControl(page, 'text-decoration', 'select[aria-label="Text decoration line"]', 'overline', ['input', 'change']);
+    assert.equal(await sendButton(page).then((b) => b.label), 'Send 1 change');
+    await setControl(page, 'text-decoration', 'input[aria-label="Text decoration color value"]', 'notacolour', ['input']);
+    await expectHeldInvalid(page, 'input[aria-label="Text decoration color value"]', 'the colour holds Send');
+    assert.equal(await blurOut(page, 'text-decoration'), true, 'losing focus does not commit and drop the value');
+  });
+});
+
+test('T86 a Stroke colour that stops parsing holds Send and stays open when focus leaves', async (t) => {
+  const html = await fixtureWith('  #swatch { border: 2px solid #000000; }');
+  await run(t, async (page, { grabBodies }) => {
+    await selectElement(page, '#swatch');
+    await openRow(page, '__raven-stroke__');
+    await setControl(page, '__raven-stroke__', 'input[aria-label="Stroke color"]', 'notacolour', ['input']);
+    await expectHeldInvalid(page, '.raven-grab-style-editor input[aria-label="Stroke color"]', 'the Stroke editor holds Send');
+    assert.equal(await blurOut(page, '__raven-stroke__'), true, 'losing focus does not commit and drop the value');
+    assert.equal(grabBodies.length, 0);
+  }, { html });
+});
+
+test('T87 a press outside the editor leaves an unparseable field open, generic and structured', async (t) => {
+  const html = await fixtureWith('  #item-a { border-radius: 4px; }');
+  await run(t, async (page, { grabBodies }) => {
+    await selectElement(page, '#copy');
+    await openRow(page, 'font-size');
+    await typeNumber(page, 'font-size', 'abc');
+    await pressPanelTitle(page);
+    await page.waitForTimeout(50);
+    assert.equal(await editorOpen(page, 'font-size'), true, 'a panel press does not drop the field');
+    assert.equal((await fieldInvalid(page, 'font-size')).focused, true, 'focus returns to the field to fix');
+    // A press on the page selects something else: like Escape, it abandons the field.
+    await page.keyboard.press('Escape');
+    await waitEditorClosed(page, 'font-size');
+    assert.equal(await traySummary(page), 'None yet', 'nothing was recorded');
+
+    await selectElement(page, '#item-a');
+    await openRadiusCorners(page);
+    await setControl(page, 'border-radius', 'input[data-radius-corner="top-left"]', '12qq', ['input']);
+    await pressPanelTitle(page);
+    await page.waitForTimeout(50);
+    assert.equal(await invalidAt(page, 'input[data-radius-corner="top-left"]'), 'true', 'the corner is still open and marked');
+    assert.equal(grabBodies.length, 0);
+  }, { html });
+});
+
+test('T88 a typed colour that is not a colour holds Send', async (t) => {
+  await run(t, async (page) => {
+    await selectElement(page, '#copy');
+    await openRow(page, 'font-size');
+    await typeNumber(page, 'font-size', '20');
+    await page.keyboard.press('Enter');
+    await waitEditorClosed(page, 'font-size');
+    await selectElement(page, '#swatch');
+    await openRow(page, 'color');
+    await typeNumber(page, 'color', 'notacolour');
+    const held = await sendButton(page);
+    assert.deepEqual([held.disabled, held.label], [true, 'Fix the value being edited']);
+    assert.equal((await fieldInvalid(page, 'color')).invalid, 'true');
+    await typeNumber(page, 'color', 'red');
+    assert.equal(await sendButton(page).then((b) => b.disabled), false, 'a real colour clears the hold');
+    assert.equal((await fieldInvalid(page, 'color')).invalid, null);
+  });
 });

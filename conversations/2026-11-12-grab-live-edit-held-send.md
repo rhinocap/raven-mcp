@@ -17,8 +17,17 @@ While an editor holds an unrecorded value, Send read "Send to agent" and the tra
 - design-judge on the rendered panel: PASS. Screenshot: scratchpad `held-send.png`.
 - `test/grab-motion-static.test.mjs:157` flaked 2/11 runs (reads the pending label before the next playground loads); unrelated to this change.
 
+## Follow-up: invalid held value (Andrew: "the second one ther should be some kind of warning")
+- Accepted by Andrew, no change: a value held while a batch applies with nothing next does not enable Send.
+- Fixed: a field that does not parse marks itself `aria-invalid` with the warning border. The tray reads "Edited value not valid", and Send is disabled and reads "Fix the value being edited". Add to queue is blocked, and dispatch refuses to flush. Blur and a press in the panel leave the field open; the press returns focus to the field.
+- Covers the generic editor (number, colour) and every structured editor: size, box field, shadow (numbers, negative blur, colour), corner radius, text decoration, Stroke.
+- Accepted:
+  - `calc()`/`var()` in a numeric field is flagged. The number control never recorded these; before this change they were dropped silently.
+  - A press on the page that selects another element abandons the field, like Escape. Nothing is recorded.
+- Tests: T67 updated; T73–T88 added. Every guard was mutation-killed (26 mutants plus the border CSS). Full suite: 2,253 tests, 2,250 pass, 0 fail, 3 skipped.
+- Sol: round 1 2×P2 + 1×P3 fixed; round 2 2×P2 fixed, 1×P2 accepted (calc/var above).
+- Sol round 3 (cap): 1×P2 open. Enter on a field that does not parse closes the editor and restores the old value without a message (radius named; every editor does this, and T34/T34b assert it). Needs Andrew's call: keep, or make Enter keep the field open like blur.
+
 ## Open
-- Send stays disabled for a value held while a batch applies with nothing next.
-- An invalid held value still enables Send (count excludes it).
 - Andrew: full-size look via `npm run grab:dev grab-live-edit.html`, plus the four pointer checks from the handoff.
 - Push/PR need approval; merging to main deploys `mcp.ravenmcp.ai` and needs separate approval.
