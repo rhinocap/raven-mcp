@@ -1366,6 +1366,7 @@
       font: 400 calc(11px * var(--raven-grab-font-scale))/1.4 var(--raven-grab-mono);
     }
     .raven-grab-style-input:focus { box-shadow: 0 0 0 3px rgba(0, 191, 255, .15); }
+    .raven-grab-style-input[aria-invalid="true"], .raven-grab-box-input[aria-invalid="true"], .raven-grab-radius-field input[aria-invalid="true"] { border-color: var(--raven-grab-warning); background: rgba(255, 92, 92, .12); box-shadow: 0 0 0 2px var(--raven-grab-warning); }
     .raven-grab-style-editor { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; width: 100%; }
     /* A one-line field opens inside its row: 32px tall, but it takes only the
        value's 18px of layout, so the row and every row below stay where they are. */
@@ -1431,6 +1432,7 @@
     }
     .raven-grab-easing { display: grid; gap: 8px; width: 100%; min-width: 0; }
     .raven-grab-easing-canvas { width: 100%; aspect-ratio: 240 / 96; background: rgba(255, 255, 255, .03); border: 1px solid rgba(255, 255, 255, .1); border-radius: 8px; touch-action: none; }
+    .raven-grab-easing-canvas[data-hidden="true"] { display: none; }
     .raven-grab-easing-track { stroke: rgba(255, 255, 255, .16); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
     .raven-grab-easing-arm { stroke: rgba(0, 191, 255, .35); stroke-width: 1; vector-effect: non-scaling-stroke; }
     .raven-grab-easing-curve { fill: none; stroke: var(--raven-grab-accent); stroke-width: 2; vector-effect: non-scaling-stroke; }
@@ -4792,6 +4794,7 @@
   // constant rather than by literal text: a reworded reason must not silently
   // become maskable.
   var QUEUE_NEEDS_WORK = "Change a style or write an instruction first";
+  var HELD_INVALID_TEXT = "Fix the value being edited";
   var QUEUE_ADDED_NOTICE = "Added to queue — change a style or write an instruction to add another";
   var queueNotice = "";
 
@@ -4801,7 +4804,8 @@
   function queueDraftBlocker() {
     if (!selectedElement) return "Select an element first";
     if (attachmentDraft.some(function (attachment) { return attachment.state === "uploading"; })) return "Wait for the upload to finish";
-    if (!Object.keys(styleEdits).length && !Object.keys(stateStyleEdits).length && !Object.keys(tokenIntents).length && !textEdit && !instructionDraft.trim() && !attachmentDraft.some(function (attachment) { return attachment.state === "ready"; })) {
+    if (styleEditorHoldsInvalid()) return HELD_INVALID_TEXT;
+    if (!Object.keys(styleEdits).length && !Object.keys(stateStyleEdits).length && !Object.keys(tokenIntents).length && !textEdit && !instructionDraft.trim() && !attachmentDraft.some(function (attachment) { return attachment.state === "ready"; }) && !styleEditorHoldsChange()) {
       return QUEUE_NEEDS_WORK;
     }
     // The bank is a STASH, and the very next sweep DROPS a stashed draft whose
@@ -4967,7 +4971,10 @@
     entries.forEach(function (entry) {
       if (!entry || !entry.element) return;
       if (entry.value) entry.element.style.setProperty(property, entry.value, entry.priority);
-      else entry.element.style.removeProperty(property);
+      else {
+        entry.element.style.removeProperty(property);
+        restoreInlineLonghands(entry);
+      }
     });
   }
 
@@ -5194,6 +5201,34 @@
     return currentSelection && currentSelection.styles ? (currentSelection.styles[property] || "") : "";
   }
 
+  // An inline shorthand reads "" when its longhands differ in priority
+  // (padding-top !important beside three plain sides). Record the longhands
+  // that are set, so a restore writes them back; "" alone removes all of them.
+  function captureInlineLonghands(element, property) {
+    var style = element && element.style;
+    if (!style || typeof style.length !== "number" || typeof document.createElement !== "function") return null;
+    var probe = document.createElement("div");
+    if (!probe.style || typeof probe.style.setProperty !== "function") return null;
+    probe.style.setProperty(property, "initial");
+    if (typeof probe.style.length !== "number") return null;
+    var found = [];
+    for (var i = 0; i < probe.style.length; i += 1) {
+      var name = probe.style[i];
+      if (!name || name === property) continue;
+      var value = style.getPropertyValue(name);
+      if (value) found.push({ name: name, value: value, priority: style.getPropertyPriority(name) });
+    }
+    return found.length ? found : null;
+  }
+
+  // Puts back the longhands captureInlineLonghands recorded, after the shorthand
+  // that replaced them has been removed.
+  function restoreInlineLonghands(entry) {
+    (entry.longhands || []).forEach(function (longhand) {
+      entry.element.style.setProperty(longhand.name, longhand.value, longhand.priority);
+    });
+  }
+
   function captureStyleOriginals(property, targets) {
     // Append, never early-return: a member shift-selected AFTER the first
     // preview of this property must still get its original captured, or
@@ -5211,10 +5246,12 @@
     targets.forEach(function (element) {
       var already = captured.some(function (entry) { return entry && entry.element === element; });
       if (already) return;
+      var inlineValue = element.style.getPropertyValue(property);
       captured.push({
         element: element,
-        value: element.style.getPropertyValue(property),
+        value: inlineValue,
         priority: element.style.getPropertyPriority(property),
+        longhands: inlineValue ? null : captureInlineLonghands(element, property),
         // Clean computed captured BEFORE the first write — the only baseline that
         // stays correct even if currentSelection.styles is re-snapshotted mid-preview
         // (rebase / re-select paths). Read via capturedOriginalComputed().
@@ -5301,7 +5338,13 @@
     siblings.forEach(function (element) {
       var alreadyCaptured = captured.some(function (entry) { return entry.element === element; });
       if (!alreadyCaptured) {
-        captured.push({ element: element, value: element.style.getPropertyValue(property), priority: element.style.getPropertyPriority(property) });
+        var inlineValue = element.style.getPropertyValue(property);
+        captured.push({
+          element: element,
+          value: inlineValue,
+          priority: element.style.getPropertyPriority(property),
+          longhands: inlineValue ? null : captureInlineLonghands(element, property)
+        });
       }
       element.style.setProperty(property, newValue);
     });
@@ -5317,7 +5360,10 @@
   function restoreStyleScopeSiblingOriginalEntries(property, originals) {
     (originals || []).forEach(function (entry) {
       if (entry.value) entry.element.style.setProperty(property, entry.value, entry.priority);
-      else entry.element.style.removeProperty(property);
+      else {
+        entry.element.style.removeProperty(property);
+        restoreInlineLonghands(entry);
+      }
     });
   }
 
@@ -5325,7 +5371,10 @@
     Object.keys(originalStore || {}).reverse().forEach(function (property) {
       (originalStore[property] || []).forEach(function (entry) {
         if (entry.value) entry.element.style.setProperty(property, entry.value, entry.priority);
-        else entry.element.style.removeProperty(property);
+        else {
+          entry.element.style.removeProperty(property);
+          restoreInlineLonghands(entry);
+        }
       });
       delete originalStore[property];
     });
@@ -5339,6 +5388,14 @@
     if (editScope !== "component" || styleEditScopeSiblingsTarget !== selectedElement) return;
     (styleEditScopeSiblingsOriginal[property] || []).forEach(function (entry) {
       entry.element.style.setProperty(property, value);
+    });
+  }
+
+  // The same write with no check on who owns the session: for the path that
+  // puts a recorded value back after the primary was removed.
+  function setStyleOnCapturedScopeSiblingEntries(property, value) {
+    (styleEditScopeSiblingsOriginal[property] || []).forEach(function (entry) {
+      if (entry && entry.element && entry.element.isConnected !== false) entry.element.style.setProperty(property, value);
     });
   }
 
@@ -5578,7 +5635,11 @@
   }
 
   function commitStyleEdit(property, newValue, currentValue, tokenMeta) {
+    var primary = selectedElement;
     var targets = styleApplicationTargets();
+    // As in previewStyleEdit: reading the targets promotes another layer when
+    // the page removed the primary. The edit belonged to the removed one.
+    if (selectedElement !== primary) return false;
     if (!targets.length || newValue === currentValue) return false;
     if (!styleValueSupported(property, newValue)) return false;
     styleEditTarget = selectedElement;
@@ -5607,6 +5668,13 @@
     var replacedSides = BOX_SHORTHANDS.indexOf(property) !== -1
       ? BOX_SIDES.filter(function (side) { return !!styleEdits[property + "-" + side]; })
       : [];
+    if (replacedSides.length && !styleEdits[property] && styleEditOriginalInline[property]) {
+      // A preview of a shorthand that has no edit yet was captured over the side
+      // edits. Undo it before the untouched sides are read, or they read the
+      // previewed value and the edit is sent with a wrong original.
+      restoreStyleEdit(property);
+      delete styleEditOriginalInline[property];
+    }
     if (replacedSides.length && !styleEdits[property]) {
       // The shorthand row shows the sides' live values; its true original is the
       // sides' saved originals plus the untouched sides as computed.
@@ -5618,13 +5686,7 @@
     if (replacedSides.length) {
       // Put the page back to before the sides were edited, so the shorthand's
       // saved original is clean and no side keeps a stale original that a later
-      // cancel would write back. A preview of a shorthand that has no edit yet
-      // was captured over the side edits, so undo it first; then the sides,
-      // newest first.
-      if (!styleEdits[property] && styleEditOriginalInline[property]) {
-        restoreStyleEdit(property);
-        delete styleEditOriginalInline[property];
-      }
+      // cancel would write back. Newest first.
       Object.keys(styleEdits).filter(function (key) {
         return replacedSides.some(function (side) { return key === property + "-" + side; });
       }).reverse().forEach(function (key) {
@@ -5658,7 +5720,11 @@
   }
 
   function previewStyleEdit(property, newValue) {
+    var primary = selectedElement;
     var targets = styleApplicationTargets();
+    // Reading the targets prunes a primary the page removed and promotes another
+    // layer. The editor that asked belongs to the removed one: write nothing.
+    if (selectedElement !== primary) return false;
     if (!targets.length) return false;
     if (window.CSS && typeof window.CSS.supports === "function" && !window.CSS.supports(property, newValue)) return false;
     styleEditTarget = selectedElement;
@@ -6621,6 +6687,8 @@
 
   function cancelStyleEdit(input, previousValue) {
     if (input && input.parentNode) replaceStyleInput(input, previousValue);
+    // The editor no longer holds a value, so Send goes back to what is recorded.
+    syncSendEnabledInPlace();
   }
 
   // Figma-inspector-style typed editing: numbers get a number field (unit fixed),
@@ -6684,6 +6752,343 @@
   // (px is the default assumption, but a "cm"/"pt"/whatever value keeps its own).
   var STYLE_UNIT_OPTIONS = ["px", "pt", "rem", "em", "%", "vw", "vh", "ch", "cm", "mm", "in"];
 
+  // --- Unit conversion ------------------------------------------------------
+  // Changing only the unit of a number rewrites the number so the rendered value
+  // stays the same: 26px on 18px text reads 144.44 after choosing %. Every helper
+  // returns null when it cannot answer, and the caller refuses the unit change.
+
+  // Decimals kept when a converted number is shown. Two for the units a browser
+  // rounds coarsely anyway, three for the font-relative and large absolute ones,
+  // where a third decimal still moves the rendered value.
+  function styleUnitDecimals(unit) {
+    var coarse = { px: 1, "%": 1, vw: 1, vh: 1, pt: 1, mm: 1, ms: 1 };
+    return coarse[String(unit || "").toLowerCase()] === 1 ? 2 : 3;
+  }
+
+  function formatConvertedStyleNumber(number, unit) {
+    var text = Number(number).toFixed(styleUnitDecimals(unit));
+    if (text.indexOf(".") !== -1) text = text.replace(/\.?0+$/, "");
+    if (text === "-0") text = "0";
+    return text;
+  }
+
+  // Turns the element's transitions off and returns a restore(). It saves the
+  // transition-property LONGHAND: reading the `transition` shorthand returns ""
+  // when only some longhands are set inline (transition-duration alone), and
+  // restoring that empty value deletes them.
+  function suppressStyleTransitions(element) {
+    var savedValue = "";
+    var savedPriority = "";
+    var restored = false;
+    try {
+      savedValue = element.style.getPropertyValue("transition-property");
+      savedPriority = element.style.getPropertyPriority("transition-property");
+      element.style.setProperty("transition-property", "none", "important");
+    } catch (error) { restored = true; }
+    return function restore() {
+      if (restored) return;
+      restored = true;
+      try {
+        if (savedValue !== "") element.style.setProperty("transition-property", savedValue, savedPriority);
+        else element.style.removeProperty("transition-property");
+      } catch (error) {}
+    };
+  }
+
+  // Px length of 100% of `property` on the element, or null. Only longhands
+  // whose computed value is the used value can be measured. A single-value
+  // padding or margin row is measured through its -left longhand: every side of
+  // a percentage padding or margin resolves against the same width.
+  var STYLE_PERCENT_MEASURABLE = {
+    "width": 1, "height": 1,
+    "padding-top": 1, "padding-right": 1, "padding-bottom": 1, "padding-left": 1,
+    "margin-top": 1, "margin-right": 1, "margin-bottom": 1, "margin-left": 1,
+    "top": 1, "right": 1, "bottom": 1, "left": 1
+  };
+  function measureStylePercentBase(element, property) {
+    if (!element || !element.style || typeof getComputedStyle !== "function") return null;
+    var longhand = property;
+    if (property === "padding") longhand = "padding-left";
+    else if (property === "margin") longhand = "margin-left";
+    if (STYLE_PERCENT_MEASURABLE[longhand] !== 1) return null;
+    var savedCssText = null;
+    var restoreTransitions = null;
+    var measured = null;
+    try {
+      savedCssText = element.style.cssText;
+      var savedValue = element.style.getPropertyValue(longhand);
+      var savedPriority = element.style.getPropertyPriority(longhand);
+      restoreTransitions = suppressStyleTransitions(element);
+      element.style.setProperty(longhand, "100%", "important");
+      var reading = getComputedStyle(element).getPropertyValue(longhand).trim();
+      if (savedValue !== "") element.style.setProperty(longhand, savedValue, savedPriority);
+      else element.style.removeProperty(longhand);
+      // Read again so the restored value is committed while transitions are off.
+      getComputedStyle(element).getPropertyValue(longhand);
+      if (/^-?[\d.]+px$/.test(reading)) measured = parseFloat(reading);
+    } catch (error) {
+      measured = null;
+    }
+    if (restoreTransitions) restoreTransitions();
+    // setProperty and removeProperty can reorder or expand the inline style, so
+    // put the exact saved text back when it differs.
+    try {
+      if (savedCssText !== null && element.style.cssText !== savedCssText) element.style.cssText = savedCssText;
+    } catch (error) {}
+    if (measured === null || !isFinite(measured) || measured <= 0) return null;
+    return measured;
+  }
+
+  // Px width of 1ch in the element's font. The probe is a hidden 100ch span in
+  // the overlay's shadow root, so nothing is written to the page.
+  function styleChPx(element, fontSizePx) {
+    var span = null;
+    var width = null;
+    try {
+      var computed = getComputedStyle(element);
+      span = document.createElement("span");
+      span.style.position = "absolute";
+      span.style.visibility = "hidden";
+      span.style.pointerEvents = "none";
+      span.style.padding = "0";
+      span.style.border = "0";
+      span.style.boxSizing = "content-box";
+      span.style.fontFamily = computed.fontFamily;
+      span.style.fontWeight = computed.fontWeight;
+      span.style.fontStyle = computed.fontStyle;
+      span.style.fontStretch = computed.fontStretch;
+      span.style.fontSize = typeof fontSizePx === "number" ? fontSizePx + "px" : computed.fontSize;
+      span.style.width = "100ch";
+      shadow.appendChild(span);
+      width = span.getBoundingClientRect().width;
+    } catch (error) { width = null; }
+    try { if (span && span.parentNode) span.parentNode.removeChild(span); } catch (error) {}
+    if (typeof width !== "number" || !isFinite(width) || width <= 0) return null;
+    return width / 100;
+  }
+
+  // The font-size a hover or focus row's em, ch, unitless and font-relative %
+  // values resolve against: the state's own font-size when it sets one in px (an
+  // edit made in this session first, then its declaration), otherwise the
+  // resting font-size. A state font-size in any other unit has no answer.
+  function stateRowFontSizePx(state) {
+    try {
+      var text = null;
+      // The size a `font` shorthand sets, read through a detached element's
+      // style. "" when the shorthand has none to read (a var(), a system font).
+      function sizeInFontShorthand(value) {
+        var probe = document.createElement("span");
+        probe.style.font = String(value || "");
+        return String(probe.style.fontSize || "").trim();
+      }
+      // Session edits reach the page in key order, each !important, so the
+      // later of `font-size` and `font` is the one that sets the size.
+      var sizeKey = stateStyleEditKey(state, "font-size");
+      var shorthandKey = stateStyleEditKey(state, "font");
+      Object.keys(stateStyleEdits).forEach(function (key) {
+        var record = stateStyleEdits[key];
+        if (!record || record.newValue == null) return;
+        if (key === sizeKey) text = String(record.newValue).trim();
+        else if (key === shorthandKey) text = sizeInFontShorthand(record.newValue) || "unknown";
+      });
+      var stateStyle = currentSelection && currentSelection.stateStyles ? currentSelection.stateStyles[state] : null;
+      if (text === null && stateStyle && stateStyle.declarations) {
+        var shorthandText = null;
+        for (var i = 0; i < stateStyle.declarations.length; i++) {
+          var declared = stateStyle.declarations[i];
+          if (!declared) continue;
+          if (declared.property === "font-size") {
+            text = String(declared.value || "").trim();
+            break;
+          }
+          // The state rule's `font` shorthand sets the size too. A shorthand
+          // whose size cannot be read gives no base, so em and % are refused.
+          if (declared.property === "font") shorthandText = sizeInFontShorthand(declared.value) || "unknown";
+        }
+        if (text === null) text = shorthandText;
+      }
+      if (text === null || text === "") text = computedStyleValueForElement(selectedElement, "font-size");
+      if (!/^-?[\d.]+px$/.test(text)) return null;
+      var parsed = parseFloat(text);
+      return isFinite(parsed) && parsed > 0 ? parsed : null;
+    } catch (error) { return null; }
+  }
+
+  // True when a hover or focus rule, or an edit to that state made in this
+  // session, sets the font face. 1ch is then the width of a glyph the resting
+  // element does not show, and it cannot be measured.
+  function stateRowFontFaceChanged(state) {
+    var facePattern = /^font(-family|-weight|-style|-stretch|-variant(-[a-z-]+)?|-size-adjust|-feature-settings|-variation-settings|-kerning|-optical-sizing|-synthesis(-[a-z-]+)?)?$/;
+    try {
+      var prefix = stateStyleEditKey(state, "");
+      var editKeys = Object.keys(stateStyleEdits);
+      for (var k = 0; k < editKeys.length; k++) {
+        if (editKeys[k].indexOf(prefix) === 0 && facePattern.test(editKeys[k].slice(prefix.length))) return true;
+      }
+      var stateStyle = currentSelection && currentSelection.stateStyles ? currentSelection.stateStyles[state] : null;
+      var declarations = stateStyle && stateStyle.declarations ? stateStyle.declarations : [];
+      for (var i = 0; i < declarations.length; i++) {
+        if (declarations[i] && facePattern.test(String(declarations[i].property || ""))) return true;
+      }
+      return false;
+    } catch (error) { return true; }
+  }
+
+  // Px length of one `unit` of `property` on the element (ms for a time unit),
+  // or null. `stateContext` is null for a resting row and
+  // { fontSizePx, fontFaceChanged } for a hover or focus row, where the element
+  // is not in that state and nothing can be measured.
+  var STYLE_ABSOLUTE_UNIT_PX = { px: 1, pt: 96 / 72, "in": 96, cm: 96 / 2.54, mm: 96 / 25.4, pc: 16, q: 96 / 101.6 };
+  function styleUnitPx(element, property, unit, stateContext) {
+    var u = String(unit || "").toLowerCase();
+    var result = null;
+    function fontSizeOf(target) {
+      var parsed = parseFloat(computedStyleValueForElement(target, "font-size"));
+      return isFinite(parsed) ? parsed : null;
+    }
+    function elementFontSize() {
+      if (stateContext) return typeof stateContext.fontSizePx === "number" ? stateContext.fontSizePx : null;
+      return fontSizeOf(element);
+    }
+    function parentFontSize() {
+      return element && element.parentElement ? fontSizeOf(element.parentElement) : null;
+    }
+    try {
+      if (u === "ms" || u === "s") {
+        if (!isTimeProperty(property)) return null;
+        return u === "ms" ? 1 : 1000;
+      }
+      if (isTimeProperty(property)) return null;
+      if (Object.prototype.hasOwnProperty.call(STYLE_ABSOLUTE_UNIT_PX, u)) return STYLE_ABSOLUTE_UNIT_PX[u];
+      if (u === "rem") result = fontSizeOf(document.documentElement);
+      else if (u === "vw") result = window.innerWidth / 100;
+      else if (u === "vh") result = window.innerHeight / 100;
+      else if (u === "em") result = property === "font-size" ? parentFontSize() : elementFontSize();
+      else if (u === "ch") {
+        // In font-size itself ch is the parent's, as em is. Elsewhere, a state
+        // row whose font-size has no px answer refuses, as em does.
+        if (property === "font-size") result = element && element.parentElement ? styleChPx(element.parentElement, null) : null;
+        else if (!stateContext) result = styleChPx(element, null);
+        else if (typeof stateContext.fontSizePx === "number" && !stateContext.fontFaceChanged) result = styleChPx(element, stateContext.fontSizePx);
+      }
+      else if (u === "") result = property === "line-height" ? elementFontSize() : null;
+      else if (u === "%") {
+        if (property === "line-height" || property === "letter-spacing" || property === "word-spacing") {
+          result = elementFontSize();
+          if (result !== null) result = result / 100;
+        } else if (property === "font-size") {
+          result = parentFontSize();
+          if (result !== null) result = result / 100;
+        } else if (!stateContext) {
+          result = measureStylePercentBase(element, property);
+          if (result !== null) result = result / 100;
+        }
+      }
+    } catch (error) { result = null; }
+    if (typeof result !== "number" || !isFinite(result) || result <= 0) return null;
+    return result;
+  }
+
+  // --- A unit change, shared by the generic, Size and Stroke editors --------
+
+  // The number a field shows after its unit changes, and the unrounded px (ms
+  // for a time) it stands for. The anchor argument is that px from an earlier change in
+  // the same session, or null to work it out from the number. Null when a unit
+  // has no base here.
+  function convertStyleUnitNumber(element, property, number, fromUnit, toUnit, anchor, stateContext) {
+    // 0 is 0 in every unit; nothing is measured.
+    if (number === 0 && (anchor === null || anchor === 0)) return { number: "0", anchor: 0 };
+    if (anchor === null) {
+      var fromFactor = styleUnitPx(element, property, fromUnit, stateContext);
+      if (fromFactor === null) return null;
+      anchor = number * fromFactor;
+    }
+    var toFactor = styleUnitPx(element, property, toUnit, stateContext);
+    if (toFactor === null || !isFinite(anchor / toFactor)) return null;
+    var converted = formatConvertedStyleNumber(anchor / toFactor, toUnit);
+    // A value too small for the unit's decimals would read 0. Refuse rather
+    // than turn a value that is not zero into none.
+    if (anchor !== 0 && Number(converted) === 0) return null;
+    return { number: converted, anchor: anchor };
+  }
+
+  // Whether the property computes to the same px after a unit change as before
+  // it. apply() puts the converted value on the element and answers whether it
+  // took. undo() takes it off again: after a refusal, or every time when the
+  // value was only being tried (trial). Both computed reads sit inside one
+  // transition suppression: a before read outside it can be a transition
+  // midpoint from the number just typed, which would refuse a correct
+  // conversion. A value that is not px on both sides (normal, auto, a
+  // percentage) is accepted on the arithmetic.
+  function styleUnitChangeHolds(element, property, apply, undo, trial) {
+    var restoreTransitions = suppressStyleTransitions(element);
+    var applied = false;
+    var accepted = false;
+    try {
+      var before = computedStyleValueForElement(element, property);
+      applied = apply();
+      accepted = applied;
+      var after = computedStyleValueForElement(element, property);
+      if (accepted && /^-?[\d.]+px$/.test(before) && /^-?[\d.]+px$/.test(after) &&
+          Math.abs(parseFloat(after) - parseFloat(before)) > Math.max(0.5, 0.01 * Math.abs(parseFloat(before)))) {
+        accepted = false;
+      }
+    } catch (error) {
+      accepted = false;
+    }
+    try {
+      if (applied && (trial || !accepted)) {
+        undo();
+        // Read once more so the value put back is committed while transitions are off.
+        computedStyleValueForElement(element, property);
+      }
+    } catch (error) {
+      accepted = false;
+    }
+    restoreTransitions();
+    return accepted;
+  }
+
+  // The same check for an editor whose preview is more than one write (Size,
+  // Stroke): the converted value is written on the element as a preview would
+  // write it, read, and taken off, and the inline style ends as it began.
+  // Nothing is recorded. The editor previews only after this answers true.
+  function styleUnitTrialHolds(element, property, value) {
+    if (!styleValueSupported(property, value)) return false;
+    var style = element.style;
+    var saved = null;
+    return styleUnitChangeHolds(element, property, function () {
+      saved = { text: style.cssText, value: style.getPropertyValue(property), priority: style.getPropertyPriority(property) };
+      style.setProperty(property, value);
+      return true;
+    }, function () {
+      if (saved.value) style.setProperty(property, saved.value, saved.priority);
+      else style.removeProperty(property);
+      if (style.cssText !== saved.text) style.cssText = saved.text;
+    }, true);
+  }
+
+  // The select goes back to the unit it had; the number and the page stay as
+  // they were, and the status line says why.
+  function refuseStyleUnitChange(numberInput, unitSelect, label, shownValue, fromUnit, toUnit) {
+    unitSelect.value = fromUnit;
+    numberInput.focus();
+    var message = "Can't keep " + shownValue + " when switching " + label + " to " + (toUnit || "unitless") + " here";
+    // Deferred: this runs inside the select's change event, and the panel's
+    // own change handler re-renders the status line when the event reaches it.
+    window.setTimeout(function () { setGlobalActionStatus(message, "error"); }, 0);
+  }
+
+  // A unit typed into the number field that the unit select offers moves the
+  // select to it. The number is used as typed; nothing is converted. This is
+  // the way round a refused unit change: typing 30% into a px field applies 30%.
+  function adoptTypedStyleUnit(text, unitSelect, unitChoices) {
+    var expression = parseNumericExpression(String(text || "").trim(), unitSelect.value, unitChoices);
+    if (!expression || expression.unit === unitSelect.value) return false;
+    unitSelect.value = expression.unit;
+    return unitSelect.value === expression.unit;
+  }
+
   // Single-value number+unit only (e.g. "16px", "1.4", "0.9", "0px"). Compound
   // values like "8px 16px" return null so they don't masquerade as a number field.
   function parseNumericValue(value) {
@@ -6692,7 +7097,10 @@
     return { number: match[1], unit: match[2] || "" };
   }
 
-  function parseNumericExpression(value, defaultUnit) {
+  // unitChoices is the unit select's option list. With it, a typed unit is
+  // accepted when the list holds it, whatever the select shows now; the caller
+  // moves the select. Without it, a typed unit must be the default one.
+  function parseNumericExpression(value, defaultUnit, unitChoices) {
     // Accept "1,5" as a decimal separator — normalize digit,digit to digit.digit.
     var text = String(value || "").replace(/(\d),(\d)/g, "$1.$2");
     var index = 0;
@@ -6717,7 +7125,14 @@
         var unit = unitMatch[0];
         index += unit.length;
         if (explicitUnit && explicitUnit.toLowerCase() !== unit.toLowerCase()) invalid = true;
-        if (defaultUnit && defaultUnit.toLowerCase() !== unit.toLowerCase()) invalid = true;
+        if (unitChoices) {
+          var offered = null;
+          for (var choiceIndex = 0; choiceIndex < unitChoices.length; choiceIndex += 1) {
+            if (unitChoices[choiceIndex] && unitChoices[choiceIndex].toLowerCase() === unit.toLowerCase()) offered = unitChoices[choiceIndex];
+          }
+          if (offered === null) invalid = true;
+          else unit = offered;
+        } else if (defaultUnit && defaultUnit.toLowerCase() !== unit.toLowerCase()) invalid = true;
         explicitUnit = explicitUnit || unit;
       }
       return Number(match[0]);
@@ -6780,8 +7195,8 @@
     return String(Math.round(number * 1000000000000) / 1000000000000);
   }
 
-  function steppedNumericValue(value, delta, defaultUnit, minPrecision) {
-    var parsed = parseNumericExpression(value, defaultUnit);
+  function steppedNumericValue(value, delta, defaultUnit, minPrecision, unitChoices) {
+    var parsed = parseNumericExpression(value, defaultUnit, unitChoices);
     if (!parsed) return null;
     var next = parsed.number + delta;
     if (!isFinite(next)) return null;
@@ -6873,6 +7288,151 @@
   // so Escape and focus leaving the editor close it here, without writing a style.
   var linkedDismiss = null;
   var linkedDismissWired = false;
+  // The style editor that is open now. A press outside it commits it. Picks no
+  // longer commit, and a native colour panel can close with focus on nothing,
+  // so no blur would arrive to commit the preview.
+  var openStyleEditor = null;
+  // renderPanel() returned early for an open editor since the last press outside one.
+  var panelRenderSkipped = false;
+  function registerOpenStyleEditor(editor, commit) {
+    activeStyleEditorFlush = commit;
+    // The row (a box-model field's cell) counts as part of the editor.
+    openStyleEditor = { editor: editor, row: editor.parentNode || null, commit: commit };
+    wireStyleEditorOutsidePress();
+  }
+  // A tap, and a press the outside-press listener holds until its release,
+  // deliver their click before the commit that press deferred. A panel action
+  // that reads or replaces the style draft commits the open editor first, so
+  // it acts on the value the page shows and is the later of the two choices.
+  function commitOpenStyleEditorFirst() {
+    if (activeStyleEditorFlush) activeStyleEditorFlush();
+  }
+
+  // Gives a structured editor's commit the two hooks the generic editor's has.
+  // Send is enabled while the editor shows a previewed value other than the one
+  // it opened with, and a rebase of the drafts writes that preview again.
+  // heldEdit names the property the editor records and the value it holds, so
+  // Send and the Pending summary can count that value before it is recorded.
+  function holdStylePreview(commit, held, repreview, heldEdit, invalidField) {
+    commit.holdsChange = held;
+    commit.repreview = repreview;
+    commit.heldEdit = heldEdit;
+    commit.invalidField = invalidField;
+  }
+  // A field holding text the editor cannot use, or null. CSS.supports is the
+  // test for values the editor writes without parsing them.
+  function unsupportedStyleText(property, text) {
+    if (!text || !window.CSS || typeof window.CSS.supports !== "function") return false;
+    return !window.CSS.supports(property, text);
+  }
+  function wireStyleEditorOutsidePress() {
+    if (linkedDismissWired || typeof window === "undefined" || typeof window.addEventListener !== "function") return;
+    linkedDismissWired = true;
+    // One listener for whichever editor is open: a press outside it closes it,
+    // whether or not the press lands on something that takes focus. A
+    // token-linked editor closes without writing; any other editor commits.
+    var linkedOpen = function () {
+      var open = linkedDismiss;
+      if (!open) return null;
+      if (open.editor.isConnected === false) { linkedDismiss = null; return null; }
+      return open.editor.getAttribute("data-token-linked") === "true" ? open : null;
+    };
+    var dismissLinked = function (open) {
+      if (linkedDismiss !== open) return;
+      linkedDismiss = null;
+      open.close();
+    };
+    // Open for as long as it is the editor a flush would commit.
+    var editorOpen = function () {
+      var open = openStyleEditor;
+      if (!open) return null;
+      if (activeStyleEditorFlush !== open.commit || open.editor.isConnected === false) { openStyleEditor = null; return null; }
+      return open.editor.getAttribute("data-token-linked") === "true" ? null : open;
+    };
+    var outside = function (path, editor, row) {
+      return path.indexOf(editor) === -1 && !(row && path.indexOf(row) !== -1);
+    };
+    // Send closes the open editor itself, on the click. A commit made between
+    // the press and the release replaces the Send button, and the click is lost.
+    // Add to queue waits on a field that does not parse, so a press on it leaves
+    // the field open to fix.
+    var onSend = function (path) {
+      var invalid = styleEditorHoldsInvalid();
+      for (var i = 0; i < path.length; i += 1) {
+        if (path[i] && typeof path[i].hasAttribute === "function" && (path[i].hasAttribute("data-send-batch") || (invalid && path[i].hasAttribute("data-queue-draft")))) return true;
+      }
+      return false;
+    };
+    // What a press closes, or null when it lands inside the open editor or its row.
+    var pressTarget = function (event) {
+      var hasPath = typeof event.composedPath === "function";
+      var path = hasPath ? event.composedPath() : [];
+      var linked = linkedOpen();
+      // The open row (its label, its value) counts as part of the field.
+      if (linked) return outside(path, linked.editor, linked.editor.parentNode) ? { linked: linked } : null;
+      var open = hasPath && !onSend(path) ? editorOpen() : null;
+      if (!open || !outside(path, open.editor, open.row)) return null;
+      // The commit rebuilds the change tray and the left dock. A press on either
+      // closes the editor once it is released, so the pressed control still gets
+      // its click.
+      var onDock = (!!globalActions && path.indexOf(globalActions) !== -1) ||
+        (!!structureActions && path.indexOf(structureActions) !== -1);
+      return { open: open, onRelease: onDock };
+    };
+    var closeTarget = function (target) {
+      if (target.linked) {
+        if (linkedOpen() === target.linked) dismissLinked(target.linked);
+        return;
+      }
+      // The commit waits until the press has been delivered. The pressed control's
+      // own handler and the blur the press causes then run first, as they did
+      // before this listener existed; a commit made here, in the capture phase,
+      // re-renders the panel and removes the control under the pointer before
+      // its handler has seen the press. commit() runs once: finished guards it.
+      panelRenderSkipped = false;
+      window.setTimeout(function () {
+        if (editorOpen() !== target.open) return;
+        // A field that does not parse stays open to fix; the press does not drop it.
+        if (styleEditorHoldsInvalid()) {
+          var invalidField = styleEditorInvalidField();
+          if (invalidField && typeof invalidField.focus === "function") invalidField.focus();
+          syncSendEnabledInPlace();
+          return;
+        }
+        openStyleEditor = null;
+        target.open.commit();
+        // The pressed control's handler asked for a render while the editor was
+        // still open (a tab switch in the mobile sheet). It runs now.
+        if (panelRenderSkipped && !activeStyleEditorFlush) renderPanel();
+      }, 0);
+    };
+    // A press that closes on release. A touch that turns into a scroll keeps
+    // the editor open, so a touch closes it only when it lifts without moving.
+    var heldPress = null;
+    window.addEventListener("pointerdown", function (event) {
+      var target = pressTarget(event);
+      if (!target) return;
+      var touch = event.pointerType === "touch";
+      if (touch || target.onRelease) {
+        heldPress = { id: event.pointerId, x: event.clientX, y: event.clientY, target: target, touch: touch };
+        return;
+      }
+      closeTarget(target);
+    }, true);
+    window.addEventListener("pointermove", function (event) {
+      if (!heldPress || !heldPress.touch || event.pointerId !== heldPress.id) return;
+      if (Math.abs(event.clientX - heldPress.x) > 10 || Math.abs(event.clientY - heldPress.y) > 10) heldPress = null;
+    }, true);
+    window.addEventListener("pointercancel", function (event) {
+      if (heldPress && event.pointerId === heldPress.id) heldPress = null;
+    }, true);
+    window.addEventListener("pointerup", function (event) {
+      if (!heldPress || event.pointerId !== heldPress.id) return;
+      var press = heldPress;
+      heldPress = null;
+      closeTarget(press.target);
+    }, true);
+  }
   function wireLinkedEditorDismiss(editor, close) {
     editor.addEventListener("keydown", function (event) {
       if (event.key !== "Escape" || event.defaultPrevented) return;
@@ -6892,51 +7452,7 @@
       close();
     });
     linkedDismiss = { editor: editor, close: close };
-    if (!linkedDismissWired && typeof window !== "undefined" && typeof window.addEventListener === "function") {
-      linkedDismissWired = true;
-      // One listener for whichever linked editor is open: a press outside it closes
-      // it, whether or not the press lands on something that takes focus.
-      var linkedOpen = function () {
-        var open = linkedDismiss;
-        if (!open) return null;
-        if (open.editor.isConnected === false) { linkedDismiss = null; return null; }
-        return open.editor.getAttribute("data-token-linked") === "true" ? open : null;
-      };
-      var dismissLinked = function (open) {
-        if (linkedDismiss !== open) return;
-        linkedDismiss = null;
-        open.close();
-      };
-      // A touch that turns into a scroll keeps the editor open, so a touch closes it
-      // only when it lifts without moving.
-      var touchPress = null;
-      window.addEventListener("pointerdown", function (event) {
-        var open = linkedOpen();
-        if (!open) return;
-        var path = typeof event.composedPath === "function" ? event.composedPath() : [];
-        // The open row (its label, its value) counts as part of the field.
-        var row = open.editor.parentNode;
-        if (path.indexOf(open.editor) !== -1 || (row && path.indexOf(row) !== -1)) return;
-        if (event.pointerType === "touch") {
-          touchPress = { id: event.pointerId, x: event.clientX, y: event.clientY, open: open };
-          return;
-        }
-        dismissLinked(open);
-      }, true);
-      window.addEventListener("pointermove", function (event) {
-        if (!touchPress || event.pointerId !== touchPress.id) return;
-        if (Math.abs(event.clientX - touchPress.x) > 10 || Math.abs(event.clientY - touchPress.y) > 10) touchPress = null;
-      }, true);
-      window.addEventListener("pointercancel", function (event) {
-        if (touchPress && event.pointerId === touchPress.id) touchPress = null;
-      }, true);
-      window.addEventListener("pointerup", function (event) {
-        if (!touchPress || event.pointerId !== touchPress.id) return;
-        var press = touchPress;
-        touchPress = null;
-        if (linkedOpen() === press.open) dismissLinked(press.open);
-      }, true);
-    }
+    wireStyleEditorOutsidePress();
     editor.addEventListener("focusout", function (event) {
       if (editor.getAttribute("data-token-linked") !== "true") return;
       var next = event.relatedTarget;
@@ -7560,8 +8076,21 @@
       property === "animation-duration" || property === "animation-delay";
   }
 
+  // The units a property's unit select offers: the ones the property accepts.
+  // border-width and outline-offset take no %, for example. Line-height also
+  // takes a bare number, the form most design systems store. A new array each
+  // call; the caller adds the current value's own unit when it is not here.
   function unitOptionsForProperty(property) {
-    return isTimeProperty(property) ? TIME_UNIT_OPTIONS : STYLE_UNIT_OPTIONS;
+    var all = isTimeProperty(property) ? TIME_UNIT_OPTIONS : STYLE_UNIT_OPTIONS;
+    var accepted = all.filter(function (unit) { return styleValueSupported(property, "1" + unit); });
+    // Nothing accepted means support could not be asked here: offer every unit.
+    if (!accepted.length) accepted = all.slice();
+    if (property === "line-height") accepted.push("");
+    return accepted;
+  }
+
+  function unitOptionLabel(unit) {
+    return unit === "" ? "unitless" : unit;
   }
 
   // Reformat a color between hex and rgb WITHOUT losing alpha (a passive
@@ -7708,7 +8237,10 @@
     widthUnit.className = "raven-grab-style-unit";
     widthUnit.setAttribute("aria-label", "Stroke width unit");
     var initialUnit = parsedWidth.unit || "px";
-    var units = STYLE_UNIT_OPTIONS.slice();
+    // The unit the number is in, and the unrounded px of the last value typed.
+    var currentUnit = initialUnit;
+    var unitAnchor = null;
+    var units = unitOptionsForProperty("border-top-width");
     if (units.indexOf(initialUnit) === -1) units.unshift(initialUnit);
     widthUnit.innerHTML = units.map(function (unit) { return optionMarkup(unit, unit, initialUnit); }).join("");
     widthUnit.value = initialUnit;
@@ -7818,8 +8350,11 @@
 
     function loadControlsFromValues(width, style, color) {
       var parsed = parseNumericValue(width) || { number: "0", unit: "px" };
+      // Another number or unit on show is another value: a later unit change converts from it.
+      if (widthInput.value !== parsed.number || (parsed.unit && parsed.unit !== currentUnit)) unitAnchor = null;
       widthInput.value = parsed.number;
       if (parsed.unit) widthUnit.value = parsed.unit;
+      currentUnit = widthUnit.value || "px";
       var strokeStyleOptions = ["none", "solid", "dashed", "dotted", "double"];
       styleSelect.value = strokeStyleOptions.indexOf(style) === -1 ? "none" : style;
       colorText.value = color;
@@ -7827,7 +8362,7 @@
     }
 
     function readModel() {
-      var expression = parseNumericExpression(widthInput.value.trim(), widthUnit.value || "px");
+      var expression = parseNumericExpression(widthInput.value.trim(), widthUnit.value || "px", units);
       if (!expression) return null;
       var width = formatNumericResult(expression.number) + (expression.unit || "px");
       var color = normalizeColorEntry(colorText.value, model.color, colorFormat.value);
@@ -7904,14 +8439,59 @@
       if (finished || editorTarget !== selectedElement || editor.isConnected === false) return false;
       dirty = true;
       var nextModel = readModel();
-      if (!nextModel) { markError(); return false; }
+      if (!nextModel) { markError(); syncSendEnabledInPlace(); return false; }
       var committed = commitStrokeEdit(nextModel, previousModel, openState);
-      if (!committed) { markError(); return false; }
+      if (!committed) { markError(); syncSendEnabledInPlace(); return false; }
       syncControls(committed);
       row.setAttribute("data-edited", "true");
       row.removeAttribute("data-error");
       syncSendButtonDisabled();
       return true;
+    }
+
+    // The width longhand the page shows this stroke on.
+    function shownWidthProperty() {
+      if (model.position === "outside") return "outline-width";
+      return "border-" + (uniform ? "top" : (selectedSides[0] || "top")) + "-width";
+    }
+
+    // A unit change converts the number, as in the generic editor. preview()
+    // records the whole stroke, so the converted width is tried on the element
+    // first and previewed only when it renders the same.
+    function handleUnitChange() {
+      if (finished || editorTarget !== selectedElement || editor.isConnected === false) return;
+      var fromUnit = currentUnit;
+      var toUnit = widthUnit.value;
+      if (toUnit === fromUnit) return;
+      var numberText = widthInput.value.trim();
+      var expression = numberText === "" ? null : parseNumericExpression(numberText, fromUnit);
+      if (!expression) {
+        // Nothing to convert: the unit switches and the page is left alone.
+        currentUnit = toUnit;
+        unitAnchor = null;
+        widthInput.focus();
+        return;
+      }
+      var shownValue = formatNumericResult(expression.number) + fromUnit;
+      var widthProperty = shownWidthProperty();
+      var conversion = convertStyleUnitNumber(editorTarget, widthProperty, expression.number, fromUnit, toUnit, unitAnchor, null);
+      var accepted = !!conversion &&
+        (conversion.anchor === 0 || styleUnitTrialHolds(editorTarget, widthProperty, conversion.number + toUnit));
+      if (accepted) {
+        var shownNumber = widthInput.value;
+        var wasDirty = dirty;
+        widthInput.value = conversion.number;
+        accepted = preview();
+        if (!accepted) {
+          widthInput.value = shownNumber;
+          dirty = wasDirty;
+        }
+      }
+      if (!accepted) { refuseStyleUnitChange(widthInput, widthUnit, "stroke width", shownValue, fromUnit, toUnit); return; }
+      // preview() reloaded the controls: the unit is recorded and the anchor cleared.
+      unitAnchor = conversion.anchor;
+      widthInput.focus();
+      if (typeof widthInput.select === "function") widthInput.select();
     }
 
     function cancel() {
@@ -7949,13 +8529,20 @@
     }
 
     widthInput.addEventListener("input", function () {
-      var expression = parseNumericExpression(widthInput.value.trim(), widthUnit.value || "px");
+      unitAnchor = null;
+      // A typed unit the select offers is read as typed; preview() reloads the
+      // controls from the recorded stroke, which moves the unit select.
+      var expression = parseNumericExpression(widthInput.value.trim(), widthUnit.value || "px", units);
       if (expression && expression.number > 0 && styleSelect.value === "none") styleSelect.value = "solid";
       preview();
     });
-    widthUnit.addEventListener("change", preview);
+    widthUnit.addEventListener("change", handleUnitChange);
     styleSelect.addEventListener("change", function () {
-      if (styleSelect.value === "none") widthInput.value = "0";
+      if (styleSelect.value === "none") {
+        // Another value on show: a later unit change converts 0, not the old width.
+        widthInput.value = "0";
+        unitAnchor = null;
+      }
       preview();
     });
     colorText.addEventListener("input", preview);
@@ -7984,21 +8571,32 @@
     // with relatedTarget === null (same as "clicked elsewhere"), which closed the
     // editor before a color could be picked. Its own input/change listeners above
     // already call preview(), which is enough to keep the edit live.
+    // It takes Enter and Escape like the other controls.
+    colorInput.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); cancel(); }
+      else if (event.key === "Enter") { event.preventDefault(); if (!holdInvalidOnEnter()) commit(); }
+    });
     var controls = [widthInput, widthUnit, styleSelect, colorText, colorFormat, insideButton, outsideButton]
       .concat(STROKE_SIDES.concat(["all"]).map(function (name) { return sideButtons[name]; }));
     controls.forEach(function (control) {
       control.addEventListener("keydown", function (event) {
         if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); cancel(); }
-        else if (event.key === "Enter") { event.preventDefault(); commit(); }
+        else if (event.key === "Enter") { event.preventDefault(); if (!holdInvalidOnEnter()) commit(); }
       });
       control.addEventListener("blur", function (event) {
         if (event.relatedTarget && typeof editor.contains === "function" && editor.contains(event.relatedTarget)) return;
+        if (styleEditorHoldsInvalid()) return; // a field that does not parse stays open to fix
         commit();
       });
     });
     updatePositionButtons();
     updateSideButtons();
-    activeStyleEditorFlush = commit;
+    registerOpenStyleEditor(editor, commit);
+    commit.invalidField = function () {
+      if (finished || !dirty || editorTarget !== selectedElement || editor.isConnected === false) return null;
+      if (!parseNumericExpression(widthInput.value.trim(), widthUnit.value || "px", units)) return widthInput;
+      return unsupportedStyleText("color", normalizeColorEntry(colorText.value, model.color, colorFormat.value)) ? colorText : null;
+    };
     widthInput.focus();
     widthInput.select();
     return true;
@@ -8088,21 +8686,29 @@
     }
 
     function preview() {
+      if (finished) return;
+      // The page removed this editor's layer and another was promoted: write nothing.
+      if (editorTarget !== selectedElement) { syncSendEnabledInPlace(); return; }
       var next = readValue();
-      if (next == null) return;
-      previewed = previewStyleEdit(property, next) || previewed;
+      if (next != null) previewed = previewStyleEdit(property, next) || previewed;
+      syncSendEnabledInPlace();
+    }
+
+    // Puts the page back to what it showed when the editor opened. The record
+    // it opened on may be gone: a rebase drops an edit the page now has.
+    function restoreOpened() {
+      if (!previewed || editorTarget !== selectedElement) return;
+      if (hadEditAtOpen && styleEdits[property]) restoreCommittedValueWithSiblings(property, previousValue);
+      else {
+        restoreStyleEdit(property);
+        delete styleEditOriginalInline[property];
+      }
     }
 
     function cancel() {
       finished = true;
       activeStyleEditorFlush = null;
-      if (previewed && editorTarget === selectedElement) {
-        if (hadEditAtOpen) restoreCommittedValueWithSiblings(property, previousValue);
-        else {
-          restoreStyleEdit(property);
-          delete styleEditOriginalInline[property];
-        }
-      }
+      restoreOpened();
       cancelStyleEdit(lineSelect, previousValue);
     }
 
@@ -8116,21 +8722,18 @@
       var next = readValue();
       finished = true;
       activeStyleEditorFlush = null;
-      if (next == null || next === previousValue) {
+      // Nothing to record, or the value was refused: the preview does not outlive the editor.
+      if (next == null || next === previousValue || !commitStyleEdit(property, next, previousValue)) {
+        restoreOpened();
         cancelStyleEdit(lineSelect, previousValue);
-        if (previewed && editorTarget === selectedElement && !hadEditAtOpen) {
-          restoreStyleEdit(property);
-          delete styleEditOriginalInline[property];
-        }
         return;
       }
-      var ok = commitStyleEdit(property, next, previousValue);
-      if (!ok) cancelStyleEdit(lineSelect, previousValue);
-      else replaceStyleInput(lineSelect, next);
+      replaceStyleInput(lineSelect, next);
     }
 
     function handleBlur(event) {
       if (event.relatedTarget && typeof editor.contains === "function" && editor.contains(event.relatedTarget)) return;
+      if (styleEditorHoldsInvalid()) return; // a field that does not parse stays open to fix
       commit();
     }
 
@@ -8140,21 +8743,41 @@
           colorText.value = formatColorValue(colorText.value, colorFormat.value);
         }
         preview();
-        if (control === lineSelect || control === styleSelect) commit();
       });
       control.addEventListener("blur", handleBlur);
       control.addEventListener("keydown", function (event) {
         if (event.key === "Escape") { event.preventDefault(); cancel(); }
-        else if (event.key === "Enter") { event.preventDefault(); commit(); }
+        else if (event.key === "Enter") { event.preventDefault(); if (!holdInvalidOnEnter()) commit(); }
       });
     });
-    colorInput.addEventListener("input", function () {
+    var previewPickedColor = function () {
       colorText.value = normalizeColorEntry(colorInput.value, colorText.value, "hex");
       colorFormat.value = "hex";
       preview();
+    };
+    colorInput.addEventListener("input", previewPickedColor);
+    // The panel closing is not a decision; the editor stays open with the preview.
+    colorInput.addEventListener("change", previewPickedColor);
+    // Enter and Escape close the editor from the native input too. It has no
+    // blur commit, because opening the colour panel blurs it.
+    colorInput.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { event.preventDefault(); cancel(); }
+      else if (event.key === "Enter") { event.preventDefault(); if (!holdInvalidOnEnter()) commit(); }
     });
-    colorInput.addEventListener("change", commit);
-    activeStyleEditorFlush = commit;
+    colorText.addEventListener("input", preview);
+    registerOpenStyleEditor(editor, commit);
+    holdStylePreview(commit, function () {
+      if (finished || !previewed || editorTarget !== selectedElement) return false;
+      var held = readValue();
+      return held != null && held !== previousValue;
+    }, function () { if (!finished && previewed) preview(); }, function () {
+      return { property: property, value: readValue() };
+    }, function () {
+      if (finished || editorTarget !== selectedElement) return null;
+      var color = colorText.value.trim();
+      if (!color || color.toLowerCase() === "currentcolor") return null;
+      return unsupportedStyleText("color", normalizeColorEntry(color, model.color, colorFormat.value === "rgb" ? "rgb" : "hex")) ? colorText : null;
+    });
     lineSelect.focus();
     return true;
   }
@@ -8183,6 +8806,8 @@
     presetRow.setAttribute("role", "group");
     presetRow.setAttribute("aria-label", "Box shadow presets");
     var presetButtons = [];
+    // The exact string of the preset picked last, until any control changes.
+    var presetValue = null;
     BOX_SHADOW_PRESETS.forEach(function (preset) {
       var button = document.createElement("button");
       button.type = "button";
@@ -8311,49 +8936,54 @@
     }
 
     function preview(nextValue) {
+      if (finished) return;
+      // The page removed this editor's layer and another was promoted: write nothing.
+      if (editorTarget !== selectedElement) { syncSendEnabledInPlace(); return; }
       var next = nextValue != null ? nextValue : readValue();
-      if (next == null) return;
-      previewed = previewStyleEdit(property, next) || previewed;
+      if (next != null) previewed = previewStyleEdit(property, next) || previewed;
+      syncSendEnabledInPlace();
+    }
+
+    // Puts the page back to what it showed when the editor opened.
+    function restoreOpened() {
+      if (!previewed || editorTarget !== selectedElement) return;
+      if (hadEditAtOpen) restoreCommittedValueWithSiblings(property, previousValue);
+      else {
+        restoreStyleEdit(property);
+        delete styleEditOriginalInline[property];
+      }
     }
 
     function cancel() {
       finished = true;
       activeStyleEditorFlush = null;
-      if (previewed && editorTarget === selectedElement) {
-        if (hadEditAtOpen) restoreCommittedValueWithSiblings(property, previousValue);
-        else {
-          restoreStyleEdit(property);
-          delete styleEditOriginalInline[property];
-        }
-      }
+      restoreOpened();
       cancelStyleEdit(xField.input, previousValue);
     }
 
-    function commit(nextValue) {
+    function commit() {
       if (finished) return;
       if (editorTarget !== selectedElement || xField.input.isConnected === false) {
         finished = true;
         activeStyleEditorFlush = null;
         return;
       }
-      var next = nextValue != null ? nextValue : readValue();
+      // A preset writes its own string, as long as no control changed after the pick.
+      var next = presetValue != null ? presetValue : readValue();
       finished = true;
       activeStyleEditorFlush = null;
-      if (next == null || next === previousValue) {
+      // Nothing to record, or the value was refused: the preview does not outlive the editor.
+      if (next == null || next === previousValue || !commitStyleEdit(property, next, previousValue)) {
+        restoreOpened();
         cancelStyleEdit(xField.input, previousValue);
-        if (previewed && editorTarget === selectedElement && !hadEditAtOpen) {
-          restoreStyleEdit(property);
-          delete styleEditOriginalInline[property];
-        }
         return;
       }
-      var ok = commitStyleEdit(property, next, previousValue);
-      if (!ok) cancelStyleEdit(xField.input, previousValue);
-      else replaceStyleInput(xField.input, next);
+      replaceStyleInput(xField.input, next);
     }
 
     function handleBlur(event) {
       if (event.relatedTarget && typeof editor.contains === "function" && editor.contains(event.relatedTarget)) return;
+      if (styleEditorHoldsInvalid()) return; // a field that does not parse stays open to fix
       commit();
     }
 
@@ -8366,39 +8996,71 @@
           if (BOX_SHADOW_PRESETS[i].id === id) { preset = BOX_SHADOW_PRESETS[i]; break; }
         }
         if (!preset) return;
-        var next = applyPreset(preset);
-        preview(next);
-        commit(next);
+        presetValue = applyPreset(preset);
+        preview(presetValue);
+      });
+      // A preset no longer closes the editor, so one reached with Tab needs the
+      // editor's own way out: Escape cancels, focus leaving the editor commits.
+      button.addEventListener("blur", handleBlur);
+      button.addEventListener("keydown", function (event) {
+        if (event.key === "Escape") { event.preventDefault(); cancel(); }
       });
     });
 
     [xField.input, yField.input, blurField.input, spreadField.input, colorText, colorFormat, insetInput].forEach(function (control) {
       control.addEventListener("change", function () {
+        presetValue = null;
         syncPresetButtons("");
         if (control === colorFormat) colorText.value = formatColorValue(colorText.value, colorFormat.value);
         preview();
-        if (control === insetInput || control === colorFormat) commit();
       });
       control.addEventListener("input", function () {
         if (control === insetInput) return;
+        presetValue = null;
         syncPresetButtons("");
         preview();
       });
       control.addEventListener("blur", handleBlur);
       control.addEventListener("keydown", function (event) {
         if (event.key === "Escape") { event.preventDefault(); cancel(); }
-        else if (event.key === "Enter") { event.preventDefault(); commit(); }
+        else if (event.key === "Enter") { event.preventDefault(); if (!holdInvalidOnEnter()) commit(); }
       });
     });
-    colorInput.addEventListener("input", function () {
+    var previewPickedColor = function () {
+      presetValue = null;
       syncPresetButtons("");
       colorText.value = normalizeColorEntry(colorInput.value, colorText.value, "hex");
       colorFormat.value = "hex";
       preview();
+    };
+    colorInput.addEventListener("input", previewPickedColor);
+    // The panel closing is not a decision; the editor stays open with the preview.
+    colorInput.addEventListener("change", previewPickedColor);
+    // Enter and Escape close the editor from the native input too. It has no
+    // blur commit, because opening the colour panel blurs it.
+    colorInput.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { event.preventDefault(); cancel(); }
+      else if (event.key === "Enter") { event.preventDefault(); if (!holdInvalidOnEnter()) commit(); }
     });
-    colorInput.addEventListener("change", function () { commit(); });
     syncPresetButtons(activePresetId);
-    activeStyleEditorFlush = commit;
+    registerOpenStyleEditor(editor, commit);
+    holdStylePreview(commit, function () {
+      if (finished || !previewed || editorTarget !== selectedElement) return false;
+      var held = presetValue != null ? presetValue : readValue();
+      return held != null && held !== previousValue;
+    }, function () { if (!finished && previewed) preview(presetValue); }, function () {
+      return { property: property, value: presetValue != null ? presetValue : readValue() };
+    }, function () {
+      if (finished || editorTarget !== selectedElement || presetValue != null || activePresetId === "none") return null;
+      var fields = [xField, yField, blurField, spreadField];
+      for (var i = 0; i < fields.length; i += 1) {
+        var text = fields[i].input.value.trim();
+        if (text && !isFinite(Number(text))) return fields[i].input;
+      }
+      if (Number(blurField.input.value.trim()) < 0) return blurField.input; // a blur radius is never negative
+      var color = colorText.value.trim();
+      return color && unsupportedStyleText("color", normalizeColorEntry(color, model.color, colorFormat.value)) ? colorText : null;
+    });
     xField.input.focus();
     xField.input.select();
     return true;
@@ -8447,20 +9109,28 @@
     }
 
     function preview() {
+      if (finished) return;
+      // The page removed this editor's layer and another was promoted: write nothing.
+      if (editorTarget !== selectedElement) { syncSendEnabledInPlace(); return; }
       var next = readValue();
       previewed = previewStyleEdit(property, next) || previewed;
+      syncSendEnabledInPlace();
+    }
+
+    // Puts the page back to what it showed when the editor opened.
+    function restoreOpened() {
+      if (!previewed || editorTarget !== selectedElement) return;
+      if (hadEditAtOpen && styleEdits[property]) restoreCommittedValueWithSiblings(property, previousValue === MIXED_STYLE_VALUE ? "" : previousValue);
+      else {
+        restoreStyleEdit(property);
+        delete styleEditOriginalInline[property];
+      }
     }
 
     function cancel() {
       finished = true;
       activeStyleEditorFlush = null;
-      if (previewed && editorTarget === selectedElement) {
-        if (hadEditAtOpen) restoreCommittedValueWithSiblings(property, previousValue === MIXED_STYLE_VALUE ? "" : previousValue);
-        else {
-          restoreStyleEdit(property);
-          delete styleEditOriginalInline[property];
-        }
-      }
+      restoreOpened();
       cancelStyleEdit(xAxis.select, previousValue);
     }
 
@@ -8468,18 +9138,16 @@
       if (finished) return;
       finished = true;
       activeStyleEditorFlush = null;
+      if (editorTarget !== selectedElement || xAxis.select.isConnected === false) { syncSendEnabledInPlace(); return; }
       var next = readValue();
       var ok = commitStyleEdit(property, next, previousValue);
-      if (!ok && previewed) {
-        restoreStyleEdit(property);
-        delete styleEditOriginalInline[property];
-      }
+      if (!ok) restoreOpened();
       replaceStyleInput(xAxis.select, ok ? next : previousValue);
       syncSendButtonDisabled();
     }
 
     [xAxis.select, yAxis.select].forEach(function (control) {
-      control.addEventListener("change", function () { preview(); commit(); });
+      control.addEventListener("change", preview);
       control.addEventListener("keydown", function (event) {
         if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); cancel(); }
         else if (event.key === "Enter") { event.preventDefault(); commit(); }
@@ -8489,7 +9157,12 @@
         commit();
       });
     });
-    activeStyleEditorFlush = commit;
+    registerOpenStyleEditor(editor, commit);
+    holdStylePreview(commit, function () {
+      return !finished && previewed && editorTarget === selectedElement && readValue() !== previousValue;
+    }, function () { if (!finished && previewed) preview(); }, function () {
+      return { property: property, value: readValue() };
+    });
     xAxis.select.focus();
     return true;
   }
@@ -8539,9 +9212,12 @@
     var unitSelect = document.createElement("select");
     unitSelect.className = "raven-grab-style-unit";
     unitSelect.setAttribute("aria-label", property + " unit");
-    var units = STYLE_UNIT_OPTIONS.slice();
+    var units = unitOptionsForProperty(property);
     var unit = parsed && parsed.unit ? parsed.unit : "px";
     if (units.indexOf(unit) === -1) units.unshift(unit);
+    // The unit the number is in, and the unrounded px of the last value typed.
+    var currentUnit = unit;
+    var unitAnchor = null;
     unitSelect.innerHTML = units.map(function (u) { return optionMarkup(u, u, unit); }).join("");
     unitSelect.value = unit;
 
@@ -8570,28 +9246,77 @@
       if (mode === "fill" || mode === "hug") return sizeValueForMode(mode);
       var n = numberInput.value.trim();
       if (n === "") return "";
-      var expression = parseNumericExpression(n, unitSelect.value || "px");
+      var expression = parseNumericExpression(n, unitSelect.value || "px", units);
       if (!expression) return null;
       return formatNumericResult(expression.number) + expression.unit;
     }
 
+    // An emptied number in fixed mode is not a value: commit puts the row back.
+    function emptiedFixed() {
+      return currentSizeMode() === "fixed" && numberInput.value.trim() === "";
+    }
+
     function preview() {
+      if (finished) return;
+      // The page removed this editor's layer and another was promoted: write nothing.
+      if (editorTarget !== selectedElement) { syncSendEnabledInPlace(); return; }
       var next = readValue();
-      if (next == null) return;
-      if (currentSizeMode() === "fixed" && numberInput.value.trim() === "" && previousValue !== MIXED_STYLE_VALUE) return;
-      previewed = previewStyleEdit(property, next) || previewed;
+      if (next != null && !(emptiedFixed() && previousValue !== MIXED_STYLE_VALUE)) {
+        previewed = previewStyleEdit(property, next) || previewed;
+      } else if (next != null) {
+        // Emptied: the page shows the value the row opened with.
+        restoreOpened();
+        previewed = false;
+      }
+      syncSendEnabledInPlace();
+    }
+
+    // Puts the page back to what it showed when the editor opened.
+    function restoreOpened() {
+      if (!previewed || editorTarget !== selectedElement) return;
+      if (hadEditAtOpen && styleEdits[property] && previousValue !== MIXED_STYLE_VALUE) restoreCommittedValueWithSiblings(property, previousValue);
+      else {
+        restoreStyleEdit(property);
+        delete styleEditOriginalInline[property];
+      }
+    }
+
+    // A unit change converts the number, as in the generic editor. The
+    // converted value is tried on the element first and previewed only when it
+    // renders the same.
+    function handleUnitChange() {
+      if (finished || editorTarget !== selectedElement || numberInput.isConnected === false) return;
+      var fromUnit = currentUnit;
+      var toUnit = unitSelect.value;
+      if (toUnit === fromUnit) return;
+      var numberText = numberInput.value.trim();
+      var expression = numberText === "" ? null : parseNumericExpression(numberText, fromUnit);
+      if (!expression) {
+        // Nothing to convert: the unit switches and the page is left alone.
+        currentUnit = toUnit;
+        unitAnchor = null;
+        numberInput.focus();
+        return;
+      }
+      var shownValue = formatNumericResult(expression.number) + fromUnit;
+      var conversion = convertStyleUnitNumber(editorTarget, property, expression.number, fromUnit, toUnit, unitAnchor, null);
+      if (!conversion ||
+          (conversion.anchor !== 0 && !styleUnitTrialHolds(editorTarget, property, conversion.number + toUnit))) {
+        refuseStyleUnitChange(numberInput, unitSelect, property, shownValue, fromUnit, toUnit);
+        return;
+      }
+      currentUnit = toUnit;
+      unitAnchor = conversion.anchor;
+      numberInput.value = conversion.number;
+      preview();
+      numberInput.focus();
+      if (typeof numberInput.select === "function") numberInput.select();
     }
 
     function cancel() {
       finished = true;
       activeStyleEditorFlush = null;
-      if (previewed && editorTarget === selectedElement) {
-        if (hadEditAtOpen && previousValue !== MIXED_STYLE_VALUE) restoreCommittedValueWithSiblings(property, previousValue);
-        else {
-          restoreStyleEdit(property);
-          delete styleEditOriginalInline[property];
-        }
-      }
+      restoreOpened();
       cancelStyleEdit(numberInput, previousValue);
     }
 
@@ -8599,42 +9324,38 @@
       if (finished) return;
       finished = true;
       activeStyleEditorFlush = null;
+      if (editorTarget !== selectedElement || numberInput.isConnected === false) { syncSendEnabledInPlace(); return; }
       var next = readValue();
       if (next == null) {
-        if (previewed) {
-          restoreStyleEdit(property);
-          delete styleEditOriginalInline[property];
-        }
+        restoreOpened();
         row.setAttribute("data-error", "true");
         replaceStyleInput(numberInput, numberInput.value.trim());
         syncSendButtonDisabled();
         return;
       }
       if (currentSizeMode() === "fixed" && numberInput.value.trim() === "") {
-        if (previewed) {
-          restoreStyleEdit(property);
-          delete styleEditOriginalInline[property];
-        }
+        restoreOpened();
         replaceStyleInput(numberInput, previousValue);
         syncSendButtonDisabled();
         return;
       }
       var ok = commitStyleEdit(property, next, previousValue);
-      if (!ok && previewed) {
-        restoreStyleEdit(property);
-        delete styleEditOriginalInline[property];
-      }
+      if (!ok) restoreOpened();
       replaceStyleInput(numberInput, ok ? next : previousValue);
       syncSendButtonDisabled();
     }
 
     modeSelect.addEventListener("change", function () {
       syncFixedEnabled();
-      if (currentSizeMode() !== "fixed") preview();
-      else if (numberInput.value.trim() !== "") preview();
+      // Back to Fixed with no number: preview() takes the Hug or Fill value off.
+      preview();
     });
-    numberInput.addEventListener("input", preview);
-    unitSelect.addEventListener("change", preview);
+    numberInput.addEventListener("input", function () {
+      unitAnchor = null;
+      if (adoptTypedStyleUnit(numberInput.value, unitSelect, units)) currentUnit = unitSelect.value;
+      preview();
+    });
+    unitSelect.addEventListener("change", handleUnitChange);
     numberInput.addEventListener("keydown", function (event) {
       if (event.key === "ArrowUp" || event.key === "ArrowDown") {
         if (currentSizeMode() !== "fixed") return;
@@ -8651,30 +9372,44 @@
         if (stepped === null) return;
         var steppedParsed = parseNumericValue(stepped);
         if (!steppedParsed) return;
+        unitAnchor = null;
+        // The unit select already shows the typed unit (the input handler
+        // moved it); the stepped number goes with it.
         numberInput.value = steppedParsed.number;
-        if (steppedParsed.unit) unitSelect.value = steppedParsed.unit;
         preview();
         return;
       }
       if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); cancel(); }
-      else if (event.key === "Enter") { event.preventDefault(); commit(); }
+      else if (event.key === "Enter") { event.preventDefault(); if (!holdInvalidOnEnter()) commit(); }
     });
     [modeSelect, unitSelect].forEach(function (control) {
       control.addEventListener("keydown", function (event) {
         if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); cancel(); }
-        else if (event.key === "Enter") { event.preventDefault(); commit(); }
+        else if (event.key === "Enter") { event.preventDefault(); if (!holdInvalidOnEnter()) commit(); }
       });
       control.addEventListener("blur", function (event) {
         if (event.relatedTarget && typeof editor.contains === "function" && editor.contains(event.relatedTarget)) return;
+        if (styleEditorHoldsInvalid()) return; // a field that does not parse stays open to fix
         commit();
       });
     });
     numberInput.addEventListener("blur", function (event) {
       if (event.relatedTarget && typeof editor.contains === "function" && editor.contains(event.relatedTarget)) return;
+      if (styleEditorHoldsInvalid()) return; // a field that does not parse stays open to fix
       commit();
     });
     syncFixedEnabled();
-    activeStyleEditorFlush = commit;
+    registerOpenStyleEditor(editor, commit);
+    holdStylePreview(commit, function () {
+      if (finished || !previewed || editorTarget !== selectedElement) return false;
+      var held = readValue();
+      return held != null && held !== previousValue && !emptiedFixed();
+    }, function () { if (!finished && previewed) preview(); }, function () {
+      return { property: property, value: readValue() };
+    }, function () {
+      if (finished || editorTarget !== selectedElement || currentSizeMode() !== "fixed") return null;
+      return numberInput.value.trim() && readValue() === null ? numberInput : null;
+    });
     if (currentSizeMode() === "fixed") {
       numberInput.focus();
       numberInput.select();
@@ -9000,6 +9735,29 @@
     return { select: select, unlinkBtn: unlinkBtn, tokenBlock: tokenBlock, index: index, trigger: trigger };
   }
 
+  // An editor still open on another row is committed before a row opens. A
+  // touch delivers its click, and the keyboard its Enter, without the press
+  // that closes an editor. The commit re-renders the panel, so the row is
+  // found again; null when it is gone.
+  function flushedStyleRow(row) {
+    if (!row || !activeStyleEditorFlush) return row;
+    var property = row.getAttribute("data-style-property");
+    var state = row.getAttribute("data-style-state");
+    activeStyleEditorFlush();
+    var rows = panelQueryAll('[data-style-property="' + property + '"]');
+    for (var i = 0; i < rows.length; i += 1) {
+      if (rows[i].getAttribute("data-style-state") === state && rows[i].getClientRects && rows[i].getClientRects().length) return rows[i];
+    }
+    return null;
+  }
+
+  function openStyleValue(valueCell) {
+    var row = flushedStyleRow(valueCell.parentElement);
+    if (!row) return false;
+    var cell = row.contains(valueCell) ? valueCell : row.querySelector("[data-style-value]");
+    return cell ? beginStyleEdit(cell) : false;
+  }
+
   function beginStyleEdit(valueCell) {
     var editorTarget = selectedElement;
     var row = valueCell.parentElement;
@@ -9024,7 +9782,18 @@
     var control = classifyStyleControl(property, previousValue);
     var finished = false;
     var previewed = false;
+    // The last value the page accepted as a preview, the unit the select showed
+    // before its latest change, and the unrounded px (ms for a time) of the last
+    // number typed or stepped. Unit changes convert from that anchor, so px, %,
+    // em and back to px shows 26 again instead of 25.99.
+    var lastPreviewValue = null;
+    var heldChangeShown = "false:0:false";
+    var currentUnit = "";
+    var unitAnchor = null;
+    var unitChoices = null;   // the unit select's options, when the row has one
     var pendingTokenPick = null;
+    // Brings the curve diagram in step with the field; set by the easing control.
+    var resyncEasing = function () {};
     var stateEditKey = styleState ? stateStyleEditKey(styleState, property) : null;
     var hadEditAtOpen = styleState ? !!stateStyleEdits[stateEditKey] : !!styleEdits[property];
     var matchedToken = matchedTokenEntryForProperty(property, styleState);
@@ -9065,23 +9834,33 @@
       var parsed = parseNumericValue(previousValue);
       input.type = "text";
       input.value = parsed.number;
+      currentUnit = parsed.unit;
       input.setAttribute("inputmode", "decimal");
+      input.addEventListener("input", function () {
+        unitAnchor = null;
+        if (input.unitSelect && editor.getAttribute("data-token-linked") !== "true" &&
+            adoptTypedStyleUnit(input.value, input.unitSelect, unitChoices)) currentUnit = input.unitSelect.value;
+        previewCurrent();
+      });
       editor.appendChild(input);
       // The unit is itself a choice — px/pt/rem/cm/… — so it's a dropdown, not a
       // fixed tag. The value's own unit is always kept (prepended if unusual).
-      if (parsed.unit) {
+      if (parsed.unit || property === "line-height") {
         var unitSelect = document.createElement("select");
         unitSelect.className = "raven-grab-style-unit";
         unitSelect.setAttribute("aria-label", property + " unit");
-        var units = unitOptionsForProperty(property).slice();
+        var units = unitOptionsForProperty(property);
         if (units.indexOf(parsed.unit) === -1) units.unshift(parsed.unit);
-        unitSelect.innerHTML = units.map(function (u) { return optionMarkup(u, u, parsed.unit); }).join("");
+        unitChoices = units;
+        unitSelect.innerHTML = units.map(function (u) { return optionMarkup(u, unitOptionLabel(u), parsed.unit); }).join("");
         unitSelect.value = parsed.unit;
         editor.appendChild(unitSelect);
         input.unitSelect = unitSelect; // ponytail: readValue reads the live unit
         relatedInternal.push(input, unitSelect);
         unitSelect.addEventListener("blur", handleBlur);
-        unitSelect.addEventListener("change", commit);
+        unitSelect.addEventListener("keydown", handleControlKey);
+        // A unit change converts the number and keeps the editor open.
+        unitSelect.addEventListener("change", handleUnitChange);
       } else {
         input.unitSelect = null;
       }
@@ -9106,40 +9885,42 @@
       relatedInternal.push(input, colorInput, formatSelect);
       var reformat = function () { input.value = formatColorValue(input.value, formatSelect.value); };
       formatSelect.addEventListener("change", reformat);
-      // input fires on every drag tick inside a native <input type=color> panel —
-      // committing (which tears down the editor) on each tick closed the editor
-      // after the first pixel of movement. Only preview on input; commit on change,
-      // which fires once when the native panel is dismissed.
+      // input fires on every drag tick inside a native <input type=color> panel,
+      // and change fires once when the panel is dismissed. Both preview: the
+      // editor stays open until Enter, a press outside, Escape or a flush.
       var previewColor = function () {
+        // The panel can report a pick on change alone. A colour other than the
+        // one a chip put in the field is not that chip's token.
+        if (colorInputValue(input.value) !== colorInput.value) pendingTokenPick = null;
         input.value = normalizeColorEntry(colorInput.value, input.value, "hex");
         formatSelect.value = "hex";
-        if (styleState) previewed = previewStateStyleEdit(styleState, property, input.value) || previewed;
-        else previewed = previewStyleEdit(property, input.value) || previewed;
+        previewCurrent();
       };
-      var commitColor = function () {
-        input.value = normalizeColorEntry(colorInput.value, input.value, "hex");
-        formatSelect.value = "hex";
-        commit();
-      };
-      input.addEventListener("input", function () { pendingTokenPick = null; });
+      input.addEventListener("input", function () {
+        pendingTokenPick = null;
+        previewCurrent();
+      });
       colorInput.addEventListener("input", function () { pendingTokenPick = null; });
       colorInput.addEventListener("input", previewColor);
-      colorInput.addEventListener("change", commitColor);
+      colorInput.addEventListener("change", previewColor);
       // No blur->commit on colorInput: opening the native color panel blurs the
       // input immediately with relatedTarget === null, indistinguishable from
       // "user clicked elsewhere" — that closed the editor before a color could be
-      // picked. change (above) is the correct "picker closed" signal.
+      // picked. With the panel closed and focus on nothing, a press outside the
+      // editor commits (registerOpenStyleEditor).
+      colorInput.addEventListener("keydown", handleControlKey);
       formatSelect.addEventListener("blur", handleBlur);
+      formatSelect.addEventListener("keydown", handleControlKey);
       appendGroupedColorSuggestions(editor, property, previousValue, function (pickedValue, tokenMeta) {
         input.value = normalizeColorEntry(pickedValue, previousValue, formatSelect.value);
         colorInput.value = colorInputValue(input.value);
         pendingTokenPick = tokenMeta;
-        // A suggestion pick is a decisive choice, like dismissing the native
-        // panel — commit it. Preview-only left the pick stranded: the chip's
-        // mousedown preventDefault means no blur ever fires, so nothing was
-        // queued and the preview silently reverted on the next click-away.
-        commit();
+        // A pick previews and stays pending with its token until the editor
+        // closes. The chip's mousedown preventDefault means no blur follows it;
+        // the press outside the editor is what commits the pick.
+        previewCurrent();
       }, relatedInternal);
+      Array.prototype.forEach.call(editor.querySelectorAll(".raven-grab-color-suggestion"), wirePresetButton);
     } else if (control === "easing") {
       // The text input stays the source of truth for commit — readValue() reads
       // it, replaceStyleInput writes it back, and typing a curve by hand still
@@ -9249,9 +10030,8 @@
             node.removeEventListener("pointermove", move);
             node.removeEventListener("pointerup", up);
             node.removeEventListener("pointercancel", cancelDrag);
-            // Release commits, matching beginStyleScrub: a finished drag is a
-            // decision, and leaving it as a preview is how tuned values get lost.
-            commit();
+            // Release keeps the editor open with the preview, so a second drag
+            // can follow. Enter, a press outside or a flush commits the curve.
           };
           var cancelDrag = function () {
             node.removeEventListener("pointermove", move);
@@ -9295,12 +10075,12 @@
           // is what the author meant and what a token would hold, and expanding
           // it to cubic-bezier(0, 0, 0.58, 1) makes every later diff read as a
           // change nobody made.
-          easingPoints = EASING_KEYWORDS[keyword].slice();
-          drawEasing();
           input.value = keyword;
           pendingTokenPick = null;
-          commit();
+          resyncEasing();
+          previewCurrent();
         });
+        wirePresetButton(button);
         presets.appendChild(button);
       });
 
@@ -9309,17 +10089,27 @@
       wrap.appendChild(presets);
       editor.appendChild(wrap);
       relatedInternal.push(input);
-      // Typing keeps the curve honest: an unparseable string leaves the last
-      // drawn curve in place rather than redrawing a lie, and the row still
-      // commits whatever was typed.
+      // The diagram follows the field. A value that is not one cubic curve (a
+      // spring's linear(), steps(), text still being typed) has no diagram: the
+      // canvas is hidden and its handles do nothing, so a drag cannot replace
+      // that value with a curve left over from an earlier one.
+      resyncEasing = function () {
+        easingPoints = parseEasingValue(input.value);
+        if (easingPoints) {
+          svg.removeAttribute("data-hidden");
+          drawEasing();
+        } else svg.setAttribute("data-hidden", "true");
+      };
       input.addEventListener("input", function () {
-        var next = parseEasingValue(input.value);
-        if (next) { easingPoints = next; drawEasing(); }
+        resyncEasing();
+        previewCurrent();
       });
     } else {
       input.type = "text";
       input.value = previousValue;
+      input.addEventListener("input", previewCurrent);
       editor.appendChild(input);
+      relatedInternal.push(input);
     }
 
     // Springs attach to the PROPERTY, not to the control, so they are here
@@ -9354,8 +10144,10 @@
         button.addEventListener("click", function () {
           input.value = value;
           pendingTokenPick = null;
-          commit();
+          resyncEasing();
+          previewCurrent();
         });
+        wirePresetButton(button);
         springs.appendChild(button);
       });
       // The same focus guard the easing wrapper uses: a mousedown that moves
@@ -9383,15 +10175,126 @@
     if (typeof focusTarget.select === "function") focusTarget.select();
 
     function previewValue(newValue) {
-      if (styleState) return previewStateStyleEdit(styleState, property, newValue);
-      return previewStyleEdit(property, newValue);
+      // An editor whose layer is no longer the selected one writes nothing:
+      // the page may have removed it and promoted another layer.
+      if (editorTarget !== selectedElement || input.isConnected === false) return false;
+      var accepted = styleState
+        ? previewStateStyleEdit(styleState, property, newValue)
+        : previewStyleEdit(property, newValue);
+      if (accepted) {
+        lastPreviewValue = newValue;
+        previewed = true;
+      }
+      syncHeldChange();
+      return accepted;
+    }
+
+    // Send is enabled while this editor holds a value other than the one the
+    // row opened with, and goes back to its recorded state when it does not.
+    function holdsChange() {
+      if (finished || !previewed || lastPreviewValue === null) return false;
+      if (editorTarget !== selectedElement || input.isConnected === false) return false;
+      return lastPreviewValue !== previousValue;
+    }
+    // A field that does not parse. Committing it records nothing, so Send and
+    // Add to queue wait for it to be fixed instead of dropping it.
+    function holdsInvalid() {
+      if (finished || editor.getAttribute("data-token-linked") === "true") return false;
+      if (editorTarget !== selectedElement || input.isConnected === false) return false;
+      var value = readValue();
+      if (value === null) return true;
+      // Colour entry passes text it does not recognise through unchanged.
+      return control === "color" && unsupportedStyleText("color", value);
+    }
+    // The count can move without the hold changing (a re-edit typed back to the
+    // page's value records one row fewer), so the label follows both.
+    function syncHeldChange() {
+      var invalid = holdsInvalid();
+      var held = holdsChange() + ":" + heldRowDelta() + ":" + invalid;
+      if (held === heldChangeShown) return;
+      heldChangeShown = held;
+      syncSendEnabledInPlace();
+    }
+
+    // Writes the field's current value to the page. Carries the same guards as
+    // commit(): a token-linked row and a stale editor write nothing.
+    function previewCurrent() {
+      if (finished) return;
+      if (editor.getAttribute("data-token-linked") === "true") return;
+      if (editorTarget !== selectedElement || input.isConnected === false) return;
+      var value = readValue();
+      // Unparseable: keep the last valid preview. Send records nothing for it, so
+      // the count follows.
+      if (value === null) { syncHeldChange(); return; }
+      if (value === "") { rollbackPreviewState(); syncHeldChange(); return; } // emptied: show the value the row opened with
+      previewed = previewValue(value) || previewed;
+    }
+
+    // The select goes back to the unit it had; the number and the page stay as
+    // they were, and the status line says why.
+    function refuseUnitChange(shownValue, fromUnit, toUnit) {
+      refuseStyleUnitChange(input, input.unitSelect, property, shownValue, fromUnit, toUnit);
+    }
+
+    function handleUnitChange() {
+      if (finished) return;
+      if (editorTarget !== selectedElement || input.isConnected === false) return;
+      var fromUnit = currentUnit;
+      var toUnit = input.unitSelect.value;
+      if (editor.getAttribute("data-token-linked") === "true") { input.unitSelect.value = fromUnit; return; }
+      if (toUnit === fromUnit) return;
+      var numberText = input.value.trim();
+      // The same unit rule as typing: a unit the select does not offer is unparseable.
+      var expression = numberText === "" ? null : parseNumericExpression(numberText, fromUnit, unitChoices);
+      if (!expression) {
+        // Nothing to convert: the unit switches and the page is left alone.
+        currentUnit = toUnit;
+        unitAnchor = null;
+        input.focus();
+        return;
+      }
+      var shownValue = formatNumericResult(expression.number) + fromUnit;
+      var stateContext = styleState ? { fontSizePx: stateRowFontSizePx(styleState), fontFaceChanged: stateRowFontFaceChanged(styleState) } : null;
+      var conversion = convertStyleUnitNumber(editorTarget, property, expression.number, fromUnit, toUnit, unitAnchor, stateContext);
+      if (!conversion) { refuseUnitChange(shownValue, fromUnit, toUnit); return; }
+      var anchor = conversion.anchor;
+      var convertedNumber = conversion.number;
+      var converted = convertedNumber + toUnit;
+      var previousPreview = lastPreviewValue;
+      var applyConverted = function () {
+        var took = previewValue(converted);
+        previewed = took || previewed;
+        return took;
+      };
+      var accepted = false;
+      // The before/after check needs the element in the state being edited, so it
+      // runs on resting rows only.
+      if (!styleState && !isTimeProperty(property) && anchor !== 0) {
+        accepted = styleUnitChangeHolds(editorTarget, property, applyConverted, function () {
+          if (previousPreview !== null) previewValue(previousPreview);
+          else rollbackPreviewState();
+        }, false);
+      } else {
+        try { accepted = applyConverted(); } catch (error) { accepted = false; }
+      }
+      if (!accepted) { refuseUnitChange(shownValue, fromUnit, toUnit); return; }
+      unitAnchor = anchor;
+      currentUnit = toUnit;
+      input.value = convertedNumber;
+      // Focus goes back to the number field, so the select's blur names it as
+      // relatedTarget and handleBlur ignores it.
+      input.focus();
+      if (typeof input.select === "function") input.select();
     }
 
     function rollbackPreviewState() {
+      lastPreviewValue = null;
       if (!previewed) return;
       if (styleState) clearStateStylePreview();
       else if (editorTarget === selectedElement) {
-        if (hadEditAtOpen) {
+        // The record the row opened on may be gone: a rebase drops an edit the
+        // page now has.
+        if (hadEditAtOpen && styleEdits[property]) {
           restoreCommittedValueWithSiblings(property, previousValue);
         }
         else {
@@ -9400,13 +10303,14 @@
         }
       }
       previewed = false;
+      syncHeldChange();
     }
 
     function readValue() {
       if (control === "number") {
         var n = input.value.trim();
         if (n === "") return "";
-        var expression = parseNumericExpression(n, input.unitSelect ? input.unitSelect.value : "");
+        var expression = parseNumericExpression(n, input.unitSelect ? input.unitSelect.value : "", input.unitSelect && editor.getAttribute("data-token-linked") !== "true" ? unitChoices : null);
         if (!expression) return null;
         return formatNumericResult(expression.number) + expression.unit;
       }
@@ -9438,6 +10342,7 @@
       if (editorTarget !== selectedElement || input.isConnected === false) {
         finished = true;
         activeStyleEditorFlush = null;
+        syncHeldChange();
         return;
       }
       var newValue = readValue();
@@ -9471,7 +10376,21 @@
       replaceStyleInput(input, committed ? newValue : previousValue);
       syncSendButtonDisabled();
     }
-    activeStyleEditorFlush = commit;
+    registerOpenStyleEditor(editor, commit);
+    // A dispatch that finishes while this editor is open rebases every draft,
+    // which puts the recorded values back on the page. rebaseNextDrafts calls
+    // this to write the held preview again.
+    commit.repreview = function () {
+      if (finished || styleState || !previewed || lastPreviewValue === null) return;
+      previewValue(lastPreviewValue);
+    };
+    commit.holdsChange = holdsChange;
+    commit.invalidField = function () { return holdsInvalid() ? input : null; };
+    // An unparseable or emptied field records nothing, so it is not counted.
+    commit.heldEdit = function () {
+      var current = readValue();
+      return { property: property, state: styleState || "", value: current ? lastPreviewValue : null };
+    };
 
     input.addEventListener("keydown", function (event) {
       if (control === "number" && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
@@ -9479,15 +10398,18 @@
         var mode = scrubPrecisionMode(event);
         var delta = mode.multiplier;
         if (event.key === "ArrowDown") delta *= -1;
-        var stepped = steppedNumericValue(input.value, delta, input.unitSelect ? input.unitSelect.value : "", mode.minPrecision);
+        // The same unit rule as typing: a unit the select does not offer does not step.
+        var stepped = steppedNumericValue(input.value, delta, input.unitSelect ? input.unitSelect.value : "", mode.minPrecision,
+          input.unitSelect && editor.getAttribute("data-token-linked") !== "true" ? unitChoices : null);
         if (stepped !== null) {
           var parsedStep = parseNumericValue(stepped);
           input.value = parsedStep.number;
+          unitAnchor = null;
           previewed = previewValue(stepped) || previewed;
         }
       } else if (event.key === "Enter") {
         event.preventDefault();
-        commit();
+        if (!holdInvalidOnEnter()) commit();
       } else if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
@@ -9496,10 +10418,37 @@
     });
     function handleBlur(event) {
       if (relatedInternal.indexOf(event.relatedTarget) !== -1) return;
+      if (styleEditorHoldsInvalid()) return; // a field that does not parse stays open to fix
       commit();
     }
+    // Enter and Escape on the editor's other controls: the unit select, the
+    // colour format select and the native colour input.
+    function handleControlKey(event) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        if (!holdInvalidOnEnter()) commit();
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        cancel();
+      }
+    }
+    // A preset button or colour chip reached with Tab is part of the editor:
+    // focus moving to it does not commit, Escape cancels from it and focus
+    // leaving it for something outside the editor commits. Enter and Space
+    // stay the button's own press.
+    function wirePresetButton(button) {
+      if (relatedInternal.indexOf(button) === -1) relatedInternal.push(button);
+      button.addEventListener("blur", handleBlur);
+      button.addEventListener("keydown", function (event) {
+        if (event.key !== "Escape") return;
+        event.preventDefault();
+        event.stopPropagation();
+        cancel();
+      });
+    }
     input.addEventListener("blur", handleBlur);
-    if (control === "enum") input.addEventListener("change", commit);
+    if (control === "enum") input.addEventListener("change", previewCurrent);
   }
 
   function beginStyleScrub(label, event) {
@@ -9765,6 +10714,13 @@
     }
   }
 
+  // Puts the page back to what the field opened on. The record it opened on
+  // may be gone: a rebase drops an edit the page now has.
+  function boxRollbackToOpen(property, hadEdit, openRaw) {
+    var edit = hadEdit ? styleEdits[property] : null;
+    boxRollback(property, !!edit, edit ? edit.newValue : openRaw);
+  }
+
   function boxCommit(property, value, openRaw) {
     var owner = boxStrokeOwner(property);
     var changed;
@@ -9869,7 +10825,7 @@
     function cancel() {
       if (finished) return;
       close();
-      if (previewed && target === selectedElement) boxRollback(property, hadEdit, hadEdit ? styleEdits[property].newValue : openRaw);
+      if (previewed && target === selectedElement) boxRollbackToOpen(property, hadEdit, openRaw);
       renderPanel();
       boxFocusCell(property);
     }
@@ -9879,21 +10835,42 @@
       if (target !== selectedElement || input.isConnected === false) return;
       var value = input.value.trim() === openText.trim() ? null : boxValueFromEntry(cell, input.value);
       if (!value) {
-        if (previewed) boxRollback(property, hadEdit, hadEdit ? styleEdits[property].newValue : openRaw);
+        if (previewed) boxRollbackToOpen(property, hadEdit, openRaw);
         renderPanel();
         return;
       }
       if (!boxCommit(property, value, openRaw) && previewed) {
-        boxRollback(property, hadEdit, hadEdit ? styleEdits[property].newValue : openRaw);
+        boxRollbackToOpen(property, hadEdit, openRaw);
         renderPanel();
       }
     }
-    activeStyleEditorFlush = commit;
+    registerOpenStyleEditor(input, commit);
+    // Writes the field's number to the page, as typing and the arrow keys do.
+    function previewEntry() {
+      if (finished) return;
+      var value = boxValueFromEntry(cell, input.value);
+      if (value && target === selectedElement && boxPreview(property, value)) previewed = true;
+      syncSendEnabledInPlace();
+    }
+    holdStylePreview(commit, function () {
+      if (finished || !previewed || target !== selectedElement || input.isConnected === false) return false;
+      return input.value.trim() !== openText.trim() && !!boxValueFromEntry(cell, input.value);
+    }, function () { if (previewed) previewEntry(); }, function () {
+      // boxCommit records nothing for the value the field opened with, however spelled.
+      var value = boxValueFromEntry(cell, input.value);
+      return { property: property, value: value && value !== openRaw ? value : null };
+    }, function () {
+      if (finished || target !== selectedElement || input.isConnected === false) return null;
+      if (!input.value.trim()) return null;
+      var entry = boxValueFromEntry(cell, input.value);
+      return !entry || unsupportedStyleText(property, entry) ? input : null;
+    });
     input.addEventListener("keydown", function (event) {
       if (event.isComposing) return;
       if (event.key === "Enter") {
         event.preventDefault();
         event.stopPropagation();
+        if (holdInvalidOnEnter()) return;
         commit();
         boxFocusCell(property);
       } else if (event.key === "Escape") {
@@ -9908,11 +10885,14 @@
         var next = current + (event.key === "ArrowUp" ? 1 : -1) * (event.shiftKey ? 10 : 1);
         if (!/^margin-/.test(property) && next < 0) next = 0;
         input.value = boxNumberText(next);
-        var value = boxValueFromEntry(cell, input.value);
-        if (value && target === selectedElement && boxPreview(property, value)) previewed = true;
+        previewEntry();
       }
     });
-    input.addEventListener("blur", function () { commit(); });
+    input.addEventListener("input", previewEntry);
+    input.addEventListener("blur", function () {
+      if (styleEditorHoldsInvalid()) return; // a field that does not parse stays open to fix
+      commit();
+    });
     return true;
   }
 
@@ -9977,7 +10957,7 @@
     function cancel() {
       var wasScrub = scrubbing;
       cleanup();
-      if (wasScrub && target === selectedElement) boxRollback(property, hadEdit, hadEdit ? styleEdits[property].newValue : openRaw);
+      if (wasScrub && target === selectedElement) boxRollbackToOpen(property, hadEdit, openRaw);
       renderPanel();
     }
     function escape(keyEvent) {
@@ -10046,16 +11026,19 @@
     }
 
     function preview() {
+      if (finished) return;
+      // The page removed this editor's layer and another was promoted: write nothing.
+      if (editorTarget !== selectedElement) { syncSendEnabledInPlace(); return; }
       var nextValue = composeBorderRadius(readCorners());
-      if (!nextValue) return;
-      previewed = previewStyleEdit("border-radius", nextValue) || previewed;
+      if (nextValue) previewed = previewStyleEdit("border-radius", nextValue) || previewed;
+      syncSendEnabledInPlace();
     }
 
     function cancel() {
       finished = true;
       activeStyleEditorFlush = null;
       if (previewed && editorTarget === selectedElement) {
-        if (hadEditAtOpen) restoreCommittedValueWithSiblings("border-radius", previousValue);
+        if (hadEditAtOpen && styleEdits["border-radius"]) restoreCommittedValueWithSiblings("border-radius", previousValue);
         else {
           restoreStyleEdit("border-radius");
           delete styleEditOriginalInline["border-radius"];
@@ -10073,7 +11056,7 @@
       var nextValue = composeBorderRadius(readCorners());
       var committed = commitStyleEdit("border-radius", nextValue, previousValue);
       if (!committed && previewed) {
-        if (hadEditAtOpen) restoreCommittedValueWithSiblings("border-radius", previousValue);
+        if (hadEditAtOpen && styleEdits["border-radius"]) restoreCommittedValueWithSiblings("border-radius", previousValue);
         else {
           restoreStyleEdit("border-radius");
           delete styleEditOriginalInline["border-radius"];
@@ -10100,11 +11083,12 @@
       inputs.push(input);
       input.addEventListener("input", preview);
       input.addEventListener("keydown", function (event) {
-        if (event.key === "Enter") { event.preventDefault(); commit(); }
+        if (event.key === "Enter") { event.preventDefault(); if (!holdInvalidOnEnter()) commit(); }
         else if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); cancel(); }
       });
       input.addEventListener("blur", function (event) {
         if (inputs.indexOf(event.relatedTarget) !== -1) return;
+        if (styleEditorHoldsInvalid()) return; // a field that does not parse stays open to fix
         commit();
       });
     });
@@ -10121,7 +11105,21 @@
     mountStyleEditor(valueCell, editor);
     (tokenUi && tokenUi.trigger ? tokenUi.trigger : inputs[0]).focus();
     if (!tokenUi || !tokenUi.trigger) inputs[0].select();
-    activeStyleEditorFlush = commit;
+    registerOpenStyleEditor(editor, commit);
+    holdStylePreview(commit, function () {
+      if (finished || !previewed || editorTarget !== selectedElement) return false;
+      if (editor.getAttribute("data-token-linked") === "true") return false;
+      var held = composeBorderRadius(readCorners());
+      return !!held && held !== previousValue;
+    }, function () { if (!finished && previewed) preview(); }, function () {
+      return { property: "border-radius", value: composeBorderRadius(readCorners()) };
+    }, function () {
+      if (finished || editorTarget !== selectedElement || editor.getAttribute("data-token-linked") === "true") return null;
+      for (var i = 0; i < inputs.length; i += 1) {
+        if (unsupportedStyleText("border-top-left-radius", inputs[i].value.trim())) return inputs[i];
+      }
+      return null;
+    });
     return true;
   }
 
@@ -10253,9 +11251,33 @@
         var detachedActiveDraft = previousActiveDraft;
         if (detachedActiveDraft && detachedActiveDraft.target === previousPrimary) {
           if ((detachedActiveDraft.attachments || []).length) {
+            // The draft is kept for its attachments. A preview an open editor
+            // holds is not in it: a property with no recorded edit goes back to
+            // its original, and one with a recorded edit goes back to that edit.
+            Object.keys(styleEditOriginalInline).reverse().forEach(function (property) {
+              var kept = styleEditOriginalInline[property];
+              var recorded = styleEdits[property];
+              if (recorded) {
+                (Array.isArray(kept) ? kept : []).forEach(function (entry) {
+                  if (entry && entry.element && entry.element.isConnected !== false) entry.element.style.setProperty(property, recorded.newValue);
+                });
+                setStyleOnCapturedScopeSiblingEntries(property, recorded.newValue);
+                return;
+              }
+              restoreStyleOriginalEntries(property, kept, previousPrimary);
+              delete styleEditOriginalInline[property];
+              restoreStyleScopeSiblings(property);
+            });
             styleDrafts[detachedActiveDraft.clientKey] = detachedActiveDraft;
             clearActiveStyleDraftState(true);
           } else dropStyleDraft(detachedActiveDraft, true);
+        } else if (!detachedActiveDraft) {
+          // A preview with nothing recorded has no draft to drop. Undo its page
+          // writes on the layers that stay before the snapshots are cleared.
+          Object.keys(styleEditOriginalInline).reverse().forEach(function (property) {
+            restoreStyleOriginalEntries(property, styleEditOriginalInline[property], previousPrimary);
+          });
+          restoreStyleScopeSiblingOriginalStore(styleEditScopeSiblingsOriginal);
         }
         var detachedStoredDraft = styleDraftForElement(previousPrimary);
         if (detachedStoredDraft && !(detachedStoredDraft.attachments || []).some(function (attachment) { return attachment.state === "uploading"; })) {
@@ -12210,7 +13232,10 @@
     if (dispatchState === "registering") return { state: "registering", label: "Sending " + activeCount + (activeCount === 1 ? " change…" : " changes…"), enabled: false, count: activeCount };
     if (dispatchState === "committing") return { state: "committing", label: "Sending " + activeCount + (activeCount === 1 ? " change…" : " changes…"), enabled: false, count: activeCount };
     if (dispatchState === "applying") {
-      if (nextCount) return { state: "applying-with-next", label: sendQueued ? "Applying " + activeCount + " · " + nextCount + " queued" : "Applying " + activeCount + " · send " + nextCount + " next", enabled: !sendQueued, count: nextCount };
+      // The queued send flushes the open editor first, so the held value is counted.
+      // A held value that undoes the only next edit leaves nothing to send next.
+      var nextShown = shownPendingCount();
+      if (nextCount && nextShown && !styleEditorHoldsInvalid()) return { state: "applying-with-next", label: sendQueued ? "Applying " + activeCount + " · " + nextShown + " queued" : "Applying " + activeCount + " · send " + nextShown + " next", enabled: !sendQueued, count: nextCount };
       return { state: "applying", label: "Applying " + activeCount + (activeCount === 1 ? " change…" : " changes…"), enabled: false, count: activeCount };
     }
     if (dispatchState === "done") {
@@ -12226,8 +13251,122 @@
     if (dispatchState === "registration-error") return { state: "registration-error", label: "Retry send", enabled: !!activeDispatch && !activeDispatch.registrationErrors.batchMismatch, count: activeCount };
     if (dispatchState === "commit-error") return { state: "commit-error", label: "Retry send", enabled: !!activeDispatch && !!activeDispatch.batchId, count: activeCount };
     if (nextCount && (!hasDispatchableDrafts() || hasInvalidDrafts())) return { state: "pending-invalid", label: "Review pending changes", enabled: false, count: nextCount };
-    if (hasDispatchableDrafts()) return { state: "pending", label: "Send " + nextCount + (nextCount === 1 ? " change" : " changes"), enabled: true, count: nextCount };
+    // Send closes the open editor first, which records the value it holds, so the
+    // label counts that value and one press sends what it says.
+    var shownCount = shownPendingCount();
+    if (styleEditorHoldsInvalid()) return { state: "held-invalid", label: HELD_INVALID_TEXT, enabled: false, count: nextCount };
+    if (hasDispatchableDrafts()) return { state: "pending", label: shownCount ? "Send " + shownCount + (shownCount === 1 ? " change" : " changes") : "Send to agent", enabled: true, count: nextCount };
+    if (styleEditorHoldsChange()) return { state: "idle", label: shownCount ? "Send " + shownCount + (shownCount === 1 ? " change" : " changes") : "Send to agent", enabled: true, count: 0 };
     return { state: "idle", label: "Send to agent", enabled: false, count: 0 };
+  }
+
+  // The open editor's field that does not parse, or null.
+  function styleEditorInvalidField() {
+    if (!activeStyleEditorFlush || typeof activeStyleEditorFlush.invalidField !== "function") return null;
+    return activeStyleEditorFlush.invalidField() || null;
+  }
+  function styleEditorHoldsInvalid() {
+    return !!styleEditorInvalidField();
+  }
+  // Enter on a field that does not parse keeps the editor open with the field
+  // focused, like blur does, instead of closing it on the old value.
+  function holdInvalidOnEnter() {
+    var field = styleEditorInvalidField();
+    if (!field) return false;
+    if (typeof field.focus === "function") field.focus();
+    syncSendEnabledInPlace();
+    return true;
+  }
+  // Marks the field Send and Add to queue are waiting on.
+  var invalidFieldShown = null;
+  function syncInvalidField() {
+    var field = styleEditorInvalidField();
+    if (invalidFieldShown && invalidFieldShown !== field) invalidFieldShown.removeAttribute("aria-invalid");
+    if (field) field.setAttribute("aria-invalid", "true");
+    invalidFieldShown = field;
+  }
+
+  // An open editor showing a value other than the one its row opened with.
+  function styleEditorHoldsChange() {
+    return !!activeStyleEditorFlush && typeof activeStyleEditorFlush.holdsChange === "function" && activeStyleEditorFlush.holdsChange();
+  }
+
+  // How the pending count moves when the open editor records the value it holds:
+  // 1 for a property with no edit yet, 0 for a re-edit, -1 for a re-edit back to
+  // the value the page had. A padding or margin shorthand replaces its side
+  // edits, and a Stroke group stays one row. Mirrors commitStyleEdit,
+  // commitStateStyleEdit and boxCommit.
+  function heldRowDelta() {
+    if (!styleEditorHoldsChange() || typeof activeStyleEditorFlush.heldEdit !== "function") return 0;
+    var held = activeStyleEditorFlush.heldEdit();
+    if (!held || !held.property || held.value == null) return 0;
+    if (held.state) {
+      var stateEdit = stateStyleEdits[stateStyleEditKey(held.state, held.property)];
+      if (!stateEdit) return 1;
+      return held.value === stateEdit.oldValue ? -1 : 0;
+    }
+    var edit = styleEdits[held.property];
+    if (edit && edit.groupId === "stroke") return 0;
+    var width = styleEdits["border-width"];
+    if (/^border-(top|right|bottom|left)-width$/.test(held.property) && width && width.groupId === "stroke") return 0;
+    if (edit) return held.value === edit.oldValue ? -1 : 0;
+    if (BOX_SHORTHANDS.indexOf(held.property) === -1) return 1;
+    var sideEdits = BOX_SIDES.filter(function (side) { return !!styleEdits[held.property + "-" + side]; });
+    if (!sideEdits.length) return 1;
+    // The shorthand's original is the sides' saved originals plus the untouched
+    // sides as computed, as commitStyleEdit builds it. Holding that original
+    // removes the side edits and records no shorthand.
+    // The preview has written the held value over the untouched sides, so they
+    // are read from the shorthand as captured before the first preview.
+    var captured = expandBoxSides(capturedOriginalComputed(held.property, selectedElement));
+    var original = composeBoxSides(BOX_SIDES.map(function (side, index) {
+      var sideEdit = styleEdits[held.property + "-" + side];
+      if (sideEdit) return sideEdit.oldValue;
+      if (captured) return captured[index];
+      return capturedOriginalComputed(held.property + "-" + side, selectedElement) || computedStyleValueForElement(selectedElement, held.property + "-" + side);
+    }));
+    return (held.value === original ? 0 : 1) - sideEdits.length;
+  }
+
+  // A padding or margin shorthand's one to four values as top, right, bottom, left.
+  function expandBoxSides(value) {
+    var parts = String(value || "").trim().split(/\s+/);
+    if (!parts[0] || parts.length > 4) return null;
+    return [parts[0], parts[1] || parts[0], parts[2] || parts[0], parts[3] || parts[1] || parts[0]];
+  }
+
+  // The pending count with the held value in it: what one press on Send sends.
+  function shownPendingCount() {
+    return Math.max(0, pendingLogicalCount() + heldRowDelta());
+  }
+
+  // Sets the Send button's disabled state and label on the node already in the
+  // panel. Replacing the button while a press is on it loses the click.
+  function syncSendEnabledInPlace() {
+    // "Add to queue" counts a held value as work, so it follows the same changes.
+    syncQueueButton();
+    syncInvalidField();
+    if (!globalActions) return;
+    var button = globalActions.querySelector("[data-send-batch]");
+    if (!button) return;
+    var ui = batchUiState();
+    button.disabled = !ui.enabled;
+    var label = button.querySelector(".raven-grab-send-label");
+    if (label && label.textContent !== ui.label) label.textContent = ui.label;
+    // The panel does not re-render while an editor is open, so the summary
+    // follows the held value here.
+    ["empty", "pending"].forEach(function (role) {
+      panelQueryAll('[data-change-tray-summary="' + role + '"]').forEach(function (summary) {
+        var text = pendingTraySummary(role);
+        if (summary.textContent !== text) summary.textContent = text;
+      });
+    });
+    // While a batch applies, the "next" count follows the held value too.
+    panelQueryAll('[data-change-tray-summary="applying"]').forEach(function (summary) {
+      var match = /^(\d+ active) · \d+ next$/.exec(summary.textContent);
+      var text = match ? match[1] + " · " + shownPendingCount() + " next" : summary.textContent;
+      if (summary.textContent !== text) summary.textContent = text;
+    });
   }
 
   function changeTrayItems() {
@@ -12314,7 +13453,7 @@
     var bodyId = "raven-grab-tray-" + role;
     return '<section class="raven-grab-changes" aria-label="' + escapeHtml(heading) + '">'
       + '<button class="raven-grab-section-toggle raven-grab-changes-toggle" type="button" data-change-tray-toggle="' + escapeHtml(role) + '" aria-expanded="' + (collapsed ? "false" : "true") + '" aria-controls="' + bodyId + '">'
-      + '<span class="raven-grab-changes-heading"><strong>' + escapeHtml(heading) + '</strong><span>' + escapeHtml(summary) + '</span>' + errorMarkup + '</span>'
+      + '<span class="raven-grab-changes-heading"><strong>' + escapeHtml(heading) + '</strong><span data-change-tray-summary="' + escapeHtml(role) + '">' + escapeHtml(summary) + '</span>' + errorMarkup + '</span>'
       + '<span class="raven-grab-caret" aria-hidden="true">▾</span></button>'
       + '<div class="raven-grab-collapsible" id="' + bodyId + '" data-change-tray-body="' + escapeHtml(role) + '" data-open="' + (collapsed ? "false" : "true") + '" aria-hidden="' + (collapsed ? "true" : "false") + '"><div class="raven-grab-collapsible-inner"><ul class="raven-grab-change-list">' + changeTrayRowsMarkup(items) + '</ul></div></div>'
       + '</section>';
@@ -12326,7 +13465,7 @@
     // model and Instructions up.
     if (!items.length) {
       return '<div class="raven-grab-changes" data-change-tray-empty><div class="raven-grab-section-toggle raven-grab-changes-toggle" aria-disabled="true">'
-        + '<span class="raven-grab-changes-heading"><strong>Pending changes</strong><span>None yet</span></span></div></div>';
+        + '<span class="raven-grab-changes-heading"><strong>Pending changes</strong><span data-change-tray-summary="empty">' + escapeHtml(pendingTraySummary("empty")) + '</span></span></div></div>';
     }
     var count = pendingLogicalCount();
     var localItems = items.filter(function (item) { return !!item.local; });
@@ -12337,7 +13476,17 @@
       return changeTraySectionMarkup(submittedItems.concat(localItems), "Applying", (activeDispatch ? activeDispatch.logicalCount : submittedItems.length) + " active · " + count + " next", "applying");
     }
     if (dispatchState !== "idle") return changeTraySectionMarkup(items, "Applying", activeDispatch ? activeDispatch.logicalCount + " active" : submittedItems.length + " active", "applying");
-    return changeTraySectionMarkup(items, "Pending changes", count + " pending", "pending");
+    return changeTraySectionMarkup(items, "Pending changes", pendingTraySummary("pending"), "pending");
+  }
+
+  // A value an open editor holds is not a row yet, but Send counts it, so the
+  // summary says it is there.
+  function pendingTraySummary(role) {
+    var delta = heldRowDelta();
+    var editing = delta > 0 ? "1 being edited" : (delta < 0 ? -delta + " undone by this edit" : "");
+    if (styleEditorHoldsInvalid()) editing = "edited value not valid";
+    if (role === "empty") return editing ? editing.charAt(0).toUpperCase() + editing.slice(1) : "None yet";
+    return pendingLogicalCount() + " pending" + (editing ? " · " + editing : "");
   }
 
   function styleDraftForClientKey(clientKey) {
@@ -13110,6 +14259,8 @@
     }
     // The copy edit is already staged via live input; exit edit mode cleanly (keeps the staged
     // textEdit) so the sent element carries no lingering contenteditable/spellcheck attributes.
+    // Committing an unparseable field records nothing; wait for it to be fixed.
+    if (styleEditorHoldsInvalid()) { syncSendEnabledInPlace(); return; }
     if (textEditingElement) teardownTextEditing(textEditingElement);
     if (activeStyleEditorFlush) activeStyleEditorFlush();
     capturePanelDrafts();
@@ -13238,7 +14389,17 @@
   }
 
   function rebaseNextDrafts() {
+    // A hover or focus preview the open editor holds is not part of the page.
+    // It leaves the preview sheet while the selections are read again, or it is
+    // recorded as the value the state declares.
+    var heldStatePreview = activeStateStylePreview;
+    if (heldStatePreview) clearStateStylePreview();
     allStyleDrafts().forEach(rebaseStyleDraft);
+    if (heldStatePreview) {
+      activeStateStylePreview = heldStatePreview;
+      renderStatePreviewStyles();
+    }
+    if (activeStyleEditorFlush && typeof activeStyleEditorFlush.repreview === "function") activeStyleEditorFlush.repreview();
     if (localLayerDrafts().length && !activeLayerOrders().length) {
       appliedLayerTree = buildLayerTree(document.body);
       layerTree = appliedLayerTree;
@@ -13261,7 +14422,8 @@
       // Conveyor: a Send pressed while this batch was in flight fires now.
       if (sendQueued) {
         sendQueued = false;
-        if (hasDispatchableDrafts()) dispatchPendingBatch();
+        // A value an open editor still holds is sent too: the dispatch commits it.
+        if (hasDispatchableDrafts() || styleEditorHoldsChange()) dispatchPendingBatch();
       }
     }, SEND_TIMINGS.hold);
   }
@@ -14379,7 +15541,12 @@
     if (activeTabB === "motion" && !motionTabAvailable()) activeTabB = "layers";
     // Defer background rerenders while the user is typing in a style editor;
     // gesture paths flush the editor first, and the next poll renders after it closes.
-    if (activeStyleEditorFlush || activeStyleScrub || boxGesture) return;
+    if (activeStyleEditorFlush || activeStyleScrub || boxGesture) {
+      panelRenderSkipped = true;
+      // Send still follows a dispatch that starts or finishes meanwhile.
+      syncSendEnabledInPlace();
+      return;
+    }
     // A mid-drag rerender (template load, operation poll) detaches the drag's rows
     // and silently cancels the drop — defer; every endLayerDrag path renders.
     if (layerDrag && layerDrag.active && !layerDragRenderBypass) return;
@@ -15565,13 +16732,17 @@
     if (elementChip) copyElementSelector(elementChip);
     var scopeChip = event.target.closest("[data-edit-scope]");
     if (scopeChip) {
-      setEditScope(scopeChip.getAttribute("data-edit-scope"));
+      var chipScope = scopeChip.getAttribute("data-edit-scope");
+      commitOpenStyleEditorFirst();
+      setEditScope(chipScope);
       return;
     }
     var scopeTrack = event.target.closest("[data-scope-track]");
     if (scopeTrack && typeof event.clientX === "number" && typeof scopeTrack.getBoundingClientRect === "function") {
       var trackRect = scopeTrack.getBoundingClientRect();
-      setEditScope(event.clientX < trackRect.left + trackRect.width / 2 ? "instance" : "component");
+      var trackScope = event.clientX < trackRect.left + trackRect.width / 2 ? "instance" : "component";
+      commitOpenStyleEditorFirst();
+      setEditScope(trackScope);
       return;
     }
     var panelPreset = event.target.closest("[data-panel-preset]");
@@ -15586,7 +16757,9 @@
     }
     var restoreVersion = event.target.closest("[data-restore-version]");
     if (restoreVersion) {
-      restoreStyleVersion(Number(restoreVersion.getAttribute("data-restore-version")));
+      var restoreVersionId = Number(restoreVersion.getAttribute("data-restore-version"));
+      commitOpenStyleEditorFirst();
+      restoreStyleVersion(restoreVersionId);
       renderPanel();
       return;
     }
@@ -15597,6 +16770,7 @@
       return;
     }
     if (event.target.closest("[data-save-version]")) {
+      commitOpenStyleEditorFirst();
       if (saveStyleVersion(styleVersionNameDraft)) styleVersionNameDraft = "";
       renderPanel();
       return;
@@ -15651,7 +16825,11 @@
     if (event.target.closest("[data-send-email]")) sendComponentRequest();
     if (event.target.closest("[data-save-template]")) saveTemplate();
     var removeChangeButton = event.target.closest("[data-remove-change]");
-    if (removeChangeButton) removeChange(removeChangeButton.getAttribute("data-remove-change"));
+    if (removeChangeButton) {
+      var removeChangeId = removeChangeButton.getAttribute("data-remove-change");
+      commitOpenStyleEditorFirst();
+      removeChange(removeChangeId);
+    }
     var retryChangeButton = event.target.closest("[data-retry-change]");
     if (retryChangeButton) retryChange(retryChangeButton.getAttribute("data-retry-change"));
     if (event.target.closest("[data-dismiss-request-hint]")) dismissRequestHint();
@@ -15669,7 +16847,7 @@
     var trayToggle = event.target.closest("[data-change-tray-toggle]");
     if (trayToggle) toggleChangeTraySection(trayToggle.getAttribute("data-change-tray-toggle"));
     var styleValue = event.target.closest("[data-style-value]");
-    if (styleValue && !event.target.closest("[data-token-detach]")) beginStyleEdit(styleValue);
+    if (styleValue && !event.target.closest("[data-token-detach]")) openStyleValue(styleValue);
     var detachBtn = event.target.closest("[data-token-detach]");
     if (detachBtn) {
       event.preventDefault();
@@ -15678,7 +16856,7 @@
       return;
     }
     var radiusExpand = event.target.closest("[data-radius-expand]");
-    if (radiusExpand) beginRadiusEdit(radiusExpand.closest("[data-style-property]"));
+    if (radiusExpand) beginRadiusEdit(flushedStyleRow(radiusExpand.closest("[data-style-property]")));
   });
 
   function attachmentTransferKind(dataTransfer) {
@@ -15880,7 +17058,7 @@
     var styleValue = event.target.closest("[data-style-value]");
     if (styleValue && (event.key === "Enter" || event.key === " ")) {
       event.preventDefault();
-      beginStyleEdit(styleValue);
+      openStyleValue(styleValue);
     }
   });
   onPanels("change", function (event) {
@@ -16399,6 +17577,8 @@
     // fires no click at all (the "had to click Send twice" bug). Keep focus for any focused field;
     // dispatchPendingBatch flushes the style editor, tears down copy editing, and captures drafts itself.
     if (event.target.closest("[data-send-batch]")) { event.preventDefault(); return; }
+    // Add to queue waits on a field that does not parse; keep it focused to fix.
+    if (event.target.closest("[data-queue-draft]") && styleEditorHoldsInvalid()) { event.preventDefault(); return; }
     var styleLabel = event.target.closest("[data-style-label]");
     if (styleLabel && beginStyleScrub(styleLabel, event)) return;
     var row = event.target.closest("[data-layer-id], [data-template-layer-id]");
@@ -16652,11 +17832,13 @@
     // Keep the edited owner pinned while it remains selected. Once the primary
     // truly changes, transfer its singleton maps into a persistent element draft;
     // previews stay applied until removal, dispatch, detachment, or dismissal.
+    // An open editor commits first, against the selection that showed its
+    // preview: a tap's click arrives before the commit its press deferred.
+    commitOpenStyleEditorFirst();
     var previousPrimary = selectedElement;
     var hasUnsentEdits = Object.keys(styleEdits).length > 0 || Object.keys(stateStyleEdits).length > 0 || Object.keys(tokenIntents).length > 0 || !!textEdit || instructionDraft !== "" || attachmentDraft.length > 0 || componentRequestHasDraft();
     if (hasUnsentEdits && selectedElement && elements.indexOf(selectedElement) !== -1) primary = selectedElement;
     if (previousPrimary !== primary) {
-      if (activeStyleEditorFlush) activeStyleEditorFlush();
       capturePanelDrafts();
       if (Object.keys(styleEdits).length || Object.keys(stateStyleEdits).length || Object.keys(tokenIntents).length || !!textEdit || instructionDraft.trim() || attachmentDraft.length) stashActiveStyleDraft();
       resetSelectionContext();

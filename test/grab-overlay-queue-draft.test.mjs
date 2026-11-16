@@ -471,6 +471,11 @@ async function editBoxShadow(page, presetId) {
   }, presetId, { timeout: 5000 }).then((handle) => handle.jsonValue());
 
   await page.mouse.click(presetPoint.x, presetPoint.y);
+  // A preset previews and leaves the editor open; Enter on a field commits it.
+  await shadowEval(page, (root) => {
+    root.querySelector('.raven-grab-style-editor[data-control="box-shadow"] input').focus();
+  });
+  await page.keyboard.press('Enter');
   await page.waitForFunction(() => {
     const root = document.querySelector('[data-raven-grab-overlay]').shadowRoot;
     return !root.querySelector('.raven-grab-style-editor[data-control="box-shadow"]');

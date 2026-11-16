@@ -326,6 +326,7 @@ async function loadOverlayInternals(options = {}) {
     },
     getLeftPanelAttribute: function (name) { return panelLeft.getAttribute(name); },
     hasActiveStyleEditor: function () { return activeStyleEditorFlush !== null; },
+    flushActiveStyleEditor: function () { if (activeStyleEditorFlush) activeStyleEditorFlush(); },
     setLayerElementsTestState: function (elements) { layerElements = new Map(elements); },
     getLayerElement: function (id) { return layerElements.get(id); },
     setLayerNoticeTestState: function (notice) { layerNotice = notice; },
@@ -2337,6 +2338,8 @@ test('overlay invalid computed-style value leaves the displayed value unchanged'
   const input = row.child.children.find((child) => child.type === 'text');
   input.value = 'definitely-invalid';
   input.dispatch('keydown', { key: 'Enter', preventDefault() {} });
+  assert.equal(internals.hasActiveStyleEditor(), true, 'Enter keeps a field that does not parse open');
+  internals.flushActiveStyleEditor();
 
   assert.equal(row.child.textContent, 'rgb(0, 0, 0)');
   assert.equal(element.style.getPropertyValue('color'), '');
@@ -2425,6 +2428,8 @@ test('[phase4 #6] numeric style editors evaluate arithmetic and reject mixed uni
   assert.equal(element.style.getPropertyValue('width'), '13px');
   mixedInput.value = '12px + 1rem';
   mixedInput.dispatch('keydown', { key: 'Enter', preventDefault() {} });
+  assert.equal(internals.hasActiveStyleEditor(), true, 'Enter keeps a field that does not parse open');
+  internals.flushActiveStyleEditor();
   assert.equal(mixedRow.child.textContent, '12px + 1rem');
   assert.equal(element.style.getPropertyValue('width'), '8px');
   assert.deepEqual(Array.from(internals.styleEditsForSend()), []);
@@ -2556,10 +2561,14 @@ test('[phase4 #15] color entry accepts bare hex, preserves alpha, and shows toke
   assert.ok(suggestions.children.some((group) => group.children.some((child) => child.className === 'raven-grab-color-suggestion-caption' && child.textContent === 'Tokens')));
   assert.ok(suggestions.children.some((group) => group.children.some((child) => child.className === 'raven-grab-color-suggestion-caption' && child.textContent === 'On this page')));
 
-  // A suggestion pick commits immediately — preview-only left the pick
-  // stranded (nothing queued, silently reverted on the next click-away).
+  // A suggestion pick previews and keeps the editor open with its token;
+  // Enter (or a press outside) commits it.
   suggestionButtons[0].dispatch('click', {});
   assert.equal(element.style.getPropertyValue('color'), 'rgba(17, 34, 51, 0.5)');
+  assert.equal(internals.hasActiveStyleEditor(), true, 'a pick must not close the editor');
+  assert.equal(internals.styleEditsForSend().length, 0, 'a pick is not recorded until the editor closes');
+  input.dispatch('keydown', { key: 'Enter', preventDefault() {} });
+  assert.equal(internals.hasActiveStyleEditor(), false);
   assert.deepEqual(Array.from(internals.styleEditsForSend(), (edit) => ({ ...edit })), [
     {
       property: 'color',
@@ -2581,6 +2590,8 @@ test('[phase4 #15] color entry accepts bare hex, preserves alpha, and shows toke
   assert.equal(element.style.getPropertyValue('color'), '#ff000080');
   input.value = 'definitely-invalid';
   input.dispatch('keydown', { key: 'Enter', preventDefault() {} });
+  assert.equal(internals.hasActiveStyleEditor(), true, 'Enter keeps a field that does not parse open');
+  internals.flushActiveStyleEditor();
   assert.equal(element.style.getPropertyValue('color'), 'rgba(17, 34, 51, 0.5)');
   assert.deepEqual(Array.from(internals.styleEditsForSend(), (edit) => ({ ...edit })), [
     {
@@ -2597,6 +2608,9 @@ test('[phase4 #15] color entry accepts bare hex, preserves alpha, and shows toke
   const repeatedSuggestions = row.child.children.find((child) => child.className === 'raven-grab-color-suggestions');
   const repeatedSuggestionButtons = repeatedSuggestions.children.flatMap((group) => group.children.filter((child) => child.className === 'raven-grab-color-suggestion'));
   repeatedSuggestionButtons[0].dispatch('click', {});
+  // The pick keeps the editor open; Enter closes it before the row is reopened.
+  row.child.children.find((child) => child.getAttribute('data-style-input') === 'color')
+    .dispatch('keydown', { key: 'Enter', preventDefault() {} });
   internals.beginStyleEdit(row.child);
   input = row.child.children.find((child) => child.getAttribute('data-style-input') === 'color');
   input.value = 'abcdef';
@@ -5600,6 +5614,9 @@ test('overlay renders color swatches beside custom token values and inline color
   styleColor.value = '#abcdef';
   styleColor.dispatch('change', {});
   assert.equal(element.style.getPropertyValue('color'), '#abcdef');
+  // The panel closing previews; Enter on the text field commits.
+  colorRow.child.children.find((child) => child.type === 'text' && child.getAttribute('spellcheck') === 'false')
+    .dispatch('keydown', { key: 'Enter', preventDefault() {} });
   assert.equal(internals.styleEditsForSend().find((edit) => edit.property === 'color').newValue, '#abcdef');
 
   const paddingRow = {
@@ -11247,10 +11264,15 @@ test('REGRESSION: opening the native color picker does not close the style-value
   assert.equal(internals.hasActiveStyleEditor(), true, 'blur onto the color swatch must not close the editor');
   assert.equal(colorRow.child, editor, 'the editor must still be mounted, not replaced by a static value cell');
 
-  // Dismissing the native panel fires change — that's the real commit signal.
+  // Dismissing the native panel fires change: a preview, like input. The
+  // editor stays open until Enter, a press outside, Escape or a flush.
   colorInput.dispatch('change', {});
-  assert.equal(internals.hasActiveStyleEditor(), false, 'change (panel dismissed) commits and closes the editor');
+  assert.equal(internals.hasActiveStyleEditor(), true, 'change (panel dismissed) must not close the editor');
+  assert.equal(colorRow.child, editor, 'still the live editor after the panel closes');
   assert.equal(element.style.getPropertyValue('color'), '#abcdef');
+  assert.equal(internals.styleEditsForSend().length, 0, 'a preview is not recorded');
+  textInput.dispatch('keydown', { key: 'Enter', preventDefault() {} });
+  assert.equal(internals.hasActiveStyleEditor(), false, 'Enter commits and closes the editor');
   assert.equal(internals.styleEditsForSend().find((edit) => edit.property === 'color').newValue, '#abcdef');
 });
 
