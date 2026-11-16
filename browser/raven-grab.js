@@ -15768,7 +15768,7 @@
     var layerRowsHtml = layerTree ? layerRowsMarkup(layerTree) : "";
     var layerSearchEmpty = layerSearchForRender && !layerSearchForRender.matches.length;
     var layersMarkup = reorderSectionMarkup +
-      '<section class="raven-grab-section"><h2 class="raven-grab-section-title">Layers</h2>' + (layerTree
+      '<section class="raven-grab-section" aria-label="Layers">' + (layerTree
         ? (simpleMode() ? "" : panelSearchFieldMarkup("layers", "Find a layer")) +
           '<p class="raven-grab-note">' + (layerSearchForRender ? "Clear the search to drag layers." : "Drag a row to reorder or reparent it.") + '</p>' +
           (layerSearchEmpty ? panelSearchEmptyMarkup("layers", panelSearch.layers.replace(/\s+/g, " ").trim()) : "") +

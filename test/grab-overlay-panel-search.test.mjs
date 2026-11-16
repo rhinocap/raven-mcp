@@ -375,3 +375,27 @@ test('a status message does not move the footer at 1024x768', async (t) => {
     assert.equal(heights.after, heights.before);
   }, { viewport: { width: 1024, height: 768 } });
 });
+
+// Andrew, 2026-11-15: the Layers panel matches Styles. The tab already names the
+// panel, so no "Layers" heading sits above the search field; the field comes first.
+test('Layers panel: no "Layers" heading above the search field', async (t) => {
+  await run(t, async (page) => {
+    await selectElement(page, 'button.cta');
+    const view = await shadowEval(page, (root) => {
+      const field = root.querySelector('[data-panel-search="layers"]');
+      const section = field && field.closest('section');
+      const headings = section ? Array.from(section.querySelectorAll('h1, h2, h3, .raven-grab-section-title')).map((el) => el.textContent.trim()) : null;
+      const searchRow = field && field.closest('section > *');
+      return {
+        hasField: Boolean(field),
+        headings,
+        label: section ? section.getAttribute('aria-label') : null,
+        firstIsSearch: Boolean(section && searchRow && section.firstElementChild === searchRow)
+      };
+    });
+    assert.equal(view.hasField, true);
+    assert.deepEqual(view.headings, []);
+    assert.equal(view.label, 'Layers', 'the section keeps its name for screen readers');
+    assert.equal(view.firstIsSearch, true, 'the search field is the first thing in the panel');
+  });
+});
