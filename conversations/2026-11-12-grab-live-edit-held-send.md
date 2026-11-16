@@ -38,3 +38,10 @@ While an editor holds an unrecorded value, Send read "Send to agent" and the tra
 ## Open
 - Andrew: full-size look via `npm run grab:dev grab-live-edit.html`, plus the four pointer checks from the handoff.
 - Push/PR need approval; merging to main deploys `mcp.ravenmcp.ai` and needs separate approval.
+
+## Shipped (2026-11-15)
+- PR #55 merged (b38b994). Andrew asked to remove the "Layers" heading above "Find a layer" to match Styles: 5eb329e, PR #56 merged (656f1a7). Test kill-proven; suite 2,254 / 0 fail; Sol 0 findings.
+- mcp.ravenmcp.ai: site-nqy8kllw5 Ready, /api/mcp 405.
+- ravenmcp.ai: web-qtdsu5m5z Ready; live raven-grab.js byte-identical to main; /changelog shows v3.1.0 (1716b93).
+- npm 3.1.0: preflight done (registry key, mcp-publisher validate, dry run → 3.1.0). npm auth E401, so Andrew runs ~/Desktop/raven-release-3.1.0.command (npm login, scripts/release.sh minor). Then: verify npm view, registry, tag, rebuild local dist.
+- Old local auto-save 9c7efc2 kept on branch backup/autosave-9c7efc2.
