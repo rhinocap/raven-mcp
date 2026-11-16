@@ -26,6 +26,21 @@
   },
   "releases": [
     {
+      "version": "v3.1.0",
+      "date": "2026-11-15",
+      "category": "tooling",
+      "kind": "feature",
+      "title": "Live style editing in Raven Grab",
+      "changes": [
+        "Style fields preview on the page as you type; a unit change converts the number; Escape restores the old value.",
+        "A value that does not parse is outlined in red and holds Send until it is fixed.",
+        "Search in Styles and Layers.",
+        "An editable box model in the Grab right panel.",
+        "Static Motion mode for prebuilt suggestions on a standalone page.",
+        "Change rows lead with the change; the Element section and the Layers heading are gone."
+      ]
+    },
+    {
       "version": "v3.0.0",
       "date": "2026-11-04",
       "category": "tooling",

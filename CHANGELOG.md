@@ -6,6 +6,23 @@ This file is the curated source. Notes for the next release are written under `[
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-11-15
+
+### Added
+- **Live style editing in Raven Grab.** Typing in a style field previews on the page as you type. Changing a unit converts the number (16px becomes 1rem), and unit lists show only units that apply. An editor closes on Enter, a press outside it, or Escape, which restores the old value. Send and Pending changes count the value an open editor holds.
+- **A warning for a value that does not parse.** The field is outlined in red, Send is disabled and reads "Fix the value being edited", and Enter keeps the field open until the value is fixed or Escape restores it.
+- **Search in Styles and Layers.** Find a style matches property names, common aliases (bg, radius, colour) and categories. Find a layer matches row labels and keeps each match's parents in view.
+- **Box model in the Grab right panel.** Margin, border, padding and size are editable in place, including Mixed sides, and stay readable from 80% to 140% panel text.
+- **Static Motion mode in Grab** for prebuilt suggestions on a standalone page.
+
+### Changed
+- Grab change rows show the change first, then the element; tray sections start collapsed.
+- The full Grab panel drops the Element section; the selection shows on the page and in Layers.
+- The Scope switch sits on the Styles heading row and wraps when it cannot fit.
+- The Layers panel has no heading above its search field, matching Styles.
+- Send reads "1 change" and the done label "1 change applied" for a single change.
+- `suggest_motion` keeps single-line text on one line and carries borders and grids into the playground.
+
 ## [3.0.0] - 2026-11-04
 
 ### Added
